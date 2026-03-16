@@ -57,7 +57,108 @@ def _review_clarification_has_input(snapshot: Mapping[str, object]) -> bool:
     return bool(text)
 
 
-def resolve_next_action(snapshot: Mapping[str, object]) -> NextActionRender:
+_PHASE4_TICKET_REVIEW_LABEL = (
+    "run /ticket with the ticket/task details. "
+    "Alternative: run /review for read-only feedback (no state change)."
+)
+
+
+def _validate_next_action_alignment(snapshot: Mapping[str, object], render: NextActionRender) -> bool:
+    phase = _phase_text(snapshot)
+    gate = _active_gate(snapshot)
+    next_condition = _normalized_text(snapshot.get("next_gate_condition"))
+    command = render.command.strip().lower()
+    label = _normalized_text(render.label)
+
+    if gate == "ticket input gate" or phase.startswith("4"):
+        return command == "/ticket" and "/review" in label
+
+    if "/review-decision" in next_condition:
+        return command == "/review-decision"
+    if "/implementation-decision" in next_condition:
+        return command == "/implementation-decision"
+    if "run /plan" in next_condition:
+        return command == "/plan"
+    if "run /ticket" in next_condition:
+        return command == "/ticket"
+    if "run /continue" in next_condition:
+        return command == "/continue"
+
+    if gate == "workflow complete":
+        return command == "/implement"
+    if gate == "plan record preparation gate":
+        versions = _coerce_int(snapshot.get("plan_record_versions"))
+        if versions < 1:
+            return command == "/plan"
+    if gate == "implementation blocked":
+        return command == "/implement"
+
+    return True
+
+
+def _fallback_next_action(snapshot: Mapping[str, object]) -> NextActionRender:
+    phase = _phase_text(snapshot)
+    gate = _active_gate(snapshot)
+    next_condition = _normalized_text(snapshot.get("next_gate_condition"))
+
+    if gate == "ticket input gate" or phase.startswith("4"):
+        return NextActionRender(
+            command="/ticket",
+            label=_PHASE4_TICKET_REVIEW_LABEL,
+            kind="normal",
+            reason="phase4-ticket-input-fallback",
+        )
+    if "/review-decision" in next_condition:
+        return NextActionRender(
+            command="/review-decision",
+            label="run /review-decision <approve|changes_requested|reject>.",
+            kind="normal",
+            reason="condition-review-decision-fallback",
+        )
+    if "/implementation-decision" in next_condition:
+        return NextActionRender(
+            command="/implementation-decision",
+            label="run /implementation-decision <approve|changes_requested|reject>.",
+            kind="normal",
+            reason="condition-implementation-decision-fallback",
+        )
+    if "run /plan" in next_condition or gate == "plan record preparation gate":
+        return NextActionRender(
+            command="/plan",
+            label="run /plan.",
+            kind="normal",
+            reason="condition-plan-fallback",
+        )
+    if "run /ticket" in next_condition:
+        return NextActionRender(
+            command="/ticket",
+            label=_PHASE4_TICKET_REVIEW_LABEL,
+            kind="normal",
+            reason="condition-ticket-fallback",
+        )
+    if gate == "implementation blocked":
+        return NextActionRender(
+            command="/implement",
+            label="resolve implementation blockers, then run /implement.",
+            kind="blocked",
+            reason="implementation-blocked-fallback",
+        )
+    if gate == "workflow complete":
+        return NextActionRender(
+            command="/implement",
+            label="run /implement.",
+            kind="terminal",
+            reason="workflow-approved-fallback",
+        )
+    return NextActionRender(
+        command="/continue",
+        label="run /continue.",
+        kind="normal",
+        reason="default-fallback",
+    )
+
+
+def _resolve_next_action_candidate(snapshot: Mapping[str, object]) -> NextActionRender:
     """Resolve exactly one canonical user-facing next action.
 
     The returned ``label`` is intended to be rendered verbatim as:
@@ -88,7 +189,7 @@ def resolve_next_action(snapshot: Mapping[str, object]) -> NextActionRender:
     if gate == "ticket input gate" or phase.startswith("4"):
         return NextActionRender(
             command="/ticket",
-            label="run /ticket with the ticket/task details.",
+            label=_PHASE4_TICKET_REVIEW_LABEL,
             kind="normal",
             reason="phase4-ticket-input",
         )
@@ -279,3 +380,10 @@ def resolve_next_action(snapshot: Mapping[str, object]) -> NextActionRender:
         kind="normal",
         reason="default-progress",
     )
+
+
+def resolve_next_action(snapshot: Mapping[str, object]) -> NextActionRender:
+    candidate = _resolve_next_action_candidate(snapshot)
+    if _validate_next_action_alignment(snapshot, candidate):
+        return candidate
+    return _fallback_next_action(snapshot)

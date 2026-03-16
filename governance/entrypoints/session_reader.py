@@ -1055,7 +1055,15 @@ _GATE_WORK_PATTERNS: tuple[str, ...] = (
 
 def _resolve_next_action_line(snapshot: dict) -> str:
     render = resolve_next_action(snapshot)
-    return f"Next action: {render.label}"
+    label = str(render.label or "").strip()
+    phase = str(snapshot.get("phase") or "").strip().lower()
+    gate = str(snapshot.get("active_gate") or "").strip().lower()
+    if (phase.startswith("4") or gate == "ticket input gate") and "/review" not in label.lower():
+        label = (
+            "run /ticket with the ticket/task details. "
+            "Alternative: run /review for read-only feedback (no state change)."
+        )
+    return f"Next action: {label}"
 
 
 def read_session_snapshot(commands_home: Path | None = None, *, materialize: bool = False) -> dict:

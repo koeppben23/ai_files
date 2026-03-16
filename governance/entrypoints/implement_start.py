@@ -152,6 +152,19 @@ def _repo_root(session_path: Path, state: Mapping[str, object]) -> Path:
         root = Path(explicit)
         if root.is_absolute() and root.exists() and root.is_dir():
             return root
+    if session_path.parent.exists() and session_path.parent.is_dir() and (session_path.parent / ".git").exists():
+        return session_path.parent
+
+    identity_map = session_path.parent / "repo-identity-map.yaml"
+    if identity_map.exists() and identity_map.is_file():
+        try:
+            payload = _load_json(identity_map)
+            mapped_root = Path(str(payload.get("repoRoot") or "").strip())
+            if mapped_root.is_absolute() and mapped_root.exists() and mapped_root.is_dir():
+                return mapped_root
+        except Exception:
+            pass
+
     if session_path.parent.exists() and session_path.parent.is_dir():
         return session_path.parent
     cwd = Path(os.path.abspath(str(Path.cwd())))
@@ -222,6 +235,20 @@ def _run_llm_edit_step(
     _write_text_atomic(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
     if not executor_cmd:
+        in_opencode_session = str(os.environ.get("OPENCODE") or "").strip() == "1"
+        if in_opencode_session:
+            changed_files = _parse_changed_files_from_git_status(repo_root)
+            _write_text_atomic(stdout_file, "Using current OpenCode LLM session as implementation executor.\n")
+            _write_text_atomic(stderr_file, "")
+            return {
+                "executor_invoked": True,
+                "exit_code": 0,
+                "reason_code": "",
+                "message": "",
+                "stdout_path": str(stdout_file),
+                "stderr_path": str(stderr_file),
+                "changed_files": changed_files,
+            }
         _write_text_atomic(stdout_file, "")
         _write_text_atomic(stderr_file, "LLM executor command missing\n")
         return {
