@@ -776,10 +776,10 @@ class TestRunLifecycleReset:
     """
 
     def test_new_session_from_phase6_resets_to_phase4(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Happy: Most common real-world case — Phase 6 → new session → Phase 4."""
-        config_root, session_path, _ = _setup_workspace(tmp_path, phase="6-PostFlight")
+        config_root, session_path, _ = _setup_workspace(short_tmp, phase="6-PostFlight")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         code = new_work_session.main(["--trigger-source", "cli", "--session-id", "sess-p6", "--quiet"])
@@ -795,10 +795,10 @@ class TestRunLifecycleReset:
         assert state["Task"] is None
 
     def test_new_session_from_phase5_resets_to_phase4(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Happy: Phase 5 → new session → Phase 4."""
-        config_root, session_path, _ = _setup_workspace(tmp_path, phase="5-ArchitectureReview")
+        config_root, session_path, _ = _setup_workspace(short_tmp, phase="5-ArchitectureReview")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
@@ -809,10 +809,10 @@ class TestRunLifecycleReset:
         assert state["Phase"] == "4"
 
     def test_new_session_from_phase4_idempotent(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Edge: Phase 4 → new session → Phase 4 (idempotent)."""
-        config_root, session_path, _ = _setup_workspace(tmp_path, phase="4")
+        config_root, session_path, _ = _setup_workspace(short_tmp, phase="4")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         code = new_work_session.main(["--trigger-source", "cli", "--session-id", "sess-p4", "--quiet"])
@@ -825,13 +825,13 @@ class TestRunLifecycleReset:
         assert state["Gates"]["P5-Architecture"] == "pending"
 
     def test_new_session_from_bootstrap_phase1(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Corner: Phase 1 → new session → Phase 4.
 
         Even from an early bootstrap phase, new_work_session resets to 4.
         """
-        config_root, session_path, _ = _setup_workspace(tmp_path, phase="1-WorkspacePersistence")
+        config_root, session_path, _ = _setup_workspace(short_tmp, phase="1-WorkspacePersistence")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
@@ -842,10 +842,10 @@ class TestRunLifecycleReset:
         assert state["Phase"] == "4"
 
     def test_new_session_archives_previous_run(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Happy: Previous run is archived to runs/<run_id>/ before reset."""
-        config_root, session_path, _ = _setup_workspace(tmp_path, phase="6-PostFlight")
+        config_root, session_path, _ = _setup_workspace(short_tmp, phase="6-PostFlight")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         code = new_work_session.main(["--trigger-source", "cli", "--session-id", "sess-archive", "--quiet"])
@@ -858,10 +858,10 @@ class TestRunLifecycleReset:
         assert archived_payload["SESSION_STATE"]["session_run_id"] == "run-old-001"
 
     def test_new_session_clears_all_artifacts_and_gates(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Happy: All gates reset to 'pending', stale artifacts deleted."""
-        config_root, session_path, _ = _setup_workspace(tmp_path, phase="6-PostFlight")
+        config_root, session_path, _ = _setup_workspace(short_tmp, phase="6-PostFlight")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
@@ -881,10 +881,10 @@ class TestRunLifecycleReset:
             assert artifact not in state, f"Artifact {artifact} should be deleted"
 
     def test_new_session_assigns_new_run_id(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Happy: A new session_run_id is assigned."""
-        config_root, session_path, _ = _setup_workspace(tmp_path, phase="5-ArchitectureReview")
+        config_root, session_path, _ = _setup_workspace(short_tmp, phase="5-ArchitectureReview")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
@@ -907,10 +907,10 @@ class TestPostResetKernelIntegration:
     correctly pick up Phase 4 and behave normally on the next execute() call."""
 
     def test_kernel_execute_after_reset_resolves_phase4_correctly(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Happy: Reset → kernel execute() → Phase 4 awaiting ticket intake."""
-        config_root, session_path, _ = _setup_workspace(tmp_path, phase="6-PostFlight")
+        config_root, session_path, _ = _setup_workspace(short_tmp, phase="6-PostFlight")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         # Step 1: Reset to Phase 4
@@ -930,7 +930,7 @@ class TestPostResetKernelIntegration:
         ss["WorkspaceArtifactsCommitted"] = True
         ss["PointerVerified"] = True
         ss.update(RULEBOOK_BASE)
-        commands_home = tmp_path / "k_commands"
+        commands_home = short_tmp / "k_commands"
         _write_phase_api(commands_home)
 
         result = execute(
@@ -941,8 +941,8 @@ class TestPostResetKernelIntegration:
                 requested_next_gate_condition="Collect ticket",
                 repo_is_git_root=True,
                 commands_home=commands_home,
-                workspaces_home=tmp_path / "k_workspaces",
-                config_root=tmp_path / "k_cfg",
+                workspaces_home=short_tmp / "k_workspaces",
+                config_root=short_tmp / "k_cfg",
             ),
         )
 
@@ -951,10 +951,10 @@ class TestPostResetKernelIntegration:
         assert result.source == "phase-4-awaiting-ticket-intake"
 
     def test_kernel_after_reset_can_advance_to_5_with_ticket(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Happy: After reset, adding ticket evidence → kernel advances to Phase 5."""
-        config_root, session_path, _ = _setup_workspace(tmp_path, phase="6-PostFlight")
+        config_root, session_path, _ = _setup_workspace(short_tmp, phase="6-PostFlight")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         # Step 1: Reset
@@ -973,7 +973,7 @@ class TestPostResetKernelIntegration:
         ss["TicketRecordDigest"] = "Context: bug fix\nTest Strategy: unit tests"
         ss["FeatureComplexity"] = {"Class": "STANDARD", "Reason": "ticket", "PlanningDepth": "standard"}
 
-        commands_home = tmp_path / "k_commands"
+        commands_home = short_tmp / "k_commands"
         _write_phase_api(commands_home)
 
         result = execute(
@@ -984,8 +984,8 @@ class TestPostResetKernelIntegration:
                 requested_next_gate_condition="Collect ticket",
                 repo_is_git_root=True,
                 commands_home=commands_home,
-                workspaces_home=tmp_path / "k_workspaces",
-                config_root=tmp_path / "k_cfg",
+                workspaces_home=short_tmp / "k_workspaces",
+                config_root=short_tmp / "k_cfg",
             ),
         )
 
@@ -1121,10 +1121,10 @@ class TestCLILifecycleEntrypoint:
     """
 
     def test_cli_from_phase6_produces_phase4(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Happy: CLI path from Phase 6 → Phase 4."""
-        config_root, session_path, _ = _setup_workspace(tmp_path, phase="6-PostFlight")
+        config_root, session_path, _ = _setup_workspace(short_tmp, phase="6-PostFlight")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         code = new_work_session.main(["--trigger-source", "pipeline", "--quiet"])
@@ -1137,10 +1137,10 @@ class TestCLILifecycleEntrypoint:
         assert state["Next"] == "4"
 
     def test_cli_entrypoint_returns_exit_code_2_without_pointer(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Bad: No valid session pointer → exit code 2."""
-        config_root = tmp_path / "config"
+        config_root = short_tmp / "config"
         commands_home = config_root / "commands"
         _write_json(
             commands_home / "governance.paths.json",
@@ -1160,10 +1160,10 @@ class TestCLILifecycleEntrypoint:
         assert code == 2
 
     def test_cli_from_phase53_produces_phase4(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Edge: CLI path from sub-phase 5.3 → Phase 4."""
-        config_root, session_path, _ = _setup_workspace(tmp_path, phase="5.3-TestQuality")
+        config_root, session_path, _ = _setup_workspace(short_tmp, phase="5.3-TestQuality")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
