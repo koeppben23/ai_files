@@ -84,7 +84,7 @@ def test_edge_unsegmentable_candidate_is_reported() -> None:
 
 def test_golden_extraction_matches_expected_rules_exactly(tmp_path: Path) -> None:
     _write(
-        tmp_path / "docs" / "governance-policy.md",
+        tmp_path / "docs" / "business-policy.md",
         "# Policy\n"
         "## Business Rules\n"
         "- BR-100: Access must be authenticated for all write operations\n"

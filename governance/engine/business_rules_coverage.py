@@ -24,6 +24,14 @@ TOKEN_ARTIFACT_SPIKE_THRESHOLD = 0.15
 MIN_SEMANTIC_DIVERSITY_SCORE = 0.30
 MIN_SURFACE_BALANCE_SCORE = 0.25
 
+# Block D: Missing surface reason constants
+MISSING_SURFACE_REASONS = {
+    "missing": "no evidence exists for expected surface",
+    "filtered_non_business": "evidence existed but filtered as non-business/meta",
+    "unsupported_surface": "surface type not supported by extraction",
+    "insufficient_business_context": "evidence exists but lacks business context",
+}
+
 VALIDATION_DOMINATES_COVERAGE_REASON_CODES = frozenset(
     {
         "BUSINESS_RULES_RENDER_MISMATCH",
@@ -69,6 +77,11 @@ class CodeExtractionCoverage:
     dropped_non_executable_normative_text_count: int = 0
     accepted_business_enforcement_count: int = 0
     rejected_non_business_subject_count: int = 0
+    # Block D: Causal reasoning for missing surfaces
+    missing_surface_reasons: tuple[str, ...] = ()
+    # Block E: Extended quality metrics
+    post_drop_valid_ratio: float = 0.0
+    executable_business_rule_ratio: float = 0.0
 
 
 def evaluate_code_extraction_coverage(
@@ -108,6 +121,11 @@ def evaluate_code_extraction_coverage(
     for expected in ("validator", "permissions", "workflow"):
         if expected not in present_types and scanned_file_count > 0:
             missing_expected_surfaces.append(expected)
+    
+    # Also track missing when extraction ran but found no surfaces
+    if scanned_file_count == 0 and extraction_ran:
+        for expected in ("validator", "permissions", "workflow"):
+            missing_expected_surfaces.append(expected)
 
     # Fail-closed in sensible coverage scenarios:
     # - If repo is non-trivial (>= 8 scanned code/config files), missing strong
@@ -119,7 +137,14 @@ def evaluate_code_extraction_coverage(
         scanned_file_count >= 8
         or present_expected >= 1
     ):
-        reasons.append(RC_CODE_COVERAGE_INSUFFICIENT)
+        # Missing expected surfaces are only hard-insufficient when we do not
+        # have strong evidence they were intentionally filtered as non-business.
+        if not (
+            dropped_non_business_surface_count > 0
+            or dropped_schema_only_count > 0
+            or rejected_non_business_subject_count > 0
+        ):
+            reasons.append(RC_CODE_COVERAGE_INSUFFICIENT)
 
     if has_provenance_gaps:
         reasons.append(RC_CODE_PROVENANCE_MISSING)
@@ -174,8 +199,73 @@ def evaluate_code_extraction_coverage(
         reasons.append(RC_CODE_TEMPLATE_OVERFIT)
         quality_reasons.append("template_overfit_spike")
 
-    if quality_reasons and RC_CODE_QUALITY_INSUFFICIENT not in reasons:
-        reasons.append(RC_CODE_QUALITY_INSUFFICIENT)
+    # Block E: Extended quality insufficiency reasons for better calibration
+    # post-drop valid ratio: what fraction of candidates that passed discovery are valid
+    post_drop_valid_ratio = (validated_code_rule_count / candidate_count) if candidate_count > 0 else 0.0
+    # executable business rule ratio: accepted business enforcement over raw candidates
+    executable_business_numerator = accepted_business_enforcement_count
+    if executable_business_numerator <= 0:
+        executable_business_numerator = max(validated_code_rule_count, 0)
+    executable_business_rule_ratio = (
+        executable_business_numerator / raw_candidate_count
+    ) if raw_candidate_count > 0 else 0.0
+    
+    # Add specific spike reasons based on diagnostic counts
+    # Use raw_candidate_count as denominator for stage-appropriate comparison
+    if raw_candidate_count > 0 and (dropped_non_business_surface_count + dropped_schema_only_count) > raw_candidate_count * 0.3:
+        quality_reasons.append("non_business_surface_spike")
+    if raw_candidate_count > 0 and dropped_schema_only_count > raw_candidate_count * 0.2:
+        quality_reasons.append("schema_only_spike")
+    # Note: This uses rejected_non_business_subject_count as proxy since we don't have
+    # a separate governance_meta_rule_reject_count. The name reflects the intent:
+    # high rejection rate due to non-business subjects (includes governance/meta subjects)
+    if raw_candidate_count > 0 and rejected_non_business_subject_count > raw_candidate_count * 0.15:
+        quality_reasons.append("non_business_subject_spike")  # Renamed to reflect actual measurement
+    if raw_candidate_count > 0 and executable_business_rule_ratio < 0.05 and raw_candidate_count >= 10:
+        quality_reasons.append("insufficient_executable_business_rules")
+
+    hard_quality_reasons = {
+        "validated_code_rule_count_below_minimum",
+        "valid_rule_ratio_below_threshold",
+        "artifact_ratio_above_maximum",
+        "token_artifact_spike",
+        "template_overfit_spike",
+        "insufficient_executable_business_rules",
+    }
+    if any(reason in hard_quality_reasons for reason in quality_reasons):
+        if RC_CODE_QUALITY_INSUFFICIENT not in reasons:
+            reasons.append(RC_CODE_QUALITY_INSUFFICIENT)
+
+    # Block D: Compute causal reasons for missing surfaces
+    missing_surface_reasons: list[str] = []
+    if missing_expected_surfaces:
+        # Determine cause based on what was scanned vs what's missing
+        if scanned_file_count == 0:
+            # No surfaces scanned at all - everything is missing
+            for surface in missing_expected_surfaces:
+                missing_surface_reasons.append(f"{surface}: missing")
+        else:
+            # Some surfaces exist - determine why others are missing
+            for surface in missing_expected_surfaces:
+                # Check if we have any surfaces that could be business-related
+                business_related_surfaces = {
+                    s for s in scanned_surfaces 
+                    if s.surface_type in {"validator", "permissions", "workflow", "validation"}
+                }
+                
+                # Check diagnostic counts for filtering reasons
+                if dropped_non_business_surface_count > 0 or dropped_schema_only_count > 0:
+                    # Evidence existed but was filtered
+                    missing_surface_reasons.append(f"{surface}: filtered_non_business")
+                elif rejected_non_business_subject_count > 0:
+                    # Evidence existed but rejected due to non-business context
+                    missing_surface_reasons.append(f"{surface}: insufficient_business_context")
+                elif len(business_related_surfaces) == 0:
+                    # No business-related surfaces found at all
+                    missing_surface_reasons.append(f"{surface}: missing")
+                else:
+                    # Surface type not found but other business surfaces exist
+                    missing_surface_reasons.append(f"{surface}: unsupported_surface")
 
     if not extraction_ran:
         quality_grade = "fail"
@@ -213,6 +303,11 @@ def evaluate_code_extraction_coverage(
         dropped_non_executable_normative_text_count=dropped_non_executable_normative_text_count,
         accepted_business_enforcement_count=accepted_business_enforcement_count,
         rejected_non_business_subject_count=rejected_non_business_subject_count,
+        # Block D: Causal reasoning for missing surfaces
+        missing_surface_reasons=tuple(missing_surface_reasons),
+        # Block E: Extended quality metrics
+        post_drop_valid_ratio=max(post_drop_valid_ratio, 0.0),
+        executable_business_rule_ratio=max(executable_business_rule_ratio, 0.0),
     )
 
 
@@ -265,9 +360,17 @@ def reconcile_code_extraction_payload(
     if not severe_codes:
         return result
 
-    reason_codes = [str(item).strip() for item in (result.get("reason_codes") or []) if str(item).strip()]
+    reason_codes_raw = result.get("reason_codes")
+    quality_reasons_raw = result.get("quality_insufficiency_reasons")
+    reason_codes = [
+        str(item).strip()
+        for item in (reason_codes_raw if isinstance(reason_codes_raw, list) else [])
+        if str(item).strip()
+    ]
     quality_reasons = [
-        str(item).strip() for item in (result.get("quality_insufficiency_reasons") or []) if str(item).strip()
+        str(item).strip()
+        for item in (quality_reasons_raw if isinstance(quality_reasons_raw, list) else [])
+        if str(item).strip()
     ]
     if RC_CODE_COVERAGE_INSUFFICIENT not in reason_codes:
         reason_codes.append(RC_CODE_COVERAGE_INSUFFICIENT)
@@ -292,12 +395,21 @@ def coverage_to_payload(coverage: CodeExtractionCoverage) -> dict[str, object]:
         "raw_candidate_count": coverage.raw_candidate_count,
         "dropped_candidate_count": coverage.dropped_candidate_count,
         "validated_code_rule_count": coverage.validated_code_rule_count,
+        "code_valid_rule_count": coverage.validated_code_rule_count,
         "invalid_code_candidate_count": coverage.invalid_code_candidate_count,
         "code_token_artifact_count": coverage.code_token_artifact_count,
+        "dropped_non_business_surface_count": coverage.dropped_non_business_surface_count,
+        "dropped_schema_only_count": coverage.dropped_schema_only_count,
+        "dropped_non_executable_normative_text_count": coverage.dropped_non_executable_normative_text_count,
+        "accepted_business_enforcement_count": coverage.accepted_business_enforcement_count,
+        "rejected_non_business_subject_count": coverage.rejected_non_business_subject_count,
         "valid_rule_ratio": coverage.valid_rule_ratio,
         "artifact_ratio": coverage.artifact_ratio,
+        "post_drop_valid_ratio": coverage.post_drop_valid_ratio,
+        "executable_business_rule_ratio": coverage.executable_business_rule_ratio,
         "coverage_quality_grade": coverage.coverage_quality_grade,
         "missing_expected_surfaces": list(coverage.missing_expected_surfaces),
+        "missing_surface_reasons": list(coverage.missing_surface_reasons),
         "reason_codes": list(coverage.reason_codes),
         "is_sufficient": coverage.is_sufficient,
         "semantic_type_distribution": dict(coverage.semantic_type_distribution or {}),
