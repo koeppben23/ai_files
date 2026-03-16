@@ -36,9 +36,44 @@ REASON_CODE_TEMPLATE_OVERFIT = "BUSINESS_RULES_CODE_TEMPLATE_OVERFIT"
 REASON_NON_BUSINESS_SUBJECT = "BUSINESS_RULES_NON_BUSINESS_SUBJECT"
 REASON_SCHEMA_ONLY_RULE = "BUSINESS_RULES_SCHEMA_ONLY_RULE"
 REASON_NON_EXECUTABLE_EVIDENCE = "BUSINESS_RULES_NON_EXECUTABLE_EVIDENCE"
+REASON_GOVERNANCE_META_RULE = "BUSINESS_RULES_GOVERNANCE_META_RULE"
 
 ORIGIN_DOC = "doc"
 ORIGIN_CODE = "code"
+
+_GOVERNANCE_META_PATTERNS = [
+    r"phase_api\.yaml$",
+    r"reason_codes\.registry\.json$",
+    r"SESSION_STATE_SCHEMA\.md$",
+    r"governance.*\.yaml$",
+    r"governance.*\.json$",
+    r"governance.*\.md$",
+    r"\.governance/",
+    r"/governance/",
+    r"\.governance$",
+    r"governance/validators?\.py$",
+    r"governance/.*rules.*\.py$",
+    r"phase[_-]?api",
+    r"reason[_-]?code",
+    r"session[_-]?state",
+    r"registry\.json$",
+    r"policy\.yaml$",
+    r"rules\.yaml$",
+    r"schema\.yaml$",
+    r"phase[_-]?api\.yaml$",
+]
+
+_GOVERNANCE_META_SUBJECTS = {
+    "session_state",
+    "payload",
+    "field",
+    "rule",
+    "phase",
+    "reason_code",
+    "schema",
+    "recovery",
+    "gate",
+}
 
 
 _DISALLOWED_DIR_TOKENS = {
@@ -339,8 +374,16 @@ def _is_template_overfit(body: str) -> bool:
     return bool(match)
 
 
-def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_type: str = "", evidence_kind: str = "") -> tuple[bool, str, str]:
+def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_type: str = "", evidence_kind: str = "", source_path: str = "") -> tuple[bool, str, str]:
     import re  # Import at the top to avoid scoping issues
+    
+    # Governance/Meta rule rejection: check source path against known governance patterns
+    if source_path:
+        source_lower = source_path.lower()
+        for pattern in _GOVERNANCE_META_PATTERNS:
+            if re.search(pattern, source_lower, re.IGNORECASE):
+                return False, REASON_GOVERNANCE_META_RULE, "rule originates from governance/meta source"
+    
     match = _RULE_HEAD_RE.match(rule_text)
     if not match:
         return False, REASON_INVALID_CONTENT, "missing deterministic BR-<id>: <rule> shape"
@@ -369,9 +412,15 @@ def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_ty
         
         rule_lower = rule_text.lower()
         
-        # Check for non-business subjects
+        # Check for non-business subjects (including governance/meta subjects)
         non_business_subjects = {"value", "field", "item", "data", "object", "payload", "parameter", "input", "result"}
-        if any(subject in rule_lower.split() for subject in non_business_subjects):
+        non_business_subjects = non_business_subjects | _GOVERNANCE_META_SUBJECTS
+        
+        # Check both as split words and as substrings (for underscore-separated terms)
+        rule_words = set(rule_lower.replace("_", " ").split())
+        rule_substring = rule_lower.replace("_", " ")
+        
+        if any(subject in rule_words or subject.replace("_", " ") in rule_substring for subject in non_business_subjects):
             # Additional check: if it's primarily a technical subject
             business_indicators = {"customer", "order", "payment", "invoice", "account", "user"}
             has_business_indicator = any(indicator in rule_lower for indicator in business_indicators)
@@ -503,6 +552,7 @@ def validate_candidates(
                 origin=candidate.origin,
                 semantic_type=candidate.semantic_type,
                 evidence_kind=candidate.evidence_kind,
+                source_path=candidate.source_path,
             )
             if not ok:
                 invalid_rules.append(
@@ -516,6 +566,40 @@ def validate_candidates(
                     )
                 )
                 continue
+            
+            # Block C: Render/Segmentation Guard
+            # Only allow rules with proper business domain context into the render pipeline
+            if candidate.origin == ORIGIN_CODE:
+                # Check evidence_kind - must be executable_code for code-origin rules
+                evidence = str(candidate.evidence_kind or "").strip().lower()
+                if evidence and evidence != "executable_code":
+                    dropped.append(
+                        RejectedRule(
+                            text=sanitized,
+                            source_path=candidate.source_path,
+                            line_no=candidate.line_no,
+                            reason_code=REASON_NON_EXECUTABLE_EVIDENCE,
+                            reason="code rule must have executable evidence for rendering",
+                            origin=candidate.origin,
+                        )
+                    )
+                    continue
+                
+                # Check semantic_type - must be valid business type
+                semantic = str(candidate.semantic_type or "").strip().lower()
+                if semantic not in _VALID_CODE_SEMANTIC_TYPES:
+                    dropped.append(
+                        RejectedRule(
+                            text=sanitized,
+                            source_path=candidate.source_path,
+                            line_no=candidate.line_no,
+                            reason_code=REASON_CODE_CANDIDATE_REJECTED,
+                            reason="code rule must have valid business semantic type for rendering",
+                            origin=candidate.origin,
+                        )
+                    )
+                    continue
+            
             rule_id = sanitized.split(":", 1)[0].strip()
             if sanitized in seen_valid:
                 continue
