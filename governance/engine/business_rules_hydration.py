@@ -95,6 +95,12 @@ class CodeExtractionCounters:
     candidate_count: int
     validated_code_rule_count: int
     invalid_code_candidate_count: int
+    # Diagnostic fields for tightened business rule extraction
+    dropped_non_business_surface_count: int = 0
+    dropped_schema_only_count: int = 0
+    dropped_non_executable_normative_text_count: int = 0
+    accepted_business_enforcement_count: int = 0
+    rejected_non_business_subject_count: int = 0
 
     def __post_init__(self) -> None:
         if self.raw_candidate_count != self.dropped_candidate_count + self.candidate_count:
@@ -113,6 +119,12 @@ class CodeExtractionCounters:
             "validated_code_rule_count": self.validated_code_rule_count,
             "code_valid_rule_count": self.validated_code_rule_count,
             "invalid_code_candidate_count": self.invalid_code_candidate_count,
+            # Diagnostic fields for tightened business rule extraction
+            "dropped_non_business_surface_count": self.dropped_non_business_surface_count,
+            "dropped_schema_only_count": self.dropped_schema_only_count,
+            "dropped_non_executable_normative_text_count": self.dropped_non_executable_normative_text_count,
+            "accepted_business_enforcement_count": self.accepted_business_enforcement_count,
+            "rejected_non_business_subject_count": self.rejected_non_business_subject_count,
         }
 
 
@@ -181,6 +193,13 @@ def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtrac
         dropped_candidate_count = max(raw_candidate_count - candidate_count, 0)
     if raw_candidate_count != dropped_candidate_count + candidate_count:
         raw_candidate_count = dropped_candidate_count + candidate_count
+    
+    # Diagnostic fields for tightened business rule extraction
+    dropped_non_business_surface_count = max(_parse_int(str(report_map.get("dropped_non_business_surface_count", 0))), 0)
+    dropped_schema_only_count = max(_parse_int(str(report_map.get("dropped_schema_only_count", 0))), 0)
+    dropped_non_executable_normative_text_count = max(_parse_int(str(report_map.get("dropped_non_executable_normative_text_count", 0))), 0)
+    accepted_business_enforcement_count = max(_parse_int(str(report_map.get("accepted_business_enforcement_count", 0))), 0)
+    rejected_non_business_subject_count = max(_parse_int(str(report_map.get("rejected_non_business_subject_count", 0))), 0)
 
     return CodeExtractionCounters(
         raw_candidate_count=raw_candidate_count,
@@ -188,6 +207,11 @@ def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtrac
         candidate_count=candidate_count,
         validated_code_rule_count=validated_code_rule_count,
         invalid_code_candidate_count=invalid_code_candidate_count,
+        dropped_non_business_surface_count=dropped_non_business_surface_count,
+        dropped_schema_only_count=dropped_schema_only_count,
+        dropped_non_executable_normative_text_count=dropped_non_executable_normative_text_count,
+        accepted_business_enforcement_count=accepted_business_enforcement_count,
+        rejected_non_business_subject_count=rejected_non_business_subject_count,
     )
 
 
