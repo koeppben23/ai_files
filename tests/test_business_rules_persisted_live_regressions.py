@@ -289,27 +289,42 @@ def test_live_success_fixture_persists_extracted_artifacts_with_ssot_invariants(
     assert persisted_state["Outcome"] == "extracted"
     assert persisted_state["ValidationResult"] == "passed"
     assert persisted_state["CodeCoverageSufficient"] is True
+    assert persisted_state["CountConsistency"] == "passed"
+    assert persisted_state["RenderConsistency"] == "passed"
+    assert persisted_state["InventoryFileStatus"] == "written"
+    reason_codes_state = persisted_state.get("ValidationReasonCodes")
+    assert (list(reason_codes_state) if isinstance(reason_codes_state, list) else []) == []
     assert status_fields["outcome"] == "extracted"
     assert status_fields["validationresult"] == "passed"
     assert status_fields["reportsha"] == str(snapshot["ReportSha"])
     assert code_report["report_sha"] == str(snapshot["ReportSha"])
 
-    assert int(status_fields["rawcandidatecount"]) == int(persisted_state["RawCandidateCount"])
-    assert int(status_fields["candidatecount"]) == int(persisted_state["CandidateCount"])
-    assert int(status_fields["validatedcoderulecount"]) == int(persisted_state["ValidatedCodeRuleCount"])
-    assert int(status_fields["invalidcodecandidatecount"]) == int(persisted_state["InvalidCodeCandidateCount"])
-    assert int(status_fields["droppedcandidates"]) == int(persisted_state["DroppedCandidateCount"])
-    assert int(status_fields["rawcandidatecount"]) == int(code_report["raw_candidate_count"])
-    assert int(status_fields["candidatecount"]) == int(code_report["candidate_count"])
-    assert int(status_fields["validatedcoderulecount"]) == int(code_report["validated_code_rule_count"])
-    assert int(status_fields["invalidcodecandidatecount"]) == int(code_report["invalid_code_candidate_count"])
+    assert int(status_fields["rawcandidatecount"]) == int(str(persisted_state["RawCandidateCount"]))
+    assert int(status_fields["candidatecount"]) == int(str(persisted_state["CandidateCount"]))
+    assert int(status_fields["validatedcoderulecount"]) == int(str(persisted_state["ValidatedCodeRuleCount"]))
+    assert int(status_fields["invalidcodecandidatecount"]) == int(str(persisted_state["InvalidCodeCandidateCount"]))
+    assert int(status_fields["droppedcandidates"]) == int(str(persisted_state["DroppedCandidateCount"]))
+    assert int(status_fields["rawcandidatecount"]) == int(str(code_report["raw_candidate_count"]))
+    assert int(status_fields["candidatecount"]) == int(str(code_report["candidate_count"]))
+    assert int(status_fields["validatedcoderulecount"]) == int(str(code_report["validated_code_rule_count"]))
+    assert int(status_fields["invalidcodecandidatecount"]) == int(str(code_report["invalid_code_candidate_count"]))
     assert int(status_fields["rawcandidatecount"]) == int(status_fields["droppedcandidates"]) + int(status_fields["candidatecount"])
     assert int(status_fields["candidatecount"]) == int(status_fields["validatedcoderulecount"]) + int(status_fields["invalidcodecandidatecount"])
 
     assert persisted_state["CoverageQualityGrade"] == code_report["coverage_quality_grade"]
-    assert float(status_fields["surfacebalancescore"]) == float(persisted_state["SurfaceBalanceScore"])
-    assert float(status_fields["semanticdiversityscore"]) == float(persisted_state["SemanticDiversityScore"])
-    assert _parse_reason_field(status_fields["qualityinsufficiencyreasons"]) == list(persisted_state["QualityInsufficiencyReasons"])
+    assert float(status_fields["surfacebalancescore"]) == float(str(persisted_state["SurfaceBalanceScore"]))
+    assert float(status_fields["semanticdiversityscore"]) == float(str(persisted_state["SemanticDiversityScore"]))
+    quality_reasons_state = persisted_state.get("QualityInsufficiencyReasons")
+    assert _parse_reason_field(status_fields["qualityinsufficiencyreasons"]) == (
+        list(quality_reasons_state) if isinstance(quality_reasons_state, list) else []
+    )
+    persisted_report = persisted_state.get("CodeExtractionReport")
+    assert isinstance(persisted_report, dict)
+    discovery_outcomes = persisted_report.get("discovery_outcomes")
+    assert isinstance(discovery_outcomes, list)
+    assert len(discovery_outcomes) > 0
+    assert len(discovery_outcomes) == int(str(persisted_state["RawCandidateCount"]))
+    assert len(discovery_outcomes) == int(str(code_report["raw_candidate_count"]))
 
     hydrated_state: dict[str, object] = {}
     applied = hydrate_business_rules_state_from_artifacts(
