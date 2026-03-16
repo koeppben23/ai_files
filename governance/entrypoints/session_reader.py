@@ -679,12 +679,13 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
 
     # Fail-closed: even with stale terminal gate states, force-open P5.4 when
     # the evaluator reports non-compliant business-rules validation.
-    if _phase_1_5_executed(state):
+    active_gate_text = str(state.get("active_gate") or "").strip().lower()
+    if _phase_1_5_executed(state) and active_gate_text == "rework clarification gate":
         p54_eval = evaluate_p54_business_rules_gate(
             session_state=state,
             phase_1_5_executed=True,
         )
-        if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable", "gap-detected"}:
+        if p54_eval.status in {"gap-detected", "pending"}:
             if "P5.4-BusinessRules" not in open_gates:
                 open_gates.append("P5.4-BusinessRules")
                 _order = {gate: idx for idx, gate in enumerate(P5_GATE_PRIORITY_ORDER)}
