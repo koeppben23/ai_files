@@ -679,12 +679,13 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
 
     # Fail-closed: even with stale terminal gate states, force-open P5.4 when
     # the evaluator reports non-compliant business-rules validation.
-    if _phase_1_5_executed(state):
+    active_gate_text = str(state.get("active_gate") or "").strip().lower()
+    if _phase_1_5_executed(state) and active_gate_text == "rework clarification gate":
         p54_eval = evaluate_p54_business_rules_gate(
             session_state=state,
             phase_1_5_executed=True,
         )
-        if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable", "gap-detected"}:
+        if p54_eval.status in {"gap-detected", "pending"}:
             if "P5.4-BusinessRules" not in open_gates:
                 open_gates.append("P5.4-BusinessRules")
                 _order = {gate: idx for idx, gate in enumerate(P5_GATE_PRIORITY_ORDER)}
@@ -1055,7 +1056,15 @@ _GATE_WORK_PATTERNS: tuple[str, ...] = (
 
 def _resolve_next_action_line(snapshot: dict) -> str:
     render = resolve_next_action(snapshot)
-    return f"Next action: {render.label}"
+    label = str(render.label or "").strip()
+    phase = str(snapshot.get("phase") or "").strip().lower()
+    gate = str(snapshot.get("active_gate") or "").strip().lower()
+    if (phase.startswith("4") or gate == "ticket input gate") and "/review" not in label.lower():
+        label = (
+            "run /ticket with the ticket/task details. "
+            "Alternative: run /review for read-only feedback (no state change)."
+        )
+    return f"Next action: {label}"
 
 
 def read_session_snapshot(commands_home: Path | None = None, *, materialize: bool = False) -> dict:
