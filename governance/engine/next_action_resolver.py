@@ -64,6 +64,10 @@ _PHASE4_TICKET_REVIEW_LABEL = (
 
 
 def _validate_next_action_alignment(snapshot: Mapping[str, object], render: NextActionRender) -> bool:
+    status = _status(snapshot)
+    if status in {"error", "blocked"}:
+        return True
+
     phase = _phase_text(snapshot)
     gate = _active_gate(snapshot)
     next_condition = _normalized_text(snapshot.get("next_gate_condition"))
