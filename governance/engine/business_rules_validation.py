@@ -780,9 +780,14 @@ def candidates_from_inventory_lines(lines: Iterable[str]) -> list[RuleCandidate]
     for idx, line in enumerate(lines, start=1):
         token = line.strip()
         if token.startswith("- ") and len(token) > 2:
+            body = token[2:].strip()
+            # Only inventory bullets that are actual BR rules are candidates.
+            # Evidence bullets (path:line) must never enter segmentation/render validation.
+            if not body.startswith("BR-"):
+                continue
             candidates.append(
                 RuleCandidate(
-                    text=token[2:].strip(),
+                    text=body,
                     source_path="business-rules.md",
                     line_no=idx,
                     source_allowed=True,
@@ -925,24 +930,52 @@ def extract_validated_business_rules_with_diagnostics(
         accepted_business_enforcement_count=extraction_result.accepted_business_enforcement_count,
     )
 
+    # Filter doc candidates early when code extraction is available to avoid
+    # known non-business/governance leakage from generic documentation files.
+    filtered_doc_candidates = list(doc_candidates)
+    if code_ok and code_candidates:
+        filtered_doc_candidates = [
+            c for c in doc_candidates if c.source_allowed and c.section_signal
+        ]
+
     converted_code_candidates: list[RuleCandidate] = []
     for candidate in code_candidates:
-        converted_code_candidates.append(
-            RuleCandidate(
-                text=sanitize_rule(candidate.text),
-                source_path=candidate.path,
-                line_no=candidate.line_start,
-                source_allowed=True,
-                source_reason="deterministic-code-extraction",
-                section_signal=True,
-                origin=ORIGIN_CODE,
-                enforcement_anchor_type=str(getattr(candidate, "enforcement_anchor_type", "") or ""),
-                semantic_type=str(getattr(candidate, "semantic_type", "") or ""),
-                evidence_kind=str(getattr(candidate, "evidence_kind", "") or ""),
-            )
+        converted = RuleCandidate(
+            text=sanitize_rule(candidate.text),
+            source_path=candidate.path,
+            line_no=candidate.line_start,
+            source_allowed=True,
+            source_reason="deterministic-code-extraction",
+            section_signal=True,
+            origin=ORIGIN_CODE,
+            enforcement_anchor_type=str(getattr(candidate, "enforcement_anchor_type", "") or ""),
+            semantic_type=str(getattr(candidate, "semantic_type", "") or ""),
+            evidence_kind=str(getattr(candidate, "evidence_kind", "") or ""),
         )
+        # Pre-validation hard gate: keep only business-ready executable rules.
+        # Candidates failing this gate are already represented in discovery drop
+        # diagnostics and should not leak into render/segmentation validation.
+        ok, reason_code, _ = _validate_rule_text(
+            converted.text,
+            origin=converted.origin,
+            semantic_type=converted.semantic_type,
+            evidence_kind=converted.evidence_kind,
+            source_path=converted.source_path,
+        )
+        if not ok and reason_code in {
+            REASON_GOVERNANCE_META_RULE,
+            REASON_NON_BUSINESS_SUBJECT,
+            REASON_SCHEMA_ONLY_RULE,
+            REASON_NON_EXECUTABLE_EVIDENCE,
+            REASON_CODE_CANDIDATE_REJECTED,
+            REASON_INVALID_CONTENT,
+            REASON_CODE_TOKEN_ARTIFACT,
+            REASON_CODE_TEMPLATE_OVERFIT,
+        }:
+            continue
+        converted_code_candidates.append(converted)
 
-    combined_candidates = [*doc_candidates, *converted_code_candidates]
+    combined_candidates = [*filtered_doc_candidates, *converted_code_candidates]
     report = validate_candidates(
         candidates=combined_candidates,
         expected_rules=False,

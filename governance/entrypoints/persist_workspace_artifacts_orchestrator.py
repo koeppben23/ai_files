@@ -1992,6 +1992,10 @@ def main() -> int:
         payload_quality_reasons = code_extraction_payload.get("quality_insufficiency_reasons", [])
         if isinstance(payload_quality_reasons, list) and payload_quality_reasons:
             effective_quality_insufficiency = True
+    # Do not fail extraction on advisory-only quality signals when validation is
+    # otherwise clean and no blocking reason codes remain.
+    if not severe_validation_failure and not combined_reason_codes:
+        effective_quality_insufficiency = False
     report_input: dict[str, object] = {
         "is_compliant": bool(extraction_report.is_compliant and render_report.is_compliant),
         "has_invalid_rules": extraction_report.has_invalid_rules,

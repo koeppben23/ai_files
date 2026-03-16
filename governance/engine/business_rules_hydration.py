@@ -325,16 +325,12 @@ def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtrac
         raw_candidate_count = outcome_counts.get("raw_candidate_count", raw_candidate_count)
         dropped_candidate_count = outcome_counts.get("dropped_candidate_count", dropped_candidate_count)
         candidate_count = outcome_counts.get("accepted_for_validation_count", candidate_count)
-        
-        # When using aggregated outcomes, assume all candidates are initially valid
-        # (validation phase determines actual validity later)
-        if validated_code_rule_count_provided:
-            # Keep explicit validated count if provided
-            pass
-        else:
-            # Default: all discovered candidates are valid until validation proves otherwise
+
+        # Reconcile validation counters to preserve hard invariants.
+        if not validated_code_rule_count_provided:
             validated_code_rule_count = candidate_count
-            invalid_code_candidate_count = 0
+        validated_code_rule_count = max(min(validated_code_rule_count, candidate_count), 0)
+        invalid_code_candidate_count = max(candidate_count - validated_code_rule_count, 0)
 
     return CodeExtractionCounters(
         raw_candidate_count=raw_candidate_count,
