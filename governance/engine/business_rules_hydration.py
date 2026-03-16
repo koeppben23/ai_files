@@ -346,7 +346,7 @@ def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtrac
     )
 
 
-def _build_code_extraction_report(
+def hydrate_code_extraction_report_for_session_state(
     *,
     report_map: Mapping[str, Any],
     counters: CodeExtractionCounters,
@@ -360,6 +360,17 @@ def _build_code_extraction_report(
     code_token_artifact_count = max(_parse_int(str(report_map.get("code_token_artifact_count", 0))), 0)
     if artifact_ratio <= 0.0 and counters.candidate_count > 0:
         artifact_ratio = code_token_artifact_count / counters.candidate_count
+
+    discovery_outcomes_raw = report_map.get("discovery_outcomes")
+    discovery_outcomes = list(discovery_outcomes_raw) if isinstance(discovery_outcomes_raw, list) else []
+
+    # Anti-drop safeguard: prefer full materialization; if unavailable, keep
+    # explicit metadata to avoid silent loss and make fallback observable.
+    outcomes_missing_with_signal = (
+        counters.raw_candidate_count > 0
+        and counters.accepted_business_enforcement_count > 0
+        and not discovery_outcomes
+    )
 
     return {
         "scanned_file_count": max(
@@ -393,7 +404,11 @@ def _build_code_extraction_report(
         ),
         "template_overfit_count": max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0),
         "scanned_surfaces": list(report_map.get("scanned_surfaces") or []),
-        "discovery_outcomes": list(report_map.get("discovery_outcomes") or []),
+        # Keep full discovery outcomes materialized for replay/diagnostics.
+        # Counters remain the SSOT for aggregation decisions.
+        "discovery_outcomes": discovery_outcomes,
+        "discovery_outcomes_count": len(discovery_outcomes) if discovery_outcomes else counters.raw_candidate_count,
+        "discovery_outcomes_truncated": outcomes_missing_with_signal,
         "report_sha": report_sha,
     }
 
@@ -665,7 +680,7 @@ def build_business_rules_state_snapshot(
         "coverage_quality_grade": coverage_quality_grade,
     }
     report_sha = _build_report_sha(normalized_report) if compute_report_sha else str(persistence_result.get("report_sha") or "")
-    final_code_extraction_report = _build_code_extraction_report(
+    final_code_extraction_report = hydrate_code_extraction_report_for_session_state(
         report_map=report_map,
         counters=counters,
         report_sha=report_sha,
@@ -726,7 +741,7 @@ def build_business_rules_code_extraction_report(snapshot: Mapping[str, Any]) -> 
     validation_report = snapshot.get("ValidationReport")
     report_map = dict(validation_report) if isinstance(validation_report, Mapping) else {}
     counters = _build_code_extraction_counters(report_map)
-    return _build_code_extraction_report(
+    return hydrate_code_extraction_report_for_session_state(
         report_map=report_map,
         counters=counters,
         report_sha=str(snapshot.get("ReportSha") or ""),

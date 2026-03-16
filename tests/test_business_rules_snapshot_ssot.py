@@ -183,3 +183,133 @@ def test_corner_hydration_roundtrips_quality_metrics_from_status(tmp_path: Path)
         "artifact_ratio_above_maximum",
         "semantic_diversity_too_low",
     ]
+
+
+def test_hydration_preserves_discovery_outcomes_materialization() -> None:
+    outcomes = [
+        {
+            "path": "src/a.py",
+            "language": "python",
+            "line_start": 10,
+            "status": "accepted_for_validation",
+            "source_text": "BR-C001: Customer must be verified",
+            "evidence_snippet": "if not customer_id: raise ValueError",
+            "enforcement_anchor_type": "validator",
+            "semantic_type": "required-field",
+        },
+        {
+            "path": "src/b.py",
+            "language": "python",
+            "line_start": 22,
+            "status": "dropped_non_business_surface",
+            "source_text": "generic payload should be validated",
+            "evidence_snippet": "payload.get('x')",
+            "enforcement_anchor_type": "",
+            "semantic_type": "",
+        },
+    ]
+
+    snapshot = build_business_rules_state_snapshot(
+        report={
+            "is_compliant": True,
+            "has_invalid_rules": False,
+            "has_render_mismatch": False,
+            "has_source_violation": False,
+            "has_missing_required_rules": False,
+            "has_segmentation_failure": False,
+            "raw_candidate_count": 2,
+            "dropped_candidate_count": 1,
+            "candidate_count": 1,
+            "validated_code_rule_count": 1,
+            "invalid_code_candidate_count": 0,
+            "valid_rule_count": 1,
+            "invalid_rule_count": 0,
+            "count_consistent": True,
+            "has_code_extraction": True,
+            "code_extraction_sufficient": True,
+            "reason_codes": [],
+            # stale value must not win
+            "discovery_outcomes": [],
+        },
+        persistence_result={
+            "source_phase": "1.5-BusinessRules",
+            "extractor_version": "hybrid-br-v1",
+            "extraction_source": "deterministic",
+            "extraction_ran": True,
+            "execution_evidence": True,
+            "inventory_written": True,
+            "inventory_loaded": True,
+            "inventory_exists": True,
+            "inventory_file_status": "written",
+            "inventory_file_mode": "update",
+            "inventory_sha256": "a" * 64,
+            "report_finalized": True,
+        },
+        code_extraction_report={
+            "raw_candidate_count": 2,
+            "candidate_count": 1,
+            "dropped_candidate_count": 1,
+            "validated_code_rule_count": 1,
+            "invalid_code_candidate_count": 0,
+            "accepted_business_enforcement_count": 1,
+            "discovery_outcomes": outcomes,
+        },
+    )
+
+    report = snapshot["CodeExtractionReport"]
+    assert isinstance(report, dict)
+    assert report["raw_candidate_count"] == 2
+    assert len(report["discovery_outcomes"]) == 2
+    assert report["discovery_outcomes"][0]["path"] == "src/a.py"
+    assert report["discovery_outcomes"][-1]["path"] == "src/b.py"
+
+
+def test_hydration_marks_missing_discovery_outcomes_as_explicit_fallback() -> None:
+    snapshot = build_business_rules_state_snapshot(
+        report={
+            "is_compliant": True,
+            "has_invalid_rules": False,
+            "has_render_mismatch": False,
+            "has_source_violation": False,
+            "has_missing_required_rules": False,
+            "has_segmentation_failure": False,
+            "raw_candidate_count": 3,
+            "dropped_candidate_count": 1,
+            "candidate_count": 2,
+            "validated_code_rule_count": 2,
+            "invalid_code_candidate_count": 0,
+            "valid_rule_count": 2,
+            "invalid_rule_count": 0,
+            "count_consistent": True,
+            "has_code_extraction": True,
+            "code_extraction_sufficient": True,
+            "reason_codes": [],
+        },
+        persistence_result={
+            "source_phase": "1.5-BusinessRules",
+            "extractor_version": "hybrid-br-v1",
+            "extraction_source": "deterministic",
+            "extraction_ran": True,
+            "execution_evidence": True,
+            "inventory_written": True,
+            "inventory_loaded": True,
+            "inventory_exists": True,
+            "inventory_file_status": "written",
+            "inventory_file_mode": "update",
+            "inventory_sha256": "a" * 64,
+            "report_finalized": True,
+        },
+        code_extraction_report={
+            "raw_candidate_count": 3,
+            "candidate_count": 2,
+            "dropped_candidate_count": 1,
+            "validated_code_rule_count": 2,
+            "invalid_code_candidate_count": 0,
+            "accepted_business_enforcement_count": 2,
+            "discovery_outcomes": [],
+        },
+    )
+    report = snapshot["CodeExtractionReport"]
+    assert report["discovery_outcomes"] == []
+    assert report["discovery_outcomes_count"] == 3
+    assert report["discovery_outcomes_truncated"] is True
