@@ -312,12 +312,15 @@ def test_install_keeps_backup_and_metadata_artifacts_outside_commands_payload(tm
     assert target.exists(), f"expected installed file missing: {target}"
     target.write_text("modified\n", encoding="utf-8")
     (commands_dir / ".DS_Store").write_text("meta", encoding="utf-8")
+    (commands_dir / "governance" / "logs").mkdir(parents=True, exist_ok=True)
+    (commands_dir / "governance" / "logs" / "error.log.jsonl").write_text("{}\n", encoding="utf-8")
 
     second = run_install(["--force", "--config-root", str(config_root)])
     assert second.returncode == 0, f"reinstall failed:\n{second.stderr}\n{second.stdout}"
 
     assert not (commands_dir / "_backup").exists(), "commands/_backup must not exist after install"
     assert not (commands_dir / ".DS_Store").exists(), "commands/.DS_Store must be removed by hygiene guard"
+    assert not (commands_dir / "governance" / "logs").exists(), "commands/governance/logs must never exist after install"
 
     backup_root = config_root / ".installer-backups"
     assert backup_root.exists(), "backup root should exist outside commands/"
