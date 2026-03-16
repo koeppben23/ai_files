@@ -79,6 +79,9 @@ class CodeExtractionCoverage:
     rejected_non_business_subject_count: int = 0
     # Block D: Causal reasoning for missing surfaces
     missing_surface_reasons: tuple[str, ...] = ()
+    # Block E: Extended quality metrics
+    post_drop_valid_ratio: float = 0.0
+    executable_business_rule_ratio: float = 0.0
 
 
 def evaluate_code_extraction_coverage(
@@ -189,6 +192,22 @@ def evaluate_code_extraction_coverage(
         reasons.append(RC_CODE_TEMPLATE_OVERFIT)
         quality_reasons.append("template_overfit_spike")
 
+    # Block E: Extended quality insufficiency reasons for better calibration
+    # post-drop valid ratio: what fraction of candidates that passed discovery are valid
+    post_drop_valid_ratio = (validated_code_rule_count / candidate_count) if candidate_count > 0 else 0.0
+    # executable business rule ratio: what fraction of raw candidates are executable business rules
+    executable_business_rule_ratio = (validated_code_rule_count / raw_candidate_count) if raw_candidate_count > 0 else 0.0
+    
+    # Add specific spike reasons based on diagnostic counts
+    if candidate_count > 0 and (dropped_non_business_surface_count + dropped_schema_only_count) > candidate_count:
+        quality_reasons.append("non_business_surface_spike")
+    if candidate_count > 0 and dropped_schema_only_count > candidate_count * 0.5:
+        quality_reasons.append("schema_only_spike")
+    if candidate_count > 0 and rejected_non_business_subject_count > candidate_count * 0.3:
+        quality_reasons.append("governance_meta_rule_spike")
+    if raw_candidate_count > 0 and executable_business_rule_ratio < 0.05 and raw_candidate_count >= 10:
+        quality_reasons.append("insufficient_executable_business_rules")
+
     if quality_reasons and RC_CODE_QUALITY_INSUFFICIENT not in reasons:
         reasons.append(RC_CODE_QUALITY_INSUFFICIENT)
 
@@ -261,6 +280,9 @@ def evaluate_code_extraction_coverage(
         rejected_non_business_subject_count=rejected_non_business_subject_count,
         # Block D: Causal reasoning for missing surfaces
         missing_surface_reasons=tuple(missing_surface_reasons),
+        # Block E: Extended quality metrics
+        post_drop_valid_ratio=max(post_drop_valid_ratio, 0.0),
+        executable_business_rule_ratio=max(executable_business_rule_ratio, 0.0),
     )
 
 
