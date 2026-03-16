@@ -41,7 +41,7 @@ from governance.application.use_cases.validate_plan_compliance import (
 from governance.engine.business_rules_hydration import has_br_signal
 
 GateStatus = Literal["blocked", "warn", "ok", "not_verified"]
-P53Status = Literal["pending", "pass", "pass-with-exceptions", "fail"]
+P53Status = Literal["pending", "pass", "pass-with-exceptions", "fail", "not-applicable"]
 P54Status = Literal["pending", "compliant", "compliant-with-exceptions", "gap-detected", "not-applicable"]
 P56Status = Literal["pending", "approved", "rejected", "not-applicable"]
 P55Status = Literal["pending", "approved", "rejected", "not-applicable"]
@@ -79,7 +79,7 @@ P5_GATE_PRIORITY_ORDER: tuple[str, ...] = (
 # maintaining a parallel definition.
 P5_GATE_TERMINAL_VALUES: dict[str, tuple[str, ...]] = {
     "P5-Architecture": ("approved",),
-    "P5.3-TestQuality": ("pass", "pass-with-exceptions"),
+    "P5.3-TestQuality": ("pass", "pass-with-exceptions", "not-applicable"),
     "P5.4-BusinessRules": ("compliant", "compliant-with-exceptions", "not-applicable"),
     "P5.5-TechnicalDebt": ("approved", "not-applicable"),
     "P5.6-RollbackSafety": ("approved", "not-applicable"),
@@ -267,7 +267,7 @@ def evaluate_p53_test_quality_gate(
     gates = session_state.get("Gates")
     if isinstance(gates, Mapping):
         p53_status = gates.get("P5.3-TestQuality")
-        if p53_status in ("pass", "pass-with-exceptions"):
+        if p53_status in ("pass", "pass-with-exceptions", "not-applicable"):
             return P53GateEvaluation(
                 status=p53_status,
                 reason_code=REASON_CODE_NONE,
@@ -444,7 +444,10 @@ def evaluate_p54_business_rules_gate(
                 and not has_code_coverage_gap
                 and not has_code_doc_conflict
                 and invalid_rule_count == 0
-                and dropped_candidate_count == 0
+                # Fix 2.1: dropped_candidate_count reflects legitimately filtered
+                # non-business candidates (e.g. non_business_surface_spike).
+                # A high drop count with 0 invalid rules is normal and must not
+                # block compliant status.
             ):
                 return P54GateEvaluation(
                     status="compliant",
@@ -840,9 +843,9 @@ def evaluate_p6_prerequisites(
     p5_arch = gates.get("P5-Architecture")
     p5_architecture_approved = p5_arch == "approved"
 
-    # P5.3-TestQuality must be pass or pass-with-exceptions
+    # P5.3-TestQuality must be pass, pass-with-exceptions, or not-applicable
     p53 = gates.get("P5.3-TestQuality")
-    p53_passed = p53 in ("pass", "pass-with-exceptions")
+    p53_passed = p53 in ("pass", "pass-with-exceptions", "not-applicable")
 
     # P5.4-BusinessRules (only if Phase 1.5 executed)
     p54_compliant: bool | None = None

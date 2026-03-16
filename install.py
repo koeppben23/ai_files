@@ -933,6 +933,11 @@ def _is_forbidden_installed_path(path: Path, commands_dir: Path) -> bool:
         return True
     if rel.name in FORBIDDEN_METADATA_FILENAMES:
         return True
+    # Logs must never be inside commands/governance/.
+    # The only valid runtime logs location is workspace-scoped:
+    #   <config_root>/workspaces/<repo_fingerprint>/logs/
+    if len(rel.parts) >= 2 and rel.parts[0] == "governance" and rel.parts[1] == ERROR_LOGS_DIR_NAME:
+        return True
     return False
 
 
@@ -955,6 +960,19 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
                 print(f"  [DRY-RUN] rm -rf {backup_dir}")
             else:
                 shutil.rmtree(backup_dir, ignore_errors=True)
+
+    # Remove accidental governance-local logs directory if present.
+    governance_logs_dir = commands_dir / "governance" / ERROR_LOGS_DIR_NAME
+    if governance_logs_dir.exists():
+        rel = str(governance_logs_dir.relative_to(commands_dir)).replace("\\", "/")
+        if governance_logs_dir.is_symlink():
+            removed.append(f"{rel} [SYMLINK-SKIPPED]")
+        elif dry_run:
+            removed.append(rel)
+            print(f"  [DRY-RUN] rm -rf {governance_logs_dir}")
+        else:
+            shutil.rmtree(governance_logs_dir, ignore_errors=True)
+            removed.append(rel)
 
     for path in sorted(commands_dir.rglob("*")):
         if not path.exists() or path.is_dir():

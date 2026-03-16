@@ -4,7 +4,7 @@ from governance.engine.gate_evaluator import evaluate_p54_business_rules_gate
 
 
 def _state_with_validation_report(**overrides: object) -> dict[str, object]:
-    base = {
+    base: dict[str, object] = {
         "BusinessRules": {
             "Outcome": "extracted",
             "ExecutionEvidence": True,
@@ -26,7 +26,9 @@ def _state_with_validation_report(**overrides: object) -> dict[str, object]:
             },
         }
     }
-    base["BusinessRules"].update(overrides)
+    business_rules = base["BusinessRules"]
+    assert isinstance(business_rules, dict)
+    business_rules.update(overrides)
     return base
 
 
@@ -96,3 +98,31 @@ def test_edge_p54_not_applicable_without_phase_15() -> None:
     )
 
     assert result.status == "not-applicable"
+
+
+def test_regression_dropped_candidates_do_not_block_compliant_when_report_is_clean() -> None:
+    """Fix regression: dropped non-business candidates are allowed for compliant status."""
+    result = evaluate_p54_business_rules_gate(
+        session_state=_state_with_validation_report(
+            DroppedCandidateCount=7,
+            ValidationReport={
+                "is_compliant": True,
+                "has_invalid_rules": False,
+                "has_render_mismatch": False,
+                "has_source_violation": False,
+                "has_missing_required_rules": False,
+                "has_segmentation_failure": False,
+                "has_code_extraction": True,
+                "code_extraction_sufficient": True,
+                "has_code_coverage_gap": False,
+                "has_code_doc_conflict": False,
+                "invalid_rule_count": 0,
+                "dropped_candidate_count": 7,
+                "count_consistent": True,
+            },
+        ),
+        phase_1_5_executed=True,
+    )
+
+    assert result.status == "compliant"
+    assert result.invalid_rule_count == 0

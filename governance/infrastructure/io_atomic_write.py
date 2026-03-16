@@ -21,7 +21,8 @@ def atomic_write_text(path: Path, content: str, dry_run: bool = False) -> Action
         existed_before = path.exists()
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+        # Use a very short prefix to avoid exceeding Windows MAX_PATH (260 chars).
+        fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), prefix=".", suffix=".tmp")
 
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:

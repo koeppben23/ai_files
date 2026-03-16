@@ -578,6 +578,7 @@ def _sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
 
     try:
         from governance.engine.gate_evaluator import (
+            evaluate_p53_test_quality_gate,
             evaluate_p54_business_rules_gate,
             evaluate_p55_technical_debt_gate,
             evaluate_p56_rollback_safety_gate,
@@ -586,6 +587,13 @@ def _sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
     except Exception:
         return
 
+    # --- P5.3 Test Quality ---
+    p53_eval = evaluate_p53_test_quality_gate(session_state=state)
+    if str(gates.get("P5.3-TestQuality", "")).strip().lower() == "pending":
+        if p53_eval.status in {"pass", "pass-with-exceptions", "not-applicable"}:
+            gates["P5.3-TestQuality"] = p53_eval.status
+
+    # --- P5.4 Business Rules ---
     p54_eval = evaluate_p54_business_rules_gate(
         session_state=state,
         phase_1_5_executed=_phase_1_5_executed(state),
@@ -598,7 +606,7 @@ def _sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
             "gap-detected",
         }:
             gates["P5.4-BusinessRules"] = p54_eval.status
-    if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable"}:
+    if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable", "gap-detected"}:
         if str(state.get("phase5_completed") or "").strip().lower() in {"true", "1"} or state.get("phase5_completed") is True:
             state["phase5_completed"] = False
             state["phase5_state"] = "phase5-in-progress"
@@ -676,7 +684,7 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
             session_state=state,
             phase_1_5_executed=True,
         )
-        if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable"}:
+        if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable", "gap-detected"}:
             if "P5.4-BusinessRules" not in open_gates:
                 open_gates.append("P5.4-BusinessRules")
                 _order = {gate: idx for idx, gate in enumerate(P5_GATE_PRIORITY_ORDER)}
@@ -827,7 +835,7 @@ def _build_runtime_context(
     Returns (requested_phase, RuntimeContext).  Shared by both the
     materialise (write) and readonly-eval (read) code paths.
     """
-    from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
+    from governance.domain.phase_state_machine import normalize_phase_token
     from governance.kernel.phase_kernel import RuntimeContext
 
     state_view = _session_state_view(state_doc)
@@ -848,14 +856,15 @@ def _build_runtime_context(
         or ""
     )
 
-    # Phase 5 is a stay-strategy gate that may advertise next=5.3 even when
-    # state remains on token 5. If transition evidence is present, treat the
-    # advertised next token as the execution target to prevent /continue loops.
+    # Stay-strategy phases may advertise a next_token that differs from the
+    # current persisted phase (e.g. Phase 5 → 5.3 forward, Phase 6 → 4 on
+    # reject).  When phase_transition_evidence is present, honour the
+    # advertised next_token as the execution target so the session actually
+    # advances (or retreats) instead of looping on the same stay-phase.
     if (
-        persisted_phase == "5"
-        and next_token == "5.3"
+        next_token
+        and next_token != persisted_phase
         and _transition_evidence_truthy(state_view, state_doc)
-        and phase_rank(next_token) > phase_rank(persisted_phase)
     ):
         requested_phase = next_token
 
@@ -940,7 +949,23 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     # evaluates a forward transition (Fix 2.0 / Ergänzung C).
     # This prevents /continue self-loops where evidence stays False
     # because only bootstrap_preflight used to set it.
-    if result.status == "OK" and result.route_strategy == "next":
+    # Fix 2.1: Also grant for stay-strategy phases that advertise a forward
+    # next_token (e.g. Phase 5 stay → 5.3).  Without this, stay-strategy
+    # phases can never transition because the evidence is never set.
+    # Fix 2.2: Normalise result.phase to a token before comparing so that
+    # stay-strategy self-loops (e.g. token "6" / phase "6-PostFlight") are
+    # correctly detected as *non*-forward and do not set evidence spuriously.
+    from governance.domain.phase_state_machine import normalize_phase_token as _npt
+    _phase_as_token = _npt(str(result.phase or ""))
+    _has_forward_transition = (
+        result.route_strategy == "next"
+        or (
+            result.route_strategy == "stay"
+            and result.next_token
+            and str(result.next_token).strip() != _phase_as_token
+        )
+    )
+    if result.status == "OK" and _has_forward_transition:
         ss = materialized.get("SESSION_STATE")
         if isinstance(ss, dict):
             ss["phase_transition_evidence"] = True
