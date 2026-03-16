@@ -2679,7 +2679,10 @@ class TestResolveNextActionLine:
             "active_gate": "Ticket Input Gate",
             "next_gate_condition": "Collect ticket and planning constraints",
         }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /ticket with the ticket/task details."
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: run /ticket with the ticket/task details. "
+            "Alternative: run /review for read-only feedback (no state change)."
+        )
 
     def test_happy_workflow_complete_emits_terminal_next_action(self) -> None:
         """Happy: workflow complete always emits an explicit terminal recommendation."""
@@ -2801,7 +2804,10 @@ class TestResolveNextActionLine:
             "phase": "4",
             "next_gate_condition": "Collect ticket and planning constraints",
         }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /ticket with the ticket/task details."
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: run /ticket with the ticket/task details. "
+            "Alternative: run /review for read-only feedback (no state change)."
+        )
 
     def test_bad_error_status_workflow_complete_emits_no_recommendation(self) -> None:
         """Bad: error status emits explicit error recovery recommendation."""

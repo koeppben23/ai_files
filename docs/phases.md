@@ -13,9 +13,9 @@ Phase `1.3` is mandatory before every phase `>=2`.
 - Phase 0/1.1 performs bootstrap validation and preflight probes (including build tool detection). **Note:** Phase 0 is a customer-facing term; in the kernel, bootstrap logic is unified under Phase 1.1-Bootstrap.
 - Phase 1.1 performs preflight and initializes the governance runtime.
 - **Phase 1.2/1.3 are kernel-owned subphases** of the Rule Loading Pipeline (1.x family). They handle lazy rulebook loading and profile resolution and are routed by the kernel via `${COMMANDS_HOME}/phase_api.yaml`.
-- Phase 1.5 is optional and acts as a bridge between discovery (2.1) and business rules.
-- You may reference Phase 1.5 as 2.2 in customer-facing docs for alignment, but kernel semantics stay 1.5.
-- 2.1 creates the Decision Pack; Phase 1.5 may run in parallel if signals exist, or follow 2.x for a stricter path.
+- Phase 1.5 is an optional business-rules routing branch from discovery (2.1), not a parallel executor track.
+- If an external alias is needed, refer to it as customer-facing alias only; kernel semantics and routing remain Phase 1.5.
+- 2.1 creates the Decision Pack; routing then resolves through the Phase 1.5 branch when required.
 - Bootstrap validates install/path/session prerequisites before work proceeds.
 - Discovery builds repo context and reusable decision artifacts.
 - Planning produces an implementation path without bypassing gates.
@@ -37,7 +37,7 @@ Phase `1.3` is mandatory before every phase `>=2`.
 | Phase 3A - API Inventory | Inventories external API artifacts and interface landscape. | **Conditional**: Executed for all workflows, but if no APIs are in scope, records `not-applicable` and skips to Phase 4. Never blocks — missing APIs just mean no API validation needed. |
 | Phase 3B-1 - API Logical Validation | Validates API specs for logical consistency at specification level. | **Conditional**: Only executed when Phase 3A detected APIs in scope. Skipped entirely if no APIs present. |
 | Phase 3B-2 - Contract Validation (Spec <-> Code) | Validates contract fidelity between specification and implementation. | **Conditional**: Only executed when Phase 3A detected APIs in scope. Contract mismatches block readiness when contract gates are active/applicable. Skipped entirely if no APIs present. |
-| Phase 4 - Ticket Execution (planning) | Produces the concrete implementation plan and review artifacts; no code output yet. | Planning phase; code-producing output remains blocked until explicit gate progression permits it. Supports a read-only rail entrypoint via `/review` for lead/staff depth feedback. |
+| Phase 4 - Ticket Intake / Planning Gate | Produces the concrete implementation plan and review artifacts; no code output yet. | Planning gate; code-producing output remains blocked until explicit gate progression permits it. Supports a read-only rail entrypoint via `/review` for lead/staff depth feedback. |
 | Phase 4 Step 1a - Feature Complexity Router | Classifies feature complexity (SIMPLE-CRUD, REFACTORING, MODIFICATION, COMPLEX, STANDARD) and determines planning depth. | Non-gate; determines which subsequent Phase 4 steps are required vs. optional. |
 | Phase 5 - Lead Architect Review (gate) | Architecture gatekeeper review with explicit re-entry when changes are required. | Gate review; re-entry is explicit and required when issues remain. |
 | Phase 5.3 - Test Quality Review (critical gate) | Reviews test strategy/coverage quality against gate criteria. | Critical gate; requires a passing outcome (or governed exceptions) before PR readiness. |
@@ -75,6 +75,19 @@ Main execution path: 4 -> 5 -> 5.3 -> 6.
 Phase 6 internal: Implementation Internal Review (max 3 iterations)
   -> Evidence Presentation Gate -> /review-decision (approve|changes_requested|reject).
 ```
+
+## Routing Priority Semantics
+
+Kernel routing follows one deterministic priority chain:
+
+1. first matching `specific` transition
+2. otherwise `default`
+3. otherwise `next`
+4. otherwise terminal/config error
+
+If multiple `specific` transitions match, the first declared transition wins.
+
+This is why some paths intentionally differ between `next` and `default` (for example Phase 4 and conditional Phase 5.x behavior). These are deliberate routing outcomes, not contradictions.
 
 ## Phase 3 Routing (API Detection)
 

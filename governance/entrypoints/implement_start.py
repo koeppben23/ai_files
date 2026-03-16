@@ -152,6 +152,19 @@ def _repo_root(session_path: Path, state: Mapping[str, object]) -> Path:
         root = Path(explicit)
         if root.is_absolute() and root.exists() and root.is_dir():
             return root
+    if session_path.parent.exists() and session_path.parent.is_dir() and (session_path.parent / ".git").exists():
+        return session_path.parent
+
+    identity_map = session_path.parent / "repo-identity-map.yaml"
+    if identity_map.exists() and identity_map.is_file():
+        try:
+            payload = _load_json(identity_map)
+            mapped_root = Path(str(payload.get("repoRoot") or "").strip())
+            if mapped_root.is_absolute() and mapped_root.exists() and mapped_root.is_dir():
+                return mapped_root
+        except Exception:
+            pass
+
     if session_path.parent.exists() and session_path.parent.is_dir():
         return session_path.parent
     cwd = Path(os.path.abspath(str(Path.cwd())))
@@ -181,6 +194,23 @@ def _parse_changed_files_from_git_status(repo_root: Path) -> list[str]:
             continue
         changed_files.append(raw[3:].strip().replace("\\", "/"))
     return sorted(set(changed_files))
+
+
+def _has_active_desktop_llm_binding() -> bool:
+    if str(os.environ.get("OPENCODE") or "").strip() == "1":
+        return True
+    binding_tokens = (
+        "OPENCODE_MODEL",
+        "OPENCODE_MODEL_ID",
+        "OPENCODE_MODEL_PROVIDER",
+        "OPENCODE_MODEL_CONTEXT_LIMIT",
+        "OPENCODE_CLIENT_MODEL",
+        "OPENCODE_CLIENT_PROVIDER",
+    )
+    for key in binding_tokens:
+        if str(os.environ.get(key) or "").strip():
+            return True
+    return False
 
 
 def _run_llm_edit_step(
@@ -222,13 +252,26 @@ def _run_llm_edit_step(
     _write_text_atomic(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
     if not executor_cmd:
+        if _has_active_desktop_llm_binding():
+            changed_files = _parse_changed_files_from_git_status(repo_root)
+            _write_text_atomic(stdout_file, "Using current OpenCode LLM session as implementation executor.\n")
+            _write_text_atomic(stderr_file, "")
+            return {
+                "executor_invoked": True,
+                "exit_code": 0,
+                "reason_code": "",
+                "message": "",
+                "stdout_path": str(stdout_file),
+                "stderr_path": str(stderr_file),
+                "changed_files": changed_files,
+            }
         _write_text_atomic(stdout_file, "")
         _write_text_atomic(stderr_file, "LLM executor command missing\n")
         return {
             "executor_invoked": False,
             "exit_code": 2,
             "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
-            "message": "Set OPENCODE_IMPLEMENT_LLM_CMD to execute LLM-based repository edits.",
+            "message": "No implementation executor binding available. Set OPENCODE_IMPLEMENT_LLM_CMD or run with an active OpenCode Desktop LLM binding.",
             "stdout_path": str(stdout_file),
             "stderr_path": str(stderr_file),
             "changed_files": [],

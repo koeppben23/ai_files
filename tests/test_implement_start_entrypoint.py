@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -333,3 +334,102 @@ def test_security_local_writes_are_governance_or_state_only(
     for path in text_writes:
         rel_text = path.relative_to(tmp_path).as_posix()
         assert rel_text.startswith(".governance/implementation/")
+
+
+def test_happy_desktop_llm_binding_used_as_default_executor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: ["src/service.py"])
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"Phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+    )
+
+    assert result["executor_invoked"] is True
+    assert result["exit_code"] == 0
+    assert result["reason_code"] == ""
+    assert result["changed_files"] == ["src/service.py"]
+
+
+def test_happy_override_executor_precedence_over_desktop_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "python3 -c \"print('override')\"")
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: ["src/service.py"])
+
+    observed: list[str] = []
+
+    def _fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        observed.append(str(cmd))
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="ok\n", stderr="")
+
+    monkeypatch.setattr(entrypoint.subprocess, "run", _fake_run)
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"Phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+    )
+
+    assert observed
+    assert "python3 -c" in observed[0]
+    assert result["executor_invoked"] is True
+    assert result["exit_code"] == 0
+
+
+def test_bad_no_executor_binding_blocks_with_not_configured_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+    monkeypatch.delenv("OPENCODE", raising=False)
+    monkeypatch.delenv("OPENCODE_MODEL", raising=False)
+    monkeypatch.delenv("OPENCODE_MODEL_PROVIDER", raising=False)
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"Phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+    )
+
+    assert result["executor_invoked"] is False
+    assert result["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
+
+
+def test_bad_approval_required_before_implement_start(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path, decision="changes_requested")
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "error"
+    assert "approved final review decision" in out["message"]

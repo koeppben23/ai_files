@@ -42,7 +42,7 @@ MUST:
   - README <-> master terminology/link consistency
   - manifest <-> rulebook reference consistency
 
-### Phase 4 (implementation)
+### Phase 4 (ticket intake / planning gate)
 MUST:
 - keep docs edits small and auditable
 - keep terms and field paths consistent with canonical sources

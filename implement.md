@@ -5,12 +5,13 @@
 ## Purpose
 
 `/implement` starts execution of the approved implementation plan after approved Phase 6 governance review.
-The command is mutating. It orchestrates an external code executor and writes governance diagnostics/state.
+The command is mutating. It orchestrates the resolved implementation executor (default: active OpenCode Desktop LLM binding; optional explicit override) and writes governance diagnostics/state.
 
-`/implement` follows a controller/executor split:
+`/implement` follows a controller/executor split (default executor: active OpenCode Desktop LLM binding):
 - load approved plan, hotspots, constraints, and required checks
 - write executor input context (`.governance/implementation/llm_edit_context.json`)
-- invoke configured external LLM executor (the only actor allowed to change domain files)
+- resolve executor in priority order: explicit override first, otherwise active OpenCode Desktop LLM binding
+- invoke the resolved implementation executor (the only actor allowed to change domain files)
 - run internal implementation self-review (validation-only; no local domain edits)
 - collect git diff evidence and validate plan-coverage plus targeted checks
 - persist validation/audit evidence and fail closed when requirements are not met
@@ -36,7 +37,9 @@ If no snapshot is available, proceed using only the context visible in the curre
 - Valid only after final review decision `approve` (Workflow Complete).
 - `/implement` is a controller + validator; it must not locally edit domain/source files.
 - Local writes are restricted to governance diagnostics/state (for example `.governance/implementation/*`, session state, and audit events).
-- Domain/source edits must come exclusively from the configured external executor.
+- Domain/source edits must come exclusively from the resolved authorized executor.
+- A separate executor configuration is optional override only; default executor is the active OpenCode Desktop LLM binding.
+- `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED` applies only when neither override nor active Desktop LLM binding is available.
 - Ends in `Implementation Review Complete` (ready to continue) or `Implementation Blocked`.
 
 ## Response shape
