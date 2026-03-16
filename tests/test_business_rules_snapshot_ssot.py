@@ -140,9 +140,17 @@ def test_corner_hydration_roundtrips_quality_metrics_from_status(tmp_path: Path)
                 "CandidateCount: 4",
                 "ValidatedCodeRuleCount: 1",
                 "InvalidCodeCandidateCount: 3",
+                "DroppedNonBusinessSurfaceCount: 8",
+                "DroppedSchemaOnlyCount: 2",
+                "DroppedNonExecutableNormativeTextCount: 1",
+                "AcceptedBusinessEnforcementCount: 4",
+                "RejectedNonBusinessSubjectCount: 3",
                 "CoverageQualityGrade: poor",
                 "SurfaceBalanceScore: 0.2",
                 "SemanticDiversityScore: 0.1",
+                "PostDropValidRatio: 0.25",
+                "ExecutableBusinessRuleRatio: 0.20",
+                "MissingSurfaceReasons: validator: filtered_non_business, workflow: insufficient_business_context",
                 "QualityInsufficiencyReasons: artifact_ratio_above_maximum, semantic_diversity_too_low",
                 "ReportSha: 1234abcd",
             ]
@@ -159,6 +167,18 @@ def test_corner_hydration_roundtrips_quality_metrics_from_status(tmp_path: Path)
     assert business["CoverageQualityGrade"] == "poor"
     assert business["SurfaceBalanceScore"] == 0.2
     assert business["SemanticDiversityScore"] == 0.1
+    validation_report = business["ValidationReport"]
+    assert validation_report["dropped_non_business_surface_count"] == 8
+    assert validation_report["dropped_schema_only_count"] == 2
+    assert validation_report["dropped_non_executable_normative_text_count"] == 1
+    assert validation_report["accepted_business_enforcement_count"] == 4
+    assert validation_report["rejected_non_business_subject_count"] == 3
+    assert validation_report["post_drop_valid_ratio"] == 0.25
+    assert validation_report["executable_business_rule_ratio"] == 0.2
+    assert validation_report["missing_surface_reasons"] == [
+        "validator: filtered_non_business",
+        "workflow: insufficient_business_context",
+    ]
     assert business["QualityInsufficiencyReasons"] == [
         "artifact_ratio_above_maximum",
         "semantic_diversity_too_low",

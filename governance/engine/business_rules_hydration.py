@@ -390,6 +390,11 @@ def _build_code_extraction_report(
         "surface_balance_score": _parse_float(report_map.get("surface_balance_score"), default=0.0),
         "semantic_diversity_score": _parse_float(report_map.get("semantic_diversity_score"), default=0.0),
         "quality_insufficiency_reasons": _normalize_reason_codes(report_map.get("quality_insufficiency_reasons")),
+        "missing_surface_reasons": _normalize_reason_codes(report_map.get("missing_surface_reasons")),
+        "post_drop_valid_ratio": _parse_float(report_map.get("post_drop_valid_ratio"), default=0.0),
+        "executable_business_rule_ratio": _parse_float(
+            report_map.get("executable_business_rule_ratio"), default=0.0
+        ),
         "template_overfit_count": max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0),
         "scanned_surfaces": list(report_map.get("scanned_surfaces") or []),
         "discovery_outcomes": list(report_map.get("discovery_outcomes") or []),
@@ -484,8 +489,39 @@ def build_business_rules_state_snapshot(
 
     report_map = dict(report)
     if isinstance(code_extraction_report, Mapping):
-        for key, value in dict(code_extraction_report).items():
-            report_map.setdefault(str(key), value)
+        merged = dict(code_extraction_report)
+        # SSOT override: extraction diagnostics from code_extraction_report
+        # must override stale/legacy zeros from report payload.
+        force_override_keys = {
+            "raw_candidate_count",
+            "dropped_candidate_count",
+            "candidate_count",
+            "code_candidate_count",
+            "validated_code_rule_count",
+            "invalid_code_candidate_count",
+            "dropped_non_business_surface_count",
+            "dropped_schema_only_count",
+            "dropped_non_executable_normative_text_count",
+            "accepted_business_enforcement_count",
+            "rejected_non_business_subject_count",
+            "discovery_outcomes",
+            "scanned_surfaces",
+            "valid_rule_ratio",
+            "artifact_ratio",
+            "coverage_quality_grade",
+            "surface_balance_score",
+            "semantic_diversity_score",
+            "quality_insufficiency_reasons",
+            "missing_surface_reasons",
+            "post_drop_valid_ratio",
+            "executable_business_rule_ratio",
+        }
+        for key, value in merged.items():
+            k = str(key)
+            if k in force_override_keys:
+                report_map[k] = value
+            else:
+                report_map.setdefault(k, value)
 
     counters = _build_code_extraction_counters(report_map)
     valid_rule_count = max(_parse_int(str(report_map.get("valid_rule_count", 0))), 0)
@@ -588,6 +624,11 @@ def build_business_rules_state_snapshot(
     surface_balance_score = _parse_float(report_map.get("surface_balance_score"), default=0.0)
     semantic_diversity_score = _parse_float(report_map.get("semantic_diversity_score"), default=0.0)
     quality_insufficiency_reasons = _normalize_reason_codes(report_map.get("quality_insufficiency_reasons"))
+    missing_surface_reasons = _normalize_reason_codes(report_map.get("missing_surface_reasons"))
+    post_drop_valid_ratio = _parse_float(report_map.get("post_drop_valid_ratio"), default=0.0)
+    executable_business_rule_ratio = _parse_float(
+        report_map.get("executable_business_rule_ratio"), default=0.0
+    )
     code_token_artifact_count = max(_parse_int(str(report_map.get("code_token_artifact_count", 0))), 0)
     template_overfit_count = max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0)
 
@@ -622,6 +663,9 @@ def build_business_rules_state_snapshot(
         "surface_balance_score": surface_balance_score,
         "semantic_diversity_score": semantic_diversity_score,
         "quality_insufficiency_reasons": quality_insufficiency_reasons,
+        "missing_surface_reasons": missing_surface_reasons,
+        "post_drop_valid_ratio": post_drop_valid_ratio,
+        "executable_business_rule_ratio": executable_business_rule_ratio,
         "coverage_quality_grade": coverage_quality_grade,
     }
     report_sha = _build_report_sha(normalized_report) if compute_report_sha else str(persistence_result.get("report_sha") or "")
@@ -766,9 +810,25 @@ def hydrate_business_rules_state_from_artifacts(
     template_overfit_count = _parse_int(status_fields.get("templateoverfitcount", "0"), default=0)
     code_surface_count = _parse_int(status_fields.get("codesurfacecount", "0"), default=0)
     missing_code_surfaces = _parse_csv_reasons(status_fields.get("missingcodesurfaces", ""))
+    missing_surface_reasons = _parse_csv_reasons(status_fields.get("missingsurfacereasons", ""))
     coverage_quality_grade = status_fields.get("coveragequalitygrade", "unknown").strip() or "unknown"
     surface_balance_score = _parse_float(status_fields.get("surfacebalancescore", "0.0"), default=0.0)
     semantic_diversity_score = _parse_float(status_fields.get("semanticdiversityscore", "0.0"), default=0.0)
+    post_drop_valid_ratio = _parse_float(status_fields.get("postdropvalidratio", "0.0"), default=0.0)
+    executable_business_rule_ratio = _parse_float(status_fields.get("executablebusinessruleratio", "0.0"), default=0.0)
+    dropped_non_business_surface_count = _parse_int(
+        status_fields.get("droppednonbusinesssurfacecount", "0"), default=0
+    )
+    dropped_schema_only_count = _parse_int(status_fields.get("droppedschemaonlycount", "0"), default=0)
+    dropped_non_executable_normative_text_count = _parse_int(
+        status_fields.get("droppednonexecutablenormativetextcount", "0"), default=0
+    )
+    accepted_business_enforcement_count = _parse_int(
+        status_fields.get("acceptedbusinessenforcementcount", "0"), default=0
+    )
+    rejected_non_business_subject_count = _parse_int(
+        status_fields.get("rejectednonbusinesssubjectcount", "0"), default=0
+    )
     quality_insufficiency_reasons = _parse_csv_reasons(status_fields.get("qualityinsufficiencyreasons", ""))
     render_consistency = status_fields.get("renderconsistency", "").strip().lower()
     count_consistency = status_fields.get("countconsistency", "").strip().lower()
@@ -823,6 +883,14 @@ def hydrate_business_rules_state_from_artifacts(
         "surface_balance_score": surface_balance_score,
         "semantic_diversity_score": semantic_diversity_score,
         "quality_insufficiency_reasons": quality_insufficiency_reasons,
+        "missing_surface_reasons": missing_surface_reasons,
+        "post_drop_valid_ratio": post_drop_valid_ratio,
+        "executable_business_rule_ratio": executable_business_rule_ratio,
+        "dropped_non_business_surface_count": dropped_non_business_surface_count,
+        "dropped_schema_only_count": dropped_schema_only_count,
+        "dropped_non_executable_normative_text_count": dropped_non_executable_normative_text_count,
+        "accepted_business_enforcement_count": accepted_business_enforcement_count,
+        "rejected_non_business_subject_count": rejected_non_business_subject_count,
         "reason_codes": quality_reason_codes,
     }
 
