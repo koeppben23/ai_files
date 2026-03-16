@@ -32,6 +32,7 @@ from governance.entrypoints.session_reader import (
     _format_list,
     _quote_if_needed,
     _coerce_int,
+    _build_runtime_context,
     _should_emit_continue_next_action,
     _resolve_next_action_line,
     _render_blocker,
@@ -2138,6 +2139,182 @@ class TestTransitionEvidenceAutoGrant:
         persisted = json.loads(ws_state.read_text(encoding="utf-8"))
         ss = persisted.get("SESSION_STATE", persisted)
         assert ss.get("phase_transition_evidence") is not True
+
+
+class TestTransitionEvidenceStayStrategyRegressions:
+    """Regression coverage for stay-strategy transition evidence behavior."""
+
+    @staticmethod
+    def _prepare_materialize_workspace(fake_config: Path, *, phase: str, next_token: str) -> tuple[Path, Path]:
+        ws_state = _write_pointer(fake_config)
+        pointer = {
+            "schema": POINTER_SCHEMA,
+            "activeRepoFingerprint": "abc123",
+            "activeSessionStateFile": str(ws_state),
+        }
+        (fake_config / "SESSION_STATE.json").write_text(json.dumps(pointer), encoding="utf-8")
+
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": phase,
+                    "Next": next_token,
+                    "active_gate": "Architecture Review Gate",
+                    "next_gate_condition": "Continue deterministic review",
+                    "status": "OK",
+                    "phase_transition_evidence": False,
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {"riskTiering": "rulesets/profiles/rules.risk-tiering.yml"},
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+                }
+            },
+        )
+
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (commands_home / "governance.paths.json").write_text(
+            json.dumps({
+                "schema": "opencode-governance.paths.v1",
+                "paths": {
+                    "commandsHome": str(commands_home),
+                    "workspacesHome": str(fake_config / "workspaces"),
+                    "configRoot": str(fake_config),
+                    "pythonCommand": "python3",
+                },
+            }),
+            encoding="utf-8",
+        )
+        return ws_state, commands_home
+
+    def test_happy_stay_with_different_next_token_auto_grants_evidence(self, fake_config: Path) -> None:
+        """Fix regression: stay-strategy with advertised forward next_token sets evidence."""
+        ws_state, commands_home = self._prepare_materialize_workspace(
+            fake_config,
+            phase="5-ArchitectureReview",
+            next_token="5.3",
+        )
+
+        from governance.kernel.phase_kernel import KernelResult
+
+        stay_forward = KernelResult(
+            phase="5-ArchitectureReview",
+            next_token="5.3",
+            active_gate="Architecture Review Gate",
+            next_gate_condition="Route to test quality",
+            workspace_ready=True,
+            source="phase-5-self-review-complete",
+            status="OK",
+            spec_hash="abc",
+            spec_path=str(commands_home / "phase_api.yaml"),
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-stay-forward-001",
+            route_strategy="stay",
+            plan_record_status="active",
+            plan_record_versions=1,
+            transition_evidence_met=False,
+        )
+
+        with patch("governance.kernel.phase_kernel.execute", return_value=stay_forward):
+            read_session_snapshot(commands_home=commands_home, materialize=True)
+
+        persisted = json.loads(ws_state.read_text(encoding="utf-8"))
+        ss = persisted.get("SESSION_STATE", persisted)
+        assert ss.get("phase_transition_evidence") is True
+
+    def test_edge_phase6_stay_self_loop_does_not_auto_grant_evidence(self, fake_config: Path) -> None:
+        """Fix regression: 6-PostFlight stay self-loop is not treated as forward."""
+        ws_state, commands_home = self._prepare_materialize_workspace(
+            fake_config,
+            phase="6-PostFlight",
+            next_token="6",
+        )
+
+        from governance.kernel.phase_kernel import KernelResult
+
+        stay_self_loop = KernelResult(
+            phase="6-PostFlight",
+            next_token="6",
+            active_gate="Implementation Internal Review",
+            next_gate_condition="Continue implementation review",
+            workspace_ready=True,
+            source="phase-6-implementation-review-required",
+            status="OK",
+            spec_hash="abc",
+            spec_path=str(commands_home / "phase_api.yaml"),
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-stay-self-001",
+            route_strategy="stay",
+            plan_record_status="active",
+            plan_record_versions=1,
+            transition_evidence_met=False,
+        )
+
+        with patch("governance.kernel.phase_kernel.execute", return_value=stay_self_loop):
+            read_session_snapshot(commands_home=commands_home, materialize=True)
+
+        persisted = json.loads(ws_state.read_text(encoding="utf-8"))
+        ss = persisted.get("SESSION_STATE", persisted)
+        assert ss.get("phase_transition_evidence") is not True
+
+
+class TestRuntimeContextTransitionSelection:
+    """Regression coverage for _build_runtime_context next-token selection."""
+
+    def test_happy_phase6_reject_next_token_is_honoured_when_evidence_present(self, fake_config: Path) -> None:
+        pointer = {"activeRepoFingerprint": "abc123"}
+        state_doc = {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "Next": "4",
+                "phase_transition_evidence": True,
+                "active_gate": "Evidence Presentation Gate",
+                "next_gate_condition": "Review rejected",
+            }
+        }
+        requested_phase, _ = _build_runtime_context(
+            commands_home=fake_config / "commands",
+            config_root=fake_config,
+            pointer=pointer,
+            state_doc=state_doc,
+        )
+        assert requested_phase == "4"
+
+    def test_bad_phase6_reject_next_token_not_honoured_without_evidence(self, fake_config: Path) -> None:
+        pointer = {"activeRepoFingerprint": "abc123"}
+        state_doc = {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "Next": "4",
+                "phase_transition_evidence": False,
+                "active_gate": "Evidence Presentation Gate",
+                "next_gate_condition": "Review rejected",
+            }
+        }
+        requested_phase, _ = _build_runtime_context(
+            commands_home=fake_config / "commands",
+            config_root=fake_config,
+            pointer=pointer,
+            state_doc=state_doc,
+        )
+        assert requested_phase == "6"
 
 
 # ---------------------------------------------------------------------------

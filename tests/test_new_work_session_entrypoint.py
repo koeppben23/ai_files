@@ -104,8 +104,8 @@ def _setup_workspace(tmp_path: Path, *, phase: str = "5-ArchitectureReview") -> 
 
 class TestNewWorkSessionEntrypoint:
     # -- Good --
-    def test_creates_fresh_phase4_run_and_archives_previous(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root, session_path, _ = _setup_workspace(tmp_path)
+    def test_creates_fresh_phase4_run_and_archives_previous(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(short_tmp)
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         code = new_work_session.main(["--trigger-source", "cli", "--session-id", "sess-001", "--reason", "new ticket", "--quiet"])
@@ -152,8 +152,8 @@ class TestNewWorkSessionEntrypoint:
         assert created["snapshot_path"] == str(archived_dir / "SESSION_STATE.json")
         assert created["snapshot_digest"] == canonical_json_hash(archived_state)
 
-    def test_rehydrates_business_rules_from_workspace_artifacts(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root, session_path, _ = _setup_workspace(tmp_path)
+    def test_rehydrates_business_rules_from_workspace_artifacts(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(short_tmp)
         workspace = session_path.parent
         (workspace / "business-rules-status.md").write_text(
             "Outcome: extracted\nExecutionEvidence: true\n",
@@ -177,8 +177,8 @@ class TestNewWorkSessionEntrypoint:
         assert state["BusinessRules"]["ExtractedCount"] == 1
 
     # -- Bad --
-    def test_returns_blocked_when_pointer_is_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root = tmp_path / "config"
+    def test_returns_blocked_when_pointer_is_missing(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root = short_tmp / "config"
         commands_home = config_root / "commands"
         _write_json(
             commands_home / "governance.paths.json",
@@ -199,8 +199,8 @@ class TestNewWorkSessionEntrypoint:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["status"] == "blocked"
 
-    def test_writes_failure_marker_event_when_runtime_reset_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root, session_path, _ = _setup_workspace(tmp_path)
+    def test_writes_failure_marker_event_when_runtime_reset_fails(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(short_tmp)
         session_path.write_text(json.dumps({}, ensure_ascii=True), encoding="utf-8")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
@@ -215,8 +215,8 @@ class TestNewWorkSessionEntrypoint:
         assert failed[-1]["reason"] == "new-work-session-init-failed"
 
     # -- Edge --
-    def test_dedupes_rapid_duplicate_trigger(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root, session_path, _ = _setup_workspace(tmp_path)
+    def test_dedupes_rapid_duplicate_trigger(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(short_tmp)
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         first = new_work_session.main(["--trigger-source", "desktop-plugin", "--session-id", "sess-edge", "--quiet"])
@@ -237,8 +237,8 @@ class TestNewWorkSessionEntrypoint:
         deduped = [e for e in parsed if e.get("event") == "new_work_session_deduped"][-1]
         assert deduped["reason"] == "recent-duplicate-trigger"
 
-    def test_bypasses_dedupe_when_state_is_not_fresh_phase4_run(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root, session_path, _ = _setup_workspace(tmp_path)
+    def test_bypasses_dedupe_when_state_is_not_fresh_phase4_run(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(short_tmp)
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         first = new_work_session.main(["--trigger-source", "desktop-plugin", "--session-id", "sess-stale", "--quiet"])
@@ -264,8 +264,8 @@ class TestNewWorkSessionEntrypoint:
         assert "new_work_session_dedupe_bypassed" in events
         assert events.count("new_work_session_created") >= 2
 
-    def test_archives_plan_record_when_present(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root, session_path, fingerprint = _setup_workspace(tmp_path)
+    def test_archives_plan_record_when_present(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, fingerprint = _setup_workspace(short_tmp)
         plan_record = {
             "schema": "governance.plan-record.v1",
             "status": "active",
@@ -285,8 +285,8 @@ class TestNewWorkSessionEntrypoint:
         archived_meta = json.loads((archived_dir / "metadata.json").read_text(encoding="utf-8"))
         assert archived_meta["archived_files"]["plan_record"] is True
 
-    def test_does_not_emit_created_event_or_reset_when_archive_write_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root, session_path, _ = _setup_workspace(tmp_path)
+    def test_does_not_emit_created_event_or_reset_when_archive_write_fails(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(short_tmp)
         before = json.loads(session_path.read_text(encoding="utf-8"))
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
@@ -318,8 +318,8 @@ class TestNewWorkSessionEntrypoint:
         assert metadata["archive_status"] == "failed"
 
     # -- Corner --
-    def test_initializes_when_legacy_run_id_is_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root, session_path, _ = _setup_workspace(tmp_path)
+    def test_initializes_when_legacy_run_id_is_missing(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(short_tmp)
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         doc["SESSION_STATE"].pop("session_run_id", None)
         session_path.write_text(json.dumps(doc, ensure_ascii=True), encoding="utf-8")
@@ -332,8 +332,8 @@ class TestNewWorkSessionEntrypoint:
         archived = sorted((_runs_root(session_path)).rglob("legacy-*"))
         assert archived, "legacy sessions without run id must still be archived"
 
-    def test_archived_run_directories_are_immutable_across_multiple_runs(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root, session_path, _ = _setup_workspace(tmp_path)
+    def test_archived_run_directories_are_immutable_across_multiple_runs(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(short_tmp)
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         first = new_work_session.main(["--trigger-source", "desktop-plugin", "--session-id", "sess-a", "--quiet"])
@@ -358,8 +358,8 @@ class TestNewWorkSessionEntrypoint:
         assert json.loads(first_archived.read_text(encoding="utf-8")) == first_snapshot
         assert str(second_payload["run_id"]) != first_new_run
 
-    def test_retry_reuses_failed_archive_slot_after_partial_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root, session_path, _ = _setup_workspace(tmp_path)
+    def test_retry_reuses_failed_archive_slot_after_partial_failure(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(short_tmp)
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
         real_writer = new_work_session._write_json_atomic
@@ -386,8 +386,8 @@ class TestNewWorkSessionEntrypoint:
         repaired_archive = _run_archive_dir(session_path, "run-old-001") / "SESSION_STATE.json"
         assert repaired_archive.is_file()
 
-    def test_runtime_purge_removes_stale_runtime_files_only(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        config_root, session_path, _ = _setup_workspace(tmp_path)
+    def test_runtime_purge_removes_stale_runtime_files_only(self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(short_tmp)
         workspace = session_path.parent
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 

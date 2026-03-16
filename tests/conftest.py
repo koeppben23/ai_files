@@ -1,5 +1,7 @@
 import json
 import os
+import shutil
+import tempfile
 from pathlib import Path
 import sys
 
@@ -67,3 +69,18 @@ def _configure_binding_evidence(tmp_path_factory: pytest.TempPathFactory):
     yield
     Path.home = original_home  # type: ignore[assignment]
     os.environ.pop("OPENCODE_OPERATING_MODE", None)
+
+
+@pytest.fixture()
+def short_tmp(request: pytest.FixtureRequest):
+    """Provide a short temporary directory path to stay within Windows MAX_PATH (260).
+
+    The default pytest ``tmp_path`` includes the full test function name,
+    which can push deep archive paths (``governance-records/<fp>/runs/…``)
+    past 260 characters on Windows.  This fixture creates a directory under
+    the system temp root with an 8-char random name (e.g. ``C:\\Users\\X\\AppData\\Local\\Temp\\gv_a1b2c3d4``)
+    and cleans it up after the test.
+    """
+    d = Path(tempfile.mkdtemp(prefix="gv_"))
+    yield d
+    shutil.rmtree(d, ignore_errors=True)
