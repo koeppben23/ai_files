@@ -68,12 +68,15 @@ def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: 
     temp_path: Path | None = None
     payload = text.replace("\r\n", "\n") if newline_lf else text
     try:
+        # Use a very short prefix to avoid exceeding Windows MAX_PATH (260 chars).
+        # The full filename (e.g. "review-decision-record.json.") is unnecessary
+        # for uniqueness — tempfile already guarantees a unique random suffix.
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
             newline="\n" if newline_lf else None,
             dir=str(path.parent),
-            prefix=path.name + ".",
+            prefix=".",
             suffix=".tmp",
             delete=False,
         ) as tmp:

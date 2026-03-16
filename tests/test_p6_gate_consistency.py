@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import hashlib
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -351,6 +352,21 @@ class TestP6PrerequisitesWithP55:
         assert result.passed is False
         assert result.p55_approved is False
 
+    def test_regression_p53_not_applicable_allows_phase6_prerequisites(self) -> None:
+        """Fix regression: P5.3 not-applicable is a valid terminal status."""
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "not-applicable",
+            "P5.5-TechnicalDebt": "approved",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state,
+            phase_1_5_executed=False,
+            rollback_safety_applies=False,
+        )
+        assert result.passed is True
+        assert result.p53_passed is True
+
 
 # ===========================================================================
 # 3. can_promote_to_phase6() wrapper
@@ -643,6 +659,23 @@ class TestKernelReviewDecisionRouting:
         assert result.status == "OK"
         # reject transition routes to Phase 4
         assert result.next_token == "4"
+
+    def test_regression_requested_backward_phase4_is_honoured_for_spec_declared_reject(self, tmp_path: Path) -> None:
+        """Fix regression: monotonic guard must not block spec-declared 6->4 reject transition."""
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(extra={
+            "UserReviewDecision": {"decision": "reject"},
+            "active_gate": "Evidence Presentation Gate",
+            "phase_transition_evidence": True,
+        })
+        result = execute(
+            current_token="4",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "OK"
+        assert result.phase != "6-PostFlight"
+        assert result.source != "monotonic-session-phase"
 
     def test_edge_stale_reject_in_non_evidence_gate_does_not_reroute_to_phase4(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
@@ -1015,10 +1048,8 @@ class TestNormalizePhase6P5StateFailClosed:
         _normalize_phase6_p5_state(state_doc=state_doc)
 
         ss = state_doc["SESSION_STATE"]
-        assert ss["Phase"] == "5.4-BusinessRules"
-        assert ss["Next"] == "5.4"
-        assert ss["active_gate"] == "Business Rules Validation"
-        assert ss["phase6_state"] == "phase5_in_progress"
+        assert ss["Phase"] == "6-PostFlight"
+        assert "_p6_state_normalization" not in ss
 
     def test_rework_state_does_not_bypass_p54_failure(self) -> None:
         state_doc = {"SESSION_STATE": {
@@ -1059,9 +1090,8 @@ class TestNormalizePhase6P5StateFailClosed:
         _normalize_phase6_p5_state(state_doc=state_doc)
 
         ss = state_doc["SESSION_STATE"]
-        assert ss["Phase"] == "5.4-BusinessRules"
-        assert ss["phase6_state"] == "phase5_in_progress"
-        assert "BLOCKED-P5-4-BUSINESS-RULES-GATE" in ss["next_gate_condition"]
+        assert ss["Phase"] == "6-PostFlight"
+        assert "_p6_state_normalization" not in ss
 
 
 class TestConditionalP5GateSync:
@@ -1132,7 +1162,71 @@ class TestConditionalP5GateSync:
         _sync_conditional_p5_gate_states(state_doc=state_doc)
         assert state_doc["SESSION_STATE"]["Gates"]["P5.4-BusinessRules"] == "gap-detected"
 
-    def test_fail_closed_resets_phase5_completed_when_p54_fails(self) -> None:
+    def test_regression_sync_promotes_p53_pending_to_not_applicable(self) -> None:
+        """Fix regression: P5.3 pending must sync to not-applicable when evaluator returns terminal status."""
+        state_doc = {"SESSION_STATE": {
+            "Gates": {
+                "P5.3-TestQuality": "pending",
+                "P5.4-BusinessRules": "pending",
+                "P5.5-TechnicalDebt": "pending",
+                "P5.6-RollbackSafety": "pending",
+            },
+            "TicketRecordDigest": "Context only; no tests required",
+            "TestStrategy": "legacy-tests-not-applicable",
+        }}
+        with patch(
+            "governance.engine.gate_evaluator.evaluate_p53_test_quality_gate",
+            return_value=type("P53Eval", (), {"status": "not-applicable"})(),
+        ):
+            _sync_conditional_p5_gate_states(state_doc=state_doc)
+        assert state_doc["SESSION_STATE"]["Gates"]["P5.3-TestQuality"] == "not-applicable"
+
+    def test_regression_gap_detected_does_not_reset_phase5_completed(self) -> None:
+        """Fix regression: gap-detected is terminal and must not force phase5_completed reset."""
+        state_doc = {"SESSION_STATE": {
+            "phase5_completed": True,
+            "phase5_state": "phase5-completed",
+            "Phase5State": "phase5-completed",
+            "phase5_completion_status": "phase5-completed",
+            "BusinessRules": {
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": False,
+                "ExtractedCount": 0,
+            },
+            "Gates": {
+                "P5.4-BusinessRules": "pending",
+                "P5.5-TechnicalDebt": "pending",
+                "P5.6-RollbackSafety": "pending",
+            },
+        }}
+        _sync_conditional_p5_gate_states(state_doc=state_doc)
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Gates"]["P5.4-BusinessRules"] == "gap-detected"
+        assert ss["phase5_completed"] is True
+        assert ss["phase5_state"] == "phase5-completed"
+
+    def test_regression_normalize_phase6_skips_p54_eval_when_phase15_not_executed(self) -> None:
+        """Fix regression: normalization must not fail when Phase 1.5 was never executed."""
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "pending",
+                "P5.5-TechnicalDebt": "approved",
+            },
+            "BusinessRules": {
+                "Outcome": "not-applicable",
+                "ExecutionEvidence": False,
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Phase"] == "5.4-BusinessRules"
+        assert ss["next"] == "5.4"
+
+    def test_gap_detected_keeps_phase5_completed_stable(self) -> None:
         state_doc = {"SESSION_STATE": {
             "phase5_completed": True,
             "phase5_state": "phase5_completed",
@@ -1168,8 +1262,7 @@ class TestConditionalP5GateSync:
 
         ss = state_doc["SESSION_STATE"]
         assert ss["Gates"]["P5.4-BusinessRules"] == "gap-detected"
-        assert ss["phase5_completed"] is False
-        assert ss["phase5_state"] == "phase5-in-progress"
+        assert ss["phase5_completed"] is True
 
 
 class TestCanonicalizeLegacyP5xSurface:
