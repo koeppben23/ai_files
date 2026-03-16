@@ -578,6 +578,7 @@ def _sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
 
     try:
         from governance.engine.gate_evaluator import (
+            evaluate_p53_test_quality_gate,
             evaluate_p54_business_rules_gate,
             evaluate_p55_technical_debt_gate,
             evaluate_p56_rollback_safety_gate,
@@ -586,6 +587,13 @@ def _sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
     except Exception:
         return
 
+    # --- P5.3 Test Quality ---
+    p53_eval = evaluate_p53_test_quality_gate(session_state=state)
+    if str(gates.get("P5.3-TestQuality", "")).strip().lower() == "pending":
+        if p53_eval.status in {"pass", "pass-with-exceptions", "not-applicable"}:
+            gates["P5.3-TestQuality"] = p53_eval.status
+
+    # --- P5.4 Business Rules ---
     p54_eval = evaluate_p54_business_rules_gate(
         session_state=state,
         phase_1_5_executed=_phase_1_5_executed(state),
@@ -676,7 +684,7 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
             session_state=state,
             phase_1_5_executed=True,
         )
-    if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable", "gap-detected"}:
+        if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable", "gap-detected"}:
             if "P5.4-BusinessRules" not in open_gates:
                 open_gates.append("P5.4-BusinessRules")
                 _order = {gate: idx for idx, gate in enumerate(P5_GATE_PRIORITY_ORDER)}
@@ -827,7 +835,7 @@ def _build_runtime_context(
     Returns (requested_phase, RuntimeContext).  Shared by both the
     materialise (write) and readonly-eval (read) code paths.
     """
-    from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
+    from governance.domain.phase_state_machine import normalize_phase_token
     from governance.kernel.phase_kernel import RuntimeContext
 
     state_view = _session_state_view(state_doc)
@@ -848,14 +856,15 @@ def _build_runtime_context(
         or ""
     )
 
-    # Phase 5 is a stay-strategy gate that may advertise next=5.3 even when
-    # state remains on token 5. If transition evidence is present, treat the
-    # advertised next token as the execution target to prevent /continue loops.
+    # Stay-strategy phases may advertise a next_token that differs from the
+    # current persisted phase (e.g. Phase 5 → 5.3 forward, Phase 6 → 4 on
+    # reject).  When phase_transition_evidence is present, honour the
+    # advertised next_token as the execution target so the session actually
+    # advances (or retreats) instead of looping on the same stay-phase.
     if (
-        persisted_phase == "5"
-        and next_token == "5.3"
+        next_token
+        and next_token != persisted_phase
         and _transition_evidence_truthy(state_view, state_doc)
-        and phase_rank(next_token) > phase_rank(persisted_phase)
     ):
         requested_phase = next_token
 
