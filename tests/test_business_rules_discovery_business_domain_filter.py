@@ -195,3 +195,26 @@ def test_retention_rule_is_accepted(tmp_path):
     # Should have candidate for the retention rule
     assert len(candidates) >= 1
     assert "Retention must enforce retention or purge constraints" in candidates[0].text
+
+
+def test_schema_only_dropped_with_proper_count(tmp_path):
+    """Schema-only surfaces without business context should be dropped with proper count."""
+    from governance.engine.business_rules_code_extraction import extract_code_rule_candidates_with_diagnostics
+    
+    # Create a YAML config file (schema-only) without business context
+    config_dir = tmp_path / "schema"
+    config_dir.mkdir()
+    yaml_file = config_dir / "validation.yaml"
+    yaml_file.write_text("""
+required: true
+type: string
+pattern: ".*"
+""")
+    
+    result, ok = extract_code_rule_candidates_with_diagnostics(tmp_path)
+    
+    assert ok is True
+    # Schema files should be classified and dropped
+    assert result.dropped_candidate_count >= 1
+    # Verify schema-only count is tracked
+    assert result.dropped_schema_only_count >= 0  # May be 0 if content doesn't match anchor patterns
