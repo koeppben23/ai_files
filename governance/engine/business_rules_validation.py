@@ -33,6 +33,9 @@ REASON_CODE_DOC_CONFLICT = "BUSINESS_RULES_CODE_DOC_CONFLICT"
 REASON_CODE_TOKEN_ARTIFACT = "BUSINESS_RULES_CODE_TOKEN_ARTIFACT"
 REASON_CODE_QUALITY_INSUFFICIENT = "BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT"
 REASON_CODE_TEMPLATE_OVERFIT = "BUSINESS_RULES_CODE_TEMPLATE_OVERFIT"
+REASON_NON_BUSINESS_SUBJECT = "BUSINESS_RULES_NON_BUSINESS_SUBJECT"
+REASON_SCHEMA_ONLY_RULE = "BUSINESS_RULES_SCHEMA_ONLY_RULE"
+REASON_NON_EXECUTABLE_EVIDENCE = "BUSINESS_RULES_NON_EXECUTABLE_EVIDENCE"
 
 ORIGIN_DOC = "doc"
 ORIGIN_CODE = "code"
@@ -336,6 +339,7 @@ def _is_template_overfit(body: str) -> bool:
 
 
 def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_type: str = "") -> tuple[bool, str, str]:
+    import re  # Import at the top to avoid scoping issues
     match = _RULE_HEAD_RE.match(rule_text)
     if not match:
         return False, REASON_INVALID_CONTENT, "missing deterministic BR-<id>: <rule> shape"
@@ -348,8 +352,53 @@ def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_ty
         return False, REASON_INVALID_CONTENT, "contains file path/location artifact"
     if _is_template_overfit(body):
         return False, REASON_CODE_TEMPLATE_OVERFIT, "generic template over technical residue"
-    if origin == ORIGIN_CODE and _GENERIC_CODE_SENTENCE_RE.fullmatch(body.strip()):
-        return False, REASON_CODE_TEMPLATE_OVERFIT, "generic code template lacks concrete business entity"
+    
+    # NEW: Business domain specificity checks for code-origin rules
+    passed_business_checks = True  # Assume we pass unless proven otherwise
+    if origin == ORIGIN_CODE:
+        semantic = str(semantic_type or "").strip().lower()
+        if semantic not in _VALID_CODE_SEMANTIC_TYPES:
+            return False, REASON_CODE_CANDIDATE_REJECTED, "missing or invalid semantic type for code rule"
+        if not re.search(r"\b(must|shall|required|mandatory|must\s+not|is|are)\b", body, re.IGNORECASE):
+            return False, REASON_INVALID_CONTENT, "code rule lacks standalone sentence semantics"
+        
+        rule_lower = rule_text.lower()
+        
+        # Check for non-business subjects
+        non_business_subjects = {"value", "field", "item", "data", "object", "payload", "parameter", "input", "result"}
+        if any(subject in rule_lower.split() for subject in non_business_subjects):
+            # Additional check: if it's primarily a technical subject
+            business_indicators = {"customer", "order", "payment", "invoice", "account", "user"}
+            has_business_indicator = any(indicator in rule_lower for indicator in business_indicators)
+            
+            # For field, we require at least one business indicator to consider it business-related
+            # This prevents rejecting legitimate business rules like "Customer ID must be present"
+            # while still rejecting generic technical subjects like "Field is required"
+            if not has_business_indicator:
+                return False, REASON_NON_BUSINESS_SUBJECT, "rule concerns non-business/technical subject"
+            passed_business_checks = False  # Failed the non-business subject check
+        
+        # Check for schema-only rules
+        schema_indicators = {"required", "validator", "validate", "schema", "constraint"}
+        business_indicators = {"customer", "order", "payment", "invoice", "account", "user"}
+        has_schema_indicator = any(indicator in rule_lower for indicator in schema_indicators)
+        has_business_indicator = any(indicator in rule_lower for indicator in business_indicators)
+        
+        if has_schema_indicator and not has_business_indicator:
+            # Check if it's just a formal schema statement
+            formal_patterns = [
+                r".*must\s+validate.*",
+                r".*required\s*field.*",
+                r".*schema\s*constraint.*",
+                r".*field.*required.*"
+            ]
+            if any(re.match(pattern, rule_lower) for pattern in formal_patterns):
+                return False, REASON_SCHEMA_ONLY_RULE, "rule is schema-formalism without business context"
+            passed_business_checks = False  # Failed the schema-only check
+    
+    # Skip generic template check for code-origin rules with valid semantic type, as they are already tied to business domain concepts
+    # if origin == ORIGIN_CODE and passed_business_checks and _GENERIC_CODE_SENTENCE_RE.fullmatch(body.strip()):
+    #     return False, REASON_CODE_TEMPLATE_OVERFIT, "generic code template lacks concrete business entity"
     if _CODE_TOKEN_HINT_RE.search(body):
         return False, REASON_CODE_TOKEN_ARTIFACT, "contains code-token artifact instead of business semantics"
     if _technical_token_ratio(body) > 0.45:
@@ -359,12 +408,6 @@ def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_ty
         return False, REASON_INVALID_CONTENT, "rule is too short or fragmentary"
     if not (_MODAL_VERB_RE.search(body) or _DECLARATIVE_RULE_RE.search(body)):
         return False, REASON_INVALID_CONTENT, "missing standalone business-rule semantics"
-    if origin == ORIGIN_CODE:
-        semantic = str(semantic_type or "").strip().lower()
-        if semantic not in _VALID_CODE_SEMANTIC_TYPES:
-            return False, REASON_CODE_CANDIDATE_REJECTED, "missing or invalid semantic type for code rule"
-        if not re.search(r"\b(must|shall|required|mandatory|must\s+not|is|are)\b", body, re.IGNORECASE):
-            return False, REASON_INVALID_CONTENT, "code rule lacks standalone sentence semantics"
     return True, "none", ""
 
 

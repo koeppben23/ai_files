@@ -6,6 +6,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+# Surface kinds
+SURFACE_KIND_BUSINESS_DOMAIN_CODE = "business_domain_code"
+SURFACE_KIND_META_GOVERNANCE = "meta_governance"
+SURFACE_KIND_SCHEMA_CONFIG = "schema_config"
+SURFACE_KIND_DOCSTRING_OR_COMMENT = "docstring_or_comment"
+SURFACE_KIND_LINT_OR_STYLE = "lint_or_style"
+SURFACE_KIND_INFRA_FRAMEWORK = "infra_framework"
+
+# Additional drop statuses
+DISCOVERY_DROPPED_NON_BUSINESS_SURFACE = "dropped_non_business_surface"
+DISCOVERY_DROPPED_SCHEMA_ONLY = "dropped_schema_only"
+DISCOVERY_DROPPED_NON_EXECUTABLE_NORMATIVE_TEXT = "dropped_non_executable_normative_text"
+
 _CODE_SUFFIXES = {
     ".py",
     ".go",
@@ -160,6 +173,7 @@ class CodeDiscoveryOutcome:
     evidence_snippet: str
     enforcement_anchor_type: str = ""
     semantic_type: str = ""
+    evidence_kind: str = ""
 
 
 @dataclass(frozen=True)
@@ -200,17 +214,150 @@ def _language_for_suffix(suffix: str) -> str:
 
 def _surface_type_for_path(path: str) -> str:
     lower = path.lower()
+    # Check for non-business surfaces first
+    if any(token in lower for token in ("test", "spec", "__test__", ".github", "ci", "scripts", "docs")):
+        return SURFACE_KIND_META_GOVERNANCE
+    if any(token in lower for token in ("schema", "config", "settings")):
+        return SURFACE_KIND_SCHEMA_CONFIG
+    if any(token in lower for token in ("docstring", "comment", "docs")):
+        return SURFACE_KIND_DOCSTRING_OR_COMMENT
+    if any(token in lower for token in ("lint", "style", "format", "prettier", "eslint")):
+        return SURFACE_KIND_LINT_OR_STYLE
+    if any(token in lower for token in ("infra", "framework", "lib", "utils", "helper")):
+        return SURFACE_KIND_INFRA_FRAMEWORK
+    # Business domain surfaces
     if any(token in lower for token in ("validator", "validation")):
-        return "validator"
+        return SURFACE_KIND_BUSINESS_DOMAIN_CODE
     if any(token in lower for token in ("permission", "auth", "policy", "acl")):
-        return "permissions"
+        return SURFACE_KIND_BUSINESS_DOMAIN_CODE
     if any(token in lower for token in ("workflow", "state_machine", "transition", "fsm")):
-        return "workflow"
+        return SURFACE_KIND_BUSINESS_DOMAIN_CODE
     if any(token in lower for token in ("model", "schema", "entity")):
-        return "model"
-    if any(token in lower for token in ("config", "settings")):
-        return "config"
-    return "service"
+        return SURFACE_KIND_BUSINESS_DOMAIN_CODE
+    return SURFACE_KIND_BUSINESS_DOMAIN_CODE  # Default to business domain for safety
+
+
+def _classify_surface_kind(surface: CodeSurface, line_content: str) -> str:
+    """Classify surface kind based on path and content."""
+    path_lower = surface.path.lower()
+    line_lower = line_content.lower()
+    
+    # Meta-governance detection (based on path)
+    if any(token in path_lower for token in ("test", "spec", "__test__", ".github", "ci", "scripts", "docs")):
+        return SURFACE_KIND_META_GOVERNANCE
+    
+    # Schema/config detection (based on path)
+    if any(token in path_lower for token in ("schema", "config", "settings")):
+        return SURFACE_KIND_SCHEMA_CONFIG
+    
+    # Docstring/comment detection (based on path)
+    if any(token in path_lower for token in ("docstring", "comment")):
+        return SURFACE_KIND_DOCSTRING_OR_COMMENT
+    
+    # Lint/style detection (based on path)
+    if any(token in path_lower for token in ("lint", "style", "format", "prettier", "eslint")):
+        return SURFACE_KIND_LINT_OR_STYLE
+    
+    # Infrastructure/framework detection (based on path)
+    if any(token in path_lower for token in ("infra", "framework", "lib", "utils", "helper")):
+        return SURFACE_KIND_INFRA_FRAMEWORK
+    
+    # Content-based overrides for specific cases
+    # Docstring/Comment overrides (regardless of path) - be more inclusive
+    line_stripped = line_lower.lstrip()
+    if (line_stripped.startswith(("#", "//")) or 
+        ("/*" in line_lower and "*/" in line_lower) or
+        line_stripped.startswith('"""') or line_stripped.startswith("'''") or
+        line_stripped.endswith('"""') or line_stripped.endswith("'''")):
+        return SURFACE_KIND_DOCSTRING_OR_COMMENT
+    
+    # More precise schema/config detection - only for clear schema definition patterns
+    # Avoid false positives on business rules that happen to contain schema-like words
+    stripped_line = line_lower.strip()
+    if (stripped_line.startswith(("required:", "optional:", "properties:", "type:", "minimum:", "maximum:", "enum:", "format:", "pattern:")) 
+        and ":" in stripped_line and len(stripped_line.split(":")[0]) < 20):
+        # Likely a YAML schema key definition
+        return SURFACE_KIND_SCHEMA_CONFIG
+    
+    # Default to business domain for code files
+    return SURFACE_KIND_BUSINESS_DOMAIN_CODE
+
+
+def _has_real_business_domain_context(line: str, anchor: str, semantic_type: str) -> bool:
+    """Check if line contains real business domain context."""
+    line_lower = line.lower()
+    
+    # Reject clearly generic technical subjects without business context
+    generic_subjects = {"value", "item", "data", "object"}
+    if any(subject in line_lower.split() for subject in generic_subjects):
+        business_indicators = {"customer", "order", "payment", "invoice", "account", "user", 
+                              "product", "transaction", "subscription", "billing", "shipping"}
+        if not any(indicator in line_lower for indicator in business_indicators):
+            return False
+    
+    # Special handling for "field" - only reject if clearly technical without business context
+    if "field" in line_lower.split():
+        # If we see "required field" or similar patterns, it's likely business-related
+        if "required field" in line_lower or "field is required" in line_lower or "field must" in line_lower:
+            pass  # Likely business-related, don't reject
+        else:
+            business_indicators = {"customer", "order", "payment", "invoice", "account", "user", 
+                                  "product", "transaction", "subscription", "billing", "shipping"}
+            if not any(indicator in line_lower for indicator in business_indicators):
+                return False
+    
+    # For payload, be more permissive - it's commonly used in validator functions for business data
+    # Only reject if it's clearly just a technical placeholder with no business context
+    if "payload" in line_lower.split():
+        # Check if there are any business indicators in the line
+        business_indicators = {"customer", "order", "payment", "invoice", "account", "user", 
+                              "product", "transaction", "subscription", "billing", "shipping"}
+        if not any(indicator in line_lower for indicator in business_indicators):
+            # If no business indicators, check if it's in a validator context which makes it acceptable
+            if anchor != "validator":
+                return False  # Only reject payload if not in validator context
+    
+    # Validator needs business context for non-permission/non-required-field types
+    if anchor == "validator":
+        business_semantic_types = {"permission", "required-field", "transition", 
+                                  "uniqueness", "audit", "retention", "invariant"}
+        if semantic_type not in business_semantic_types:
+            business_entities = {"customer", "order", "payment", "invoice", "account", "user"}
+            if not any(entity in line_lower for entity in business_entities):
+                return False
+    
+    return True
+
+
+def _is_executable_enforcement_evidence(surface_kind: str, line: str) -> bool:
+    """Check if evidence represents executable enforcement."""
+    non_executable = {
+        SURFACE_KIND_META_GOVERNANCE,
+        SURFACE_KIND_SCHEMA_CONFIG,
+        SURFACE_KIND_DOCSTRING_OR_COMMENT,
+        SURFACE_KIND_LINT_OR_STYLE,
+        SURFACE_KIND_INFRA_FRAMEWORK
+    }
+    
+    if surface_kind in non_executable:
+        return False
+    
+    line_lower = line.lower()
+    
+    # Additional checks for schema/config
+    if surface_kind == SURFACE_KIND_SCHEMA_CONFIG:
+        enforcement_indicators = {"must", "shall", "required", "forbidden", "validate", "enforce"}
+        if not any(indicator in line_lower for indicator in enforcement_indicators):
+            return False
+        business_indicators = {"customer", "order", "payment", "invoice", "account"}
+        if not any(indicator in line_lower for indicator in business_indicators):
+            return False
+    
+    # Docstrings/comments never executable evidence
+    if surface_kind == SURFACE_KIND_DOCSTRING_OR_COMMENT:
+        return False
+    
+    return True
 
 
 def discover_code_surfaces(repo_root: Path) -> list[CodeSurface]:
@@ -483,24 +630,47 @@ def extract_code_rule_candidates_with_diagnostics(repo_root: Path) -> tuple[Code
             line = raw_line.strip()
             if not line:
                 continue
+            
+            # Classify surface kind
+            surface_kind = _classify_surface_kind(surface, line)
+            
             status, anchor, semantic_type, evidence_line = _classify_discovery_line(split_lines, line_no - 1)
             if not status:
                 continue
 
             evidence_snippet = evidence_line or line
+            
+            # Apply enhanced acceptance criteria
+            is_business_domain = surface_kind == SURFACE_KIND_BUSINESS_DOMAIN_CODE
+            has_real_enforcement = bool(anchor)
+            has_business_context = _has_real_business_domain_context(line, anchor, semantic_type)
+            is_executable_evidence = _is_executable_enforcement_evidence(surface_kind, line)
+            
+            # Determine final status based on all criteria
+            final_status = status  # Keep original if not overridden by our checks
+            if not is_business_domain:
+                final_status = DISCOVERY_DROPPED_NON_BUSINESS_SURFACE
+            elif not has_real_enforcement:
+                final_status = DISCOVERY_DROPPED_MISSING_ANCHOR
+            elif not has_business_context:
+                final_status = DISCOVERY_DROPPED_MISSING_SEMANTICS
+            elif not is_executable_evidence:
+                final_status = DISCOVERY_DROPPED_NON_EXECUTABLE_NORMATIVE_TEXT
+            
             outcome = CodeDiscoveryOutcome(
                 path=surface.path,
                 language=surface.language,
                 line_start=line_no,
-                status=status,
+                status=final_status,
                 source_text=line,
                 evidence_snippet=evidence_snippet[:220],
                 enforcement_anchor_type=anchor,
                 semantic_type=semantic_type,
+                evidence_kind="executable_code" if (is_business_domain and has_real_enforcement and has_business_context and is_executable_evidence) else "other"
             )
             outcomes.append(outcome)
 
-            if status != DISCOVERY_ACCEPTED:
+            if final_status != DISCOVERY_ACCEPTED:
                 continue
 
             semantic_probe = _semantic_probe(split_lines, line_no - 1, evidence_line)

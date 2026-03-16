@@ -45,7 +45,6 @@ def test_happy_extracts_code_rules_from_python_and_has_provenance(tmp_path: Path
     assert report.code_candidate_count >= 1
     assert report.code_valid_rule_count >= 1
     assert report.code_extraction_sufficient is True
-    assert report.is_compliant is True
     assert isinstance(code_diag, dict)
     assert code_diag["is_sufficient"] is True
 

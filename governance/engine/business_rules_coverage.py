@@ -63,6 +63,12 @@ class CodeExtractionCoverage:
     semantic_diversity_score: float = 0.0
     quality_insufficiency_reasons: tuple[str, ...] = ()
     template_overfit_count: int = 0
+    # Diagnostic fields for tightened business rule extraction
+    dropped_non_business_surface_count: int = 0
+    dropped_schema_only_count: int = 0
+    dropped_non_executable_normative_text_count: int = 0
+    accepted_business_enforcement_count: int = 0
+    rejected_non_business_subject_count: int = 0
 
 
 def evaluate_code_extraction_coverage(
@@ -76,6 +82,12 @@ def evaluate_code_extraction_coverage(
     validated_code_rule_count: int = 0,
     invalid_code_candidate_count: int = 0,
     code_token_artifact_count: int = 0,
+    # Diagnostic parameters for tightened business rule extraction
+    dropped_non_business_surface_count: int = 0,
+    dropped_schema_only_count: int = 0,
+    dropped_non_executable_normative_text_count: int = 0,
+    accepted_business_enforcement_count: int = 0,
+    rejected_non_business_subject_count: int = 0,
     semantic_type_distribution: dict[str, int] | None = None,
     template_overfit_count: int = 0,
 ) -> CodeExtractionCoverage:
@@ -195,6 +207,12 @@ def evaluate_code_extraction_coverage(
         semantic_diversity_score=max(semantic_diversity_score, 0.0),
         quality_insufficiency_reasons=tuple(quality_reasons),
         template_overfit_count=max(template_overfit_count, 0),
+        # Diagnostic fields for tightened business rule extraction
+        dropped_non_business_surface_count=dropped_non_business_surface_count,
+        dropped_schema_only_count=dropped_schema_only_count,
+        dropped_non_executable_normative_text_count=dropped_non_executable_normative_text_count,
+        accepted_business_enforcement_count=accepted_business_enforcement_count,
+        rejected_non_business_subject_count=rejected_non_business_subject_count,
     )
 
 
@@ -247,9 +265,9 @@ def reconcile_code_extraction_payload(
     if not severe_codes:
         return result
 
-    reason_codes = [str(item).strip() for item in result.get("reason_codes", []) if str(item).strip()]
+    reason_codes = [str(item).strip() for item in (result.get("reason_codes") or []) if str(item).strip()]
     quality_reasons = [
-        str(item).strip() for item in result.get("quality_insufficiency_reasons", []) if str(item).strip()
+        str(item).strip() for item in (result.get("quality_insufficiency_reasons") or []) if str(item).strip()
     ]
     if RC_CODE_COVERAGE_INSUFFICIENT not in reason_codes:
         reason_codes.append(RC_CODE_COVERAGE_INSUFFICIENT)
