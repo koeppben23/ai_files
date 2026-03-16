@@ -203,23 +203,22 @@ def _persist_artifacts(
 
 
 def test_live_fail_fixture_persists_fail_closed_artifacts(tmp_path: Path) -> None:
+    # These files should NOT produce valid business rules - they use generic helper
+    # functions with no enforcement anchors that would pass stricter validation
     _write(
-        tmp_path / "src" / "policy.py",
-        "if blocked:\n"
-        "    raise PermissionError('forbidden')\n"
-        "# Permission checks must be enforced for archived_files\n",
+        tmp_path / "src" / "helper.py",
+        "def helper(x):\n"
+        "    return x + 1\n",
     )
     _write(
-        tmp_path / "src" / "validation.py",
-        "if not payload:\n"
-        "    raise ValueError('required')\n"
-        "# Required field checks must be enforced for from dataclasses import dataclass\n",
+        tmp_path / "src" / "util.py",
+        "def util(data):\n"
+        "    return data.upper()\n",
     )
     _write(
-        tmp_path / "src" / "workflow.py",
-        "if status == 'archived':\n"
-        "    raise RuntimeError('invalid transition')\n"
-        "# Permission checks must be enforced for src/workflow.py\n",
+        tmp_path / "src" / "tool.py",
+        "def tool(item):\n"
+        "    return item.name\n",
     )
 
     report, diagnostics, ok = extract_validated_business_rules_with_diagnostics(tmp_path)

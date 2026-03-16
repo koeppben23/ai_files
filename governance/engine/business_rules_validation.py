@@ -136,6 +136,7 @@ class RuleCandidate:
     origin: str = ORIGIN_DOC
     enforcement_anchor_type: str = ""
     semantic_type: str = ""
+    evidence_kind: str = ""
 
 
 @dataclass(frozen=True)
@@ -338,7 +339,7 @@ def _is_template_overfit(body: str) -> bool:
     return bool(match)
 
 
-def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_type: str = "") -> tuple[bool, str, str]:
+def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_type: str = "", evidence_kind: str = "") -> tuple[bool, str, str]:
     import re  # Import at the top to avoid scoping issues
     match = _RULE_HEAD_RE.match(rule_text)
     if not match:
@@ -352,6 +353,10 @@ def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_ty
         return False, REASON_INVALID_CONTENT, "contains file path/location artifact"
     if _is_template_overfit(body):
         return False, REASON_CODE_TEMPLATE_OVERFIT, "generic template over technical residue"
+    
+    # Check for non-executable evidence - reject code rules that aren't marked as executable
+    if origin == ORIGIN_CODE and evidence_kind and evidence_kind != "executable_code":
+        return False, REASON_NON_EXECUTABLE_EVIDENCE, "code rule must be backed by executable enforcement evidence"
     
     # NEW: Business domain specificity checks for code-origin rules
     passed_business_checks = True  # Assume we pass unless proven otherwise
@@ -396,9 +401,22 @@ def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_ty
                 return False, REASON_SCHEMA_ONLY_RULE, "rule is schema-formalism without business context"
             passed_business_checks = False  # Failed the schema-only check
     
-    # Skip generic template check for code-origin rules with valid semantic type, as they are already tied to business domain concepts
-    # if origin == ORIGIN_CODE and passed_business_checks and _GENERIC_CODE_SENTENCE_RE.fullmatch(body.strip()):
-    #     return False, REASON_CODE_TEMPLATE_OVERFIT, "generic code template lacks concrete business entity"
+    # Re-enable generic template check for code-origin rules - reject generic sentences without specific context
+    # Only reject if the body exactly matches a generic template AND no specific business context was found
+    if origin == ORIGIN_CODE:
+        body_stripped = body.strip().lower()
+        generic_templates = [
+            "access control must deny unauthorized operations",
+            "required fields must be validated before processing",
+            "disallowed lifecycle transitions must be blocked",
+            "uniqueness constraints must reject duplicates",
+            "audit events must be recorded for protected actions",
+            "retention policies must enforce archival or purge constraints",
+            "domain invariants must be enforced before state mutation",
+        ]
+        if body_stripped in [t.lower() for t in generic_templates]:
+            return False, REASON_CODE_TEMPLATE_OVERFIT, "generic code template lacks concrete business entity"
+    
     if _CODE_TOKEN_HINT_RE.search(body):
         return False, REASON_CODE_TOKEN_ARTIFACT, "contains code-token artifact instead of business semantics"
     if _technical_token_ratio(body) > 0.45:
@@ -497,6 +515,7 @@ def validate_candidates(
                 sanitized,
                 origin=candidate.origin,
                 semantic_type=candidate.semantic_type,
+                evidence_kind=candidate.evidence_kind,
             )
             if not ok:
                 invalid_rules.append(
@@ -829,6 +848,10 @@ def extract_validated_business_rules_with_diagnostics(
         dropped_candidate_count=extraction_result.dropped_candidate_count,
         has_provenance_gaps=has_provenance_gaps,
         semantic_type_distribution=semantic_type_distribution,
+        dropped_non_business_surface_count=extraction_result.dropped_non_business_surface_count,
+        dropped_schema_only_count=extraction_result.dropped_schema_only_count,
+        dropped_non_executable_normative_text_count=extraction_result.dropped_non_executable_normative_text_count,
+        accepted_business_enforcement_count=extraction_result.accepted_business_enforcement_count,
     )
 
     converted_code_candidates: list[RuleCandidate] = []
@@ -844,6 +867,7 @@ def extract_validated_business_rules_with_diagnostics(
                 origin=ORIGIN_CODE,
                 enforcement_anchor_type=str(getattr(candidate, "enforcement_anchor_type", "") or ""),
                 semantic_type=str(getattr(candidate, "semantic_type", "") or ""),
+                evidence_kind=str(getattr(candidate, "evidence_kind", "") or ""),
             )
         )
 
@@ -887,6 +911,10 @@ def extract_validated_business_rules_with_diagnostics(
         code_token_artifact_count=report.code_token_artifact_count,
         semantic_type_distribution=semantic_type_distribution,
         template_overfit_count=report.template_overfit_count,
+        dropped_non_business_surface_count=extraction_result.dropped_non_business_surface_count,
+        dropped_schema_only_count=extraction_result.dropped_schema_only_count,
+        dropped_non_executable_normative_text_count=extraction_result.dropped_non_executable_normative_text_count,
+        accepted_business_enforcement_count=extraction_result.accepted_business_enforcement_count,
     )
     coverage = reconcile_code_extraction_coverage(
         coverage,

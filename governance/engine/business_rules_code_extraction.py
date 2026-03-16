@@ -161,6 +161,7 @@ class CodeRuleCandidate:
     semantic_type: str
     evidence_snippet: str
     enforcement_anchor_type: str
+    evidence_kind: str = ""
 
 
 @dataclass(frozen=True)
@@ -192,6 +193,22 @@ class CodeRuleExtractionResult:
     @property
     def candidate_count(self) -> int:
         return len(self.candidates)
+    
+    @property
+    def dropped_non_business_surface_count(self) -> int:
+        return sum(1 for item in self.outcomes if item.status == DISCOVERY_DROPPED_NON_BUSINESS_SURFACE)
+    
+    @property
+    def dropped_schema_only_count(self) -> int:
+        return sum(1 for item in self.outcomes if item.status == DISCOVERY_DROPPED_SCHEMA_ONLY)
+    
+    @property
+    def dropped_non_executable_normative_text_count(self) -> int:
+        return sum(1 for item in self.outcomes if item.status == DISCOVERY_DROPPED_NON_EXECUTABLE_NORMATIVE_TEXT)
+    
+    @property
+    def accepted_business_enforcement_count(self) -> int:
+        return sum(1 for item in self.outcomes if item.status == DISCOVERY_ACCEPTED and item.evidence_kind == "executable_code")
 
 
 def _language_for_suffix(suffix: str) -> str:
@@ -279,8 +296,15 @@ def _classify_surface_kind(surface: CodeSurface, line_content: str) -> str:
         # Likely a YAML schema key definition
         return SURFACE_KIND_SCHEMA_CONFIG
     
-    # Default to business domain for code files
-    return SURFACE_KIND_BUSINESS_DOMAIN_CODE
+    # For actual code files (Python, Go, TypeScript, Java, etc.), default to business domain
+    # These are the primary sources for executable enforcement evidence
+    code_languages = {"python", "go", "typescript", "javascript", "java", "kotlin", "sql"}
+    if surface.language.lower() in code_languages:
+        return SURFACE_KIND_BUSINESS_DOMAIN_CODE
+    
+    # For non-code files (YAML, JSON, etc.), be conservative and require explicit classification
+    # These are more likely to be schema/config/meta-governance
+    return SURFACE_KIND_META_GOVERNANCE
 
 
 def _has_real_business_domain_context(line: str, anchor: str, semantic_type: str) -> bool:
@@ -306,16 +330,12 @@ def _has_real_business_domain_context(line: str, anchor: str, semantic_type: str
             if not any(indicator in line_lower for indicator in business_indicators):
                 return False
     
-    # For payload, be more permissive - it's commonly used in validator functions for business data
-    # Only reject if it's clearly just a technical placeholder with no business context
+    # payload is a generic technical term - reject unless there's clear business context
     if "payload" in line_lower.split():
-        # Check if there are any business indicators in the line
         business_indicators = {"customer", "order", "payment", "invoice", "account", "user", 
                               "product", "transaction", "subscription", "billing", "shipping"}
         if not any(indicator in line_lower for indicator in business_indicators):
-            # If no business indicators, check if it's in a validator context which makes it acceptable
-            if anchor != "validator":
-                return False  # Only reject payload if not in validator context
+            return False
     
     # Validator needs business context for non-permission/non-required-field types
     if anchor == "validator":
@@ -675,6 +695,7 @@ def extract_code_rule_candidates_with_diagnostics(repo_root: Path) -> tuple[Code
 
             semantic_probe = _semantic_probe(split_lines, line_no - 1, evidence_line)
             sentence = _render_contextual_sentence(semantic_type, semantic_probe, surface.path)
+            evidence_kind_val = "executable_code" if (is_business_domain and has_real_enforcement and has_business_context and is_executable_evidence) else "other"
             candidates.append(
                 CodeRuleCandidate(
                     text=_candidate_text(idx, sentence),
@@ -687,6 +708,7 @@ def extract_code_rule_candidates_with_diagnostics(repo_root: Path) -> tuple[Code
                     semantic_type=semantic_type,
                     evidence_snippet=evidence_snippet[:220],
                     enforcement_anchor_type=anchor,
+                    evidence_kind=evidence_kind_val,
                 )
             )
             idx += 1
