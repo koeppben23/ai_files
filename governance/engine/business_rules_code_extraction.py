@@ -251,7 +251,8 @@ def _surface_type_for_path(path: str) -> str:
         return SURFACE_KIND_BUSINESS_DOMAIN_CODE
     if any(token in lower for token in ("model", "schema", "entity")):
         return SURFACE_KIND_BUSINESS_DOMAIN_CODE
-    return SURFACE_KIND_BUSINESS_DOMAIN_CODE  # Default to business domain for safety
+    # Default to conservative - unknown paths are not automatically business domain
+    return SURFACE_KIND_META_GOVERNANCE
 
 
 def _classify_surface_kind(surface: CodeSurface, line_content: str) -> str:
@@ -319,16 +320,12 @@ def _has_real_business_domain_context(line: str, anchor: str, semantic_type: str
         if not any(indicator in line_lower for indicator in business_indicators):
             return False
     
-    # Special handling for "field" - only reject if clearly technical without business context
+    # field is a generic technical term - reject unless there's clear business context
     if "field" in line_lower.split():
-        # If we see "required field" or similar patterns, it's likely business-related
-        if "required field" in line_lower or "field is required" in line_lower or "field must" in line_lower:
-            pass  # Likely business-related, don't reject
-        else:
-            business_indicators = {"customer", "order", "payment", "invoice", "account", "user", 
-                                  "product", "transaction", "subscription", "billing", "shipping"}
-            if not any(indicator in line_lower for indicator in business_indicators):
-                return False
+        business_indicators = {"customer", "order", "payment", "invoice", "account", "user", 
+                              "product", "transaction", "subscription", "billing", "shipping"}
+        if not any(indicator in line_lower for indicator in business_indicators):
+            return False
     
     # payload is a generic technical term - reject unless there's clear business context
     if "payload" in line_lower.split():
@@ -695,7 +692,21 @@ def extract_code_rule_candidates_with_diagnostics(repo_root: Path) -> tuple[Code
 
             semantic_probe = _semantic_probe(split_lines, line_no - 1, evidence_line)
             sentence = _render_contextual_sentence(semantic_type, semantic_probe, surface.path)
-            evidence_kind_val = "executable_code" if (is_business_domain and has_real_enforcement and has_business_context and is_executable_evidence) else "other"
+            # Determine evidence_kind with finer categories
+            if is_business_domain and has_real_enforcement and has_business_context and is_executable_evidence:
+                evidence_kind_val = "executable_code"
+            elif surface_kind == SURFACE_KIND_SCHEMA_CONFIG:
+                evidence_kind_val = "schema"
+            elif surface_kind == SURFACE_KIND_DOCSTRING_OR_COMMENT:
+                evidence_kind_val = "docstring"
+            elif surface_kind == SURFACE_KIND_LINT_OR_STYLE:
+                evidence_kind_val = "lint"
+            elif surface_kind == SURFACE_KIND_INFRA_FRAMEWORK:
+                evidence_kind_val = "infra"
+            elif surface_kind == SURFACE_KIND_META_GOVERNANCE:
+                evidence_kind_val = "meta"
+            else:
+                evidence_kind_val = "other"
             candidates.append(
                 CodeRuleCandidate(
                     text=_candidate_text(idx, sentence),
