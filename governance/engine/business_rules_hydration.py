@@ -297,6 +297,8 @@ def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtrac
         dropped_non_business_surface_count = outcome_counts.get("dropped_non_business_surface_count", 0)
         dropped_schema_only_count = outcome_counts.get("dropped_schema_only_count", 0)
         dropped_non_executable_normative_text_count = outcome_counts.get("dropped_non_executable_normative_text_count", 0)
+        # Note: This is a pre-validation discovery count - actual enforcement validity
+        # is determined later in the validation pipeline
         accepted_business_enforcement_count = outcome_counts.get("accepted_for_validation_count", 0)
     else:
         # Fallback to report_map values when no discovery_outcomes

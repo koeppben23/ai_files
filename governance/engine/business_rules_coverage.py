@@ -199,12 +199,16 @@ def evaluate_code_extraction_coverage(
     executable_business_rule_ratio = (validated_code_rule_count / raw_candidate_count) if raw_candidate_count > 0 else 0.0
     
     # Add specific spike reasons based on diagnostic counts
-    if candidate_count > 0 and (dropped_non_business_surface_count + dropped_schema_only_count) > candidate_count:
+    # Use raw_candidate_count as denominator for stage-appropriate comparison
+    if raw_candidate_count > 0 and (dropped_non_business_surface_count + dropped_schema_only_count) > raw_candidate_count * 0.3:
         quality_reasons.append("non_business_surface_spike")
-    if candidate_count > 0 and dropped_schema_only_count > candidate_count * 0.5:
+    if raw_candidate_count > 0 and dropped_schema_only_count > raw_candidate_count * 0.2:
         quality_reasons.append("schema_only_spike")
-    if candidate_count > 0 and rejected_non_business_subject_count > candidate_count * 0.3:
-        quality_reasons.append("governance_meta_rule_spike")
+    # Note: This uses rejected_non_business_subject_count as proxy since we don't have
+    # a separate governance_meta_rule_reject_count. The name reflects the intent:
+    # high rejection rate due to non-business subjects (includes governance/meta subjects)
+    if raw_candidate_count > 0 and rejected_non_business_subject_count > raw_candidate_count * 0.15:
+        quality_reasons.append("non_business_subject_spike")  # Renamed to reflect actual measurement
     if raw_candidate_count > 0 and executable_business_rule_ratio < 0.05 and raw_candidate_count >= 10:
         quality_reasons.append("insufficient_executable_business_rules")
 

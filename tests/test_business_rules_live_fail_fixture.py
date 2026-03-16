@@ -33,6 +33,10 @@ def test_live_fail_fixture_is_fail_closed_with_withheld_inventory(tmp_path: Path
 
     report, _, ok = extract_validated_business_rules_with_diagnostics(tmp_path)
     assert ok is True
+    
+    # Block F: Verify new diagnostic counters are populated
+    # With stricter validation, we expect drops due to non-business surfaces
+    assert report.dropped_candidate_count > 0 or report.invalid_rule_count > 0
 
     snapshot = build_business_rules_state_snapshot(
         report={
