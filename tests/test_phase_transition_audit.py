@@ -734,6 +734,57 @@ class TestEarlyChainTransitions:
         assert result.status == "BLOCKED"
         assert result.source == "phase-exit-evidence-missing"
 
+
+@pytest.mark.governance
+class TestEndToEndPhaseFlow:
+    """End-to-end proof that a valid run can progress from Phase 0 to Phase 6."""
+
+    def test_happy_phase0_to_phase6_progression(self, tmp_path: Path) -> None:
+        ctx = _runtime(tmp_path)
+
+        state = _workspace_ready_state(Phase="0", phase="0")
+        doc = {"SESSION_STATE": state}
+
+        # 0 -> 1.1 bootstrap
+        r0 = execute(current_token="0", session_state_doc=doc, runtime_ctx=ctx)
+        assert r0.status == "OK"
+        assert r0.phase == "1.1-Bootstrap"
+
+        # 1.2 -> 1.3 rulebook load
+        state["Phase"] = "1.2-ActivationIntent"
+        state["phase"] = "1.2-ActivationIntent"
+        state["Intent"] = {"Path": "intent.md", "Sha256": "abc", "EffectiveScope": "repo"}
+        r1 = execute(current_token="1.2", session_state_doc=doc, runtime_ctx=ctx)
+        assert r1.status == "OK"
+        assert r1.phase == "1.3-RulebookLoad"
+
+        # 4 -> 5 ticket intake
+        state["Phase"] = "4"
+        state["phase"] = "4"
+        state["Ticket"] = "Implement approved governance plan"
+        state["TicketRecordDigest"] = "Context: scope update\nTest Strategy: unit + integration"
+        state["FeatureComplexity"] = {"Class": "STANDARD", "Reason": "ticket", "PlanningDepth": "standard"}
+        r2 = execute(current_token="4", session_state_doc=doc, runtime_ctx=ctx)
+        assert r2.status == "OK"
+        assert r2.phase == "5-ArchitectureReview"
+
+        # 5 -> 5.3 manual requested jump with transition evidence
+        state["Phase"] = "5-ArchitectureReview"
+        state["phase"] = "5-ArchitectureReview"
+        state["phase_transition_evidence"] = True
+        r3 = execute(current_token="5.3", session_state_doc=doc, runtime_ctx=ctx)
+        assert r3.status == "OK"
+
+        # 5.3 -> 6 default route (or already at 6 if engine advanced immediately)
+        if r3.phase != "6-PostFlight":
+            state["Phase"] = r3.phase
+            state["phase"] = r3.phase
+            r4 = execute(current_token="5.3", session_state_doc=doc, runtime_ctx=ctx)
+            assert r4.status == "OK"
+            assert r4.phase == "6-PostFlight"
+        else:
+            assert r3.phase == "6-PostFlight"
+
     def test_token13_blocked_without_rulebook_evidence(self, tmp_path: Path) -> None:
         """Bad: Token 1.3 without required rulebook keys → blocked."""
         ctx = _runtime(tmp_path)
