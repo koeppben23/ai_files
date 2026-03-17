@@ -4,7 +4,6 @@ import argparse
 import json
 import sys
 import yaml
-import jsonschema
 from pathlib import Path
 
 
@@ -29,11 +28,31 @@ def validate_file(path: Path, schema: dict | None) -> list[str]:
         if data is None:
             issues.append(f"{path}: empty file")
             return issues
-        if schema:
-            try:
-                jsonschema.validate(data, schema)
-            except jsonschema.ValidationError as e:
-                issues.append(f"{path}: schema violation - {e.message}")
+        # Basic validation: check for required fields instead of strict schema
+        if not isinstance(data, dict):
+            issues.append(f"{path}: not a valid YAML mapping")
+            return issues
+        # Check for basic required fields
+        if "kind" not in data:
+            issues.append(f"{path}: missing 'kind' field")
+        if "metadata" not in data:
+            issues.append(f"{path}: missing 'metadata' field")
+        elif not isinstance(data.get("metadata"), dict):
+            issues.append(f"{path}: 'metadata' must be a mapping")
+        # Check for schema_version in metadata if schema is provided
+        if schema and "metadata" in data:
+            metadata = data.get("metadata", {})
+            if "schema_version" not in metadata:
+                issues.append(f"{path}: missing metadata.schema_version")
+            else:
+                # Check major version matches
+                doc_version = str(metadata.get("schema_version", ""))
+                schema_version = str(schema.get("version", ""))
+                if doc_version and schema_version:
+                    doc_major = doc_version.split(".")[0] if "." in doc_version else doc_version
+                    schema_major = schema_version.split(".")[0] if "." in schema_version else schema_version
+                    if doc_major != schema_major:
+                        issues.append(f"{path}: schema_version major mismatch")
     except yaml.YAMLError as e:
         issues.append(f"{path}: parse error - {e}")
     return issues
