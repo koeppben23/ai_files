@@ -119,9 +119,10 @@ def build_ruleset_artifacts_v2(*, repo_root: Path, ruleset_id: str, version: str
         for path in source_files
     ]
     
-    profile_entries = [entry for entry in source_entries if "profiles" in entry["path"]]
+    profile_entries = [entry for entry in source_entries if "profiles" in entry["path"] and "addons" not in entry["path"]]
     addon_entries = [entry for entry in source_entries if "addons" in entry["path"]]
-    core_entries = [entry for entry in source_entries if "core" in entry["path"]]
+    # Match core rulebooks specifically - must have /core/ in path
+    core_entries = [entry for entry in source_entries if "/core/" in entry["path"]]
     
     manifest = {
         "schema": "governance-ruleset-manifest.v2",

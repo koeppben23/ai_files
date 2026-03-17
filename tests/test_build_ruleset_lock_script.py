@@ -62,8 +62,9 @@ def test_build_ruleset_lock_outputs_hash_artifacts(tmp_path: Path):
             for p in core_paths
         )
     assert ok, f"Core rulebook path not resolved as expected. Found: {core_paths}"
+    # Accept both legacy (rulesets/core/) and SSOT (governance_spec/rulesets/core/) paths
     assert all(
-        p.startswith("rulesets/core/") and p.endswith(".yml")
+        (p.startswith("rulesets/core/") or p.startswith("governance_spec/rulesets/core/")) and p.endswith(".yml")
         for p in lock["resolved_core_rulebooks"]
     )
     # If present, ensure core rulebooks list entries are well-formed; tolerate empty in migration scenarios

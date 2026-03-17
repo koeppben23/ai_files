@@ -25,7 +25,15 @@ DOCS = get_docs_path()
 
 
 def _read(relpath: str) -> str:
-    """Read a file relative to REPO_ROOT, fail fast if missing."""
+    """Read a file relative to REPO_ROOT, fail fast if missing.
+    
+    Checks governance_content first (SSOT), then falls back to legacy.
+    """
+    # Check governance_content first (SSOT)
+    new_path = REPO_ROOT / "governance_content" / relpath
+    if new_path.exists():
+        return read_text(new_path)
+    # Fall back to legacy
     p = REPO_ROOT / relpath
     try:
         return read_text(p)
