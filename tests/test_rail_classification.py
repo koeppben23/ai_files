@@ -373,43 +373,47 @@ class TestCrossRailConsistency:
 
 
 # ---------------------------------------------------------------------------
-# Install.py integration: OPENCODE_INSTRUCTIONS includes README-OPENCODE.md
+# Install.py integration: OPENCODE_COMMAND_FILES contains canonical commands
 # ---------------------------------------------------------------------------
 
 
-class TestInstallInstructionsIntegration:
-    """Verify install.py OPENCODE_INSTRUCTIONS array is complete."""
+class TestInstallCommandFilesIntegration:
+    """Verify install.py OPENCODE_COMMAND_FILES array is complete."""
 
-    def test_readme_opencode_in_instructions(self) -> None:
-        """OPENCODE_INSTRUCTIONS must include README-OPENCODE.md for governance context."""
-        from install import OPENCODE_INSTRUCTIONS
+    def test_all_canonical_commands_in_install(self) -> None:
+        """OPENCODE_COMMAND_FILES must include all 8 canonical commands."""
+        from install import OPENCODE_COMMAND_FILES
 
-        assert "commands/README-OPENCODE.md" in OPENCODE_INSTRUCTIONS, (
-            "OPENCODE_INSTRUCTIONS must include 'commands/README-OPENCODE.md' "
-            "so the model has governance system context when executing commands"
+        canonical = {
+            "commands/continue.md",
+            "commands/plan.md",
+            "commands/review.md",
+            "commands/review-decision.md",
+            "commands/ticket.md",
+            "commands/implement.md",
+            "commands/implementation-decision.md",
+            "commands/audit-readout.md",
+        }
+        for cmd in canonical:
+            assert cmd in OPENCODE_COMMAND_FILES, (
+                f"OPENCODE_COMMAND_FILES must include {cmd}"
+            )
+
+    def test_command_files_no_duplicates(self) -> None:
+        """OPENCODE_COMMAND_FILES must not contain duplicate entries."""
+        from install import OPENCODE_COMMAND_FILES
+
+        assert len(OPENCODE_COMMAND_FILES) == len(set(OPENCODE_COMMAND_FILES)), (
+            "OPENCODE_COMMAND_FILES contains duplicate entries"
         )
 
-    def test_master_md_in_instructions(self) -> None:
-        """OPENCODE_INSTRUCTIONS must include master.md."""
-        from install import OPENCODE_INSTRUCTIONS
+    def test_command_files_all_start_with_commands(self) -> None:
+        """All command paths must start with 'commands/'."""
+        from install import OPENCODE_COMMAND_FILES
 
-        assert "commands/master.md" in OPENCODE_INSTRUCTIONS
-
-    def test_instructions_no_duplicates(self) -> None:
-        """OPENCODE_INSTRUCTIONS must not contain duplicate entries."""
-        from install import OPENCODE_INSTRUCTIONS
-
-        assert len(OPENCODE_INSTRUCTIONS) == len(set(OPENCODE_INSTRUCTIONS)), (
-            "OPENCODE_INSTRUCTIONS contains duplicate entries"
-        )
-
-    def test_instructions_all_start_with_commands(self) -> None:
-        """All instruction paths must start with 'commands/'."""
-        from install import OPENCODE_INSTRUCTIONS
-
-        for entry in OPENCODE_INSTRUCTIONS:
+        for entry in OPENCODE_COMMAND_FILES:
             assert entry.startswith("commands/"), (
-                f"Instruction path '{entry}' must start with 'commands/'"
+                f"Command path '{entry}' must start with 'commands/'"
             )
 
 
