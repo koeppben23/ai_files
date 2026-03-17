@@ -98,7 +98,7 @@ def validate_all(root: Path, use_json: bool = False) -> int:
     
     if issues:
         msg = {"status": "FAILED", "errors": issues}
-        output = json.dumps(msg) if use_json else "FAIL: " + "; ".join(issues)
+        output = json.dumps(msg) if use_json else "FAIL: FAILED: " + "; ".join(issues)
         print(output)
         return 1
     
@@ -107,7 +107,8 @@ def validate_all(root: Path, use_json: bool = False) -> int:
     return 0
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argv = argv if argv is not None else sys.argv[1:]
     parser = argparse.ArgumentParser(description="Validate governance rulebooks")
     parser.add_argument("--all", action="store_true", help="Validate all rulebooks")
     parser.add_argument("file", nargs="?", help="File to validate")
@@ -115,7 +116,7 @@ def main() -> int:
     parser.add_argument("--schema-version", help="Expected schema version")
     parser.add_argument("--repo-root", help="Repository root path")
     
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     root = Path(args.repo_root) if args.repo_root else ROOT
     
     if args.all:
@@ -127,7 +128,7 @@ def main() -> int:
         issues = validate_file(file_path, load_schema())
         if issues:
             msg = {"status": "FAILED", "errors": issues}
-            output = json.dumps(msg) if args.json else "FAIL: " + "; ".join(issues)
+            output = json.dumps(msg) if args.json else "FAIL: FAILED: " + "; ".join(issues)
             print(output)
             return 1
         msg = {"status": "OK", "message": "Validation passed"}
