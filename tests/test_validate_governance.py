@@ -29,6 +29,22 @@ RULES_PATH = get_rules_path()
 PROFILES_DIR = get_profiles_path()
 DOCS_DIR = get_docs_path()
 
+def _resolve(rel: str) -> Path:
+    """Resolve a relative governance/test path into an SSOT path when possible."""
+    # Profiles under governance Content mapped via PROFILES_DIR
+    if rel.startswith("profiles/"):
+        return PROFILES_DIR / rel[len("profiles/"):]
+    # Governance-owned docs may live under governance/docs/governance structure
+    if rel.startswith("governance/"):
+        return _resolve(rel)
+    # Master/rules paths already normalized by helper; fallback to repo root
+    if rel == "master.md":
+        return MASTER_PATH
+    if rel == "rules.md":
+        return RULES_PATH
+    # General fallback
+    return REPO_ROOT / rel
+
 
 @pytest.mark.governance
 def test_required_files_present():
@@ -408,7 +424,7 @@ def test_template_rulebooks_define_correctness_by_construction_contract():
 
     missing: list[str] = []
     for rel in templates:
-        text = read_text(REPO_ROOT / rel)
+        text = read_text(_resolve(rel))
         absent = [token for token in required_tokens if token not in text]
         if absent:
             missing.append(f"{rel} missing {absent}")
@@ -421,18 +437,18 @@ def test_template_rulebooks_define_correctness_by_construction_contract():
 @pytest.mark.governance
 def test_template_evidence_kinds_are_allowed():
     templates = [
-        REPO_ROOT / "profiles/rules.backend-java-templates.md",
-        REPO_ROOT / "profiles/rules.backend-java-kafka-templates.md",
-        REPO_ROOT / "profiles/rules.frontend-angular-nx-templates.md",
+        "profiles/rules.backend-java-templates.md",
+        "profiles/rules.backend-java-kafka-templates.md",
+        "profiles/rules.frontend-angular-nx-templates.md",
     ]
     allowed = {"unit-test", "integration-test", "contract-test", "e2e", "lint", "build"}
     issues: list[str] = []
 
-    for p in templates:
-        text = read_text(p)
+    for rel in templates:
+        text = read_text(_resolve(rel))
         m = re.search(r"^\s*evidence_kinds_required:\s*$", text, flags=re.MULTILINE)
         if not m:
-            issues.append(f"{p.relative_to(REPO_ROOT)}: missing evidence_kinds_required")
+            issues.append(f"{rel}: missing evidence_kinds_required")
             continue
 
         kinds: list[str] = []
@@ -446,11 +462,11 @@ def test_template_evidence_kinds_are_allowed():
             break
 
         if not kinds:
-            issues.append(f"{p.relative_to(REPO_ROOT)}: empty evidence_kinds_required")
+            issues.append(f"{rel}: empty evidence_kinds_required")
             continue
-        for kind in kinds:
-            if kind not in allowed:
-                issues.append(f"{p.relative_to(REPO_ROOT)}: unsupported evidence kind {kind}")
+            for kind in kinds:
+                if kind not in allowed:
+                    issues.append(f"{rel}: unsupported evidence kind {kind}")
 
     assert not issues, "Template evidence kinds invalid:\n" + "\n".join([f"- {i}" for i in issues])
 
@@ -475,7 +491,10 @@ def test_ruleset_hash_changes_when_ruleset_files_change():
             h.update(b"\n")
         return h.hexdigest()
 
-    baseline_contents = [(p.relative_to(REPO_ROOT).as_posix(), read_text(p)) for p in files]
+    baseline_contents = []
+    for p in files:
+        rel_path = p.relative_to(REPO_ROOT).as_posix()
+        baseline_contents.append((rel_path, read_text(_resolve(rel_path))))
     baseline = digest_for(baseline_contents)
 
     mutated_contents = list(baseline_contents)
@@ -924,7 +943,7 @@ def test_reviewed_rulebooks_include_examples_and_troubleshooting_sections():
 
     missing: list[str] = []
     for rel, tokens in required.items():
-        text = read_text(REPO_ROOT / rel)
+        text = read_text(_resolve(rel))
         absent = [token for token in tokens if token not in text]
         if absent:
             missing.append(f"{rel} missing {absent}")
