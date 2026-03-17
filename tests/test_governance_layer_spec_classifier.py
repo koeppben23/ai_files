@@ -160,6 +160,11 @@ class TestSpecPatternConflictCases:
         path = Path("rulesets/profiles/python.yml")
         assert is_spec_file(path) is True
 
+    def test_governance_spec_rulesets_profile_yaml_is_spec(self) -> None:
+        """YAML in governance_spec/rulesets/profiles/ IS spec (new path)."""
+        path = Path("governance_spec/rulesets/profiles/python.yml")
+        assert is_spec_file(path) is True
+
     def test_rulesets_arbitrary_yaml_in_subdir_is_spec(self) -> None:
         """Any YAML in rulesets/ subdirectories IS spec."""
         path = Path("rulesets/core/custom.yaml")
