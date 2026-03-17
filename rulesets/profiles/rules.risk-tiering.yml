@@ -1,0 +1,121 @@
+kind: profile
+metadata:
+  id: profile.risk-tiering
+  name: Risk Tiering Shared Rulebook
+  version: '1.0'
+  schema_version: 1.2.0
+  status: active
+  description: >-
+    Canonical risk-tier classification (TIER-LOW / TIER-MEDIUM / TIER-HIGH)
+    with tier evidence minimums and unresolved-tier handling.
+phase_integration:
+  phases:
+  - phase_2
+  - phase_5
+  - phase_6
+  required_outputs: []
+  required_checks: []
+warning_codes:
+- code: WARN-RISK-TIER-UNRESOLVED
+  triggers:
+  - tier cannot be determined from available evidence
+  - impact or touched surface under-specified
+  recovery: >-
+    Default to TIER-HIGH, record WARN-RISK-TIER-UNRESOLVED, and request
+    missing scope evidence to refine classification.
+references:
+- id: ref_1
+  target: profiles/addons/riskTiering.addon.yml
+  type: schema
+activation:
+  type: manifest
+  conditions: []
+evidence_contract:
+  required_artifacts:
+  - SESSION_STATE.RiskTiering.ActiveTier
+  - SESSION_STATE.RiskTiering.Rationale
+  - SESSION_STATE.AddonsEvidence.riskTiering.status
+  required_fields:
+  - RiskTiering.ActiveTier
+  - RiskTiering.Rationale
+  - RiskTiering.MandatoryEvidence
+  - RiskTiering.MissingEvidence
+verification_commands: []
+
+# ── v1.2.0: phase exit contract ─────────────────────────────────────
+phase_exit_contract:
+- phase: phase_2
+  pass_criteria:
+  - criterion_key: RTN-1-CANONICAL-TIER-ASSIGNED
+    critical: true
+    artifact_kind: risk_tier_assessment
+  - criterion_key: RTN-4-SESSION-STATE-SHAPE
+    critical: false
+    artifact_kind: risk_tier_assessment
+  blocking_conditions:
+  - condition_id: BC-RT-MISSING-CRITICAL
+    when: missing
+    applies_to_severity: critical
+    failure_code: BLOCKED-STRICT-EVIDENCE-MISSING
+  - condition_id: BC-RT-MISSING-NONCRIT
+    when: missing
+    applies_to_severity: non_critical
+    failure_code: NOT_VERIFIED-STRICT-EVIDENCE-MISSING
+  evidence_freshness:
+  - artifact_kind: risk_tier_assessment
+    freshness_class: gate_evidence
+- phase: phase_5
+  pass_criteria:
+  - criterion_key: RTN-2-TIER-EVIDENCE-MINIMUMS
+    critical: true
+    artifact_kind: risk_tier_assessment
+    threshold_mode: dynamic_by_risk_tier
+    threshold_resolver: dynamic_by_risk_tier
+  - criterion_key: RTN-3-TIER-GATE-DECISION
+    critical: true
+    artifact_kind: risk_tier_assessment
+  blocking_conditions:
+  - condition_id: BC-RT-P5-MISSING-CRITICAL
+    when: missing
+    applies_to_severity: critical
+    failure_code: BLOCKED-STRICT-EVIDENCE-MISSING
+  - condition_id: BC-RT-P5-STALE-CRITICAL
+    when: stale
+    applies_to_severity: critical
+    failure_code: BLOCKED-STRICT-EVIDENCE-STALE
+  - condition_id: BC-RT-P5-THRESHOLD-CRITICAL
+    when: below_threshold
+    applies_to_severity: critical
+    failure_code: BLOCKED-STRICT-THRESHOLD
+  evidence_freshness:
+  - artifact_kind: risk_tier_assessment
+    freshness_class: gate_evidence
+- phase: phase_6
+  pass_criteria:
+  - criterion_key: RTN-5-UNRESOLVED-TIER-REPORTED
+    critical: false
+    artifact_kind: risk_tier_assessment
+  blocking_conditions:
+  - condition_id: BC-RT-P6-MISSING-NONCRIT
+    when: missing
+    applies_to_severity: non_critical
+    failure_code: NOT_VERIFIED-STRICT-EVIDENCE-MISSING
+  - condition_id: BC-RT-P6-STALE-NONCRIT
+    when: stale
+    applies_to_severity: non_critical
+    failure_code: NOT_VERIFIED-STRICT-EVIDENCE-STALE
+  evidence_freshness:
+  - artifact_kind: risk_tier_assessment
+    freshness_class: gate_evidence
+
+failure_codes:
+- code: BLOCKED-STRICT-EVIDENCE-MISSING
+- code: BLOCKED-STRICT-EVIDENCE-STALE
+- code: BLOCKED-STRICT-THRESHOLD
+- code: NOT_VERIFIED-STRICT-EVIDENCE-MISSING
+- code: NOT_VERIFIED-STRICT-EVIDENCE-STALE
+- code: WARN-RISK-TIER-UNRESOLVED
+
+patterns: []
+anti_patterns: []
+decision_trees: []

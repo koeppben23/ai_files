@@ -1,0 +1,126 @@
+kind: profile
+metadata:
+  id: profile.principal-excellence
+  name: Principal Excellence Shared Rulebook
+  version: '1.0'
+  schema_version: 1.2.0
+  status: active
+  description: >-
+    Reusable principal-grade scorecard contract for evidence-based gate
+    decisions and reviewer-consistent exit conditions.
+phase_integration:
+  phases:
+  - phase_4
+  - phase_5
+  - phase_6
+  required_outputs: []
+  required_checks: []
+warning_codes:
+- code: WARN-PRINCIPAL-EVIDENCE-MISSING
+  triggers:
+  - critical criterion lacks evidenceRef
+  - evidence artifact stale or unresolvable
+  recovery: >-
+    Attach fresh command/output evidence for each failed criterion
+    and rerun scorecard evaluation.
+references:
+- id: ref_1
+  target: profiles/addons/principalExcellence.addon.yml
+  type: schema
+activation:
+  type: manifest
+  conditions: []
+evidence_contract:
+  required_artifacts:
+  - SESSION_STATE.GateScorecards.principal_excellence
+  - SESSION_STATE.AddonsEvidence.principalExcellence.status
+  required_fields:
+  - GateScorecards.principal_excellence.Score
+  - GateScorecards.principal_excellence.MaxScore
+  - GateScorecards.principal_excellence.Criteria
+verification_commands: []
+
+# ── v1.2.0: phase exit contract ─────────────────────────────────────
+phase_exit_contract:
+- phase: phase_5
+  pass_criteria:
+  - criterion_key: PRINCIPAL-QUALITY-CLAIMS-EVIDENCED
+    critical: true
+    artifact_kind: principal_quality_claims
+    threshold_mode: dynamic_by_risk_tier
+    threshold_resolver: dynamic_by_risk_tier
+  - criterion_key: PRINCIPAL-DETERMINISM-AND-TEST-RIGOR
+    critical: true
+    artifact_kind: test_quality_gate
+    threshold_mode: dynamic_by_risk_tier
+    threshold_resolver: dynamic_by_risk_tier
+  - criterion_key: PRINCIPAL-ROLLBACK-OR-RECOVERY-READY
+    critical: true
+    artifact_kind: rollback_safety_gate
+  blocking_conditions:
+  - condition_id: BC-PE-MISSING-CRITICAL
+    when: missing
+    applies_to_severity: critical
+    failure_code: BLOCKED-STRICT-EVIDENCE-MISSING
+  - condition_id: BC-PE-STALE-CRITICAL
+    when: stale
+    applies_to_severity: critical
+    failure_code: BLOCKED-STRICT-EVIDENCE-STALE
+  - condition_id: BC-PE-THRESHOLD-CRITICAL
+    when: below_threshold
+    applies_to_severity: critical
+    failure_code: BLOCKED-STRICT-THRESHOLD
+  - condition_id: BC-PE-MISSING-NONCRIT
+    when: missing
+    applies_to_severity: non_critical
+    failure_code: NOT_VERIFIED-STRICT-EVIDENCE-MISSING
+  - condition_id: BC-PE-STALE-NONCRIT
+    when: stale
+    applies_to_severity: non_critical
+    failure_code: NOT_VERIFIED-STRICT-EVIDENCE-STALE
+  evidence_freshness:
+  - artifact_kind: principal_quality_claims
+    freshness_class: gate_evidence
+  - artifact_kind: test_quality_gate
+    freshness_class: gate_evidence
+  - artifact_kind: rollback_safety_gate
+    freshness_class: gate_evidence
+- phase: phase_6
+  pass_criteria:
+  - criterion_key: PRINCIPAL-QUALITY-CLAIMS-EVIDENCED
+    critical: true
+    artifact_kind: principal_quality_claims
+  - criterion_key: PRINCIPAL-DETERMINISM-AND-TEST-RIGOR
+    critical: true
+    artifact_kind: test_quality_gate
+  - criterion_key: PRINCIPAL-ROLLBACK-OR-RECOVERY-READY
+    critical: true
+    artifact_kind: rollback_safety_gate
+  blocking_conditions:
+  - condition_id: BC-PE-P6-MISSING-CRITICAL
+    when: missing
+    applies_to_severity: critical
+    failure_code: BLOCKED-STRICT-EVIDENCE-MISSING
+  - condition_id: BC-PE-P6-STALE-CRITICAL
+    when: stale
+    applies_to_severity: critical
+    failure_code: BLOCKED-STRICT-EVIDENCE-STALE
+  evidence_freshness:
+  - artifact_kind: principal_quality_claims
+    freshness_class: gate_evidence
+  - artifact_kind: test_quality_gate
+    freshness_class: gate_evidence
+  - artifact_kind: rollback_safety_gate
+    freshness_class: gate_evidence
+
+failure_codes:
+- code: BLOCKED-STRICT-EVIDENCE-MISSING
+- code: BLOCKED-STRICT-EVIDENCE-STALE
+- code: BLOCKED-STRICT-THRESHOLD
+- code: NOT_VERIFIED-STRICT-EVIDENCE-MISSING
+- code: NOT_VERIFIED-STRICT-EVIDENCE-STALE
+- code: WARN-PRINCIPAL-EVIDENCE-MISSING
+
+patterns: []
+anti_patterns: []
+decision_trees: []

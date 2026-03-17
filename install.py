@@ -1176,25 +1176,30 @@ def collect_customer_docs_files(source_dir: Path) -> list[Path]:
     if not docs_dir.exists() or not docs_dir.is_dir():
         return []
     
+    # Determine if we're in SSOT mode (governance_content exists) or legacy mode
+    is_ssot = (source_dir / "governance_content").exists()
+    
     # Use governance API to get content files from docs/
     content_files = collect_content(source_dir, relative=True)
     
     result: list[Path] = []
     for f in content_files:
-        # Only include files from docs/ directory (legacy + new structure)
+        # Only include files from the appropriate docs directory
         f_str = str(f)
-        if (
-            f_str.startswith("docs/")
-            or f_str.startswith("docs\\")
-            or f_str.startswith("governance_content/docs/")
-            or f_str.startswith("governance_content/docs\\")
-        ):
-            if "/governance/" in f_str.replace("\\", "/"):
+        if is_ssot:
+            # SSOT mode: only include governance_content/docs/
+            if not f_str.startswith("governance_content/docs/"):
                 continue
-            abs_path = source_dir / f
-            if abs_path.is_file() and abs_path.suffix.lower() == ".md":
-                if not _is_forbidden_metadata_path(abs_path, source_dir):
-                    result.append(abs_path)
+        else:
+            # Legacy mode: only include docs/
+            if not f_str.startswith("docs/"):
+                continue
+        if "/governance/" in f_str.replace("\\", "/"):
+            continue
+        abs_path = source_dir / f
+        if abs_path.is_file() and abs_path.suffix.lower() == ".md":
+            if not _is_forbidden_metadata_path(abs_path, source_dir):
+                result.append(abs_path)
     
     return sorted(result, key=lambda p: str(p))
 
@@ -2208,7 +2213,11 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         docs_dst_dir = plan.commands_dir / DOCS_DIR_NAME
         docs_root = get_governance_docs_root(plan.source_dir)
         for df in docs_files:
-            rel = df.relative_to(docs_root)
+            # Handle both absolute and relative paths
+            if df.is_absolute():
+                rel = df.relative_to(docs_root)
+            else:
+                rel = df
             dst = docs_dst_dir / rel
             entry = copy_with_optional_backup(
                 src=df,
