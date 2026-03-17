@@ -1,0 +1,4 @@
+phase_api:
+  phases:
+    - id: 1
+      name: bootstrap
