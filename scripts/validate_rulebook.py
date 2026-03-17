@@ -127,7 +127,8 @@ def main() -> int:
         issues = validate_file(file_path, load_schema())
         if issues:
             msg = {"status": "FAILED", "errors": issues}
-            print(json.dumps(msg) if args.json else "\n".join(issues))
+            output = json.dumps(msg) if args.json else "FAIL: " + "; ".join(issues)
+            print(output)
             return 1
         msg = {"status": "OK", "message": "Validation passed"}
         print(json.dumps(msg) if args.json else "Validation passed")
