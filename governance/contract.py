@@ -60,15 +60,19 @@ ALLOWED_PREFIXES: dict[GovernanceLayer, tuple[str, ...]] = {
     GovernanceLayer.OPENCODE_INTEGRATION: (
         "commands/",
         "plugins/",
+        "opencode/commands/",
+        "opencode/plugins/",
     ),
     GovernanceLayer.GOVERNANCE_RUNTIME: (
         "governance/",
+        "governance_runtime/",
     ),
     GovernanceLayer.GOVERNANCE_CONTENT: (
         "",
         "docs/",
         "profiles/",
         "templates/",
+        "governance_content/",
     ),
     GovernanceLayer.GOVERNANCE_SPEC: (
         "",
@@ -76,6 +80,7 @@ ALLOWED_PREFIXES: dict[GovernanceLayer, tuple[str, ...]] = {
         "governance/contracts/",
         "governance/receipts/",
         "governance/assets/schemas/",
+        "governance_spec/",
     ),
     GovernanceLayer.REPO_RUN_STATE: (
         "workspaces/",

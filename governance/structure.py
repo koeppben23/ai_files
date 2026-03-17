@@ -8,11 +8,18 @@ IMPORTANT: This is NOT a separate classification truth. It maps physical
 directories to governance layers and provides migration helpers.
 
 Target Structure (defined in governance/contract.py via ALLOWED_PREFIXES):
-- commands/          → OPENCODE_INTEGRATION
-- governance/       → GOVERNANCE_RUNTIME
-- docs/             → GOVERNANCE_CONTENT
-- schemas/, governance/contracts/ → GOVERNANCE_SPECS
-- workspaces/       → REPO_RUN_STATE
+- opencode/commands/   → OPENCODE_INTEGRATION (new Wave 15)
+- opencode/plugins/    → OPENCODE_INTEGRATION (new Wave 15)
+- commands/           → OPENCODE_INTEGRATION (legacy)
+- governance/         → GOVERNANCE_RUNTIME (legacy)
+- governance_runtime/ → GOVERNANCE_RUNTIME (new Wave 15)
+- docs/              → GOVERNANCE_CONTENT (legacy)
+- profiles/          → GOVERNANCE_CONTENT (legacy)
+- templates/         → GOVERNANCE_CONTENT (legacy)
+- governance_content/ → GOVERNANCE_CONTENT (new Wave 15)
+- governance_spec/    → GOVERNANCE_SPEC (new Wave 15)
+- schemas/           → GOVERNANCE_SPEC (legacy)
+- workspaces/        → REPO_RUN_STATE
 
 This module provides:
 - Directory type mapping (as convenience layer over classify_layer)

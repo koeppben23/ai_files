@@ -37,13 +37,15 @@ CONTENT_PATTERNS: frozenset = frozenset({
     "CONFLICT_RESOLUTION.md",
     "HowTo_Release.txt",
     "LICENSE",
-    # Content directories
+    # Content directories (legacy)
     "docs",
     "docs/contracts",
     "docs/_archive",
     "profiles",
     "templates",
     "templates/github-actions",
+    # Content directories (new Wave 15)
+    "governance_content",
 })
 
 # Runtime file extensions - these are NEVER content
@@ -58,7 +60,9 @@ RUNTIME_EXTENSIONS: frozenset = frozenset({
 
 def _is_plugin_file(path: Path) -> bool:
     """Check if file is an OpenCode plugin (own layer, not runtime)."""
-    return "opencode-plugins" in path.parts
+    path_str = str(path)
+    # Check both old path (opencode-plugins) and new path (opencode/plugins)
+    return "opencode-plugins" in path_str or "/plugins/" in path_str
 
 
 def _is_runtime_file_internal(path: Path) -> bool:
