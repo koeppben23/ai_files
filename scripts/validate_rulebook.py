@@ -106,9 +106,10 @@ def main() -> int:
     parser.add_argument("file", nargs="?", help="File to validate")
     parser.add_argument("--json", action="store_true", help="Output JSON")
     parser.add_argument("--schema-version", help="Expected schema version")
+    parser.add_argument("--repo-root", help="Repository root path")
     
     args = parser.parse_args()
-    root = ROOT
+    root = Path(args.repo_root) if args.repo_root else ROOT
     
     if args.all:
         return validate_all(root, args.json)
