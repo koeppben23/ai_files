@@ -828,7 +828,7 @@ def collect_unsafe_source_symlinks(source_dir: Path) -> list[str]:
         if p.is_symlink():
             unsafe.add(p.name)
 
-    profiles_src_dir = source_dir / PROFILES_DIR_NAME
+    profiles_src_dir = get_profiles_root(source_dir)
     if profiles_src_dir.exists():
         for p in profiles_src_dir.rglob("*"):
             if p.is_symlink():
@@ -852,7 +852,7 @@ def collect_unsafe_source_symlinks(source_dir: Path) -> list[str]:
             if p.is_symlink():
                 unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
 
-    templates_dir = source_dir / TEMPLATES_DIR_NAME
+    templates_dir = get_templates_root(source_dir)
     if templates_dir.exists():
         for p in templates_dir.rglob("*"):
             if p.is_symlink():
@@ -1105,7 +1105,7 @@ def collect_customer_docs_files(source_dir: Path) -> list[Path]:
     This function uses the Governance API as single source of truth.
     It filters GOVERNANCE_CONTENT files from docs/ directory.
     """
-    docs_dir = source_dir / DOCS_DIR_NAME
+    docs_dir = get_governance_docs_root(source_dir)
     if not docs_dir.exists() or not docs_dir.is_dir():
         return []
     
