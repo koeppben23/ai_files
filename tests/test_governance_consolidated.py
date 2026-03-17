@@ -124,10 +124,10 @@ class TestHelperFunctionsViaTopLevel:
     def test_get_layer_stats(self) -> None:
         """get_layer_stats returns counts."""
         paths = [
-            "commands/continue.md",
-            "master.md",
-            "phase_api.yaml",
-            "governance/engine/orchestrator.py",
+            Path("commands/continue.md"),
+            Path("master.md"),
+            Path("phase_api.yaml"),
+            Path("governance/engine/orchestrator.py"),
         ]
         
         stats = get_layer_stats(paths)

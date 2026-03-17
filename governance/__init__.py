@@ -81,12 +81,12 @@ from governance.installer import (
 
 from governance.structure import (
     DirectoryType,
-    StructureRule,
-    STRUCTURE_RULES,
     get_directory_type,
     is_valid_structure,
     get_legacy_paths,
-    validate_directory_structure,
+    get_layer_for_directory_type,
+    get_allowed_directories_for_type,
+    validate_structure_against_contract,
     get_structure_summary,
 )
 
@@ -128,13 +128,14 @@ __all__ = [
     "get_allowed_prefixes_for_layer",
     "check_directory_structure",
     "validate_directory_structure",
-    # Structure
+    # Structure (thin wrapper over layer classification)
     "DirectoryType",
-    "StructureRule",
-    "STRUCTURE_RULES",
     "get_directory_type",
     "is_valid_structure",
     "get_legacy_paths",
+    "get_layer_for_directory_type",
+    "get_allowed_directories_for_type",
+    "validate_structure_against_contract",
     "get_structure_summary",
     # Installer integration
     "collect_by_layer",
