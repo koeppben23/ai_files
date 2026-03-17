@@ -1,5 +1,5 @@
 """
-Governance Integration for Installer - Wave 11
+Governance Integration for Installer - Wave 13
 
 This module provides the integration layer between the installer and the
 governance API. It maps installer-specific collection logic to governance
@@ -10,15 +10,18 @@ This enables:
 - Single source of truth for file classification
 - Cleaner separation between installer logic and governance rules
 
+IMPORTANT: All classification decisions are derived exclusively from
+governance installer/layer APIs. Legacy hardcoded include/exclude lists
+were removed intentionally.
+
 Usage:
-    from governance.installer import collect_by_layer, is_installable_path
+    from governance.installer import collect_commands, collect_content
     
-    # Get all installable files from source_dir
-    installable = collect_by_layer(source_dir, GovernanceLayer.GOVERNANCE_CONTENT)
+    # Get canonical commands only
+    commands = collect_commands(source_dir)
     
-    # Check if a single path is installable
-    if is_installable_path(some_path):
-        print("This file should be installed")
+    # Get content files
+    content = collect_content(source_dir)
 
 Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
@@ -33,6 +36,7 @@ from governance import (
     is_installable_layer,
     is_static_content_payload,
 )
+from governance.engine.command_surface import is_canonical_command
 
 
 def _to_relative(path: Path, base: Path) -> Path:
@@ -215,3 +219,191 @@ def _resolve_for_classification(path: Path | str, base_dir: Path | None) -> str:
         return path.as_posix()
     
     return path
+
+
+def collect_commands(
+    source_dir: Path,
+    relative: bool = True,
+) -> list[Path]:
+    """
+    Collect only canonical OpenCode commands.
+    
+    These are the 8 true slash commands:
+    continue.md, plan.md, review.md, review-decision.md, ticket.md,
+    implement.md, implementation-decision.md, audit-readout.md
+    
+    Args:
+        source_dir: Root directory to scan
+        relative: If True, return paths relative to source_dir
+        
+    Returns:
+        List of canonical command paths
+    """
+    files = []
+    for p in iter_files_recursive(source_dir):
+        rel_path = _to_relative(p, source_dir)
+        path_str = rel_path.as_posix() if isinstance(rel_path, Path) else str(rel_path)
+        basename = path_str.split("/")[-1]
+        if is_canonical_command(basename):
+            if relative:
+                files.append(rel_path)
+            else:
+                files.append(p)
+    return sorted(files)
+
+
+def collect_opencode_integration(
+    source_dir: Path,
+    relative: bool = True,
+) -> list[Path]:
+    """
+    Collect all OpenCode integration files.
+    
+    This includes:
+    - Canonical commands (collect_commands)
+    - OpenCode plugins (from plugins/ directory)
+    - OpenCode config files
+    
+    Args:
+        source_dir: Root directory to scan
+        relative: If True, return paths relative to source_dir
+        
+    Returns:
+        List of OpenCode integration paths
+    """
+    files = []
+    for p in iter_files_recursive(source_dir):
+        rel_path = _to_relative(p, source_dir)
+        path_str = rel_path.as_posix() if isinstance(rel_path, Path) else str(rel_path)
+        
+        layer = classify_layer(path_str)
+        if layer == GovernanceLayer.OPENCODE_INTEGRATION:
+            if relative:
+                files.append(rel_path)
+            else:
+                files.append(p)
+    return sorted(files)
+
+
+def collect_content(
+    source_dir: Path,
+    relative: bool = True,
+) -> list[Path]:
+    """
+    Collect governance content files.
+    
+    This includes:
+    - master.md, rules.md (content, not commands)
+    - docs/*.md
+    - profiles/**
+    - templates/**
+    
+    Args:
+        source_dir: Root directory to scan
+        relative: If True, return paths relative to source_dir
+        
+    Returns:
+        List of content paths
+    """
+    return collect_by_layer(source_dir, GovernanceLayer.GOVERNANCE_CONTENT, relative)
+
+
+def collect_specs(
+    source_dir: Path,
+    relative: bool = True,
+) -> list[Path]:
+    """
+    Collect governance spec files.
+    
+    This includes:
+    - phase_api.yaml
+    - rules.yml
+    - schemas/**
+    - governance.paths.json
+    
+    Args:
+        source_dir: Root directory to scan
+        relative: If True, return paths relative to source_dir
+        
+    Returns:
+        List of spec paths
+    """
+    return collect_by_layer(source_dir, GovernanceLayer.GOVERNANCE_SPEC, relative)
+
+
+def collect_runtime(
+    source_dir: Path,
+    relative: bool = True,
+) -> list[Path]:
+    """
+    Collect governance runtime files.
+    
+    This includes:
+    - Python code in governance/**
+    - Entry points
+    
+    Args:
+        source_dir: Root directory to scan
+        relative: If True, return paths relative to source_dir
+        
+    Returns:
+        List of runtime paths
+    """
+    return collect_by_layer(source_dir, GovernanceLayer.GOVERNANCE_RUNTIME, relative)
+
+
+def install_commands_target() -> str:
+    """Get the target path for commands installation."""
+    return "commands"
+
+
+def install_content_target() -> str:
+    """Get the target path for content installation."""
+    return "commands"
+
+
+def install_spec_target() -> str:
+    """Get the target path for spec installation."""
+    return "commands"
+
+
+def install_runtime_target() -> str:
+    """Get the target path for runtime installation."""
+    return "commands/governance"
+
+
+def collect_for_install_target(
+    source_dir: Path,
+    target: str,
+    relative: bool = True,
+) -> list[Path]:
+    """
+    Collect files for a specific install target.
+    
+    Target can be one of:
+    - "commands": Only canonical commands
+    - "content": Governance content (master.md, rules.md, docs, profiles, templates)
+    - "specs": Governance specs (phase_api.yaml, rules.yml, schemas)
+    - "runtime": Governance runtime (Python code)
+    - "opencode_integration": Commands + plugins + config
+    
+    Args:
+        source_dir: Root directory to scan
+        target: Install target name
+        relative: If True, return paths relative to source_dir
+        
+    Returns:
+        List of paths for the specified target
+    """
+    if target == "commands":
+        return collect_commands(source_dir, relative=relative)
+    elif target == "content":
+        return collect_content(source_dir, relative=relative)
+    elif target == "specs":
+        return collect_specs(source_dir, relative=relative)
+    elif target == "runtime":
+        return collect_runtime(source_dir, relative=relative)
+    elif target == "opencode_integration":
+        return collect_opencode_integration(source_dir, relative=relative)
+    else:
+        return []

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, cast
 
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
+from governance.paths import get_workspace_logs_root
 
 
 _ERROR_CONTEXT: dict[str, Any] = {
@@ -79,9 +80,7 @@ def _candidate_log_paths(
 
     candidates: list[Path] = []
     if fp and ws_path is not None:
-        candidates.append(ws_path / fp / "logs" / "error.log.jsonl")
-    if cmd_path is not None:
-        candidates.append(cmd_path / "logs" / "error.log.jsonl")
+        candidates.append(get_workspace_logs_root(fp) / "error.log.jsonl")
     return candidates
 
 

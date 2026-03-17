@@ -41,6 +41,20 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import Iterable
 
+# Governance API - single source of truth for file classification
+# Installer classification is derived exclusively from governance installer/layer APIs
+from governance import (
+    GovernanceLayer,
+    classify_layer,
+    is_installable_layer,
+    collect_commands,
+    collect_content,
+    collect_specs,
+    collect_runtime,
+    collect_opencode_integration,
+    exclude_state_files,
+)
+
 
 def _ensure_utf8_stdio() -> None:
     for stream in (sys.stdout, sys.stderr):
@@ -128,26 +142,10 @@ def _emit_install_flow_event(
 
 VERSION = "1.1.0-RC.2"
 # Files copied into <config_root>/commands
-# Strategy: copy (almost) all repo-root governance artifacts that are relevant at runtime.
-# - Include: *.md, *.json, LICENSE (if present), explicit runtime specs
-# - Exclude: installer scripts themselves
-EXCLUDE_ROOT_FILES = {
-    "install.py",
-    "install.corrected.py",
-    "install.updated.py",
-    # Dev tooling (must not be installed into commands/)
-    "package.json",
-    "package-lock.json",
-    "pnpm-lock.yaml",
-    "yarn.lock",
-    ".commitlintrc",
-    ".commitlintrc.js",
-    ".commitlintrc.cjs",
-}
-
-INCLUDE_ROOT_FILES = {
-    "phase_api.yaml",
-}
+# Strategy: copy governance artifacts that are relevant at runtime.
+# Classification now uses Governance API as single source of truth.
+# - Include/Exclude logic moved to governance/installer.py
+# - Legacy constants kept for uninstall safety net only
 
 # Profiles copied into <config_root>/commands/profiles/**
 PROFILES_DIR_NAME = "profiles"
@@ -187,46 +185,6 @@ GOVERNANCE_PATHS_SCHEMA = "opencode-governance.paths.v1"
 # Runtime error logs (written by governance helpers; outside repository)
 ERROR_LOGS_DIR_NAME = "logs"
 
-# Core governance files (static allowlist for conservative uninstall fallback)
-# YAML rulebooks are authoritative; MD files are guidance-only
-CORE_COMMAND_FILES = {
-    # YAML rulebooks (authoritative)
-    "rulesets/core/rules.yml",
-    # Profile rulebooks are loaded dynamically from rulesets/profiles/
-    # Legacy MD files (guidance only, not required for operation)
-    "master.md",
-    "rules.md",
-    "BOOTSTRAP.md",
-    "continue.md",
-    "audit-readout.md",
-    "review.md",
-    "review-decision.md",
-    "implement.md",
-    "ticket.md",
-    "plan.md",
-    # Deprecated compatibility aliases; active continuation surface is /continue.
-    "docs/resume.md",
-    "docs/resume_prompt.md",
-    "docs/new_profile.md",
-    "docs/new_addon.md",
-    "QUALITY_INDEX.md",
-    "CONFLICT_RESOLUTION.md",
-    "SCOPE-AND-CONTEXT.md",
-    "SESSION_STATE_SCHEMA.md",
-    "ADR.md",
-    "TICKET_RECORD_TEMPLATE.md",
-    "README.md",
-    "README-RULES.md",
-    "README-OPENCODE.md",
-    "README-CHAT.md",
-    "CHANGELOG.md",
-    "LICENSE",
-    "LICENSE.md",
-    "LICENSE.txt",
-    "LICENCE",
-    "LICENCE.md",
-    "LICENCE.txt",
-}
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -1000,85 +958,166 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
 
 def collect_command_root_files(source_dir: Path) -> list[Path]:
     """
-    Collect root-level governance files to copy into <config_root>/commands/.
-    Includes:
-      - *.md
-      - *.json
-      - LICENSE (if present)
-    Excludes:
-      - installer scripts (EXCLUDE_ROOT_FILES)
-      - (no opencode.json template handling; we never generate opencode.json)
+    Collect command files for installation to <config_root>/commands/.
+    
+    This is layer-pure: only canonical OpenCode commands.
+    Does NOT include content, specs, or plugins.
+    
+    Returns absolute paths for compatibility with caller.
+    """
+    from pathlib import Path
+    
+    files: list[Path] = []
+    
+    # Only canonical commands
+    for cmd in collect_commands(source_dir, relative=False):
+        files.append(cmd)
+    
+    # Exclude installer scripts
+    exclude_names = {
+        "install.py",
+        "install.corrected.py",
+        "install.updated.py",
+    }
+    
+    result: list[Path] = []
+    for f in files:
+        if f.name in exclude_names:
+            continue
+        result.append(f)
+    
+    return sorted(result, key=lambda p: str(p))
+
+
+def collect_content_files(source_dir: Path) -> list[Path]:
+    """
+    Collect content files for installation.
+    
+    Includes: master.md, rules.md, docs/, profiles/, templates/
+    
+    Returns absolute paths.
     """
     files: list[Path] = []
-    for p in source_dir.iterdir():
-        if not p.is_file():
+    
+    # Get content from governance API
+    for content in collect_content(source_dir, relative=False):
+        files.append(content)
+    
+    # Exclude installer scripts
+    exclude_names = {
+        "install.py",
+        "install.corrected.py",
+        "install.updated.py",
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        ".commitlintrc",
+        ".commitlintrc.js",
+        ".commitlintrc.cjs",
+    }
+    
+    result: list[Path] = []
+    for f in files:
+        if f.name in exclude_names:
             continue
-
-        name = p.name
-        if name in EXCLUDE_ROOT_FILES:
+        if _is_forbidden_metadata_path(f, source_dir):
             continue
-        if _is_forbidden_metadata_path(p, source_dir):
+        result.append(f)
+    
+    return sorted(result, key=lambda p: str(p))
+
+
+def collect_spec_files(source_dir: Path) -> list[Path]:
+    """
+    Collect spec files for installation.
+    
+    Includes: phase_api.yaml, rules.yml, schemas/
+    
+    Returns absolute paths.
+    """
+    files: list[Path] = []
+    
+    for spec in collect_specs(source_dir, relative=False):
+        files.append(spec)
+    
+    # Add VERSION files (special case)
+    version_root = source_dir / "VERSION"
+    if version_root.exists():
+        files.append(version_root)
+    version_gov = source_dir / "governance" / "VERSION"
+    if version_gov.exists():
+        files.append(version_gov)
+    
+    result: list[Path] = []
+    for f in files:
+        if _is_forbidden_metadata_path(f, source_dir):
             continue
-
-        if name.lower().startswith("license"):
-            files.append(p)
-            continue
-
-        if name in INCLUDE_ROOT_FILES:
-            files.append(p)
-            continue
-
-        if p.suffix.lower() in (".md", ".json"):
-            files.append(p)
-
-    return sorted(files)
+        result.append(f)
+    
+    return sorted(result, key=lambda p: str(p))
 
 def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
-    """Collect governance runtime files for packaged state-machine execution."""
-
+    """
+    Collect governance runtime files for packaged state-machine execution.
+    
+    This function now uses the Governance API as the single source of truth.
+    It restricts collection to the governance/ directory.
+    
+    Includes:
+    - Python files from governance/
+    - VERSION file from governance/
+    
+    Returns absolute paths (for compatibility with caller).
+    """
     runtime_dir = source_dir / GOVERNANCE_RUNTIME_DIR_NAME
     if not runtime_dir.exists() or not runtime_dir.is_dir():
         return []
-    return sorted(
-        [
-            p
-            for p in runtime_dir.rglob("*")
-            if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
-            if not str(p.relative_to(source_dir)).replace("\\", "/").startswith(str(OPENCODE_PLUGIN_SOURCE_DIR).replace("\\", "/") + "/")
-        ]
-    )
+    
+    files = collect_runtime(runtime_dir, relative=False)
+    
+    # Add VERSION file from governance/ (special case)
+    version_file = runtime_dir / "VERSION"
+    if version_file.exists():
+        files.append(version_file)
+    
+    result: list[Path] = []
+    for f in files:
+        abs_path = f
+        if abs_path.is_file() and not abs_path.is_symlink() and not _is_forbidden_metadata_path(abs_path, source_dir):
+            result.append(abs_path)
+    
+    return sorted(result, key=lambda p: str(p))
 
 
 DOCS_DIR_NAME = "docs"
-CUSTOMER_DOCS = frozenset({
-    "phases.md",
-    "install-layout.md",
-    "releasing.md",
-    "benchmarks.md",
-    "security-gates.md",
-    "customer-install-bundle-v1.md",
-    "release-security-model.md",
-    "mode-aware-repo-rules.md",
-    "governance_invariants.md",
-})
 
 
 def collect_customer_docs_files(source_dir: Path) -> list[Path]:
-    """Collect customer-relevant documentation from docs/ directory."""
-
+    """
+    Collect customer-relevant documentation from docs/ directory.
+    
+    This function uses the Governance API as single source of truth.
+    It filters GOVERNANCE_CONTENT files from docs/ directory.
+    """
     docs_dir = source_dir / DOCS_DIR_NAME
     if not docs_dir.exists() or not docs_dir.is_dir():
         return []
-    return sorted(
-        [
-            p
-            for p in docs_dir.iterdir()
-            if p.is_file()
-            and p.name in CUSTOMER_DOCS
-            and p.suffix.lower() == ".md"
-            and not _is_forbidden_metadata_path(p, source_dir)
-        ]
-    )
+    
+    # Use governance API to get content files from docs/
+    content_files = collect_content(source_dir, relative=True)
+    
+    result: list[Path] = []
+    for f in content_files:
+        # Only include files from docs/ directory
+        f_str = str(f)
+        if f_str.startswith("docs/") or f_str.startswith("docs\\"):
+            abs_path = source_dir / f
+            if abs_path.is_file() and abs_path.suffix.lower() == ".md":
+                if not _is_forbidden_metadata_path(abs_path, source_dir):
+                    result.append(abs_path)
+    
+    return sorted(result, key=lambda p: str(p))
 
 
 GOVERNANCE_DOCS_DIR_NAME = "docs/governance"
@@ -2496,10 +2535,6 @@ def uninstall(
         root_rules = plan.commands_dir / "rules.yml"
         if root_rules.exists():
             targets.append(root_rules)
-
-        # Static core allowlist as additional safety net for legacy installs
-        for name in CORE_COMMAND_FILES:
-            targets.append(plan.commands_dir / name)
 
         # CLI package (for bootstrap launcher)
         cli_dir = plan.commands_dir / "cli"

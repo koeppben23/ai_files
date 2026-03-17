@@ -46,6 +46,18 @@ from governance.layers import (
     LayerViolation,
 )
 
+from governance.paths import (
+    get_config_root,
+    get_opencode_command_root,
+    get_governance_runtime_root,
+    get_governance_content_root,
+    get_governance_spec_root,
+    get_workspace_root,
+    get_workspace_logs_root,
+    get_workspace_state_root,
+    resolve_legacy_path,
+)
+
 from governance.enforce import (
     ViolationType,
     EnforcementResult,
@@ -77,6 +89,16 @@ from governance.installer import (
     is_installable_path,
     get_layer_info,
     exclude_state_files,
+    collect_commands,
+    collect_opencode_integration,
+    collect_content,
+    collect_specs,
+    collect_runtime,
+    collect_for_install_target,
+    install_commands_target,
+    install_content_target,
+    install_spec_target,
+    install_runtime_target,
 )
 
 from governance.structure import (
@@ -144,4 +166,24 @@ __all__ = [
     "is_installable_path",
     "get_layer_info",
     "exclude_state_files",
+    "collect_commands",
+    "collect_opencode_integration",
+    "collect_content",
+    "collect_specs",
+    "collect_runtime",
+    "install_commands_target",
+    "install_content_target",
+    "install_spec_target",
+    "install_runtime_target",
+    "collect_for_install_target",
+    # Path resolution
+    "get_config_root",
+    "get_opencode_command_root",
+    "get_governance_runtime_root",
+    "get_governance_content_root",
+    "get_governance_spec_root",
+    "get_workspace_root",
+    "get_workspace_logs_root",
+    "get_workspace_state_root",
+    "resolve_legacy_path",
 ]
