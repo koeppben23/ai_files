@@ -39,6 +39,8 @@ def validate_file(path: Path, schema: dict | None) -> list[str]:
         # Check for basic required fields
         if "kind" not in data:
             issues.append(f"{path}: missing 'kind' field")
+        elif data.get("kind") not in ("core", "profile"):
+            issues.append(f"{path}: 'kind' must be 'core' or 'profile'")
         if "metadata" not in data:
             issues.append(f"{path}: missing 'metadata' field")
         elif not isinstance(data.get("metadata"), dict):
