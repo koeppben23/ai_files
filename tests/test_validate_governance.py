@@ -459,9 +459,9 @@ def test_template_evidence_kinds_are_allowed():
 def test_ruleset_hash_changes_when_ruleset_files_change():
     files = [
         MASTER_PATH,
-        REPO_ROOT / "rules.md",
-        *sorted((REPO_ROOT / "profiles").glob("rules*.md")),
-        *sorted((REPO_ROOT / "profiles" / "addons").glob("*.addon.yml")),
+        RULES_PATH,
+        *sorted(PROFILES_DIR.glob("rules*.md")),
+        *sorted((PROFILES_DIR / "addons").glob("*.addon.yml")),
     ]
 
     import hashlib
