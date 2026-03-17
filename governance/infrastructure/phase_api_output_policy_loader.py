@@ -25,7 +25,8 @@ def _candidate_phase_api_paths() -> list[Path]:
     try:
         from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
-        evidence = BindingEvidenceResolver().resolve(mode="kernel")
+        binding_resolver = BindingEvidenceResolver()
+        evidence = binding_resolver.resolve(mode="kernel")
         if evidence.commands_home is not None:
             candidates.append(evidence.commands_home / "phase_api.yaml")
     except Exception:
@@ -42,7 +43,7 @@ def _candidate_phase_api_paths() -> list[Path]:
     candidates.append(Path.home() / ".config" / "opencode" / "commands" / "phase_api.yaml")
     candidates.append(Path.home() / ".opencode" / "commands" / "phase_api.yaml")
 
-    search = Path(__file__).resolve().parent
+    search = Path(__file__).parent
     for _ in range(10):
         candidates.append(search / "governance_spec" / "phase_api.yaml")
         candidates.append(search / "phase_api.yaml")
