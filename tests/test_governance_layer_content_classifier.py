@@ -30,6 +30,14 @@ class TestContentClassificationHappyPath:
         """rules.md is content."""
         assert is_content_file(Path("rules.md")) is True
 
+    def test_governance_content_rules_md_is_content(self) -> None:
+        """governance_content/rules.md is content (new path)."""
+        assert is_content_file(Path("governance_content/rules.md")) is True
+
+    def test_governance_content_master_md_is_content(self) -> None:
+        """governance_content/master.md is content (new path)."""
+        assert is_content_file(Path("governance_content/master.md")) is True
+
     def test_master_md_is_content(self) -> None:
         """master.md is content."""
         assert is_content_file(Path("master.md")) is True
