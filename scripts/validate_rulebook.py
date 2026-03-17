@@ -98,7 +98,8 @@ def validate_all(root: Path, use_json: bool = False) -> int:
     
     if issues:
         msg = {"status": "FAILED", "errors": issues}
-        print(json.dumps(msg) if use_json else "\n".join(issues))
+        output = json.dumps(msg) if use_json else "FAIL: " + "; ".join(issues)
+        print(output)
         return 1
     
     msg = {"status": "OK", "message": f"{file_count} file(s) validated"}
