@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT, get_phase_api_path
+from .util import REPO_ROOT, get_phase_api_path, get_master_path, get_rules_path
 
 
 def _load_module():
@@ -29,6 +29,17 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     commands_home.mkdir(parents=True, exist_ok=True)
 
     (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
+    # Migrate legacy rule/master content into the new SSOT-backed command home for tests
+    try:
+        master_src = get_master_path()
+        rules_src = get_rules_path()
+        if master_src.exists():
+            (commands_home / "master.md").write_text(master_src.read_text(encoding="utf-8"), encoding="utf-8")
+        if rules_src.exists():
+            (commands_home / "rules.md").write_text(rules_src.read_text(encoding="utf-8"), encoding="utf-8")
+    except Exception:
+        # If anything goes wrong, don't fail the test setup; tests may still be valid with synthetic content.
+        pass
 
     paths = {
         "schema": "opencode-governance.paths.v1",
