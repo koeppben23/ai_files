@@ -29,12 +29,45 @@ def get_profiles_path() -> Path:
     return REPO_ROOT / "profiles"
 
 
+def get_profile_addons_path() -> Path:
+    """Get the profile addons path supporting dual-read during migration."""
+    return get_profiles_path() / "addons"
+
+
+def get_profile_file(name: str) -> Path:
+    """Get a specific profile file by name."""
+    return get_profiles_path() / name
+
+
 def get_templates_path() -> Path:
     """Get the templates path supporting dual-read during migration."""
     new_templates = REPO_ROOT / "governance_content" / "templates"
     if new_templates.exists():
         return new_templates
     return REPO_ROOT / "templates"
+
+
+def get_rulesets_path() -> Path:
+    """Get the rulesets path supporting dual-read during migration."""
+    new_rulesets = REPO_ROOT / "governance_spec" / "rulesets"
+    if new_rulesets.exists():
+        return new_rulesets
+    return REPO_ROOT / "rulesets"
+
+
+def get_ruleset_core_path() -> Path:
+    """Get the rulesets/core path supporting dual-read during migration."""
+    return get_rulesets_path() / "core"
+
+
+def get_ruleset_profiles_path() -> Path:
+    """Get the rulesets/profiles path supporting dual-read during migration."""
+    return get_rulesets_path() / "profiles"
+
+
+def get_ruleset_file(relative_path: str) -> Path:
+    """Get a specific ruleset file by relative path."""
+    return get_rulesets_path() / relative_path
 
 
 def run(cmd: list[str], *, env: dict[str, str] | None = None, cwd: Path | None = None) -> subprocess.CompletedProcess:
