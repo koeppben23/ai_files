@@ -9,6 +9,34 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def get_docs_path() -> Path:
+    """
+    Get the docs path supporting dual-read during migration.
+    
+    Prefers new structure (governance_content/docs/) over legacy (docs/).
+    """
+    new_docs = REPO_ROOT / "governance_content" / "docs"
+    if new_docs.exists():
+        return new_docs
+    return REPO_ROOT / "docs"
+
+
+def get_profiles_path() -> Path:
+    """Get the profiles path supporting dual-read during migration."""
+    new_profiles = REPO_ROOT / "governance_content" / "profiles"
+    if new_profiles.exists():
+        return new_profiles
+    return REPO_ROOT / "profiles"
+
+
+def get_templates_path() -> Path:
+    """Get the templates path supporting dual-read during migration."""
+    new_templates = REPO_ROOT / "governance_content" / "templates"
+    if new_templates.exists():
+        return new_templates
+    return REPO_ROOT / "templates"
+
+
 def run(cmd: list[str], *, env: dict[str, str] | None = None, cwd: Path | None = None) -> subprocess.CompletedProcess:
     e = os.environ.copy()
     if env:
