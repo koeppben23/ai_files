@@ -24,6 +24,10 @@ def validate_file(path: Path, schema: dict | None) -> list[str]:
         if not path.exists():
             issues.append(f"File not found: {path}")
             return issues
+        # Check for YAML extension
+        if path.suffix not in (".yml", ".yaml"):
+            issues.append(f"{path}: Not a YAML file")
+            return issues
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         if data is None:
             issues.append(f"{path}: empty file")
