@@ -1517,11 +1517,18 @@ def load_manifest(manifest_path: Path) -> dict | None:
 # ---------------------------------------------------------------------------
 
 OPENCODE_JSON_NAME = "opencode.json"
-OPENCODE_INSTRUCTIONS = [
-    "commands/master.md",
-    "commands/rules.md",
-    "commands/SESSION_STATE_SCHEMA.md",
-    "commands/README-OPENCODE.md",
+
+# Canonical command markdown files - ONLY these are true slash commands
+# Note: NON-command content (master.md, rules.md, etc.) is NOT installed as command surface
+OPENCODE_COMMAND_FILES = [
+    "commands/continue.md",
+    "commands/plan.md",
+    "commands/review.md",
+    "commands/review-decision.md",
+    "commands/ticket.md",
+    "commands/implement.md",
+    "commands/implementation-decision.md",
+    "commands/audit-readout.md",
 ]
 OPENCODE_PLUGIN_KEY = "plugin"
 OPENCODE_PLUGIN_RELATIVE = f"{OPENCODE_PLUGINS_DIR_NAME}/audit-new-session.mjs"
@@ -1568,7 +1575,7 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
         if not isinstance(current, list):
             current = []
         merged = list(current)
-        for entry in OPENCODE_INSTRUCTIONS:
+        for entry in OPENCODE_COMMAND_FILES:
             if entry not in merged:
                 merged.append(entry)
         existing["instructions"] = merged
@@ -1592,7 +1599,7 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
         return {"status": "merged", "dst": str(target)}
 
     payload = {
-        "instructions": list(OPENCODE_INSTRUCTIONS),
+            "command_files": list(OPENCODE_COMMAND_FILES),
         OPENCODE_PLUGIN_KEY: [plugin_uri],
     }
     if dry_run:
@@ -2362,6 +2369,13 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             python_command=binding_python,
             dry_run=dry_run,
         ),
+        "implementation-decision.md": inject_session_reader_path_for_command(
+            plan.commands_dir,
+            command_markdown="implementation-decision.md",
+            bin_dir=concrete_bin_dir,
+            python_command=binding_python,
+            dry_run=dry_run,
+        ),
     }
     print(f"  continue.md rail injection: {template_injections['continue.md']['status']}")
     print(f"  audit-readout.md rail injection: {template_injections['audit-readout.md']['status']}")
@@ -2370,6 +2384,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     print(f"  plan.md rail injection: {template_injections['plan.md']['status']}")
     print(f"  review-decision.md rail injection: {template_injections['review-decision.md']['status']}")
     print(f"  implement.md rail injection: {template_injections['implement.md']['status']}")
+    print(f"  implementation-decision.md rail injection: {template_injections['implementation-decision.md']['status']}")
 
     # If session reader path was injected, update the SHA256 in copied_entries
     # so the manifest reflects the post-injection content.
