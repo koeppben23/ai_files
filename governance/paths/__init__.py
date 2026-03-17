@@ -16,6 +16,11 @@ from governance.paths.layer_adapter import (
     get_workspace_state_root,
     resolve_legacy_path,
     set_config_root_override,
+    # Dual-read resolvers for installer (Wave 15.2)
+    get_governance_docs_root,
+    get_profiles_root,
+    get_templates_root,
+    get_rulesets_root,
 )
 
 __all__ = [
@@ -29,4 +34,9 @@ __all__ = [
     "get_workspace_state_root",
     "resolve_legacy_path",
     "set_config_root_override",
+    # Dual-read resolvers for installer (Wave 15.2)
+    "get_governance_docs_root",
+    "get_profiles_root",
+    "get_templates_root",
+    "get_rulesets_root",
 ]

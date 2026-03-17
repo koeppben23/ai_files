@@ -56,6 +56,11 @@ from governance.paths import (
     get_workspace_logs_root,
     get_workspace_state_root,
     resolve_legacy_path,
+    # Dual-read resolvers for installer (Wave 15.2)
+    get_governance_docs_root,
+    get_profiles_root,
+    get_templates_root,
+    get_rulesets_root,
 )
 
 from governance.enforce import (
@@ -186,4 +191,9 @@ __all__ = [
     "get_workspace_logs_root",
     "get_workspace_state_root",
     "resolve_legacy_path",
+    # Dual-read resolvers for installer (Wave 15.2)
+    "get_governance_docs_root",
+    "get_profiles_root",
+    "get_templates_root",
+    "get_rulesets_root",
 ]

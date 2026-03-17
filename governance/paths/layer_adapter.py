@@ -86,6 +86,81 @@ def get_workspace_state_root(repo_fingerprint: str) -> Path:
     return get_workspace_root(repo_fingerprint)
 
 
+# Dual-read resolvers for installer source paths (Wave 15.2)
+# These support both old and new directory structures during transition
+
+def get_governance_docs_root(base: Path) -> Path:
+    """
+    Get the governance docs root from a source base directory.
+    
+    Prefers new structure (governance_content/docs/) over legacy (docs/).
+    
+    Args:
+        base: The source root directory (e.g., repo root)
+        
+    Returns:
+        Path to governance docs directory
+    """
+    new_path = base / "governance_content" / "docs"
+    if new_path.exists():
+        return new_path
+    return base / "docs"
+
+
+def get_profiles_root(base: Path) -> Path:
+    """
+    Get the profiles root from a source base directory.
+    
+    Prefers new structure (governance_content/profiles/) over legacy (profiles/).
+    
+    Args:
+        base: The source root directory (e.g., repo root)
+        
+    Returns:
+        Path to profiles directory
+    """
+    new_path = base / "governance_content" / "profiles"
+    if new_path.exists():
+        return new_path
+    return base / "profiles"
+
+
+def get_templates_root(base: Path) -> Path:
+    """
+    Get the templates root from a source base directory.
+    
+    Prefers new structure (governance_content/templates/) over legacy (templates/).
+    
+    Args:
+        base: The source root directory (e.g., repo root)
+        
+    Returns:
+        Path to templates directory
+    """
+    new_path = base / "governance_content" / "templates"
+    if new_path.exists():
+        return new_path
+    return base / "templates"
+
+
+def get_rulesets_root(base: Path) -> Path:
+    """
+    Get the rulesets root from a source base directory.
+    
+    Prefers new structure (governance_spec/rulesets/) over legacy (rulesets/).
+    
+    Args:
+        base: The source root directory (e.g., repo root)
+        
+    Returns:
+        Path to rulesets directory
+    """
+    new_path = base / "governance_spec" / "rulesets"
+    if new_path.exists():
+        return new_path
+    return base / "rulesets"
+
+
 # Legacy path mappings for backward compatibility during migration
 # Order matters: more specific paths first
 LEGACY_PATH_MAPPINGS = [
