@@ -87,27 +87,31 @@ class TestMergeOwnership:
             "ensure_opencode_json function not found in install.py"
 
     def test_happy_canonical_instructions_defined(self):
-        """Happy: OPENCODE_INSTRUCTIONS constant is defined in install.py."""
+        """Happy: OPENCODE_COMMAND_FILES constant is defined in install.py."""
         install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
-        assert "OPENCODE_INSTRUCTIONS" in install_src
+        assert "OPENCODE_COMMAND_FILES" in install_src
 
     def test_happy_canonical_instructions_content(self):
-        """Happy: All 4 canonical instruction paths are present in source."""
+        """Happy: All 8 canonical command paths are present in source."""
         install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
         expected_instructions = [
-            "commands/master.md",
-            "commands/rules.md",
-            "commands/SESSION_STATE_SCHEMA.md",
-            "commands/README-OPENCODE.md",
+            "commands/continue.md",
+            "commands/plan.md",
+            "commands/review.md",
+            "commands/review-decision.md",
+            "commands/ticket.md",
+            "commands/implement.md",
+            "commands/implementation-decision.md",
+            "commands/audit-readout.md",
         ]
         missing = [i for i in expected_instructions if i not in install_src]
         assert not missing, f"Missing canonical instructions: {missing}"
 
     def test_happy_merge_preserves_user_keys(self):
-        """Happy: Source code only modifies 'instructions' and 'plugin' keys."""
+        """Happy: Source code only modifies 'command_files' and 'plugin' keys."""
         install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
         # The merge logic should reference specific keys, not do wholesale replacement
-        assert '"instructions"' in install_src or "'instructions'" in install_src
+        assert '"command_files"' in install_src or "'command_files'" in install_src
         assert '"plugin"' in install_src or "'plugin'" in install_src
 
     def test_corner_corrupt_json_handling_documented(self):

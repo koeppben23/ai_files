@@ -1539,10 +1539,10 @@ BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
 
 def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
-    """Generate or merge ``opencode.json`` with governance instructions.
+    """Generate or merge ``opencode.json`` with governance command files.
 
-    - If the file does not exist, create it with the ``instructions`` array.
-    - If it exists, merge: add missing instruction entries without removing
+    - If the file does not exist, create it with the ``command_files`` array.
+    - If it exists, merge: add missing command file entries without removing
       existing ones or touching other user keys.
 
     Returns a status dict for logging.
@@ -1571,14 +1571,14 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
             except Exception:
                 pass  # best-effort backup
 
-        current = existing.get("instructions")
+        current = existing.get("command_files")
         if not isinstance(current, list):
             current = []
         merged = list(current)
         for entry in OPENCODE_COMMAND_FILES:
             if entry not in merged:
                 merged.append(entry)
-        existing["instructions"] = merged
+        existing["command_files"] = merged
 
         plugins_current = existing.get(OPENCODE_PLUGIN_KEY)
         if not isinstance(plugins_current, list):

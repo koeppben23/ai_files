@@ -1,7 +1,7 @@
 """Tests for ensure_opencode_json() — OpenCode Desktop config generation.
 
 Validates:
-- Fresh install creates opencode.json with correct instructions array
+- Fresh install creates opencode.json with correct command_files array
 - Existing file is merged non-destructively (user keys preserved)
 - Missing instruction entries are added to existing array
 - Idempotent: re-running does not duplicate entries
@@ -20,7 +20,7 @@ import pytest
 
 from install import (
     OPENCODE_JSON_NAME,
-    OPENCODE_INSTRUCTIONS,
+    OPENCODE_COMMAND_FILES,
     OPENCODE_PLUGIN_KEY,
     OPENCODE_PLUGIN_RELATIVE,
     ensure_opencode_json,
@@ -57,12 +57,12 @@ class TestFreshInstall:
         assert result["status"] == "created"
         assert (config_root / OPENCODE_JSON_NAME).exists()
 
-    def test_correct_instructions(self, config_root: Path) -> None:
+    def test_correct_command_files(self, config_root: Path) -> None:
         """Created file has exactly the 3 core instruction entries."""
         ensure_opencode_json(config_root, dry_run=False)
         data = _read_opencode_json(config_root)
-        assert "instructions" in data
-        assert data["instructions"] == list(OPENCODE_INSTRUCTIONS)
+        assert "command_files" in data
+        assert data["command_files"] == list(OPENCODE_COMMAND_FILES)
 
     def test_adds_plugin_entry(self, config_root: Path) -> None:
         ensure_opencode_json(config_root, dry_run=False)
@@ -70,21 +70,21 @@ class TestFreshInstall:
         expected_plugin_uri = (config_root / OPENCODE_PLUGIN_RELATIVE).resolve().as_uri()
         assert data[OPENCODE_PLUGIN_KEY] == [expected_plugin_uri]
 
-    def test_instructions_are_relative_paths(self, config_root: Path) -> None:
+    def test_command_files_are_relative_paths(self, config_root: Path) -> None:
         """All instruction entries are relative paths starting with 'commands/'."""
         ensure_opencode_json(config_root, dry_run=False)
         data = _read_opencode_json(config_root)
-        for entry in data["instructions"]:
+        for entry in data["command_files"]:
             assert entry.startswith("commands/"), f"Expected relative path, got: {entry}"
 
     def test_three_core_files(self, config_root: Path) -> None:
-        """The 3 instruction entries are master.md, rules.md, SESSION_STATE_SCHEMA.md."""
+        """The 8 command file entries are the slash command files."""
         ensure_opencode_json(config_root, dry_run=False)
         data = _read_opencode_json(config_root)
-        basenames = [entry.split("/")[-1] for entry in data["instructions"]]
-        assert "master.md" in basenames
-        assert "rules.md" in basenames
-        assert "SESSION_STATE_SCHEMA.md" in basenames
+        basenames = [entry.split("/")[-1] for entry in data["command_files"]]
+        assert "continue.md" in basenames
+        assert "plan.md" in basenames
+        assert "implement.md" in basenames
 
     def test_valid_json_with_newline(self, config_root: Path) -> None:
         """Written file is valid JSON and ends with a newline."""
@@ -113,11 +113,11 @@ class TestMergeExisting:
         data = _read_opencode_json(config_root)
         assert data["theme"] == "dark"
         assert data["editor"] == "vim"
-        assert "instructions" in data
+        assert "command_files" in data
 
     def test_plugin_merge_is_minimal_invasive(self, config_root: Path) -> None:
         existing = {
-            "instructions": ["commands/master.md"],
+            "command_files": ["commands/master.md"],
             OPENCODE_PLUGIN_KEY: ["file:///custom/other-plugin.mjs"],
         }
         target = config_root / OPENCODE_JSON_NAME
@@ -130,43 +130,43 @@ class TestMergeExisting:
         assert expected_plugin_uri in data[OPENCODE_PLUGIN_KEY]
 
     def test_adds_missing_entries(self, config_root: Path) -> None:
-        """Missing instruction entries are appended to existing array."""
+        """Missing command file entries are appended to existing array."""
         existing = {
-            "instructions": ["commands/master.md"],
+            "command_files": ["commands/master.md"],
         }
         target = config_root / OPENCODE_JSON_NAME
         target.write_text(json.dumps(existing), encoding="utf-8")
 
         ensure_opencode_json(config_root, dry_run=False)
         data = _read_opencode_json(config_root)
-        assert "commands/master.md" in data["instructions"]
-        assert "commands/rules.md" in data["instructions"]
-        assert "commands/SESSION_STATE_SCHEMA.md" in data["instructions"]
+        assert "commands/master.md" in data["command_files"]
+        assert "commands/continue.md" in data["command_files"]
+        assert "commands/plan.md" in data["command_files"]
 
     def test_preserves_user_instruction_entries(self, config_root: Path) -> None:
         """User's own instruction entries are not removed."""
         existing = {
-            "instructions": ["my-custom-prompt.md", "commands/master.md"],
+            "command_files": ["my-custom-prompt.md", "commands/master.md"],
         }
         target = config_root / OPENCODE_JSON_NAME
         target.write_text(json.dumps(existing), encoding="utf-8")
 
         ensure_opencode_json(config_root, dry_run=False)
         data = _read_opencode_json(config_root)
-        assert "my-custom-prompt.md" in data["instructions"]
+        assert "my-custom-prompt.md" in data["command_files"]
 
     def test_preserves_order(self, config_root: Path) -> None:
         """Existing entries keep their order; new entries are appended."""
         existing = {
-            "instructions": ["first.md", "commands/master.md"],
+            "command_files": ["first.md", "commands/master.md"],
         }
         target = config_root / OPENCODE_JSON_NAME
         target.write_text(json.dumps(existing), encoding="utf-8")
 
         ensure_opencode_json(config_root, dry_run=False)
         data = _read_opencode_json(config_root)
-        assert data["instructions"][0] == "first.md"
-        assert data["instructions"][1] == "commands/master.md"
+        assert data["command_files"][0] == "first.md"
+        assert data["command_files"][1] == "commands/master.md"
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +179,7 @@ class TestIdempotency:
         ensure_opencode_json(config_root, dry_run=False)
         ensure_opencode_json(config_root, dry_run=False)
         data = _read_opencode_json(config_root)
-        assert len(data["instructions"]) == len(OPENCODE_INSTRUCTIONS)
+        assert len(data["command_files"]) == len(OPENCODE_COMMAND_FILES)
 
     def test_merge_idempotent(self, config_root: Path) -> None:
         """Merge status on second run still works correctly."""
@@ -187,7 +187,7 @@ class TestIdempotency:
         result = ensure_opencode_json(config_root, dry_run=False)
         assert result["status"] == "merged"
         data = _read_opencode_json(config_root)
-        assert data["instructions"] == list(OPENCODE_INSTRUCTIONS)
+        assert data["command_files"] == list(OPENCODE_COMMAND_FILES)
 
     def test_plugin_entry_not_duplicated(self, config_root: Path) -> None:
         ensure_opencode_json(config_root, dry_run=False)
@@ -233,7 +233,7 @@ class TestEdgeCases:
         result = ensure_opencode_json(config_root, dry_run=False)
         assert result["status"] == "merged"
         data = _read_opencode_json(config_root)
-        assert data["instructions"] == list(OPENCODE_INSTRUCTIONS)
+        assert data["command_files"] == list(OPENCODE_COMMAND_FILES)
 
     def test_non_dict_existing_file(self, config_root: Path) -> None:
         """Existing file containing a JSON array (not object) is handled."""
@@ -243,17 +243,17 @@ class TestEdgeCases:
         result = ensure_opencode_json(config_root, dry_run=False)
         assert result["status"] == "merged"
         data = _read_opencode_json(config_root)
-        assert data["instructions"] == list(OPENCODE_INSTRUCTIONS)
+        assert data["command_files"] == list(OPENCODE_COMMAND_FILES)
 
-    def test_instructions_key_is_not_list(self, config_root: Path) -> None:
-        """If instructions is a non-list value, it's replaced with the correct array."""
+    def test_command_files_key_is_not_list(self, config_root: Path) -> None:
+        """If command_files is a non-list value, it's replaced with the correct array."""
         target = config_root / OPENCODE_JSON_NAME
-        target.write_text(json.dumps({"instructions": "bad"}), encoding="utf-8")
+        target.write_text(json.dumps({"command_files": "bad"}), encoding="utf-8")
 
         ensure_opencode_json(config_root, dry_run=False)
         data = _read_opencode_json(config_root)
-        assert isinstance(data["instructions"], list)
-        assert len(data["instructions"]) == len(OPENCODE_INSTRUCTIONS)
+        assert isinstance(data["command_files"], list)
+        assert len(data["command_files"]) == len(OPENCODE_COMMAND_FILES)
 
     def test_nested_parent_dirs_created(self, config_root: Path) -> None:
         """If config_root doesn't exist yet, parent directories are created."""
