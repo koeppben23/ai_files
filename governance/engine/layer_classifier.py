@@ -92,6 +92,10 @@ def classify_layer(path: Path | str) -> GovernanceLayer:
     if content_classifier.is_content_directory(Path(basename)):
         return GovernanceLayer.GOVERNANCE_CONTENT
     
+    # Plugins are OPENCODE_INTEGRATION
+    if content_classifier._is_plugin_file(path_obj):
+        return GovernanceLayer.OPENCODE_INTEGRATION
+    
     if content_classifier.is_runtime_file(path_obj):
         return GovernanceLayer.GOVERNANCE_RUNTIME
     

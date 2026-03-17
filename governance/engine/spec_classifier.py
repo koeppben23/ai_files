@@ -20,13 +20,15 @@ SPEC_PATTERNS: frozenset = frozenset({
     # Root level spec files
     "phase_api.yaml",
     "rules.yml",
-    # Governance spec directories
+    # Governance spec directories (legacy)
     "schemas",
     "governance/assets/schemas",
     "governance/assets/config",
     "governance/assets/configs",
     "governance/contracts",
     "governance/receipts",
+    # Governance spec directories (new Wave 15)
+    "governance_spec",
     # Ruleset specs
     "rulesets",
     "rulesets/profiles",

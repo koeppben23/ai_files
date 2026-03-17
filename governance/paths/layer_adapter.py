@@ -89,7 +89,13 @@ def get_workspace_state_root(repo_fingerprint: str) -> Path:
 # Legacy path mappings for backward compatibility during migration
 # Order matters: more specific paths first
 LEGACY_PATH_MAPPINGS = [
-    # Specific paths first (order matters!)
+    # New structure (Wave 15)
+    ("opencode/commands", get_opencode_command_root),
+    ("opencode/plugins", lambda: get_config_root() / "plugins"),
+    ("governance_runtime", get_governance_runtime_root),
+    ("governance_content", get_governance_content_root),
+    ("governance_spec", get_governance_spec_root),
+    # Old structure (for backward compatibility)
     ("commands/governance", get_governance_runtime_root),
     ("commands/docs", lambda: get_governance_content_root() / "docs"),
     ("commands/profiles", lambda: get_governance_content_root() / "profiles"),
