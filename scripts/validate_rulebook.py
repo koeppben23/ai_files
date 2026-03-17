@@ -56,7 +56,7 @@ def validate_file(path: Path, schema: dict | None) -> list[str]:
                     doc_major = doc_version.split(".")[0] if "." in doc_version else doc_version
                     schema_major = schema_version.split(".")[0] if "." in schema_version else schema_version
                     if doc_major != schema_major:
-                        issues.append(f"{path}: schema_version major mismatch")
+                        issues.append(f"{path}: schema_version major mismatch (doc={doc_major}, schema={schema_major}) - incompatible major version")
     except yaml.YAMLError as e:
         issues.append(f"{path}: parse error - {e}")
     return issues
