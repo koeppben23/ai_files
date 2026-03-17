@@ -781,7 +781,14 @@ def required_source_files(source_dir: Path) -> list[str]:
     # tolerate alternative layouts in case the expected paths are missing in a
     # given bundle. The actual existence checks are performed in precheck_source.
     _ = source_dir
-    return ["VERSION", "governance_spec/rulesets/core/rules.yml"]
+    # Support both legacy root-based and new governance_spec paths for rules
+    # The canonical rules now live under governance_spec/, but keep compatibility
+    # by including both layouts if present.
+    return [
+        "VERSION",
+        "governance_spec/rules.yml",
+        "governance_spec/rulesets/core/rules.yml",
+    ]
 
 
 def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:

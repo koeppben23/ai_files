@@ -21,7 +21,7 @@ try:
 except ImportError:
     yaml = None  # type: ignore
 
-from tests.util import REPO_ROOT, get_phase_api_path, read_text
+from tests.util import REPO_ROOT, get_phase_api_path, get_master_path, get_rules_path, read_text
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -74,9 +74,30 @@ def _find_phase_entry(token: str) -> dict[str, Any]:
 
 
 def _read(relpath: str) -> str:
-    p = REPO_ROOT / relpath
+    # Resolve legacy root accesses to the new SSOT-based locations
+    if relpath == "master.md":
+        path = get_master_path()
+    elif relpath == "rules.md":
+        path = get_rules_path()
+    elif relpath == "phase_api.yaml":
+        path = PHASE_API_PATH
+    else:
+        # Fallback to a best-effort search among known locations for common docs
+        if relpath == "review.md":
+            candidates = [
+                REPO_ROOT / "governance_content" / "review.md",
+                REPO_ROOT / "governance_content" / "docs" / "review.md",
+            ]
+            for cand in candidates:
+                if cand.exists():
+                    path = cand
+                    break
+            else:
+                path = REPO_ROOT / relpath
+        else:
+            path = REPO_ROOT / relpath
     try:
-        return read_text(p)
+        return read_text(path)
     except FileNotFoundError:
         assert False, f"Expected file not found: {relpath}"
 

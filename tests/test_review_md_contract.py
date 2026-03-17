@@ -16,7 +16,7 @@ from install import (
     SESSION_READER_PLACEHOLDER,
     inject_session_reader_path_for_command,
 )
-from tests.util import REPO_ROOT, get_phase_api_path
+from tests.util import REPO_ROOT, get_phase_api_path, get_master_path, get_docs_path
 
 # Platform-aware python command for legacy inject tests (string substitution only).
 _TEST_PYTHON_CMD = sys.executable
@@ -24,7 +24,9 @@ _TEST_PYTHON_CMD = sys.executable
 
 @pytest.mark.governance
 def test_review_template_contains_required_placeholders_and_contract() -> None:
-    review_path = REPO_ROOT / "review.md"
+    review_path = get_docs_path() / "review.md"
+    master_path = get_master_path()
+    assert master_path.exists(), "master.md must exist in governed layout"
     assert review_path.exists(), "review.md must exist in repo root"
     content = review_path.read_text(encoding="utf-8")
 
