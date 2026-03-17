@@ -164,17 +164,21 @@ def get_rulesets_root(base: Path) -> Path:
 # Legacy path mappings for backward compatibility during migration
 # Order matters: more specific paths first
 LEGACY_PATH_MAPPINGS = [
-    # New structure (Wave 15)
+    # New structure (Wave 15+) - preferred
     ("opencode/commands", get_opencode_command_root),
     ("opencode/plugins", lambda: get_config_root() / "plugins"),
     ("governance_runtime", get_governance_runtime_root),
     ("governance_content", get_governance_content_root),
+    ("governance_content/docs", lambda: get_governance_content_root() / "docs"),
+    ("governance_content/profiles", lambda: get_governance_content_root() / "profiles"),
+    ("governance_content/templates", lambda: get_governance_content_root() / "templates"),
     ("governance_spec", get_governance_spec_root),
-    # Old structure (for backward compatibility)
+    ("governance_spec/rulesets", lambda: get_governance_spec_root() / "rulesets"),
+    # Old structure (deprecated - for backward compatibility only)
     ("commands/governance", get_governance_runtime_root),
     ("commands/docs", lambda: get_governance_content_root() / "docs"),
     ("commands/profiles", lambda: get_governance_content_root() / "profiles"),
-    # Base paths last
+    # Base paths
     ("commands", get_opencode_command_root),
 ]
 
@@ -183,7 +187,8 @@ def resolve_legacy_path(legacy_path: str) -> Path:
     """
     Resolve a legacy path to its new logical location.
     
-    This enables dual-read during migration.
+    DEPRECATED: This function is maintained for backward compatibility during
+    migration. New code should use direct paths or the layer-based resolvers.
     
     Preserves the suffix after the matched prefix.
     Example: "commands/governance/engine/x.py" -> <runtime_root>/engine/x.py
