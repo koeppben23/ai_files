@@ -327,13 +327,12 @@ from governance.entrypoints.error_handler_bridge import (
 try:
     from governance.infrastructure.logging.global_error_handler import resolve_log_path
 except Exception:
+    from governance.paths import get_workspace_logs_root
     def resolve_log_path(*, config_root=None, commands_home=None, workspaces_home=None, repo_fingerprint=None):
         _ = config_root
-        if repo_fingerprint and workspaces_home:
-            return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
-        if commands_home:
-            return Path(commands_home) / "logs" / "error.log.jsonl"
-        raise RuntimeError("no writable error log target available")
+        if repo_fingerprint:
+            return get_workspace_logs_root(repo_fingerprint) / "error.log.jsonl"
+        raise RuntimeError("no writable error log target available: repo_fingerprint is required")
 
 try:
     from governance.domain.phase_state_machine import normalize_phase_token, phase_rank

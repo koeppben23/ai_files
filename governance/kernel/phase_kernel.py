@@ -13,6 +13,7 @@ from governance.domain.phase_state_machine import phase_rank, resolve_phase_outp
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.logging.global_error_handler import emit_error_event
+from governance.paths import get_workspace_logs_root
 
 from governance.engine.gate_evaluator import evaluate_p6_prerequisites, can_promote_to_phase6, evaluate_strict_exit_gate
 from governance.engine import reason_codes
@@ -318,7 +319,7 @@ def _resolve_flow_paths(commands_home: Path | None, workspaces_home: Path | None
         paths["commands_boot"] = commands_home / "logs" / "boot.log.jsonl"
     if workspaces_home is not None and repo_fingerprint:
         paths["workspace_events"] = workspaces_home / repo_fingerprint / "events.jsonl"
-        paths["workspace_flow"] = workspaces_home / repo_fingerprint / "logs" / "flow.log.jsonl"
+        paths["workspace_flow"] = get_workspace_logs_root(repo_fingerprint) / "flow.log.jsonl"
     return paths
 
 
