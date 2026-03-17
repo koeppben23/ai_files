@@ -6,21 +6,66 @@ resolution logic; this module provides the I/O to load phase_api.yaml.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Mapping
 
 
-def _find_phase_api_yaml() -> Path | None:
-    """Locate phase_api.yaml by searching upward from this file."""
-    search = Path(__file__).parent
+def _candidate_phase_api_paths() -> list[Path]:
+    """Resolve ordered candidates for phase_api.yaml.
+
+    Priority:
+    1) Runtime commands home (binding evidence / env)
+    2) Repo SSOT fallback (governance_spec/phase_api.yaml)
+    3) Legacy repo root fallback (phase_api.yaml)
+    """
+
+    candidates: list[Path] = []
+
+    try:
+        from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+
+        evidence = BindingEvidenceResolver().resolve(mode="kernel")
+        if evidence.commands_home is not None:
+            candidates.append(evidence.commands_home / "phase_api.yaml")
+    except Exception:
+        pass
+
+    env_commands_home = os.environ.get("COMMANDS_HOME", "").strip()
+    if env_commands_home:
+        candidates.append(Path(env_commands_home).expanduser() / "phase_api.yaml")
+
+    env_config_root = os.environ.get("OPENCODE_CONFIG_ROOT", "").strip()
+    if env_config_root:
+        candidates.append(Path(env_config_root).expanduser() / "commands" / "phase_api.yaml")
+
+    candidates.append(Path.home() / ".config" / "opencode" / "commands" / "phase_api.yaml")
+    candidates.append(Path.home() / ".opencode" / "commands" / "phase_api.yaml")
+
+    search = Path(__file__).resolve().parent
     for _ in range(10):
-        candidate = search / "phase_api.yaml"
-        if candidate.exists():
-            return candidate
+        candidates.append(search / "governance_spec" / "phase_api.yaml")
+        candidates.append(search / "phase_api.yaml")
         parent = search.parent
         if parent == search:
             break
         search = parent
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for path in candidates:
+        token = str(path)
+        if token in seen:
+            continue
+        seen.add(token)
+        unique.append(path)
+    return unique
+
+
+def _find_phase_api_yaml() -> Path | None:
+    for candidate in _candidate_phase_api_paths():
+        if candidate.is_file():
+            return candidate
     return None
 
 
