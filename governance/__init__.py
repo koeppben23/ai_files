@@ -21,6 +21,7 @@ Modules:
 - governance.layers: Core classification API
 - governance.enforce: Layer boundary validation
 - governance.contract: Path contract validation
+- governance.installer: Installer integration layer
 
 Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
@@ -41,8 +42,8 @@ from governance.layers import (
     get_layer_for_path,
     iter_files_by_layer,
     validate_layer_assignment,
-    LayerViolation,
     get_layer_stats,
+    LayerViolation,
 )
 
 from governance.enforce import (
@@ -67,6 +68,15 @@ from governance.contract import (
     get_allowed_prefixes_for_layer,
     check_directory_structure,
     validate_directory_structure,
+)
+
+from governance.installer import (
+    collect_by_layer,
+    collect_installable,
+    collect_static_payload,
+    is_installable_path,
+    get_layer_info,
+    exclude_state_files,
 )
 
 __all__ = [
@@ -107,4 +117,11 @@ __all__ = [
     "get_allowed_prefixes_for_layer",
     "check_directory_structure",
     "validate_directory_structure",
+    # Installer integration
+    "collect_by_layer",
+    "collect_installable",
+    "collect_static_payload",
+    "is_installable_path",
+    "get_layer_info",
+    "exclude_state_files",
 ]
