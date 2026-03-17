@@ -52,6 +52,8 @@ def validate_all(root: Path, use_json: bool = False) -> int:
     schema = load_schema()
     file_count = 0
     
+    # Only validate rulebook files under governance_spec/rulesets and governance_content/profiles
+    # Exclude profiles/addons (they have different schema)
     rulesets_dir = root / "governance_spec" / "rulesets"
     if rulesets_dir.exists():
         for yml_file in rulesets_dir.rglob("*.yml"):
@@ -60,7 +62,12 @@ def validate_all(root: Path, use_json: bool = False) -> int:
     
     profiles_dir = root / "governance_content" / "profiles"
     if profiles_dir.exists():
-        for yml_file in profiles_dir.rglob("*.yml"):
+        for yml_file in profiles_dir.glob("*.md"):
+            continue  # Skip MD files
+        for yml_file in profiles_dir.glob("*.yml"):
+            # Skip addon files - they have different schema
+            if "addons" in str(yml_file):
+                continue
             file_count += 1
             validate_yaml_file(yml_file, schema, issues)
     
