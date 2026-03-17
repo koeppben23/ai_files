@@ -70,6 +70,49 @@ def get_ruleset_file(relative_path: str) -> Path:
     return get_rulesets_path() / relative_path
 
 
+def get_master_path() -> Path:
+    """Get master.md path supporting dual-read during migration."""
+    new_master = REPO_ROOT / "governance_content" / "master.md"
+    if new_master.exists():
+        return new_master
+    return REPO_ROOT / "master.md"
+
+
+def get_rules_path() -> Path:
+    """Get rules.md path supporting dual-read during migration."""
+    new_rules = REPO_ROOT / "governance_content" / "rules.md"
+    if new_rules.exists():
+        return new_rules
+    return REPO_ROOT / "rules.md"
+
+
+def get_phase_api_path() -> Path:
+    """Get phase_api.yaml path supporting dual-read during migration."""
+    new_phase = REPO_ROOT / "governance_spec" / "phase_api.yaml"
+    if new_phase.exists():
+        return new_phase
+    return REPO_ROOT / "phase_api.yaml"
+
+
+def _remap_legacy_relative_path(rel: str) -> str:
+    """Map legacy repo-relative paths to new structure."""
+    if rel == "master.md":
+        return "governance_content/master.md"
+    if rel == "rules.md":
+        return "governance_content/rules.md"
+    if rel == "phase_api.yaml":
+        return "governance_spec/phase_api.yaml"
+    if rel.startswith("docs/"):
+        return "governance_content/" + rel
+    if rel.startswith("profiles/"):
+        return "governance_content/" + rel
+    if rel.startswith("templates/"):
+        return "governance_content/" + rel
+    if rel.startswith("rulesets/"):
+        return "governance_spec/" + rel
+    return rel
+
+
 def run(cmd: list[str], *, env: dict[str, str] | None = None, cwd: Path | None = None) -> subprocess.CompletedProcess:
     e = os.environ.copy()
     if env:
@@ -119,7 +162,19 @@ def git_ls_files(*patterns: str) -> list[str]:
         cmd += list(patterns)
     r = run(cmd)
     if r.returncode == 0:
-        return [l for l in r.stdout.splitlines() if l.strip()]
+        files = [l for l in r.stdout.splitlines() if l.strip()]
+        if files:
+            return files
+
+    # If legacy pattern yields no results, try new-structure mapped patterns.
+    remapped_patterns = tuple(_remap_legacy_relative_path(p) for p in patterns)
+    if remapped_patterns != patterns:
+        cmd = ["git", "ls-files", *remapped_patterns]
+        r = run(cmd)
+        if r.returncode == 0:
+            files = [l for l in r.stdout.splitlines() if l.strip()]
+            if files:
+                return files
 
     files: set[str] = set()
     search_patterns = patterns or ("**/*",)
@@ -131,6 +186,19 @@ def git_ls_files(*patterns: str) -> list[str]:
 
 
 def read_text(path: Path) -> str:
+    if path.exists():
+        return path.read_text(encoding="utf-8")
+
+    try:
+        rel = path.relative_to(REPO_ROOT).as_posix()
+    except Exception:
+        rel = ""
+
+    if rel:
+        mapped = REPO_ROOT / _remap_legacy_relative_path(rel)
+        if mapped.exists():
+            return mapped.read_text(encoding="utf-8")
+
     return path.read_text(encoding="utf-8")
 
 

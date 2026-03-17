@@ -11,8 +11,8 @@ import sys
 
 
 CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
-CATALOG_PATH = Path("templates/github-actions/template_catalog.json")
-WORKFLOW_DIR = Path("templates/github-actions")
+CATALOG_PATH = Path("governance_content/templates/github-actions/template_catalog.json")
+WORKFLOW_DIR = Path("governance_content/templates/github-actions")
 TEMPLATE_PATTERN = "governance-*.yml"
 TEMPLATE_KEY_RE = re.compile(r"^governance-[a-z0-9][a-z0-9-]*$")
 ALLOWED_ARCHETYPES = {
@@ -88,7 +88,12 @@ def _load_catalog(repo_root: Path, catalog_rel: Path) -> tuple[Path, dict[str, o
         rel_path = _validate_relative_path(file_rel, field_name=f"{template_key}.file")
         if rel_path.suffix != ".yml":
             raise ValueError(f"{catalog_rel}: file for {template_key} must end with .yml")
-        if not rel_path.as_posix().startswith(WORKFLOW_DIR.as_posix() + "/"):
+        rel_posix = rel_path.as_posix()
+        if rel_posix.startswith("templates/github-actions/"):
+            rel_posix = "governance_content/" + rel_posix
+            rel_path = Path(rel_posix)
+            file_rel = rel_posix
+        if not rel_posix.startswith(WORKFLOW_DIR.as_posix() + "/"):
             raise ValueError(
                 f"{catalog_rel}: file for {template_key} must be under {WORKFLOW_DIR.as_posix()}/"
             )

@@ -18,10 +18,12 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from .util import get_docs_path
 
-_MASTER = REPO_ROOT / "master.md"
-_RULES = REPO_ROOT / "rules.md"
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+_MASTER = _REPO_ROOT / "governance_content" / "master.md"
+_RULES = _REPO_ROOT / "governance_content" / "rules.md"
 
 
 def _read(path: Path) -> str:

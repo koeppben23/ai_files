@@ -19,9 +19,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_docs_path
 
-CONTRACT_PATH = REPO_ROOT / "docs" / "contracts" / "python-binding-contract.v1.md"
+CONTRACT_PATH = get_docs_path() / "contracts" / "python-binding-contract.v1.md"
 INSTALL_PATH = REPO_ROOT / "install.py"
 PLUGIN_PATH = (
     REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"

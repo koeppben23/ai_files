@@ -12,6 +12,22 @@ import yaml
 import jsonschema
 
 
+def _resolve_rulesets_dir(repo_root: Path) -> Path:
+    candidates = [repo_root / "governance_spec" / "rulesets", repo_root / "rulesets"]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+def _resolve_addons_dir(repo_root: Path) -> Path:
+    candidates = [repo_root / "governance_content" / "profiles" / "addons", repo_root / "profiles" / "addons"]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
 def _sha256(path: Path) -> str:
     # Normalize CRLF -> LF before hashing to match artifact_integrity verifier.
     data = path.read_bytes().replace(b"\r\n", b"\n")
@@ -60,7 +76,7 @@ def build_ruleset_artifacts_v2(*, repo_root: Path, ruleset_id: str, version: str
     if not schema_path.exists():
         raise ValueError(f"schema not found: {schema_path}")
     
-    rulesets_dir = repo_root / "rulesets"
+    rulesets_dir = _resolve_rulesets_dir(repo_root)
     if not rulesets_dir.exists():
         raise ValueError(f"rulesets directory not found: {rulesets_dir}")
     
@@ -89,9 +105,10 @@ def build_ruleset_artifacts_v2(*, repo_root: Path, ruleset_id: str, version: str
     schema_data = json.loads(schema_path.read_text(encoding="utf-8"))
     rulebook_schema_version = schema_data.get("version", "unknown")
     
-    addons = _collect_files(repo_root / "profiles" / "addons", "*.addon.yml")
+    addons_dir = _resolve_addons_dir(repo_root)
+    addons = _collect_files(addons_dir, "*.addon.yml")
     if not addons:
-        raise ValueError("no addon manifests found under profiles/addons/*.addon.yml")
+        raise ValueError(f"no addon manifests found under {addons_dir.relative_to(repo_root)}/*.addon.yml")
     
     source_files = sorted(validated_rulebooks + addons)
     source_entries = [

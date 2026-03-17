@@ -80,7 +80,11 @@ def _candidate_log_paths(
 
     candidates: list[Path] = []
     if fp and ws_path is not None:
+        candidates.append(ws_path / fp / "logs" / "error.log.jsonl")
+    elif fp:
         candidates.append(get_workspace_logs_root(fp) / "error.log.jsonl")
+    if cmd_path is not None:
+        candidates.append(cmd_path / "logs" / "error.log.jsonl")
     return candidates
 
 
@@ -96,7 +100,7 @@ def resolve_log_path(
     ws = Path(workspaces_home) if isinstance(workspaces_home, str) else workspaces_home
     candidates = _candidate_log_paths(commands_home=cmd, workspaces_home=ws, repo_fingerprint=repo_fingerprint)
     if not candidates:
-        raise RuntimeError("no writable error log target available: commands_home is required")
+        raise RuntimeError("no writable error log target available")
     return candidates[0]
 
 

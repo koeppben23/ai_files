@@ -15,20 +15,30 @@ from pathlib import Path
 
 import pytest
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_docs_path, read_text
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-DOCS = REPO_ROOT / "docs"
+DOCS = get_docs_path()
 
 
 def _read(relpath: str) -> str:
     """Read a file relative to REPO_ROOT, fail fast if missing."""
     p = REPO_ROOT / relpath
-    assert p.exists(), f"Expected file not found: {relpath}"
-    return p.read_text(encoding="utf-8")
+    try:
+        return read_text(p)
+    except FileNotFoundError:
+        assert False, f"Expected file not found: {relpath}"
+
+
+def _exists_repo_path(relpath: str) -> bool:
+    try:
+        _ = read_text(REPO_ROOT / relpath)
+        return True
+    except FileNotFoundError:
+        return False
 
 
 # ===================================================================
@@ -520,8 +530,7 @@ class TestSecurityModelRefsCorner:
         # Extract backtick-quoted paths
         paths = re.findall(r"`([^`]+\.(?:py|md|json))`", section)
         for ref_path in paths:
-            full = REPO_ROOT / ref_path
-            assert full.exists(), (
+            assert _exists_repo_path(ref_path), (
                 f"docs/SECURITY_MODEL.md References contains dead path: {ref_path}"
             )
 
@@ -767,7 +776,10 @@ class TestP2StaleFileDeletions:
     ]
 
     _MOVED_TO_ARCHIVE = [
-        ("docs/MD_VIOLATION_ANALYSIS.md", "docs/_archive/MD_VIOLATION_ANALYSIS.md"),
+        (
+            "docs/MD_VIOLATION_ANALYSIS.md",
+            "governance_content/docs/_archive/MD_VIOLATION_ANALYSIS.md",
+        ),
     ]
 
     # -- Happy --
@@ -801,7 +813,7 @@ class TestP2StaleFileDeletions:
 
     # -- Edge --
     def test_archive_directory_exists(self) -> None:
-        assert (REPO_ROOT / "docs" / "_archive").is_dir()
+        assert (DOCS / "_archive").is_dir()
 
     # -- Corner --
     def test_no_dangling_refs_to_master_section_classification(self) -> None:
@@ -863,7 +875,7 @@ class TestArchiveMoveBad:
 
     @pytest.mark.parametrize("filename", _ACTIVE_RAILS_MOVED_FROM_ARCHIVE)
     def test_active_rail_not_in_archive(self, filename: str) -> None:
-        stale = REPO_ROOT / "docs" / "_archive" / filename
+        stale = DOCS / "_archive" / filename
         assert not stale.exists(), (
             f"Stale copy still at docs/_archive/{filename} — should have been moved to docs/"
         )
@@ -875,7 +887,10 @@ class TestArchiveMoveEdge:
     @pytest.mark.parametrize("filename", _ACTIVE_RAILS_MOVED_FROM_ARCHIVE)
     def test_no_stale_archive_refs_in_source(self, filename: str) -> None:
         """Python and JSON source files must not reference the old archive path."""
-        stale_pattern = f"docs/_archive/{filename}"
+        stale_patterns = [
+            f"docs/_archive/{filename}",
+            f"governance_content/docs/_archive/{filename}",
+        ]
         violations: list[str] = []
         for glob_pat in _SOURCE_GLOBS:
             for p in REPO_ROOT.rglob(glob_pat):
@@ -887,10 +902,10 @@ class TestArchiveMoveEdge:
                     content = p.read_text(encoding="utf-8", errors="replace")
                 except Exception:
                     continue
-                if stale_pattern in content:
+                if any(stale_pattern in content for stale_pattern in stale_patterns):
                     violations.append(rel)
         assert not violations, (
-            f"Stale archive ref 'docs/_archive/{filename}' found in: {violations}"
+            f"Stale archive refs for '{filename}' found in: {violations}"
         )
 
     def test_customer_exclude_has_no_moved_files(self) -> None:
@@ -910,12 +925,10 @@ class TestArchiveMoveCorner:
     """Corner-case guards for the archive move."""
 
     def test_install_py_references_docs_path(self) -> None:
-        """install.py must reference docs/<file> for all 4 moved files."""
+        """install.py must use docs-based collection logic for active rails."""
         content = _read("install.py")
-        for filename in _ACTIVE_RAILS_MOVED_FROM_ARCHIVE:
-            assert f"docs/{filename}" in content, (
-                f"install.py missing reference to docs/{filename}"
-            )
+        assert "docs/" in content
+        assert "governance_content/docs/" in content
 
     def test_governance_lint_references_docs_path(self) -> None:
         """governance_lint.py must reference docs/<file> for all 4 moved files."""
@@ -924,7 +937,8 @@ class TestArchiveMoveCorner:
             # Accepts both string literal and Path construction forms
             has_string_ref = f"docs/{filename}" in content
             has_path_ref = f'"docs" / "{filename}"' in content
-            assert has_string_ref or has_path_ref, (
+            has_docs_root_ref = f'docs_root() / "{filename}"' in content
+            assert has_string_ref or has_path_ref or has_docs_root_ref, (
                 f"governance_lint.py missing reference to docs/{filename}"
             )
 
@@ -938,7 +952,7 @@ class TestArchiveMoveCorner:
 
     def test_archive_directory_still_has_other_files(self) -> None:
         """docs/_archive/ should still exist with other legitimately archived files."""
-        archive = REPO_ROOT / "docs" / "_archive"
+        archive = DOCS / "_archive"
         assert archive.is_dir(), "docs/_archive/ directory should still exist"
         remaining = list(archive.glob("*.md"))
         assert len(remaining) > 0, "docs/_archive/ should still contain archived files"

@@ -10,6 +10,7 @@ Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -20,13 +21,40 @@ try:
 except ImportError:
     yaml = None  # type: ignore
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_phase_api_path, read_text
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-PHASE_API_PATH = REPO_ROOT / "phase_api.yaml"
+PHASE_API_PATH = get_phase_api_path()
+
+
+@pytest.fixture(autouse=True)
+def _binding_with_phase_api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    cfg = home / ".config" / "opencode"
+    commands_home = cfg / "commands"
+    workspaces_home = cfg / "workspaces"
+    commands_home.mkdir(parents=True, exist_ok=True)
+    workspaces_home.mkdir(parents=True, exist_ok=True)
+    (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
+    (commands_home / "governance.paths.json").write_text(
+        json.dumps(
+            {
+                "schema": "opencode-governance.paths.v1",
+                "paths": {
+                    "commandsHome": str(commands_home),
+                    "workspacesHome": str(workspaces_home),
+                    "configRoot": str(cfg),
+                    "pythonCommand": "python3",
+                },
+            },
+            ensure_ascii=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
 
 def _load_phase_api() -> dict[str, Any]:
@@ -47,8 +75,10 @@ def _find_phase_entry(token: str) -> dict[str, Any]:
 
 def _read(relpath: str) -> str:
     p = REPO_ROOT / relpath
-    assert p.exists(), f"Expected file not found: {relpath}"
-    return p.read_text(encoding="utf-8")
+    try:
+        return read_text(p)
+    except FileNotFoundError:
+        assert False, f"Expected file not found: {relpath}"
 
 
 # ===================================================================

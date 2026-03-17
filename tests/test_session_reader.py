@@ -37,6 +37,7 @@ from governance.entrypoints.session_reader import (
     _resolve_next_action_line,
     _render_blocker,
 )
+from tests.util import get_phase_api_path
 
 
 # ---------------------------------------------------------------------------
@@ -705,7 +706,7 @@ class TestReadonlyKernelEvalEnrichment:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(
@@ -1104,7 +1105,7 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(
@@ -1190,7 +1191,7 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(
@@ -1271,7 +1272,7 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(
@@ -1340,7 +1341,7 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(
@@ -1413,7 +1414,7 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(
@@ -1497,7 +1498,7 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(
@@ -1588,7 +1589,7 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(
@@ -1669,7 +1670,7 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(
@@ -2013,7 +2014,7 @@ class TestTransitionEvidenceAutoGrant:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(
@@ -2093,7 +2094,7 @@ class TestTransitionEvidenceAutoGrant:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(
@@ -2185,7 +2186,7 @@ class TestTransitionEvidenceStayStrategyRegressions:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (commands_home / "governance.paths.json").write_text(

@@ -12,19 +12,34 @@ import pytest
 
 from governance.domain import reason_codes
 
-from .util import REPO_ROOT, read_text, run, write_governance_paths
+from .util import (
+    REPO_ROOT,
+    read_text,
+    run,
+    write_governance_paths,
+    get_master_path,
+    get_rules_path,
+    get_profiles_path,
+    get_docs_path,
+)
+
+
+MASTER_PATH = get_master_path()
+RULES_PATH = get_rules_path()
+PROFILES_DIR = get_profiles_path()
+DOCS_DIR = get_docs_path()
 
 
 @pytest.mark.governance
 def test_required_files_present():
     required = [
-        "master.md",
-        "rules.md",
-        "BOOTSTRAP.md",
-        "SESSION_STATE_SCHEMA.md",
-        "STABILITY_SLA.md",
+        MASTER_PATH,
+        RULES_PATH,
+        REPO_ROOT / "BOOTSTRAP.md",
+        REPO_ROOT / "SESSION_STATE_SCHEMA.md",
+        REPO_ROOT / "STABILITY_SLA.md",
     ]
-    missing = [f for f in required if not (REPO_ROOT / f).exists()]
+    missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
     assert not missing, f"Missing: {missing}"
 
 
@@ -324,7 +339,7 @@ def test_profiles_use_canonical_blocked_codes():
         "BLOCKED-TEMPLATES-MISSING",
         "BLOCKED-KAFKA-TEMPLATES-MISSING",
     }
-    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    profile_files = sorted(PROFILES_DIR.glob("rules*.md"))
     assert profile_files, "No profile rulebooks found under profiles/rules*.md"
 
     offenders: list[str] = []
@@ -443,7 +458,7 @@ def test_template_evidence_kinds_are_allowed():
 @pytest.mark.governance
 def test_ruleset_hash_changes_when_ruleset_files_change():
     files = [
-        REPO_ROOT / "master.md",
+        MASTER_PATH,
         REPO_ROOT / "rules.md",
         *sorted((REPO_ROOT / "profiles").glob("rules*.md")),
         *sorted((REPO_ROOT / "profiles" / "addons").glob("*.addon.yml")),
@@ -473,7 +488,7 @@ def test_ruleset_hash_changes_when_ruleset_files_change():
 
 @pytest.mark.governance
 def test_docs_governance_addon_has_principal_reviewability_contract():
-    docs_addon = read_text(REPO_ROOT / "profiles" / "rules.docs-governance.md")
+    docs_addon = read_text(PROFILES_DIR / "rules.docs-governance.md")
 
     required_snippets = [
         "Gate review scorecard for docs checks",
@@ -490,7 +505,7 @@ def test_docs_governance_addon_has_principal_reviewability_contract():
 
 @pytest.mark.governance
 def test_all_profile_rulebooks_define_principal_excellence_contract():
-    principal_shared = read_text(REPO_ROOT / "profiles" / "rules.principal-excellence.md")
+    principal_shared = read_text(PROFILES_DIR / "rules.principal-excellence.md")
     required_shared_tokens = [
         "## Principal Excellence Contract (Binding)",
         "### Gate Review Scorecard (binding)",
@@ -511,7 +526,7 @@ def test_all_profile_rulebooks_define_principal_excellence_contract():
         "rules.scorecard-calibration.md",
     ]
 
-    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    profile_files = sorted(PROFILES_DIR.glob("rules*.md"))
     assert profile_files, "No profile rulebooks found under profiles/rules*.md"
 
     offenders: list[str] = []
@@ -534,7 +549,7 @@ def test_all_profile_rulebooks_define_principal_excellence_contract():
 
 @pytest.mark.governance
 def test_all_profile_rulebooks_define_standard_risk_tiering_v21():
-    risk_tiering = read_text(REPO_ROOT / "profiles" / "rules.risk-tiering.md")
+    risk_tiering = read_text(PROFILES_DIR / "rules.risk-tiering.md")
     required_tokens = [
         "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
         "### RTN-1 Canonical tiers (binding)",
@@ -551,7 +566,7 @@ def test_all_profile_rulebooks_define_standard_risk_tiering_v21():
 
 @pytest.mark.governance
 def test_java_profile_delegates_shared_principal_contract_and_shared_file_contains_shape():
-    backend_java = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    backend_java = read_text(PROFILES_DIR / "rules.backend-java.md")
     delegation_tokens = [
         "Shared contract note:",
         "rules.principal-excellence.md",
@@ -566,7 +581,7 @@ def test_java_profile_delegates_shared_principal_contract_and_shared_file_contai
         [f"- {line}" for line in missing_delegation]
     )
 
-    shared = read_text(REPO_ROOT / "profiles" / "rules.principal-excellence.md")
+    shared = read_text(PROFILES_DIR / "rules.principal-excellence.md")
     required_shape = [
         "SESSION_STATE:",
         "GateScorecards:",
@@ -584,7 +599,7 @@ def test_java_profile_delegates_shared_principal_contract_and_shared_file_contai
 
 @pytest.mark.governance
 def test_java_profile_contains_principal_hardening_v2_controls():
-    text = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    text = read_text(PROFILES_DIR / "rules.backend-java.md")
     required = [
         "## Java-first Principal Hardening v2 (Binding)",
         "### JPH2-1 Risk tiering by touched surface (binding)",
@@ -604,7 +619,7 @@ def test_java_profile_contains_principal_hardening_v2_controls():
 
 @pytest.mark.governance
 def test_backend_java_tool_gating_handles_non_runnable_tools_conservatively():
-    text = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    text = read_text(PROFILES_DIR / "rules.backend-java.md")
     required = [
         "and is runnable in the current environment",
         "If a tool exists but is not runnable in the current environment",
@@ -619,7 +634,7 @@ def test_backend_java_tool_gating_handles_non_runnable_tools_conservatively():
 
 @pytest.mark.governance
 def test_backend_java_uses_shared_tiering_and_avoids_parallel_tier_taxonomy():
-    text = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    text = read_text(PROFILES_DIR / "rules.backend-java.md")
     required = [
         "using the canonical tiering contract from `rules.risk-tiering.md`",
         "does not define a parallel tier system",
@@ -678,7 +693,7 @@ def test_java_templates_and_kafka_include_v2_hardening_sections():
 
 @pytest.mark.governance
 def test_frontend_cypress_addon_contains_principal_hardening_v2_controls():
-    text = read_text(REPO_ROOT / "profiles" / "rules.frontend-cypress-testing.md")
+    text = read_text(PROFILES_DIR / "rules.frontend-cypress-testing.md")
     required = [
         "## Principal Hardening v2 - Cypress Critical Quality (Binding)",
         "### CPH2-1 Required scorecard criteria (binding)",
@@ -696,7 +711,7 @@ def test_frontend_cypress_addon_contains_principal_hardening_v2_controls():
 
 @pytest.mark.governance
 def test_frontend_openapi_ts_addon_contains_principal_hardening_v2_controls():
-    text = read_text(REPO_ROOT / "profiles" / "rules.frontend-openapi-ts-client.md")
+    text = read_text(PROFILES_DIR / "rules.frontend-openapi-ts-client.md")
     required = [
         "## Principal Hardening v2 - Frontend OpenAPI TS Client (Binding)",
         "### FOPH2-1 Required scorecard criteria (binding)",
@@ -714,7 +729,7 @@ def test_frontend_openapi_ts_addon_contains_principal_hardening_v2_controls():
 
 @pytest.mark.governance
 def test_fallback_profile_contains_principal_hardening_v2_controls():
-    text = read_text(REPO_ROOT / "profiles" / "rules.fallback-minimum.md")
+    text = read_text(PROFILES_DIR / "rules.fallback-minimum.md")
     required = [
         "## Principal Hardening v2 - Fallback Minimum Safety (Binding)",
         "### FMPH2-1 Baseline scorecard criteria (binding)",
@@ -732,7 +747,7 @@ def test_fallback_profile_contains_principal_hardening_v2_controls():
 
 @pytest.mark.governance
 def test_addon_rulebooks_use_standard_risk_tiering_v21():
-    shared = read_text(REPO_ROOT / "profiles" / "rules.risk-tiering.md")
+    shared = read_text(PROFILES_DIR / "rules.risk-tiering.md")
     required_shared_tokens = [
         "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
         "### RTN-1 Canonical tiers (binding)",
@@ -748,7 +763,7 @@ def test_addon_rulebooks_use_standard_risk_tiering_v21():
         [f"- {line}" for line in missing_shared]
     )
 
-    addon_rulebooks = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    addon_rulebooks = sorted(PROFILES_DIR.glob("rules*.md"))
     assert addon_rulebooks, "No profile rulebooks found under profiles/rules*.md"
 
     required_delegation = [
@@ -776,7 +791,7 @@ def test_addon_rulebooks_use_standard_risk_tiering_v21():
 
 @pytest.mark.governance
 def test_addon_rulebooks_use_scorecard_calibration_v211():
-    shared = read_text(REPO_ROOT / "profiles" / "rules.scorecard-calibration.md")
+    shared = read_text(PROFILES_DIR / "rules.scorecard-calibration.md")
     required_shared_tokens = [
         "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
         "### CAL-1 Standard criterion weights by tier (binding)",
@@ -793,7 +808,7 @@ def test_addon_rulebooks_use_scorecard_calibration_v211():
         [f"- {line}" for line in missing_shared]
     )
 
-    addon_rulebooks = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    addon_rulebooks = sorted(PROFILES_DIR.glob("rules*.md"))
     assert addon_rulebooks, "No profile rulebooks found under profiles/rules*.md"
 
     required_delegation = [
@@ -821,6 +836,13 @@ def test_addon_rulebooks_use_scorecard_calibration_v211():
 
 @pytest.mark.governance
 def test_factory_commands_exist_and_define_principal_generation_contracts():
+    def _resolve(rel: str) -> Path:
+        if rel.startswith("docs/"):
+            return DOCS_DIR / rel[len("docs/"):]
+        if rel.startswith("profiles/"):
+            return PROFILES_DIR / rel[len("profiles/"):]
+        return REPO_ROOT / rel
+
     targets = {
         "docs/new_profile.md": [
             "# Governance Factory - New Profile",
@@ -875,7 +897,7 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
 
     missing: list[str] = []
     for rel, required in targets.items():
-        p = REPO_ROOT / rel
+        p = _resolve(rel)
         if not p.exists():
             missing.append(f"missing file: {rel}")
             continue
@@ -1516,7 +1538,7 @@ def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks(
         REPO_ROOT / "master.md",
         REPO_ROOT / "BOOTSTRAP.md",
     ]
-    flow_files.extend(sorted((REPO_ROOT / "profiles").glob("rules*.md")))
+    flow_files.extend(sorted(PROFILES_DIR.glob("rules*.md")))
 
     token_re = re.compile(r"`([^`\n]+)`")
     cmd_re = re.compile(r"^[a-z][a-z0-9.-]*$")
@@ -1585,8 +1607,8 @@ def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks(
 @pytest.mark.governance
 def test_bootstrap_mode_mixed_phrase_is_absent_in_core_docs():
     core_docs = [
-        REPO_ROOT / "master.md",
-        REPO_ROOT / "rules.md",
+        MASTER_PATH,
+        RULES_PATH,
         REPO_ROOT / "BOOTSTRAP.md",
     ]
     offenders: list[str] = []
@@ -1602,8 +1624,8 @@ def test_bootstrap_mode_mixed_phrase_is_absent_in_core_docs():
 @pytest.mark.governance
 def test_start_mode_mixed_phrase_is_absent_in_core_docs():
     core_docs = [
-        REPO_ROOT / "master.md",
-        REPO_ROOT / "rules.md",
+        MASTER_PATH,
+        RULES_PATH,
         REPO_ROOT / "BOOTSTRAP.md",
     ]
     offenders: list[str] = []
@@ -1619,12 +1641,12 @@ def test_start_mode_mixed_phrase_is_absent_in_core_docs():
 @pytest.mark.governance
 def test_governance_boundary_and_thematic_rails_docs_exist():
     required = [
-        REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md",
-        REPO_ROOT / "docs" / "governance" / "rails" / "planning.md",
-        REPO_ROOT / "docs" / "governance" / "rails" / "implementation.md",
-        REPO_ROOT / "docs" / "governance" / "rails" / "testing.md",
-        REPO_ROOT / "docs" / "governance" / "rails" / "pr_review.md",
-        REPO_ROOT / "docs" / "governance" / "rails" / "failure_handling.md",
+        DOCS_DIR / "governance" / "RESPONSIBILITY_BOUNDARY.md",
+        DOCS_DIR / "governance" / "rails" / "planning.md",
+        DOCS_DIR / "governance" / "rails" / "implementation.md",
+        DOCS_DIR / "governance" / "rails" / "testing.md",
+        DOCS_DIR / "governance" / "rails" / "pr_review.md",
+        DOCS_DIR / "governance" / "rails" / "failure_handling.md",
     ]
     missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
     assert not missing, "Missing governance boundary/thematic rails docs:\n" + "\n".join([f"- {m}" for m in missing])
@@ -1633,7 +1655,7 @@ def test_governance_boundary_and_thematic_rails_docs_exist():
 @pytest.mark.governance
 def test_rails_refactor_mapping_removed():
     """RAILS_REFACTOR_MAPPING.md was deleted as stale; verify it stays removed."""
-    path = REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md"
+    path = DOCS_DIR / "governance" / "RAILS_REFACTOR_MAPPING.md"
     assert not path.exists(), (
         f"RAILS_REFACTOR_MAPPING.md should have been deleted but still exists at {path}"
     )
@@ -1641,7 +1663,7 @@ def test_rails_refactor_mapping_removed():
 
 @pytest.mark.governance
 def test_responsibility_boundary_uses_bindend_vs_nicht_bindend_terms():
-    text = read_text(REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md")
+    text = read_text(DOCS_DIR / "governance" / "RESPONSIBILITY_BOUNDARY.md")
     required = ["bindend", "nicht-bindend", "Kernel", "Schemas"]
     missing = [t for t in required if t not in text]
     assert not missing, "RESPONSIBILITY_BOUNDARY.md missing explicit boundary terms:\n" + "\n".join([f"- {m}" for m in missing])
@@ -1765,6 +1787,7 @@ def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.Monk
         phase="test",
         gate="test",
         mode="repo-aware",
+        repo_fingerprint="88b39b036804c534",
         command="pytest",
         component="test-suite",
     )
@@ -1867,7 +1890,7 @@ def test_selected_rulebooks_reference_core_precedence_contract():
 
 @pytest.mark.governance
 def test_profile_rulebooks_use_stable_precedence_anchor_not_section_numbers():
-    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    profile_files = sorted(PROFILES_DIR.glob("rules*.md"))
     assert profile_files, "No profile rulebooks found under profiles/rules*.md"
 
     missing_anchor: list[str] = []
@@ -1889,7 +1912,7 @@ def test_profile_rulebooks_use_stable_precedence_anchor_not_section_numbers():
 
 @pytest.mark.governance
 def test_profile_rulebooks_include_standard_operational_wrapper_headings():
-    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    profile_files = sorted(PROFILES_DIR.glob("rules*.md"))
     assert profile_files, "No profile rulebooks found under profiles/rules*.md"
 
     required_headings = [

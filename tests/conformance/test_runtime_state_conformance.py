@@ -18,9 +18,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_docs_path
 
-CONTRACT_PATH = REPO_ROOT / "docs" / "contracts" / "runtime-state-contract.v1.md"
+CONTRACT_PATH = get_docs_path() / "contracts" / "runtime-state-contract.v1.md"
 THIS_FILE_REL = "tests/conformance/test_runtime_state_conformance.py"
 
 # ---------------------------------------------------------------------------

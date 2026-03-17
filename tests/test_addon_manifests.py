@@ -7,13 +7,33 @@ from pathlib import Path
 import pytest
 
 from governance.addon_catalog import ALLOWED_CAPABILITIES, ALLOWED_SURFACES
-from .util import REPO_ROOT, git_ls_files, read_text, run
+from .util import REPO_ROOT, git_ls_files, read_text, run, get_profiles_path, get_master_path
+
+
+PROFILES_DIR = get_profiles_path()
+
+
+def _addon_path(rel: str) -> Path:
+    """Resolve addon manifest path for legacy/new profile roots."""
+    if rel.startswith("profiles/"):
+        return PROFILES_DIR / rel[len("profiles/"):]
+    return REPO_ROOT / rel
+
+
+def _rulebook_path(rb: str) -> Path:
+    if rb.startswith("profiles/"):
+        return PROFILES_DIR / rb[len("profiles/"):]
+    return PROFILES_DIR / rb
+
+
+def _manifest_rel_glob() -> str:
+    return f"{PROFILES_DIR.relative_to(REPO_ROOT).as_posix()}/addons/*.addon.yml"
 
 
 @pytest.mark.governance
 def test_addon_manifests_reference_existing_rulebooks():
     """Addon manifests are declarative; they must not point to missing rulebooks."""
-    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    manifests = list(git_ls_files(_manifest_rel_glob()))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
     missing = []
@@ -24,7 +44,7 @@ def test_addon_manifests_reference_existing_rulebooks():
         assert m, f"Missing 'rulebook:' field in addon manifest: {rel}"
 
         rb = m.group(1).strip()
-        rb_path = (REPO_ROOT / "profiles" / rb) if not rb.startswith("profiles/") else (REPO_ROOT / rb)
+        rb_path = _rulebook_path(rb)
         if not rb_path.exists():
             missing.append((rel, rb))
 
@@ -35,7 +55,7 @@ def test_addon_manifests_reference_existing_rulebooks():
 
 @pytest.mark.governance
 def test_addon_manifests_have_addon_key():
-    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    manifests = list(git_ls_files(_manifest_rel_glob()))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
     bad = []
@@ -49,7 +69,7 @@ def test_addon_manifests_have_addon_key():
 
 @pytest.mark.governance
 def test_addon_manifests_have_valid_addon_class():
-    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    manifests = list(git_ls_files(_manifest_rel_glob()))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
     bad = []
@@ -68,7 +88,7 @@ def test_addon_manifests_have_valid_addon_class():
 
 @pytest.mark.governance
 def test_addon_manifests_have_manifest_version_v1():
-    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    manifests = list(git_ls_files(_manifest_rel_glob()))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
     bad = []
@@ -88,7 +108,7 @@ def test_addon_manifests_have_manifest_version_v1():
 
 @pytest.mark.governance
 def test_addon_manifests_define_relative_path_roots():
-    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    manifests = list(git_ls_files(_manifest_rel_glob()))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
     bad = []
@@ -133,7 +153,7 @@ def test_addon_manifests_define_relative_path_roots():
 
 @pytest.mark.governance
 def test_addon_manifests_define_capabilities_contract():
-    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    manifests = list(git_ls_files(_manifest_rel_glob()))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
     bad = []
@@ -202,7 +222,7 @@ def _extract_list_block(lines: list[str], key: str) -> list[str]:
 
 @pytest.mark.governance
 def test_addon_manifests_define_surface_ownership_and_touches():
-    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    manifests = list(git_ls_files(_manifest_rel_glob()))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
     bad = []
@@ -228,7 +248,7 @@ def test_addon_manifests_define_surface_ownership_and_touches():
 
 @pytest.mark.governance
 def test_addon_manifest_owns_surfaces_are_unique_globally():
-    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    manifests = list(git_ls_files(_manifest_rel_glob()))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
     owners: dict[str, str] = {}
@@ -251,7 +271,7 @@ def test_addon_manifest_owns_surfaces_are_unique_globally():
 
 @pytest.mark.governance
 def test_capability_catalog_completeness_against_manifest_usage_and_signal_mapping():
-    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    manifests = list(git_ls_files(_manifest_rel_glob()))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
     used_caps: set[str] = set()
@@ -285,7 +305,7 @@ def test_capability_catalog_completeness_against_manifest_usage_and_signal_mappi
 
 @pytest.mark.governance
 def test_master_profile_detection_excludes_addon_and_shared_rulebooks_from_profile_candidates():
-    master = read_text(REPO_ROOT / "master.md")
+    master = read_text(get_master_path())
     required_snippets = [
         "Profile selection is kernel-enforced",
     ]
@@ -306,7 +326,7 @@ def test_frontend_addons_exist_and_classification_matches_policy():
 
     problems = []
     for rel, expected_class in expected.items():
-        p = REPO_ROOT / rel
+        p = _addon_path(rel)
         if not p.exists():
             problems.append(f"missing: {rel}")
             continue
@@ -327,7 +347,7 @@ def test_frontend_addons_exist_and_classification_matches_policy():
 @pytest.mark.governance
 def test_backend_python_templates_addon_exists_and_is_required():
     rel = "profiles/addons/backendPythonTemplates.addon.yml"
-    p = REPO_ROOT / rel
+    p = _addon_path(rel)
     assert p.exists(), f"missing: {rel}"
 
     text = read_text(p)
@@ -342,14 +362,14 @@ def test_backend_python_templates_addon_exists_and_is_required():
     assert m_class.group(1).strip().strip('"').strip("'") == "required"
 
     rb = m_rulebook.group(1).strip()
-    rb_path = (REPO_ROOT / "profiles" / rb) if not rb.startswith("profiles/") else (REPO_ROOT / rb)
+    rb_path = _rulebook_path(rb)
     assert rb_path.exists(), f"rulebook does not exist: {rb}"
 
 
 @pytest.mark.governance
 def test_backend_java_templates_addon_exists_and_is_required():
     rel = "profiles/addons/backendJavaTemplates.addon.yml"
-    p = REPO_ROOT / rel
+    p = _addon_path(rel)
     assert p.exists(), f"missing: {rel}"
 
     text = read_text(p)
@@ -364,14 +384,14 @@ def test_backend_java_templates_addon_exists_and_is_required():
     assert m_class.group(1).strip().strip('"').strip("'") == "required"
 
     rb = m_rulebook.group(1).strip()
-    rb_path = (REPO_ROOT / "profiles" / rb) if not rb.startswith("profiles/") else (REPO_ROOT / rb)
+    rb_path = _rulebook_path(rb)
     assert rb_path.exists(), f"rulebook does not exist: {rb}"
 
 
 @pytest.mark.governance
 def test_docs_governance_addon_exists_and_is_advisory():
     rel = "profiles/addons/docsGovernance.addon.yml"
-    p = REPO_ROOT / rel
+    p = _addon_path(rel)
     assert p.exists(), f"missing: {rel}"
 
     text = read_text(p)
@@ -384,14 +404,14 @@ def test_docs_governance_addon_exists_and_is_advisory():
     assert value == "advisory", f"{rel}: expected addon_class=advisory, got {value}"
 
     rb = m_rulebook.group(1).strip()
-    rb_path = (REPO_ROOT / "profiles" / rb) if not rb.startswith("profiles/") else (REPO_ROOT / rb)
+    rb_path = _rulebook_path(rb)
     assert rb_path.exists(), f"rulebook does not exist: {rb}"
 
 
 @pytest.mark.governance
 def test_kafka_addon_capability_gating_is_kafka_specific():
     rel = "profiles/addons/kafka.addon.yml"
-    text = read_text(REPO_ROOT / rel)
+    text = read_text(_addon_path(rel))
     caps_all = set(_extract_list_block(text.splitlines(), "capabilities_all"))
     caps_any = set(_extract_list_block(text.splitlines(), "capabilities_any"))
     assert "kafka" in caps_all, f"{rel}: capabilities_all must include kafka"
@@ -421,7 +441,7 @@ def test_shared_principal_governance_addons_exist_and_are_advisory():
     for rel, cfg in expected.items():
         expected_rulebook = cfg["rulebook"]
         expected_signal = cfg["signal"]
-        p = REPO_ROOT / rel
+        p = _addon_path(rel)
         if not p.exists():
             problems.append(f"missing: {rel}")
             continue
@@ -448,7 +468,7 @@ def test_shared_principal_governance_addons_exist_and_are_advisory():
         if expected_signal not in text:
             problems.append(f"{rel}: expected shared-activation signal '{expected_signal}'")
 
-        rb_path = (REPO_ROOT / "profiles" / rb) if not rb.startswith("profiles/") else (REPO_ROOT / rb)
+        rb_path = _rulebook_path(rb)
         if not rb_path.exists():
             problems.append(f"{rel}: missing rulebook file {rb}")
 

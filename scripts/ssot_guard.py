@@ -6,9 +6,36 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _docs_root() -> Path:
+    new_path = REPO_ROOT / "governance_content" / "docs"
+    if new_path.exists():
+        return new_path
+    return REPO_ROOT / "docs"
+
+
 CATALOG_PATH = REPO_ROOT / "governance" / "assets" / "catalogs" / "SSOT_GUARD_RULES.json"
-MATRIX_PATH = REPO_ROOT / "docs" / "governance" / "kernel_vs_docs_matrix.csv"
-FIELD_OWNERSHIP_PATH = REPO_ROOT / "docs" / "governance" / "canonical_field_ownership.md"
+MATRIX_PATH = _docs_root() / "governance" / "kernel_vs_docs_matrix.csv"
+FIELD_OWNERSHIP_PATH = _docs_root() / "governance" / "canonical_field_ownership.md"
+
+
+def _map_legacy_relpath(rel: str) -> str:
+    if rel == "master.md":
+        return "governance_content/master.md"
+    if rel == "rules.md":
+        return "governance_content/rules.md"
+    if rel == "phase_api.yaml":
+        return "governance_spec/phase_api.yaml"
+    if rel.startswith("docs/"):
+        return "governance_content/" + rel
+    if rel.startswith("profiles/"):
+        return "governance_content/" + rel
+    if rel.startswith("templates/"):
+        return "governance_content/" + rel
+    if rel.startswith("rulesets/"):
+        return "governance_spec/" + rel
+    return rel
 
 
 def _fail(message: str) -> int:
@@ -43,7 +70,7 @@ def _validate_guard_sources(issues: list[str], guards: list[dict[str, object]]) 
         if not isinstance(source, str) or not source.strip():
             issues.append("SSOT guard missing source")
             continue
-        src_path = REPO_ROOT / source
+        src_path = REPO_ROOT / _map_legacy_relpath(source)
         if not src_path.exists():
             issues.append(f"SSOT guard source missing: {source}")
 
@@ -58,7 +85,7 @@ def _validate_guard_references(issues: list[str], guards: list[dict[str, object]
             if not isinstance(entry, str) or not entry.strip():
                 issues.append(f"SSOT guard invalid md_references entry: {guard.get('id')}")
                 continue
-            if not (REPO_ROOT / entry).exists():
+            if not (REPO_ROOT / _map_legacy_relpath(entry)).exists():
                 issues.append(f"SSOT guard reference missing: {entry}")
 
 

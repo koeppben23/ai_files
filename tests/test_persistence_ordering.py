@@ -8,6 +8,8 @@ import sys
 
 import pytest
 
+from tests.util import get_phase_api_path
+
 
 def _init_git_repo(repo_root: Path) -> None:
     repo_root.mkdir(parents=True, exist_ok=True)
@@ -32,8 +34,7 @@ def _binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         },
     }
     (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
-    repo_root = Path(__file__).resolve().parents[1]
-    (commands_home / "phase_api.yaml").write_text((repo_root / "phase_api.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
 

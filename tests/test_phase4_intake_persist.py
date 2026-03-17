@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT
+from .util import REPO_ROOT, get_phase_api_path
 
 
 def _load_module():
@@ -28,7 +28,7 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     workspace.mkdir(parents=True, exist_ok=True)
     commands_home.mkdir(parents=True, exist_ok=True)
 
-    (commands_home / "phase_api.yaml").write_text((REPO_ROOT / "phase_api.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
 
     paths = {
         "schema": "opencode-governance.paths.v1",

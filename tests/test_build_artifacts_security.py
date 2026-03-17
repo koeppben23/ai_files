@@ -10,7 +10,24 @@ from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT, read_text, run_build, sha256_file
+from .util import REPO_ROOT, get_templates_path, run_build, sha256_file
+
+
+def _resolve_existing_rel(rel: str) -> str:
+    candidates = [rel]
+    if rel == "master.md":
+        candidates.append("governance_content/master.md")
+    elif rel == "rules.md":
+        candidates.append("governance_content/rules.md")
+    elif rel.startswith("docs/") or rel.startswith("profiles/") or rel.startswith("templates/"):
+        candidates.append("governance_content/" + rel)
+    elif rel.startswith("rulesets/"):
+        candidates.append("governance_spec/" + rel)
+
+    for candidate in candidates:
+        if (REPO_ROOT / candidate).is_file():
+            return candidate
+    return rel
 
 
 def _governance_version() -> str:
@@ -55,9 +72,9 @@ def _shipped_customer_scripts() -> set[str]:
 
 
 def _shipped_workflow_templates() -> set[str]:
-    payload = json.loads((REPO_ROOT / "templates" / "github-actions" / "template_catalog.json").read_text(encoding="utf-8"))
+    payload = json.loads((get_templates_path() / "github-actions" / "template_catalog.json").read_text(encoding="utf-8"))
     return {
-        str(entry["file"])
+        _resolve_existing_rel(str(entry["file"]))
         for entry in payload.get("templates", [])
         if isinstance(entry, dict) and isinstance(entry.get("file"), str)
     }
@@ -131,10 +148,10 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         "install.py",
         "cli/bootstrap.py",
         "governance/VERSION",
-        "master.md",
-        "rules.md",
+        _resolve_existing_rel("master.md"),
+        _resolve_existing_rel("rules.md"),
         "BOOTSTRAP.md",
-        "profiles/addons/docsGovernance.addon.yml",
+        _resolve_existing_rel("profiles/addons/docsGovernance.addon.yml"),
         "governance/entrypoints/persist_workspace_artifacts.py",
         "governance/entrypoints/bootstrap_session_state.py",
         "governance/entrypoints/error_logs.py",
@@ -199,7 +216,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
                 continue
             if name.upper().startswith(("LICENSE", "LICENCE")):
                 continue
-            if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
+            if (rel.startswith("profiles/addons/") or rel.startswith("governance_content/profiles/addons/")) and name.endswith(".addon.yml"):
                 continue
             if rel.startswith("governance/entrypoints/") and Path(name).suffix.lower() == ".py":
                 continue
@@ -231,7 +248,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
             f"unexpected={sorted(observed_templates - shipped_templates)}"
         )
 
-        addon_manifests = [n for n in files if "/profiles/addons/" in n and n.endswith(".addon.yml")]
+        addon_manifests = [n for n in files if ("/profiles/addons/" in n or "/governance_content/profiles/addons/" in n) and n.endswith(".addon.yml")]
         assert addon_manifests, f"{label}: expected addon manifests under profiles/addons/*.addon.yml"
 
     with zipfile.ZipFile(zip_path, "r") as zf:

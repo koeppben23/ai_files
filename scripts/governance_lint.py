@@ -21,6 +21,36 @@ from governance.addon_catalog import (  # noqa: E402
 )
 
 
+def docs_root() -> Path:
+    new_path = ROOT / "governance_content" / "docs"
+    return new_path if new_path.exists() else (ROOT / "docs")
+
+
+def profiles_root() -> Path:
+    new_path = ROOT / "governance_content" / "profiles"
+    return new_path if new_path.exists() else (ROOT / "profiles")
+
+
+def templates_root() -> Path:
+    new_path = ROOT / "governance_content" / "templates"
+    return new_path if new_path.exists() else (ROOT / "templates")
+
+
+def rulesets_root() -> Path:
+    new_path = ROOT / "governance_spec" / "rulesets"
+    return new_path if new_path.exists() else (ROOT / "rulesets")
+
+
+def master_path() -> Path:
+    new_path = ROOT / "governance_content" / "master.md"
+    return new_path if new_path.exists() else (ROOT / "master.md")
+
+
+def rules_path() -> Path:
+    new_path = ROOT / "governance_content" / "rules.md"
+    return new_path if new_path.exists() else (ROOT / "rules.md")
+
+
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
@@ -171,9 +201,9 @@ def _validate_capability_catalog_completeness(
 # ---------------------------------------------------------------------------
 
 def check_manifest_contract(issues: list[str]) -> None:
-    manifests = sorted((ROOT / "profiles" / "addons").glob("*.addon.yml"))
+    manifests = sorted((profiles_root() / "addons").glob("*.addon.yml"))
     if not manifests:
-        issues.append("profiles/addons: no addon manifests found")
+        issues.append(f"{profiles_root().relative_to(ROOT).as_posix()}/addons: no addon manifests found")
         return
 
     manifests_data: list[tuple[Path, dict[str, str], dict[str, list[str]]]] = []
@@ -199,7 +229,7 @@ def check_manifest_contract(issues: list[str]) -> None:
         if not rb:
             issues.append(f"{manifest}: missing rulebook")
         else:
-            rb_path = ROOT / "profiles" / rb if not rb.startswith("profiles/") else ROOT / rb
+            rb_path = profiles_root() / rb if not rb.startswith("profiles/") else ROOT / rb
             if not rb_path.exists():
                 issues.append(f"{manifest}: referenced rulebook does not exist: {rb}")
 
@@ -224,19 +254,19 @@ def check_manifest_contract(issues: list[str]) -> None:
 
 
 def check_required_addon_references(issues: list[str]) -> None:
-    manifests = sorted((ROOT / "profiles" / "addons").glob("*.addon.yml"))
+    manifests = sorted((profiles_root() / "addons").glob("*.addon.yml"))
     for manifest in manifests:
         scalars, _list_fields, _errors = parse_manifest(manifest)
         if scalars.get("addon_class") != "required":
             continue
         rb = scalars.get("rulebook", "")
-        rb_path = ROOT / "profiles" / rb if rb and not rb.startswith("profiles/") else ROOT / rb
+        rb_path = profiles_root() / rb if rb and not rb.startswith("profiles/") else ROOT / rb
         if not rb or not rb_path.exists():
             issues.append(f"{manifest}: required addon must reference existing rulebook")
 
 
 def check_template_quality_gate(issues: list[str]) -> None:
-    templates = sorted((ROOT / "profiles").glob("rules*templates*.md"))
+    templates = sorted((profiles_root()).glob("rules*templates*.md"))
     for tpl in templates:
         text = read_text(tpl)
         lower = text.lower()
@@ -284,7 +314,7 @@ def check_template_quality_gate(issues: list[str]) -> None:
 
 def check_workflow_template_factory_contract(issues: list[str]) -> None:
     contract_path = ROOT / "governance" / "assets" / "catalogs" / "GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json"
-    catalog_path = ROOT / "templates" / "github-actions" / "template_catalog.json"
+    catalog_path = templates_root() / "github-actions" / "template_catalog.json"
     script_path = ROOT / "scripts" / "workflow_template_factory.py"
 
     if not contract_path.exists():
@@ -472,7 +502,7 @@ def check_yaml_rulebook_schema(issues: list[str]) -> None:
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     schema_version = schema.get("version", "")
 
-    rulesets_dir = ROOT / "rulesets"
+    rulesets_dir = rulesets_root()
     if not rulesets_dir.exists():
         return
 
@@ -507,18 +537,18 @@ def check_md_rails_only_tripwire(issues: list[str]) -> None:
         issues.append("governance/md_lint.py: missing MD rails linter")
         return
     files = [
-        ROOT / "master.md",
-        ROOT / "rules.md",
+        master_path(),
+        rules_path(),
         ROOT / "BOOTSTRAP.md",
         ROOT / "continue.md",
         ROOT / "review.md",
-        ROOT / "docs" / "resume.md",
-        ROOT / "docs" / "resume_prompt.md",
-        ROOT / "docs" / "new_profile.md",
-        ROOT / "docs" / "new_addon.md",
+        docs_root() / "resume.md",
+        docs_root() / "resume_prompt.md",
+        docs_root() / "new_profile.md",
+        docs_root() / "new_addon.md",
         ROOT / "BOOTSTRAP.md",
     ]
-    files.extend(sorted((ROOT / "profiles").glob("rules*.md")))
+    files.extend(sorted(profiles_root().glob("rules*.md")))
     file_args = [str(p) for p in files if p.exists()]
     if not file_args:
         issues.append("md_lint failed: no md files found for rails-only gate")
@@ -623,7 +653,7 @@ def check_artifact_hash_integrity(issues: list[str]) -> None:
     - hashes.json in each release must match actual file hashes
     - Catches stale hashes during development
     """
-    releases_dir = ROOT / "rulesets" / "governance"
+    releases_dir = rulesets_root() / "governance"
     if not releases_dir.is_dir():
         return  # No releases to check — not an error
 
@@ -680,7 +710,7 @@ def check_tenant_config_references_valid_profiles(issues: list[str]) -> None:
         config = json.loads(config_file.read_text(encoding="utf-8"))
         default_profile = config.get("default_profile", "")
         if default_profile:
-            profile_path = ROOT / "rulesets" / "profiles" / f"rules.{default_profile.replace('profile.', '')}.yml"
+            profile_path = rulesets_root() / "profiles" / f"rules.{default_profile.replace('profile.', '')}.yml"
             if not profile_path.exists():
                 issues.append(f"tenant config references non-existent profile: {default_profile}")
     except (json.JSONDecodeError, OSError):

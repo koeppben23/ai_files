@@ -6,9 +6,10 @@ import yaml
 
 from governance.kernel.phase_api_spec import load_phase_api
 from governance.kernel.phase_kernel import _select_transition
+from tests.util import get_phase_api_path
 
 
-ROOT_PHASE_API = Path(__file__).resolve().parent.parent / "phase_api.yaml"
+ROOT_PHASE_API = get_phase_api_path()
 
 
 def _commands_home_with_repo_phase_api(tmp_path: Path) -> Path:

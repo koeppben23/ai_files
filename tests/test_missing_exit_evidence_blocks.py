@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from governance.kernel.phase_kernel import RuntimeContext, execute
+from tests.util import get_phase_api_path
 
 
 def _prepare_binding(tmp_path: Path, monkeypatch) -> tuple[Path, str]:
@@ -24,8 +25,7 @@ def _prepare_binding(tmp_path: Path, monkeypatch) -> tuple[Path, str]:
         },
     }
     (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
-    phase_api_src = Path(__file__).resolve().parents[1] / "phase_api.yaml"
-    (commands_home / "phase_api.yaml").write_text(phase_api_src.read_text(encoding="utf-8"), encoding="utf-8")
+    (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
     return workspaces_home, "88b39b036804c534a1b2c3d4"
 
