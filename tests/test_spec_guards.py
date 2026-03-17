@@ -6,7 +6,16 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
-from .util import REPO_ROOT, get_master_path, git_ls_files, read_text
+from .util import REPO_ROOT, get_master_path, git_ls_files, read_text, get_profiles_path, get_docs_path
+from pathlib import Path
+
+# Helpers to resolve paths via SSOT for tests that touch templates/docs
+def _resolve_rel(rel: str) -> Path:
+    if rel.startswith("profiles/"):
+        return get_profiles_path() / rel[len("profiles/"):]
+    if rel.startswith("docs/"):
+        return get_docs_path() / rel[len("docs/"):]
+    return REPO_ROOT / rel
 
 
 @pytest.mark.spec

@@ -14,15 +14,32 @@ PROFILES_DIR = get_profiles_path()
 
 
 def _addon_path(rel: str) -> Path:
-    """Resolve addon manifest path for legacy/new profile roots."""
+    """Resolve addon manifest path for legacy/new profile roots using SSOT paths."""
+    # Map legacy or new-structure relative paths into the active PROFILES_DIR
+    # Determine the relative prefix for the active profiles dir
+    profiles_prefix = PROFILES_DIR.relative_to(REPO_ROOT).as_posix()
+    if rel.startswith(profiles_prefix):
+        internal = rel[len(profiles_prefix) + 1:]
+        return PROFILES_DIR / internal
     if rel.startswith("profiles/"):
         return PROFILES_DIR / rel[len("profiles/"):]
+    if rel.startswith("governance_content/profiles/"):
+        internal = rel[len("governance_content/profiles/"):]
+        return PROFILES_DIR / internal
     return REPO_ROOT / rel
 
 
 def _rulebook_path(rb: str) -> Path:
+    # Resolve a rulebook path using the active profiles dir
+    profiles_prefix = PROFILES_DIR.relative_to(REPO_ROOT).as_posix()
+    if rb.startswith(profiles_prefix):
+        internal = rb[len(profiles_prefix) + 1:]
+        return PROFILES_DIR / internal
     if rb.startswith("profiles/"):
         return PROFILES_DIR / rb[len("profiles/"):]
+    if rb.startswith("governance_content/profiles/"):
+        internal = rb[len("governance_content/profiles/"):]
+        return PROFILES_DIR / internal
     return PROFILES_DIR / rb
 
 
@@ -38,7 +55,7 @@ def test_addon_manifests_reference_existing_rulebooks():
 
     missing = []
     for rel in manifests:
-        p = REPO_ROOT / rel
+        p = _addon_path(rel)
         t = read_text(p)
         m = re.search(r"^rulebook:\s*([^\s#]+)\s*$", t, flags=re.MULTILINE)
         assert m, f"Missing 'rulebook:' field in addon manifest: {rel}"
@@ -60,7 +77,7 @@ def test_addon_manifests_have_addon_key():
 
     bad = []
     for rel in manifests:
-        t = read_text(REPO_ROOT / rel)
+        t = read_text(_addon_path(rel))
         if re.search(r"^addon_key:\s*\S+\s*$", t, flags=re.MULTILINE) is None:
             bad.append(rel)
 
@@ -74,7 +91,7 @@ def test_addon_manifests_have_valid_addon_class():
 
     bad = []
     for rel in manifests:
-        t = read_text(REPO_ROOT / rel)
+        t = read_text(_addon_path(rel))
         m = re.search(r"^addon_class:\s*(\S+)\s*$", t, flags=re.MULTILINE)
         if not m:
             bad.append(f"{rel}: missing addon_class")
@@ -113,7 +130,7 @@ def test_addon_manifests_define_relative_path_roots():
 
     bad = []
     for rel in manifests:
-        lines = read_text(REPO_ROOT / rel).splitlines()
+        lines = read_text(_addon_path(rel)).splitlines()
 
         root_idx = None
         for i, line in enumerate(lines):
@@ -158,7 +175,7 @@ def test_addon_manifests_define_capabilities_contract():
 
     bad = []
     for rel in manifests:
-        lines = read_text(REPO_ROOT / rel).splitlines()
+        lines = read_text(_addon_path(rel)).splitlines()
 
         def extract_list(key: str) -> list[str]:
             idx = None
@@ -227,7 +244,7 @@ def test_addon_manifests_define_surface_ownership_and_touches():
 
     bad = []
     for rel in manifests:
-        lines = read_text(REPO_ROOT / rel).splitlines()
+        lines = read_text(_addon_path(rel)).splitlines()
         owns = _extract_list_block(lines, "owns_surfaces")
         touches = _extract_list_block(lines, "touches_surfaces")
 
@@ -255,7 +272,7 @@ def test_addon_manifest_owns_surfaces_are_unique_globally():
     conflicts: list[str] = []
 
     for rel in manifests:
-        lines = read_text(REPO_ROOT / rel).splitlines()
+        lines = read_text(_addon_path(rel)).splitlines()
         m = re.search(r"^addon_key:\s*(\S+)\s*$", "\n".join(lines), flags=re.MULTILINE)
         addon_key = m.group(1).strip().strip('"').strip("'") if m else rel
         owns = _extract_list_block(lines, "owns_surfaces")
@@ -278,7 +295,7 @@ def test_capability_catalog_completeness_against_manifest_usage_and_signal_mappi
     cap_has_signal_mapping: dict[str, bool] = {c: False for c in ALLOWED_CAPABILITIES}
 
     for rel in manifests:
-        text = read_text(REPO_ROOT / rel)
+        text = read_text(_addon_path(rel))
         lines = text.splitlines()
 
         caps = set(_extract_list_block(lines, "capabilities_any") + _extract_list_block(lines, "capabilities_all"))
