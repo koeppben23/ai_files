@@ -1093,15 +1093,27 @@ def collect_content_files(source_dir: Path) -> list[Path]:
         ".commitlintrc.cjs",
     }
     
-    result: list[Path] = []
+    # Deduplicate: prefer governance_content version over legacy
+    # Build a map of filename -> path, preferring governance_content
+    file_map: dict[str, Path] = {}
     for f in files:
         if f.name in exclude_names:
             continue
         if _is_forbidden_metadata_path(f, source_dir):
             continue
-        result.append(f)
+        # If we already have this file and the new one is from legacy, skip it
+        if f.name in file_map:
+            existing = file_map[f.name]
+            # Prefer non-governance_content path (the SSOT location)
+            if "governance_content" in str(existing) and "governance_content" not in str(f):
+                continue
+            elif "governance_content" not in str(existing) and "governance_content" in str(f):
+                # Replace with governance_content version
+                file_map[f.name] = f
+            continue
+        file_map[f.name] = f
     
-    return sorted(result, key=lambda p: str(p))
+    return sorted(file_map.values(), key=lambda p: str(p))
 
 
 def collect_spec_files(source_dir: Path) -> list[Path]:

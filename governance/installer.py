@@ -239,17 +239,26 @@ def collect_commands(
     Returns:
         List of canonical command paths
     """
-    files = []
+    # Collect commands, deduplicating by basename and preferring governance_content version
+    files: list[Path] = []
+    seen_basenames: dict[str, Path] = {}  # basename -> path, prefer governance_content
+    
     for p in iter_files_recursive(source_dir):
         rel_path = _to_relative(p, source_dir)
         path_str = rel_path.as_posix() if isinstance(rel_path, Path) else str(rel_path)
         basename = path_str.split("/")[-1]
         if is_canonical_command(basename):
-            if relative:
-                files.append(rel_path)
+            # Prefer governance_content version over legacy
+            if basename not in seen_basenames:
+                seen_basenames[basename] = p
             else:
-                files.append(p)
-    return sorted(files)
+                existing = seen_basenames[basename]
+                # Replace if new one is from governance_content and existing is not
+                if "governance_content" in str(p) and "governance_content" not in str(existing):
+                    seen_basenames[basename] = p
+    
+    files = list(seen_basenames.values())
+    return sorted(files, key=lambda p: str(p))
 
 
 def collect_opencode_integration(

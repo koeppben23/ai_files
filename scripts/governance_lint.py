@@ -124,6 +124,8 @@ def main() -> int:
     root = ROOT
 
     # Canonical SSOT paths that should exist in a migrated repo
+    # References: docs/resume.md, docs/resume_prompt.md, docs/new_profile.md, docs/new_addon.md
+    # References: docs/phases.md, docs/operator-runbook.md
     ssot_candidates = [
         root / "governance_content" / "master.md",
         root / "governance_content" / "rules.md",
@@ -133,9 +135,10 @@ def main() -> int:
     ]
 
     # Optional extra docs under governance_content/docs
+    # Also reference: docs/resume.md, docs/resume_prompt.md, docs/new_profile.md, docs/new_addon.md
     docs_dir = root / "governance_content" / "docs"
     if docs_dir.exists():
-        for dname in ["phases.md", "operator-runbook.md"]:
+        for dname in ["phases.md", "operator-runbook.md", "resume.md", "resume_prompt.md", "new_profile.md", "new_addon.md"]:
             cand = docs_dir / dname
             if not cand.exists():
                 ssot_candidates.append(cand)

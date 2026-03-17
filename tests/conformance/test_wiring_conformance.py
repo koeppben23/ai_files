@@ -568,6 +568,8 @@ class TestNoRoguePaths:
     # Root-level files that are expected to exist (from install-layout-contract)
     # This is the complete allowlist of files at REPO_ROOT
     ALLOWED_ROOT_FILES = {
+        # OS files
+        ".DS_Store",
         # Command sources (installed to commands/)
         "continue.md",
         "review.md",
@@ -577,14 +579,17 @@ class TestNoRoguePaths:
         "implementation-decision.md",
         "implement.md",
         "audit-readout.md",
-        "README.md",
-        "README-RULES.md",
-        "README-OPENCODE.md",
+        # Governance SSOT shims (also exist in governance_content/)
         "master.md",
+        "rules.md",
         "phase_api.yaml",
         "SESSION_STATE_SCHEMA.md",
         "TICKET_RECORD_TEMPLATE.md",
         "BOOTSTRAP.md",
+        # README files
+        "README.md",
+        "README-RULES.md",
+        "README-OPENCODE.md",
         # Infrastructure
         "install.py",
         "package.json",
