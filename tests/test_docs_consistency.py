@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from tests.util import get_master_path
 import re
 
 
@@ -53,7 +54,7 @@ REQUIRED_PHRASES = [
 
 
 def test_docs_forbidden_phrases_absent() -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = get_master_path().resolve().parent
     violations: list[str] = []
     for rel in DOC_FILES:
         text = (root / rel).read_text(encoding="utf-8")
@@ -64,7 +65,7 @@ def test_docs_forbidden_phrases_absent() -> None:
 
 
 def test_docs_ssot_clarification_present() -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = get_master_path().resolve().parent
     for rel in REQUIRED_PHRASE_DOCS:
         text = (root / rel).read_text(encoding="utf-8")
         for phrase in REQUIRED_PHRASES:
@@ -72,7 +73,7 @@ def test_docs_ssot_clarification_present() -> None:
 
 
 def test_docs_do_not_claim_markdown_runtime_authority() -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = get_master_path().resolve().parent
     forbidden = [
         re.compile(r"master\.md\s+is\s+the\s+system\s+source\s+of\s+truth", re.IGNORECASE),
         re.compile(r"master\.md\s+wins", re.IGNORECASE),
@@ -90,7 +91,7 @@ def test_docs_do_not_claim_markdown_runtime_authority() -> None:
 
 
 def test_install_layout_doc_has_required_structure() -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = get_master_path().resolve().parent
     text = (root / "docs" / "install-layout.md").read_text(encoding="utf-8")
     required_markers = [
         "# Install Layout",
@@ -103,7 +104,7 @@ def test_install_layout_doc_has_required_structure() -> None:
 
 
 def test_desktop_phase4_plan_mode_guidance_is_present() -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = get_master_path().resolve().parent
     required = {
         "README.md": "Phase 4",
         "README-OPENCODE.md": "Plan Mode",
@@ -115,7 +116,7 @@ def test_desktop_phase4_plan_mode_guidance_is_present() -> None:
 
 
 def test_phase6_changes_requested_docs_match_rework_clarification_model() -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = get_master_path().resolve().parent
     phases = (root / "docs" / "phases.md").read_text(encoding="utf-8")
     assert "Rework Clarification Gate" in phases
     assert "Loop-reset within Phase 6" not in phases
