@@ -2070,11 +2070,11 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     profile_files = collect_profile_files(plan.source_dir)
     if profile_files:
         print("\n📋 Copying profile rulebooks to commands/profiles/ ...")
+        profiles_root = get_profiles_root(plan.source_dir)
         for pf in profile_files:
-            dst = plan.profiles_dst_dir / pf.name
-            # Preserve relative structure under profiles/
-            rel = pf.relative_to(plan.source_dir)  # profiles/**.md
-            dst = plan.commands_dir / rel
+            # Strip the profiles root to get relative path within profiles/
+            rel = pf.relative_to(profiles_root)
+            dst = plan.profiles_dst_dir / rel
             entry = copy_with_optional_backup(
                 src=pf,
                 dst=dst,
@@ -2086,7 +2086,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             copied_entries.append(entry)
             status = entry["status"]
             if status in ("planned-copy", "copied"):
-                print(f"  ✅ {rel} ({status})")
+                print(f"  ✅ profiles/{rel} ({status})")
             elif status == "skipped-exists":
                 print(f"  ⏭️  {rel} exists (use --force to overwrite)")
             else:
@@ -2098,9 +2098,10 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     addon_manifests = collect_profile_addon_manifests(plan.source_dir)
     if addon_manifests:
         print("\n📋 Copying addon manifests to commands/profiles/addons/ ...")
+        profiles_root = get_profiles_root(plan.source_dir)
         for af in addon_manifests:
-            rel = af.relative_to(plan.source_dir)  # profiles/addons/*.addon.yml
-            dst = plan.commands_dir / rel
+            rel = af.relative_to(profiles_root)  # profiles/addons/*.addon.yml
+            dst = plan.commands_dir / "profiles" / rel
             entry = copy_with_optional_backup(
                 src=af,
                 dst=dst,
@@ -2112,7 +2113,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             copied_entries.append(entry)
             status = entry["status"]
             if status in ("planned-copy", "copied"):
-                print(f"  ✅ {rel} ({status})")
+                print(f"  ✅ profiles/{rel} ({status})")
             elif status == "skipped-exists":
                 print(f"  ⏭️  {rel} exists (use --force to overwrite)")
             else:
