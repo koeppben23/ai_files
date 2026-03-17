@@ -23,7 +23,7 @@ from governance.infrastructure.artifact_integrity import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-GOVERNANCE_RELEASES = REPO_ROOT / "rulesets" / "governance"
+GOVERNANCE_RELEASES = REPO_ROOT / "governance_spec" / "rulesets" / "governance"
 
 
 def _sha256(path: Path) -> str:

@@ -34,6 +34,14 @@ from pathlib import Path
 
 import pytest
 
+from tests.util import (
+    get_master_path,
+    get_phase_api_path,
+    get_profiles_path,
+    get_rules_path,
+    get_templates_path,
+)
+
 
 def _check_pyyaml_in_subprocess() -> bool:
     try:
@@ -98,12 +106,24 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
 
 def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_home: Path) -> None:
     commands_home.mkdir(parents=True, exist_ok=True)
-    for dirname in ("governance", "governance", "profiles", "scripts", "templates"):
-        src = checkout_root / dirname
+    dir_sources: dict[str, Path] = {
+        "governance": checkout_root / "governance",
+        "profiles": get_profiles_path(),
+        "scripts": checkout_root / "scripts",
+        "templates": get_templates_path(),
+    }
+    for dirname, src in dir_sources.items():
         if src.exists():
             shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)
-    for filename in ("master.md", "rules.md", "QUALITY_INDEX.md", "CONFLICT_RESOLUTION.md", "phase_api.yaml"):
-        src = checkout_root / filename
+
+    file_sources: dict[str, Path] = {
+        "master.md": get_master_path(),
+        "rules.md": get_rules_path(),
+        "QUALITY_INDEX.md": checkout_root / "QUALITY_INDEX.md",
+        "CONFLICT_RESOLUTION.md": checkout_root / "CONFLICT_RESOLUTION.md",
+        "phase_api.yaml": get_phase_api_path(),
+    }
+    for filename, src in file_sources.items():
         if src.exists():
             shutil.copy2(src, commands_home / filename)
 
@@ -464,8 +484,7 @@ class TestE2ETestMatrix:
         from pathlib import Path
 
         monkeypatch.setattr(Path, "home", staticmethod(lambda: isolated_env["home"]))
-        phase_api_src = Path(__file__).resolve().parents[1] / "phase_api.yaml"
-        (isolated_env["commands_home"] / "phase_api.yaml").write_text(phase_api_src.read_text(encoding="utf-8"), encoding="utf-8")
+        (isolated_env["commands_home"] / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
         
         ss_with_rulebooks = {
             "Phase": "4",

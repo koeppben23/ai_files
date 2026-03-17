@@ -29,6 +29,7 @@ import pytest
 from governance.kernel.phase_kernel import KernelResult, RuntimeContext, execute
 from governance.entrypoints import new_work_session
 from governance.infrastructure.workspace_paths import run_dir
+from tests.util import get_phase_api_path
 
 # ────────────────────────────────────────────────────────────────────
 # Shared fixtures and helpers
@@ -55,10 +56,9 @@ RULEBOOK_BASE: dict[str, object] = {
 
 
 def _write_phase_api(commands_home: Path) -> None:
-    repo_spec = Path(__file__).resolve().parents[1] / "phase_api.yaml"
     commands_home.mkdir(parents=True, exist_ok=True)
     (commands_home / "phase_api.yaml").write_text(
-        repo_spec.read_text(encoding="utf-8"), encoding="utf-8"
+        get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8"
     )
 
 

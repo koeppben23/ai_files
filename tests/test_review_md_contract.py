@@ -16,7 +16,7 @@ from install import (
     SESSION_READER_PLACEHOLDER,
     inject_session_reader_path_for_command,
 )
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_phase_api_path
 
 # Platform-aware python command for legacy inject tests (string substitution only).
 _TEST_PYTHON_CMD = sys.executable
@@ -42,7 +42,7 @@ def test_review_template_contains_required_placeholders_and_contract() -> None:
 @pytest.mark.governance
 def test_phase4_review_reference_is_explicitly_read_only_no_state_change() -> None:
     """phase_api wording for Phase 4 /review must be explicit about no state mutation."""
-    phase_api_path = REPO_ROOT / "phase_api.yaml"
+    phase_api_path = get_phase_api_path()
     assert phase_api_path.exists(), "phase_api.yaml must exist in repo root"
     content = phase_api_path.read_text(encoding="utf-8").lower()
     assert "run /review for read-only feedback with no state change" in content

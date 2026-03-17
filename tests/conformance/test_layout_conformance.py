@@ -19,9 +19,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_docs_path, get_profiles_path
 
-CONTRACT_PATH = REPO_ROOT / "docs" / "contracts" / "install-layout-contract.v_current.md"
+CONTRACT_PATH = get_docs_path() / "contracts" / "install-layout-contract.v_current.md"
 THIS_FILE_REL = "tests/conformance/test_layout_conformance.py"
 
 # ---------------------------------------------------------------------------
@@ -82,9 +82,10 @@ class TestInstalledTreeShape:
     # Files that MUST exist at REPO_ROOT (= source of commands/ in a dev checkout)
     # In the source tree, command files live at REPO_ROOT directly; the installer
     # copies them to ${CONFIG_ROOT}/commands/ on install.
+    # Note: master.md and rules.md moved to governance_content/ in Wave 15
     EXPECTED_SOURCE_FILES = [
-        "master.md",
-        "rules.md",
+        "governance_content/master.md",  # was: master.md
+        "governance_content/rules.md",    # was: rules.md
         "BOOTSTRAP.md",
         "continue.md",
         "review.md",
@@ -119,8 +120,8 @@ class TestInstalledTreeShape:
         assert (REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs").is_file()
 
     def test_corner_profiles_dir_exists(self):
-        """Corner: profiles/ directory exists (may be empty in some configs)."""
-        profiles = REPO_ROOT / "profiles"
+        """Happy: profiles/ directory exists (now in governance_content/)."""
+        profiles = get_profiles_path()
         assert profiles.is_dir(), f"profiles/ directory missing at {profiles}"
 
     def test_edge_no_path_traversal_in_commands(self):

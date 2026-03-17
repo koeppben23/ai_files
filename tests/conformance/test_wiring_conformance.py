@@ -19,13 +19,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_docs_path, get_master_path, get_rules_path, get_profiles_path
 
 # ---------------------------------------------------------------------------
 # Contract documents — all 5 contracts must be validated
 # ---------------------------------------------------------------------------
 
-CONTRACT_DIR = REPO_ROOT / "docs" / "contracts"
+CONTRACT_DIR = get_docs_path() / "contracts"
 
 ALL_CONTRACTS = {
     "install-layout-contract.v_current.md": "tests/conformance/test_layout_conformance.py",
@@ -132,17 +132,13 @@ class TestInstallerToFiles:
 
     # Command source files that install.py copies to ${COMMANDS_HOME}/commands/
     COMMAND_SOURCES = [
-        "master.md",
-        "rules.md",
+        "governance_content/master.md",
+        "governance_content/rules.md",
         "BOOTSTRAP.md",
         "continue.md",
         "review.md",
         "plan.md",
         "ticket.md",
-        "README.md",
-        "README-RULES.md",
-        "README-OPENCODE.md",
-        "SESSION_STATE_SCHEMA.md",
     ]
 
     def test_happy_all_command_sources_exist(self):
@@ -155,7 +151,8 @@ class TestInstallerToFiles:
         install_src = _read_source(REPO_ROOT / "install.py")
         unreferenced = []
         for cmd in self.COMMAND_SOURCES:
-            if cmd not in install_src:
+            token = Path(cmd).name
+            if token not in install_src:
                 unreferenced.append(cmd)
         assert not unreferenced, (
             f"Command files not referenced in install.py: {unreferenced}"
@@ -572,9 +569,6 @@ class TestNoRoguePaths:
     # This is the complete allowlist of files at REPO_ROOT
     ALLOWED_ROOT_FILES = {
         # Command sources (installed to commands/)
-        "master.md",
-        "rules.md",
-        "BOOTSTRAP.md",
         "continue.md",
         "review.md",
         "plan.md",
@@ -588,6 +582,7 @@ class TestNoRoguePaths:
         "README-OPENCODE.md",
         "SESSION_STATE_SCHEMA.md",
         "TICKET_RECORD_TEMPLATE.md",
+        "BOOTSTRAP.md",
         # Infrastructure
         "install.py",
         "package.json",
@@ -595,8 +590,6 @@ class TestNoRoguePaths:
         "LICENSE",
         "VERSION",
         # Configuration
-        "rules.yml",
-        "phase_api.yaml",
         # Documentation
         "ADR.md",
         "CHANGELOG.md",
@@ -626,15 +619,15 @@ class TestNoRoguePaths:
         "bootstrap",
         "ci",
         "cli",
-        "docs",
+        "governance_content",
+        "governance_runtime",
+        "governance_spec",
         "governance",
         "logs",
-        "profiles",
-        "rulesets",
+        "opencode",
         "schemas",
         "scripts",
         "session_state",
-        "templates",
         "tests",
     }
 

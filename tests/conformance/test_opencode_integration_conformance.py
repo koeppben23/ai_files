@@ -19,9 +19,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_docs_path, get_master_path, get_rules_path
 
-CONTRACT_PATH = REPO_ROOT / "docs" / "contracts" / "opencode-integration-contract.v1.md"
+CONTRACT_PATH = get_docs_path() / "contracts" / "opencode-integration-contract.v1.md"
 THIS_FILE_REL = "tests/conformance/test_opencode_integration_conformance.py"
 
 
@@ -124,12 +124,14 @@ class TestMergeOwnership:
         """Edge: All canonical instruction target files exist in source tree."""
         # In the source tree, files are at REPO_ROOT directly (not under commands/)
         expected_files = [
-            "master.md",
-            "rules.md",
             "SESSION_STATE_SCHEMA.md",
             "README-OPENCODE.md",
         ]
         missing = [f for f in expected_files if not (REPO_ROOT / f).is_file()]
+        if not get_master_path().is_file():
+            missing.append("master.md")
+        if not get_rules_path().is_file():
+            missing.append("rules.md")
         assert not missing, f"Canonical instruction target files missing: {missing}"
 
 

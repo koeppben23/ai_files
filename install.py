@@ -61,6 +61,39 @@ from governance import (
 )
 
 
+def _source_master_md(source_dir: Path) -> Path:
+    new_path = source_dir / "governance_content" / "master.md"
+    if new_path.exists():
+        return new_path
+    return source_dir / "master.md"
+
+
+def _source_rules_md(source_dir: Path) -> Path:
+    new_path = source_dir / "governance_content" / "rules.md"
+    if new_path.exists():
+        return new_path
+    return source_dir / "rules.md"
+
+
+def _source_phase_api_yaml(source_dir: Path) -> Path:
+    new_path = source_dir / "governance_spec" / "phase_api.yaml"
+    if new_path.exists():
+        return new_path
+    return source_dir / "phase_api.yaml"
+
+
+def _source_rules_yml(source_dir: Path) -> Path:
+    new_path = source_dir / "governance_spec" / "rules.yml"
+    if new_path.exists():
+        return new_path
+    return source_dir / "rules.yml"
+
+
+def _source_core_rules_yml(source_dir: Path) -> Path:
+    rulesets_root = get_rulesets_root(source_dir)
+    return rulesets_root / "core" / "rules.yml"
+
+
 def _ensure_utf8_stdio() -> None:
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -747,7 +780,8 @@ def required_source_files(source_dir: Path) -> list[str]:
     # We keep the explicit list for compatibility, but augment precheck logic to
     # tolerate alternative layouts in case the expected paths are missing in a
     # given bundle. The actual existence checks are performed in precheck_source.
-    return ["VERSION", "rulesets/core/rules.yml"]
+    _ = source_dir
+    return ["VERSION", "governance_spec/rulesets/core/rules.yml"]
 
 
 def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
@@ -770,8 +804,8 @@ def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
 
     # Rules.yml: tolerate multiple layouts
     rules_candidates = [
-        source_dir / "rulesets" / "core" / "rules.yml",
-        source_dir / "rules.yml",
+        _source_core_rules_yml(source_dir),
+        _source_rules_yml(source_dir),
         source_dir / "governance" / "rulesets" / "core" / "rules.yml",
         source_dir / "governance" / "rules.yml",
     ]
@@ -791,10 +825,10 @@ def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
         # If still no rules found, create a minimal placeholder to allow installation to proceed
         placeholder_created = False
         for cand in [
-            source_dir / "rules.yml",
+            _source_rules_yml(source_dir),
             source_dir / "governance" / "rules.yml",
             source_dir / "governance" / "rulesets" / "core" / "rules.yml",
-            source_dir / "rulesets" / "core" / "rules.yml",
+            _source_core_rules_yml(source_dir),
         ]:
             if not cand.parent.exists():
                 cand.parent.mkdir(parents=True, exist_ok=True)
@@ -808,9 +842,9 @@ def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
                     pass
         if not placeholder_created:
             # Provide common hints to help diagnose layout issues in bundles
-            if (source_dir / "rulesets" / "core" / "rules.yml").exists() is False:
+            if _source_core_rules_yml(source_dir).exists() is False:
                 missing.append("rulesets/core/rules.yml")
-            if (source_dir / "rules.yml").exists() is False:
+            if _source_rules_yml(source_dir).exists() is False:
                 missing.append("rules.yml")
 
     unsafe_symlinks = collect_unsafe_source_symlinks(source_dir)
@@ -977,6 +1011,36 @@ def collect_command_root_files(source_dir: Path) -> list[Path]:
     # Only canonical commands
     for cmd in collect_commands(source_dir, relative=False):
         files.append(cmd)
+
+    # Install canonical guidance/spec roots into commands/ root (product layout)
+    for extra in (
+        _source_master_md(source_dir),
+        _source_rules_md(source_dir),
+        _source_phase_api_yaml(source_dir),
+        _source_rules_yml(source_dir),
+    ):
+        if extra.exists() and extra not in files:
+            files.append(extra)
+
+    # Install required root-level normative documents into commands/ root.
+    required_root_docs = (
+        "BOOTSTRAP.md",
+        "SESSION_STATE_SCHEMA.md",
+        "QUALITY_INDEX.md",
+        "CONFLICT_RESOLUTION.md",
+        "STABILITY_SLA.md",
+        "TICKET_RECORD_TEMPLATE.md",
+        "README.md",
+        "README-RULES.md",
+        "README-OPENCODE.md",
+        "ADR.md",
+        "CHANGELOG.md",
+        "SCOPE-AND-CONTEXT.md",
+    )
+    for name in required_root_docs:
+        p = source_dir / name
+        if p.exists() and p not in files:
+            files.append(p)
     
     # Exclude installer scripts
     exclude_names = {
@@ -1079,12 +1143,8 @@ def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
     if not runtime_dir.exists() or not runtime_dir.is_dir():
         return []
     
-    files = collect_runtime(runtime_dir, relative=False)
-    
-    # Add VERSION file from governance/ (special case)
-    version_file = runtime_dir / "VERSION"
-    if version_file.exists():
-        files.append(version_file)
+    # Runtime payload includes the full governance package tree (code + assets).
+    files = [p for p in runtime_dir.rglob("*") if p.is_file()]
     
     result: list[Path] = []
     for f in files:
@@ -1114,9 +1174,16 @@ def collect_customer_docs_files(source_dir: Path) -> list[Path]:
     
     result: list[Path] = []
     for f in content_files:
-        # Only include files from docs/ directory
+        # Only include files from docs/ directory (legacy + new structure)
         f_str = str(f)
-        if f_str.startswith("docs/") or f_str.startswith("docs\\"):
+        if (
+            f_str.startswith("docs/")
+            or f_str.startswith("docs\\")
+            or f_str.startswith("governance_content/docs/")
+            or f_str.startswith("governance_content/docs\\")
+        ):
+            if "/governance/" in f_str.replace("\\", "/"):
+                continue
             abs_path = source_dir / f
             if abs_path.is_file() and abs_path.suffix.lower() == ".md":
                 if not _is_forbidden_metadata_path(abs_path, source_dir):
@@ -1215,7 +1282,8 @@ def collect_customer_script_files(source_dir: Path, *, strict: bool) -> list[Pat
 def collect_workflow_template_files(source_dir: Path, *, strict: bool) -> list[Path]:
     """Collect workflow template files declared in templates/github-actions/template_catalog.json."""
 
-    catalog_path = source_dir / TEMPLATE_CATALOG_REL
+    templates_root = get_templates_root(source_dir)
+    catalog_path = templates_root / "github-actions" / "template_catalog.json"
     payload = _load_json(catalog_path)
     if payload is None:
         if strict:
@@ -1252,7 +1320,10 @@ def collect_workflow_template_files(source_dir: Path, *, strict: bool) -> list[P
         if (
             rel_path.is_absolute()
             or ".." in rel_path.parts
-            or not rel.startswith("templates/github-actions/")
+            or not (
+                rel.startswith("templates/github-actions/")
+                or rel.startswith("governance_content/templates/github-actions/")
+            )
             or rel_path.suffix != ".yml"
         ):
             if strict:
@@ -1262,6 +1333,8 @@ def collect_workflow_template_files(source_dir: Path, *, strict: bool) -> list[P
             continue
 
         src = source_dir / rel_path
+        if not src.exists() and rel.startswith("templates/"):
+            src = source_dir / "governance_content" / rel
         if not src.exists() or not src.is_file() or src.is_symlink() or _is_forbidden_metadata_path(src, source_dir):
             if strict:
                 raise RuntimeError(f"template catalog references missing or invalid template file: {rel}")
@@ -1964,7 +2037,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     # If YAML rules are missing but rules.md exists in source, create a minimal placeholders
     core_rules_target = plan.commands_dir / "rules.yml"
     core_rules_target_rulesets = plan.commands_dir / "rulesets" / "core" / "rules.yml"
-    if not core_rules_target.exists() and (plan.source_dir / "rules.md").exists():
+    if not core_rules_target.exists() and _source_rules_md(plan.source_dir).exists():
         try:
             core_rules_target.parent.mkdir(parents=True, exist_ok=True)
             core_rules_target.write_text("rules: {}\n", encoding="utf-8")
@@ -1983,7 +2056,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         except Exception:
             pass
     # Also prefer governance-provided phase_api.yaml when available
-    governance_phase = plan.source_dir / "governance" / "phase_api.yaml"
+    governance_phase = _source_phase_api_yaml(plan.source_dir)
     if governance_phase.exists():
         try:
             phase_yaml_target.parent.mkdir(parents=True, exist_ok=True)
@@ -1994,9 +2067,9 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 
     # Ensure a minimal rules.yml placeholder exists if no YAML/Markdown rule sources are present
     rules_candidates = [
-        plan.source_dir / "rules.yml",
+        _source_rules_yml(plan.source_dir),
         plan.source_dir / "governance" / "rules.yml",
-        plan.source_dir / "rulesets" / "core" / "rules.yml",
+        _source_core_rules_yml(plan.source_dir),
         plan.source_dir / "governance" / "rulesets" / "core" / "rules.yml",
     ]
     if not any(p.exists() for p in rules_candidates):
@@ -2009,7 +2082,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             except Exception:
                 pass
         for cand in [
-            plan.source_dir / "phase_api.yaml",
+            _source_phase_api_yaml(plan.source_dir),
             plan.source_dir / "governance" / "phase_api.yaml",
         ]:
             if cand.exists():
@@ -2036,8 +2109,8 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     # Always attempt to copy core rules.yml if a source exists, to keep manifest
     # stable across reinstalls (idempotent behavior).
     core_src_candidates = [
-            plan.source_dir / "rulesets" / "core" / "rules.yml",
-            plan.source_dir / "rules.yml",
+            _source_core_rules_yml(plan.source_dir),
+            _source_rules_yml(plan.source_dir),
             plan.source_dir / "governance" / "rulesets" / "core" / "rules.yml",
             plan.source_dir / "governance" / "rules.yml",
     ]
@@ -2126,9 +2199,10 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     if docs_files:
         print("\n📋 Copying customer documentation to commands/docs/ ...")
         docs_dst_dir = plan.commands_dir / DOCS_DIR_NAME
+        docs_root = get_governance_docs_root(plan.source_dir)
         for df in docs_files:
-            rel = df.relative_to(plan.source_dir)
-            dst = docs_dst_dir / df.name
+            rel = df.relative_to(docs_root)
+            dst = docs_dst_dir / rel
             entry = copy_with_optional_backup(
                 src=df,
                 dst=dst,
@@ -2140,11 +2214,11 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             copied_entries.append(entry)
             status = entry["status"]
             if status in ("planned-copy", "copied"):
-                print(f"  ✅ {rel} ({status})")
+                print(f"  ✅ docs/{rel} ({status})")
             elif status == "skipped-exists":
-                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
+                print(f"  ⏭️  docs/{rel} exists (use --force to overwrite)")
             else:
-                print(f"  ⚠️  {rel} missing (skipping)")
+                print(f"  ⚠️  docs/{rel} missing (skipping)")
     else:
         print("\nℹ️  No customer-relevant documentation found (skipping).")
 
@@ -2152,9 +2226,10 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     gov_docs_files = collect_governance_docs_files(plan.source_dir)
     if gov_docs_files:
         print("\n📋 Copying governance documentation to commands/docs/governance/ ...")
+        docs_root = get_governance_docs_root(plan.source_dir)
         for gd in gov_docs_files:
-            rel = gd.relative_to(plan.source_dir)
-            dst = plan.commands_dir / rel
+            rel = gd.relative_to(docs_root)
+            dst = plan.commands_dir / "docs" / rel
             entry = copy_with_optional_backup(
                 src=gd,
                 dst=dst,
@@ -2166,11 +2241,11 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             copied_entries.append(entry)
             status = entry["status"]
             if status in ("planned-copy", "copied"):
-                print(f"  ✅ {rel} ({status})")
+                print(f"  ✅ docs/{rel} ({status})")
             elif status == "skipped-exists":
-                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
+                print(f"  ⏭️  docs/{rel} exists (use --force to overwrite)")
             else:
-                print(f"  ⚠️  {rel} missing (skipping)")
+                print(f"  ⚠️  docs/{rel} missing (skipping)")
     else:
         print("\nℹ️  No governance documentation found under docs/governance/ (skipping).")
 
@@ -2273,9 +2348,18 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             return 2
 
     print("\n📋 Copying workflow templates to commands/templates/ ...")
+    templates_root = get_templates_root(plan.source_dir)
+    catalog_file = templates_root / "github-actions" / "template_catalog.json"
+    template_sources: list[Path] = []
+    if catalog_file.exists():
+        template_sources.append(catalog_file)
     for tf in workflow_templates:
-        rel = tf.relative_to(plan.source_dir)
-        dst = plan.commands_dir / rel
+        if tf not in template_sources:
+            template_sources.append(tf)
+
+    for tf in template_sources:
+        rel = tf.relative_to(templates_root)
+        dst = plan.commands_dir / "templates" / rel
         entry = copy_with_optional_backup(
             src=tf,
             dst=dst,
@@ -2287,11 +2371,11 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         copied_entries.append(entry)
         status = entry["status"]
         if status in ("planned-copy", "copied"):
-            print(f"  ✅ {rel} ({status})")
+            print(f"  ✅ templates/{rel} ({status})")
         elif status == "skipped-exists":
-            print(f"  ⏭️  {rel} exists (use --force to overwrite)")
+            print(f"  ⏭️  templates/{rel} exists (use --force to overwrite)")
         else:
-            print(f"  ⚠️  {rel} missing (skipping)")
+            print(f"  ⚠️  templates/{rel} missing (skipping)")
 
     # copy optional OpenCode plugins to global plugins dir
     plugin_files = collect_opencode_plugin_files(plan.source_dir)
@@ -2543,6 +2627,12 @@ def uninstall(
         root_rules = plan.commands_dir / "rules.yml"
         if root_rules.exists():
             targets.append(root_rules)
+        root_phase = plan.commands_dir / "phase_api.yaml"
+        if root_phase.exists():
+            targets.append(root_phase)
+        core_rules = plan.commands_dir / "rulesets" / "core" / "rules.yml"
+        if core_rules.exists():
+            targets.append(core_rules)
 
         # CLI package (for bootstrap launcher)
         cli_dir = plan.commands_dir / "cli"
@@ -2552,12 +2642,13 @@ def uninstall(
                     targets.append(f)
 
         # Profiles and addon manifests from current source snapshot
+        profiles_root = get_profiles_root(plan.source_dir)
         for src in collect_profile_files(plan.source_dir):
-            rel = src.relative_to(plan.source_dir)
-            targets.append(plan.commands_dir / rel)
+            rel = src.relative_to(profiles_root)
+            targets.append(plan.commands_dir / "profiles" / rel)
         for src in collect_profile_addon_manifests(plan.source_dir):
-            rel = src.relative_to(plan.source_dir)
-            targets.append(plan.commands_dir / rel)
+            rel = src.relative_to(profiles_root)
+            targets.append(plan.commands_dir / "profiles" / rel)
 
         # Governance runtime from current source snapshot
         for src in collect_governance_runtime_files(plan.source_dir):
@@ -2565,14 +2656,15 @@ def uninstall(
             targets.append(plan.commands_dir / rel)
 
         # Customer docs from current source snapshot
+        docs_root = get_governance_docs_root(plan.source_dir)
         for src in collect_customer_docs_files(plan.source_dir):
-            rel = src.relative_to(plan.source_dir)
-            targets.append(plan.commands_dir / rel)
+            rel = src.relative_to(docs_root)
+            targets.append(plan.commands_dir / "docs" / rel)
 
         # Governance documentation from current source snapshot
         for src in collect_governance_docs_files(plan.source_dir):
-            rel = src.relative_to(plan.source_dir)
-            targets.append(plan.commands_dir / rel)
+            rel = src.relative_to(docs_root)
+            targets.append(plan.commands_dir / "docs" / rel)
 
         # Customer scripts and workflow templates from current source snapshot.
         try:
@@ -2583,9 +2675,14 @@ def uninstall(
             pass
 
         try:
+            templates_root = get_templates_root(plan.source_dir)
+            catalog = templates_root / "github-actions" / "template_catalog.json"
+            if catalog.exists():
+                rel = catalog.relative_to(templates_root)
+                targets.append(plan.commands_dir / "templates" / rel)
             for src in collect_workflow_template_files(plan.source_dir, strict=False):
-                rel = src.relative_to(plan.source_dir)
-                targets.append(plan.commands_dir / rel)
+                rel = src.relative_to(templates_root)
+                targets.append(plan.commands_dir / "templates" / rel)
         except Exception:
             pass
 
@@ -3271,13 +3368,13 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
         print("   ⚠️  Some scopes not writable (install may fail)")
 
     # Probe 5: Source directory accessibility (YAML rulebooks preferred, MD optional)
-    source_rules = source_dir / "rulesets" / "core" / "rules.yml"
+    source_rules = _source_core_rules_yml(source_dir)
     source_readable = source_rules.exists() and os.access(source_rules, os.R_OK)
     icon = "✅" if source_readable else "⚠️"
     print(f"\n{icon} Source rulesets/core/rules.yml: {'readable' if source_readable else 'not accessible (optional fallback to MD)'}")
     if not source_readable:
         # Fallback: check for legacy MD
-        source_master = source_dir / "master.md"
+        source_master = _source_master_md(source_dir)
         if source_master.exists() and os.access(source_master, os.R_OK):
             print(f"   ↳ Fallback: master.md accessible")
             source_readable = True

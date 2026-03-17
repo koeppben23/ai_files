@@ -4,12 +4,12 @@ import json
 from pathlib import Path
 
 from governance.kernel.phase_kernel import RuntimeContext, execute
+from tests.util import get_phase_api_path
 
 
 def _write_phase_api(commands_home: Path) -> None:
-    repo_spec = Path(__file__).resolve().parents[1] / "phase_api.yaml"
     commands_home.mkdir(parents=True, exist_ok=True)
-    (commands_home / "phase_api.yaml").write_text(repo_spec.read_text(encoding="utf-8"), encoding="utf-8")
+    (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def test_kernel_writes_flow_and_workspace_events(tmp_path: Path) -> None:

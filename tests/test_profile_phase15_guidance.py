@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from tests.util import REPO_ROOT
+from tests.util import get_profiles_path
 
-PROFILES_DIR = REPO_ROOT / "profiles"
+PROFILES_DIR = get_profiles_path()
 
 JAVA_PROFILE = PROFILES_DIR / "rules.backend-java.md"
 PYTHON_PROFILE = PROFILES_DIR / "rules.backend-python.md"

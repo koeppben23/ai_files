@@ -6,6 +6,7 @@ import json
 import pytest
 
 from governance.kernel.phase_kernel import RuntimeContext, execute, _deduplicate_criteria
+from tests.util import get_phase_api_path
 
 
 RULEBOOK_BASE = {
@@ -29,9 +30,8 @@ RULEBOOK_BASE = {
 
 
 def _write_phase_api(commands_home: Path) -> None:
-    repo_spec = Path(__file__).resolve().parents[1] / "phase_api.yaml"
     commands_home.mkdir(parents=True, exist_ok=True)
-    (commands_home / "phase_api.yaml").write_text(repo_spec.read_text(encoding="utf-8"), encoding="utf-8")
+    (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def _write_plan_record(workspaces_home: Path, repo_fingerprint: str, *, status: str, versions: int) -> None:
@@ -45,8 +45,7 @@ def _write_plan_record(workspaces_home: Path, repo_fingerprint: str, *, status: 
 
 
 def test_phase_api_start_token_is_bootstrap_entrypoint() -> None:
-    repo_spec = Path(__file__).resolve().parents[1] / "phase_api.yaml"
-    text = repo_spec.read_text(encoding="utf-8")
+    text = get_phase_api_path().read_text(encoding="utf-8")
     assert 'start_token: "0"' in text
 
 

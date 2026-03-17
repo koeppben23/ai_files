@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from governance.entrypoints.session_reader import format_guided_snapshot, main
+from tests.util import get_phase_api_path
 
 
 def test_guided_happy_evidence_presentation_contains_full_review_blocks() -> None:
@@ -126,7 +127,7 @@ def test_guided_edge_materialize_normal_mode_has_no_yaml_dump(tmp_path: Path, ca
         encoding="utf-8",
     )
     (commands_home / "phase_api.yaml").write_text(
-        (Path(__file__).resolve().parents[1] / "phase_api.yaml").read_text(encoding="utf-8"),
+        get_phase_api_path().read_text(encoding="utf-8"),
         encoding="utf-8",
     )
     (commands_home / "governance.paths.json").write_text(

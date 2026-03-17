@@ -60,7 +60,10 @@ BASELINE_REQUIRED_REASON_CODES = (
 
 CUSTOMER_SCRIPT_CATALOG_PATH = Path("governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
 CUSTOMER_SCRIPT_CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
-WORKFLOW_TEMPLATE_CATALOG_PATH = Path("templates/github-actions/template_catalog.json")
+WORKFLOW_TEMPLATE_CATALOG_PATHS = (
+    Path("governance_content/templates/github-actions/template_catalog.json"),
+    Path("templates/github-actions/template_catalog.json"),
+)
 WORKFLOW_TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
 MARKDOWN_EXCLUDE_POLICY_PATH = Path("governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json")
 MARKDOWN_EXCLUDE_POLICY_SCHEMA = "governance.customer-markdown-exclude.v1"
@@ -86,6 +89,61 @@ CUSTOMER_DOCS_ALLOWLIST = {
     "governance/assets/catalogs/tool_requirements.json",
     "templates/github-actions/template_catalog.json",
 }
+
+
+def _legacy_rel_alias(rel: str) -> str:
+    """Map migrated paths back to legacy relpaths used by allowlists/catalogs."""
+
+    norm = rel.replace("\\", "/")
+    if norm == "governance_content/master.md":
+        return "master.md"
+    if norm == "governance_content/rules.md":
+        return "rules.md"
+    if norm == "governance_spec/phase_api.yaml":
+        return "phase_api.yaml"
+    if norm.startswith("governance_content/docs/"):
+        return "docs/" + norm.split("governance_content/docs/", 1)[1]
+    if norm.startswith("governance_content/profiles/"):
+        return "profiles/" + norm.split("governance_content/profiles/", 1)[1]
+    if norm.startswith("governance_content/templates/"):
+        return "templates/" + norm.split("governance_content/templates/", 1)[1]
+    if norm.startswith("governance_spec/rulesets/"):
+        return "rulesets/" + norm.split("governance_spec/rulesets/", 1)[1]
+    return norm
+
+
+def _resolve_rel_candidates(repo_root: Path, rel: str) -> list[str]:
+    """Return concrete existing relpaths for a canonical/legacy entry."""
+
+    rel_norm = rel.replace("\\", "/")
+    candidates = [rel_norm]
+    if rel_norm == "master.md":
+        candidates.append("governance_content/master.md")
+    elif rel_norm == "rules.md":
+        candidates.append("governance_content/rules.md")
+    elif rel_norm == "phase_api.yaml":
+        candidates.append("governance_spec/phase_api.yaml")
+    elif rel_norm.startswith("docs/"):
+        candidates.append("governance_content/" + rel_norm)
+    elif rel_norm.startswith("profiles/"):
+        candidates.append("governance_content/" + rel_norm)
+    elif rel_norm.startswith("templates/"):
+        candidates.append("governance_content/" + rel_norm)
+    elif rel_norm.startswith("rulesets/"):
+        candidates.append("governance_spec/" + rel_norm)
+
+    existing = [cand for cand in candidates if (repo_root / cand).is_file()]
+    return existing or candidates
+
+
+def _resolve_workflow_catalog_path(repo_root: Path) -> Path:
+    for rel in WORKFLOW_TEMPLATE_CATALOG_PATHS:
+        if (repo_root / rel).is_file():
+            return rel
+    raise SystemExit(
+        "Missing workflow template catalog: "
+        + ", ".join(str(p) for p in WORKFLOW_TEMPLATE_CATALOG_PATHS)
+    )
 
 
 def is_forbidden_metadata_path(relpath: str) -> bool:
@@ -238,38 +296,44 @@ def _load_customer_release_script_paths(repo_root: Path) -> set[str]:
 
 
 def _load_workflow_template_paths(repo_root: Path) -> set[str]:
-    catalog_path = repo_root / WORKFLOW_TEMPLATE_CATALOG_PATH
-    if not catalog_path.exists():
-        raise SystemExit(f"Missing workflow template catalog: {WORKFLOW_TEMPLATE_CATALOG_PATH}")
+    catalog_rel = _resolve_workflow_catalog_path(repo_root)
+    catalog_path = repo_root / catalog_rel
 
     try:
         payload = json.loads(catalog_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise SystemExit(f"Invalid JSON in {WORKFLOW_TEMPLATE_CATALOG_PATH}: {exc}") from exc
+        raise SystemExit(f"Invalid JSON in {catalog_rel}: {exc}") from exc
 
     if payload.get("schema") != WORKFLOW_TEMPLATE_CATALOG_SCHEMA:
-        raise SystemExit(
-            f"Invalid workflow template catalog schema in {WORKFLOW_TEMPLATE_CATALOG_PATH}: "
+            raise SystemExit(
+            f"Invalid workflow template catalog schema in {catalog_rel}: "
             f"expected {WORKFLOW_TEMPLATE_CATALOG_SCHEMA}, got {payload.get('schema')!r}"
         )
 
     raw_templates = payload.get("templates")
     if not isinstance(raw_templates, list) or not raw_templates:
-        raise SystemExit(f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates must be a non-empty array")
+        raise SystemExit(f"{catalog_rel}: templates must be a non-empty array")
 
     selected: set[str] = set()
     for idx, item in enumerate(raw_templates, start=1):
         if not isinstance(item, dict):
-            raise SystemExit(f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates[{idx}] must be an object")
+            raise SystemExit(f"{catalog_rel}: templates[{idx}] must be an object")
         raw_file = item.get("file")
         if not isinstance(raw_file, str) or not raw_file:
-            raise SystemExit(f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates[{idx}] missing non-empty file")
+            raise SystemExit(f"{catalog_rel}: templates[{idx}] missing non-empty file")
         rel = raw_file.replace("\\", "/")
-        if not rel.startswith("templates/github-actions/") or not rel.endswith(".yml"):
+        legacy = rel.startswith("templates/github-actions/") and rel.endswith(".yml")
+        migrated = rel.startswith("governance_content/templates/github-actions/") and rel.endswith(".yml")
+        if not (legacy or migrated):
             raise SystemExit(
-                f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates[{idx}].file must be templates/github-actions/*.yml: {rel}"
+                f"{catalog_rel}: templates[{idx}].file must be templates/github-actions/*.yml: {rel}"
             )
-        selected.add(rel)
+        for cand in _resolve_rel_candidates(repo_root, rel):
+            if (repo_root / cand).is_file():
+                selected.add(cand)
+
+    if not selected:
+        raise SystemExit(f"{catalog_rel}: no valid workflow templates resolved")
 
     missing = sorted(rel for rel in selected if not (repo_root / rel).is_file())
     if missing:
@@ -311,11 +375,11 @@ def _load_markdown_release_exclusions(repo_root: Path) -> set[str]:
             raise SystemExit(
                 f"{MARKDOWN_EXCLUDE_POLICY_PATH}: invalid markdown path in release_excluded_markdown[{idx}]"
             )
-        if not (repo_root / rel_path).is_file():
+        if not any((repo_root / cand).is_file() for cand in _resolve_rel_candidates(repo_root, rel)):
             raise SystemExit(
                 f"{MARKDOWN_EXCLUDE_POLICY_PATH}: referenced markdown file does not exist: {rel}"
             )
-        excluded.add(rel)
+        excluded.add(_legacy_rel_alias(rel))
 
     return excluded
 
@@ -364,6 +428,8 @@ def _should_include_file(
     shipped_workflow_templates: set[str],
     release_excluded_markdown: set[str],
 ) -> bool:
+    rel_legacy = _legacy_rel_alias(rel)
+
     def _is_governance_runtime_excluded(rel_path: str) -> bool:
         if not rel_path.startswith("governance/"):
             return False
@@ -377,21 +443,21 @@ def _should_include_file(
             return True
         return False
 
-    if rel in customer_release_scripts:
+    if rel in customer_release_scripts or rel_legacy in customer_release_scripts:
         return True
-    if rel in shipped_workflow_templates:
+    if rel in shipped_workflow_templates or rel_legacy in shipped_workflow_templates:
         return True
-    if rel in release_excluded_markdown:
+    if rel in release_excluded_markdown or rel_legacy in release_excluded_markdown:
         return False
     name = p.name
     if name == "install.py":
         return True
     if name.upper().startswith("LICENSE") or name.upper().startswith("LICENCE"):
         return True
-    if rel in {"phase_api.yaml"}:
+    if rel in {"phase_api.yaml", "governance_spec/phase_api.yaml"} or rel_legacy == "phase_api.yaml":
         return True
     # Addon manifests are required at runtime for deterministic addon activation/reload.
-    if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
+    if (rel.startswith("profiles/addons/") or rel.startswith("governance_content/profiles/addons/") or rel_legacy.startswith("profiles/addons/")) and name.endswith(".addon.yml"):
         return True
     # Governance runtime should ship as a coherent tree, excluding only non-runtime artifacts.
     if rel.startswith("governance/"):
@@ -406,10 +472,10 @@ def _should_include_file(
         return True
     if rel == "governance/VERSION":
         return True
-    if rel.startswith("docs/"):
-        return rel in CUSTOMER_DOCS_ALLOWLIST
+    if rel.startswith("docs/") or rel.startswith("governance_content/docs/") or rel_legacy.startswith("docs/"):
+        return rel in CUSTOMER_DOCS_ALLOWLIST or rel_legacy in CUSTOMER_DOCS_ALLOWLIST
     if p.suffix.lower() in {".md", ".json"}:
-        return rel in CUSTOMER_DOCS_ALLOWLIST
+        return rel in CUSTOMER_DOCS_ALLOWLIST or rel_legacy in CUSTOMER_DOCS_ALLOWLIST
     return False
 
 

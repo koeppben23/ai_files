@@ -9,6 +9,8 @@ import zipfile
 from pathlib import Path
 import pytest
 
+from tests.util import get_phase_api_path
+
 
 def _check_pyyaml_in_subprocess() -> bool:
     """Check if PyYAML is importable when HOME is overridden (as the E2E tests do).
@@ -203,8 +205,8 @@ def test_release_zip_installer_bootstrap_e2e(tmp_path: Path) -> None:
     # Use the real phase_api.yaml from the repo (the kernel requires the real
     # schema: top-level 'phases' list with token/phase/route_strategy entries
     # and a 'start_token' field).
-    real_phase_api = repo_root / "phase_api.yaml"
-    assert real_phase_api.exists(), "phase_api.yaml missing from repo root"
+    real_phase_api = get_phase_api_path()
+    assert real_phase_api.exists(), "phase_api.yaml missing from repository"
 
     # Place it in commands_home — the single location the kernel resolves via
     # COMMANDS_HOME / governance.paths.json.

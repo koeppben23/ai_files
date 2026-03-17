@@ -6,7 +6,7 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
-from .util import REPO_ROOT, git_ls_files, read_text
+from .util import REPO_ROOT, get_master_path, git_ls_files, read_text
 
 
 @pytest.mark.spec
@@ -25,8 +25,8 @@ def test_no_case_only_filename_collisions_windows_safe():
 
 @pytest.mark.spec
 def test_master_md_no_resolved_path_placeholder_and_variable_paths():
-    p = REPO_ROOT / "master.md"
-    assert p.exists(), "master.md not found at repo root"
+    p = get_master_path()
+    assert p.exists(), "master.md not found"
 
     lines = read_text(p).splitlines()
 

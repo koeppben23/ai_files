@@ -42,6 +42,7 @@ from governance.entrypoints.session_reader import (
     _resolve_next_action_line,
     _should_emit_continue_next_action,
 )
+from tests.util import get_phase_api_path
 
 
 # ---------------------------------------------------------------------------
@@ -83,10 +84,9 @@ ALL_P5_GATES_PASSED = {
 
 
 def _write_phase_api(commands_home: Path) -> None:
-    repo_spec = Path(__file__).resolve().parents[1] / "phase_api.yaml"
     commands_home.mkdir(parents=True, exist_ok=True)
     (commands_home / "phase_api.yaml").write_text(
-        repo_spec.read_text(encoding="utf-8"), encoding="utf-8"
+        get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8"
     )
 
 
