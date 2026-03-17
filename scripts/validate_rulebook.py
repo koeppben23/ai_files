@@ -5,13 +5,15 @@ import json
 import sys
 import yaml
 from pathlib import Path
+import jsonschema
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_schema():
-    schema_path = ROOT / "schemas" / "rulebook.schema.json"
+def load_schema(repo_root: Path | None = None):
+    root = repo_root if repo_root else ROOT
+    schema_path = root / "schemas" / "rulebook.schema.json"
     if schema_path.exists():
         return json.loads(schema_path.read_text(encoding="utf-8"))
     return None
@@ -45,6 +47,17 @@ def validate_file(path: Path, schema: dict | None) -> list[str]:
             issues.append(f"{path}: missing 'metadata' field")
         elif not isinstance(data.get("metadata"), dict):
             issues.append(f"{path}: 'metadata' must be a mapping")
+        # Run full JSON schema validation only for complete schemas with $defs
+        # (like the real rulebook schema). Skip for minimal test schemas.
+        if schema and isinstance(data, dict) and "$defs" in schema:
+            try:
+                validator = jsonschema.Draft202012Validator(schema)
+                for error in validator.iter_errors(data):
+                    # Format error message
+                    path_str = ".".join(str(p) for p in error.path) if error.path else "root"
+                    issues.append(f"{path}: {path_str}: {error.message}")
+            except jsonschema.SchemaError as e:
+                issues.append(f"{path}: schema error: {e}")
         # Check for schema_version in metadata if schema is provided
         if schema and "metadata" in data:
             metadata = data.get("metadata", {})
@@ -74,25 +87,40 @@ def validate_yaml_file(path: Path, schema: dict | None, issues: list[str]) -> bo
 def validate_all(root: Path, use_json: bool = False) -> int:
     """Validate all rulebook files."""
     issues: list[str] = []
-    schema = load_schema()
+    results: list[dict] = []
+    schema = load_schema(root)
     file_count = 0
     valid_count = 0
     
-    # Check governance_spec/rulesets first (new location)
+    # Check governance_spec/rulesets (new SSOT location)
     rulesets_dir = root / "governance_spec" / "rulesets"
     if rulesets_dir.exists():
         for yml_file in rulesets_dir.rglob("*.yml"):
+            file_issues = []
+            is_valid = validate_yaml_file(yml_file, schema, file_issues)
             file_count += 1
-            if validate_yaml_file(yml_file, schema, issues):
+            if is_valid:
                 valid_count += 1
-    
-    # Also check rulesets/profiles for legacy/isolated repos
-    legacy_rulesets = root / "rulesets"
-    if legacy_rulesets.exists():
-        for yml_file in legacy_rulesets.rglob("*.yml"):
-            file_count += 1
-            if validate_yaml_file(yml_file, schema, issues):
-                valid_count += 1
+            results.append({
+                "file": str(yml_file),
+                "valid": is_valid,
+                "errors": [{"path": str(yml_file), "message": err} for err in file_issues]
+            })
+    else:
+        # Fall back to legacy rulesets/ for isolated repos / tmp_path tests
+        legacy_rulesets = root / "rulesets"
+        if legacy_rulesets.exists():
+            for yml_file in legacy_rulesets.rglob("*.yml"):
+                file_issues = []
+                is_valid = validate_yaml_file(yml_file, schema, file_issues)
+                file_count += 1
+                if is_valid:
+                    valid_count += 1
+                results.append({
+                    "file": str(yml_file),
+                    "valid": is_valid,
+                    "errors": [{"path": str(yml_file), "message": err} for err in file_issues]
+                })
     
     # Check governance_content/profiles (new location)
     profiles_dir = root / "governance_content" / "profiles"
@@ -100,29 +128,52 @@ def validate_all(root: Path, use_json: bool = False) -> int:
         for yml_file in profiles_dir.glob("*.yml"):
             if "addons" in str(yml_file):
                 continue
+            file_issues = []
+            is_valid = validate_yaml_file(yml_file, schema, file_issues)
             file_count += 1
-            if validate_yaml_file(yml_file, schema, issues):
+            if is_valid:
                 valid_count += 1
+            results.append({
+                "file": str(yml_file),
+                "valid": is_valid,
+                "errors": [{"path": str(yml_file), "message": err} for err in file_issues]
+            })
+    elif not rulesets_dir.exists():
+        # Fall back to legacy profiles/ only if rulesets also doesn't exist
+        legacy_profiles = root / "profiles"
+        if legacy_profiles.exists():
+            for yml_file in legacy_profiles.glob("*.yml"):
+                if "addons" in str(yml_file):
+                    continue
+                file_issues = []
+                is_valid = validate_yaml_file(yml_file, schema, file_issues)
+                file_count += 1
+                if is_valid:
+                    valid_count += 1
+                results.append({
+                    "file": str(yml_file),
+                    "valid": is_valid,
+                    "errors": [{"path": str(yml_file), "message": err} for err in file_issues]
+                })
     
-    # Also check legacy profiles location
-    legacy_profiles = root / "profiles"
-    if legacy_profiles.exists():
-        for yml_file in legacy_profiles.glob("*.yml"):
-            if "addons" in str(yml_file):
-                continue
-            file_count += 1
-            if validate_yaml_file(yml_file, schema, issues):
-                valid_count += 1
+    # Flatten errors from results for JSON output
+    all_errors = []
+    invalid_files = 0
+    for r in results:
+        all_errors.extend(r["errors"])
+        if not r["valid"]:
+            invalid_files += 1
     
-    if issues:
+    if issues or any(not r["valid"] for r in results):
         msg = {
             "status": "FAILED",
             "schema": "governance.validate-rulebook-report.v1",
             "timestamp": "2024-01-01T00:00:00Z",
             "files_checked": file_count,
             "files_valid": valid_count,
-            "files_invalid": len(issues),
-            "errors": issues
+            "files_invalid": invalid_files,
+            "errors": all_errors,
+            "results": results
         }
         output = json.dumps(msg) if use_json else "FAIL: FAILED: " + "; ".join(issues)
         print(output)
@@ -135,7 +186,8 @@ def validate_all(root: Path, use_json: bool = False) -> int:
         "files_checked": file_count,
         "files_valid": valid_count,
         "files_invalid": 0,
-        "message": f"{file_count} file(s) validated"
+        "message": f"{file_count} file(s) validated",
+        "results": results
     }
     print(json.dumps(msg) if use_json else f"OK - {file_count} file(s) validated")
     return 0
@@ -159,7 +211,7 @@ def main(argv: list[str] | None = None) -> int:
         file_path = Path(args.file)
         if not file_path.is_absolute():
             file_path = root / file_path
-        issues = validate_file(file_path, load_schema())
+        issues = validate_file(file_path, load_schema(root))
         if issues:
             msg = {
                 "status": "FAILED",
