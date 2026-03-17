@@ -20,6 +20,7 @@ Quick Start:
 Modules:
 - governance.layers: Core classification API
 - governance.enforce: Layer boundary validation
+- governance.contract: Path contract validation
 
 Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
@@ -55,6 +56,19 @@ from governance.enforce import (
     get_layer_distribution,
 )
 
+from governance.contract import (
+    ContractRule,
+    PathContractViolation,
+    PathContractResult,
+    validate_path_contract,
+    validate_single_path,
+    generate_contract_report,
+    get_expected_directory_for_layer,
+    get_allowed_prefixes_for_layer,
+    check_directory_structure,
+    validate_directory_structure,
+)
+
 __all__ = [
     # Layer classification
     "GovernanceLayer",
@@ -82,4 +96,15 @@ __all__ = [
     "enforce_layers",
     "generate_layer_report",
     "get_layer_distribution",
+    # Contract
+    "ContractRule",
+    "PathContractViolation",
+    "PathContractResult",
+    "validate_path_contract",
+    "validate_single_path",
+    "generate_contract_report",
+    "get_expected_directory_for_layer",
+    "get_allowed_prefixes_for_layer",
+    "check_directory_structure",
+    "validate_directory_structure",
 ]
