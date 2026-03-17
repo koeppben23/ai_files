@@ -132,9 +132,12 @@ class TestSSOTPipelineE2E:
         yml_sources = [
             REPO_ROOT / entry["path"]
             for entry in manifest["source_files"]
-            if entry["path"].endswith(".yml") and entry["path"].startswith("rulesets/")
+            if entry["path"].endswith(".yml") 
+            and (entry["path"].startswith("rulesets/") or entry["path"].startswith("governance_"))
+            and "addons" not in entry["path"]  # Exclude addon files
         ]
-        assert yml_sources, "Expected YAML rulebook sources in manifest"
+        assert yml_sources, f"Expected YAML rulebook sources in manifest, got: {[e['path'] for e in manifest['source_files'][:5]]}"
 
-        r5 = _run_script("validate_rulebook.py", [str(p) for p in yml_sources])
+        # Use --all to validate all rulebooks in the repo
+        r5 = _run_script("validate_rulebook.py", ["--all"])
         assert r5.returncode == 0, f"re-validate failed:\n{r5.stdout}"
