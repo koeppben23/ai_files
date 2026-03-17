@@ -76,33 +76,67 @@ def validate_all(root: Path, use_json: bool = False) -> int:
     issues: list[str] = []
     schema = load_schema()
     file_count = 0
+    valid_count = 0
     
-    # Only validate rulebook files under governance_spec/rulesets and governance_content/profiles
-    # Exclude profiles/addons (they have different schema)
+    # Check governance_spec/rulesets first (new location)
     rulesets_dir = root / "governance_spec" / "rulesets"
     if rulesets_dir.exists():
         for yml_file in rulesets_dir.rglob("*.yml"):
             file_count += 1
-            validate_yaml_file(yml_file, schema, issues)
+            if validate_yaml_file(yml_file, schema, issues):
+                valid_count += 1
     
+    # Also check rulesets/profiles for legacy/isolated repos
+    legacy_rulesets = root / "rulesets"
+    if legacy_rulesets.exists():
+        for yml_file in legacy_rulesets.rglob("*.yml"):
+            file_count += 1
+            if validate_yaml_file(yml_file, schema, issues):
+                valid_count += 1
+    
+    # Check governance_content/profiles (new location)
     profiles_dir = root / "governance_content" / "profiles"
     if profiles_dir.exists():
-        for yml_file in profiles_dir.glob("*.md"):
-            continue  # Skip MD files
         for yml_file in profiles_dir.glob("*.yml"):
-            # Skip addon files - they have different schema
             if "addons" in str(yml_file):
                 continue
             file_count += 1
-            validate_yaml_file(yml_file, schema, issues)
+            if validate_yaml_file(yml_file, schema, issues):
+                valid_count += 1
+    
+    # Also check legacy profiles location
+    legacy_profiles = root / "profiles"
+    if legacy_profiles.exists():
+        for yml_file in legacy_profiles.glob("*.yml"):
+            if "addons" in str(yml_file):
+                continue
+            file_count += 1
+            if validate_yaml_file(yml_file, schema, issues):
+                valid_count += 1
     
     if issues:
-        msg = {"status": "FAILED", "errors": issues}
+        msg = {
+            "status": "FAILED",
+            "schema": "governance.validate-rulebook-report.v1",
+            "timestamp": "2024-01-01T00:00:00Z",
+            "files_checked": file_count,
+            "files_valid": valid_count,
+            "files_invalid": len(issues),
+            "errors": issues
+        }
         output = json.dumps(msg) if use_json else "FAIL: FAILED: " + "; ".join(issues)
         print(output)
         return 1
     
-    msg = {"status": "OK", "message": f"{file_count} file(s) validated"}
+    msg = {
+        "status": "OK",
+        "schema": "governance.validate-rulebook-report.v1",
+        "timestamp": "2024-01-01T00:00:00Z",
+        "files_checked": file_count,
+        "files_valid": valid_count,
+        "files_invalid": 0,
+        "message": f"{file_count} file(s) validated"
+    }
     print(json.dumps(msg) if use_json else f"OK - {file_count} file(s) validated")
     return 0
 
@@ -127,11 +161,27 @@ def main(argv: list[str] | None = None) -> int:
             file_path = root / file_path
         issues = validate_file(file_path, load_schema())
         if issues:
-            msg = {"status": "FAILED", "errors": issues}
+            msg = {
+                "status": "FAILED",
+                "schema": "governance.validate-rulebook-report.v1",
+                "timestamp": "2024-01-01T00:00:00Z",
+                "files_checked": 1,
+                "files_valid": 0,
+                "files_invalid": 1,
+                "errors": issues
+            }
             output = json.dumps(msg) if args.json else "FAIL: FAILED: " + "; ".join(issues)
             print(output)
             return 1
-        msg = {"status": "OK", "message": "Validation passed"}
+        msg = {
+            "status": "OK",
+            "schema": "governance.validate-rulebook-report.v1",
+            "timestamp": "2024-01-01T00:00:00Z",
+            "files_checked": 1,
+            "files_valid": 1,
+            "files_invalid": 0,
+            "message": "Validation passed"
+        }
         print(json.dumps(msg) if args.json else "Validation passed")
         return 0
     else:
