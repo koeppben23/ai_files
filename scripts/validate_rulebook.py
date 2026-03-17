@@ -1,20 +1,106 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import argparse
 import json
 import sys
+import yaml
+import jsonschema
 from pathlib import Path
 
 
-def main() -> int:
-    root = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_schema():
+    schema_path = ROOT / "schemas" / "rulebook.schema.json"
+    if schema_path.exists():
+        return json.loads(schema_path.read_text(encoding="utf-8"))
+    return None
+
+
+def validate_file(path: Path, schema: dict | None) -> list[str]:
+    """Validate a single YAML file against schema. Returns list of issues."""
+    issues = []
+    try:
+        if not path.exists():
+            issues.append(f"File not found: {path}")
+            return issues
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if data is None:
+            issues.append(f"{path}: empty file")
+            return issues
+        if schema:
+            try:
+                jsonschema.validate(data, schema)
+            except jsonschema.ValidationError as e:
+                issues.append(f"{path}: schema violation - {e.message}")
+    except yaml.YAMLError as e:
+        issues.append(f"{path}: parse error - {e}")
+    return issues
+
+
+def validate_yaml_file(path: Path, schema: dict | None, issues: list[str]) -> bool:
+    """Validate a single YAML file against schema."""
+    result = validate_file(path, schema)
+    issues.extend(result)
+    return len(result) == 0
+
+
+def validate_all(root: Path, use_json: bool = False) -> int:
+    """Validate all rulebook files."""
+    issues: list[str] = []
+    schema = load_schema()
+    file_count = 0
     
-    core_rules = root / "governance_spec" / "rulesets" / "core" / "rules.yml"
-    if not core_rules.exists():
-        print(json.dumps({"status": "MISSING", "missing": [str(core_rules)]}))
+    rulesets_dir = root / "governance_spec" / "rulesets"
+    if rulesets_dir.exists():
+        for yml_file in rulesets_dir.rglob("*.yml"):
+            file_count += 1
+            validate_yaml_file(yml_file, schema, issues)
+    
+    profiles_dir = root / "governance_content" / "profiles"
+    if profiles_dir.exists():
+        for yml_file in profiles_dir.rglob("*.yml"):
+            file_count += 1
+            validate_yaml_file(yml_file, schema, issues)
+    
+    if issues:
+        msg = {"status": "FAILED", "errors": issues}
+        print(json.dumps(msg) if use_json else "\n".join(issues))
         return 1
     
-    print(json.dumps({"status": "OK", "message": "Core rulebook valid"}))
+    msg = {"status": "OK", "message": f"{file_count} file(s) validated"}
+    print(json.dumps(msg) if use_json else f"OK - {file_count} file(s) validated")
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Validate governance rulebooks")
+    parser.add_argument("--all", action="store_true", help="Validate all rulebooks")
+    parser.add_argument("file", nargs="?", help="File to validate")
+    parser.add_argument("--json", action="store_true", help="Output JSON")
+    parser.add_argument("--schema-version", help="Expected schema version")
+    
+    args = parser.parse_args()
+    root = ROOT
+    
+    if args.all:
+        return validate_all(root, args.json)
+    elif args.file:
+        file_path = Path(args.file)
+        if not file_path.is_absolute():
+            file_path = root / file_path
+        issues = validate_file(file_path, load_schema())
+        if issues:
+            msg = {"status": "FAILED", "errors": issues}
+            print(json.dumps(msg) if args.json else "\n".join(issues))
+            return 1
+        msg = {"status": "OK", "message": "Validation passed"}
+        print(json.dumps(msg) if args.json else "Validation passed")
+        return 0
+    else:
+        print("Error: Specify --all or provide a file", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
