@@ -1168,6 +1168,9 @@ def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
     result: list[Path] = []
     for f in files:
         abs_path = f
+        # Exclude plugin files - they are collected separately via collect_opencode_plugin_files
+        if "artifacts" in str(abs_path) and "opencode-plugins" in str(abs_path):
+            continue
         if abs_path.is_file() and not abs_path.is_symlink() and not _is_forbidden_metadata_path(abs_path, source_dir):
             result.append(abs_path)
     

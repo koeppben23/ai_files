@@ -81,8 +81,8 @@ def _candidate_log_paths(
     candidates: list[Path] = []
     if fp and ws_path is not None:
         candidates.append(ws_path / fp / "logs" / "error.log.jsonl")
-    elif fp:
-        candidates.append(get_workspace_logs_root(fp) / "error.log.jsonl")
+    # Only create workspace candidate from fingerprint if workspaces_home was explicitly provided
+    # (not derived from config) - otherwise this creates false positives in tests
     if cmd_path is not None:
         candidates.append(cmd_path / "logs" / "error.log.jsonl")
     return candidates
