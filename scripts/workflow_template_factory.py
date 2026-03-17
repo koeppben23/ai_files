@@ -11,8 +11,10 @@ import sys
 
 
 CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
-CATALOG_PATH = Path("governance_content/templates/github-actions/template_catalog.json")
-WORKFLOW_DIR = Path("governance_content/templates/github-actions")
+CATALOG_PATH_NEW = Path("governance_content/templates/github-actions/template_catalog.json")
+CATALOG_PATH_LEGACY = Path("templates/github-actions/template_catalog.json")
+WORKFLOW_DIR_NEW = Path("governance_content/templates/github-actions")
+WORKFLOW_DIR_LEGACY = Path("templates/github-actions")
 TEMPLATE_PATTERN = "governance-*.yml"
 TEMPLATE_KEY_RE = re.compile(r"^governance-[a-z0-9][a-z0-9-]*$")
 ALLOWED_ARCHETYPES = {
@@ -22,6 +24,20 @@ ALLOWED_ARCHETYPES = {
     "golden_output_stability",
     "golden_baseline_update",
 }
+
+
+def _get_workflow_dir(repo_root: Path) -> Path:
+    if (repo_root / WORKFLOW_DIR_NEW).exists():
+        return WORKFLOW_DIR_NEW
+    return WORKFLOW_DIR_LEGACY
+
+
+def _get_catalog_path(repo_root: Path) -> Path | None:
+    if (repo_root / CATALOG_PATH_NEW).exists():
+        return CATALOG_PATH_NEW
+    if (repo_root / CATALOG_PATH_LEGACY).exists():
+        return CATALOG_PATH_LEGACY
+    return None
 
 
 def _read_json(path: Path) -> dict[str, object]:
@@ -89,13 +105,9 @@ def _load_catalog(repo_root: Path, catalog_rel: Path) -> tuple[Path, dict[str, o
         if rel_path.suffix != ".yml":
             raise ValueError(f"{catalog_rel}: file for {template_key} must end with .yml")
         rel_posix = rel_path.as_posix()
-        if rel_posix.startswith("templates/github-actions/"):
-            rel_posix = "governance_content/" + rel_posix
-            rel_path = Path(rel_posix)
-            file_rel = rel_posix
-        if not rel_posix.startswith(WORKFLOW_DIR.as_posix() + "/"):
+        if not (rel_posix.startswith(WORKFLOW_DIR_NEW.as_posix() + "/") or rel_posix.startswith(WORKFLOW_DIR_LEGACY.as_posix() + "/")):
             raise ValueError(
-                f"{catalog_rel}: file for {template_key} must be under {WORKFLOW_DIR.as_posix()}/"
+                f"{catalog_rel}: file for {template_key} must be under {WORKFLOW_DIR_NEW.as_posix()}/ or {WORKFLOW_DIR_LEGACY.as_posix()}/"
             )
         expected_name = f"{template_key}.yml"
         if rel_path.name != expected_name:
@@ -122,12 +134,29 @@ def _load_catalog(repo_root: Path, catalog_rel: Path) -> tuple[Path, dict[str, o
     return catalog_path, payload, sorted(normalized, key=lambda item: item["template_key"])
 
 
-def _catalog_workflow_files(repo_root: Path) -> list[str]:
-    return sorted(
-        path.relative_to(repo_root).as_posix()
-        for path in (repo_root / WORKFLOW_DIR).glob(TEMPLATE_PATTERN)
-        if path.is_file()
-    )
+def _catalog_workflow_files(repo_root: Path, entries: list[dict] | None = None) -> list[str]:
+    files = []
+    # Determine path style from catalog entries if available
+    uses_new_paths = False
+    if entries:
+        first_file = entries[0].get("file", "") if entries else ""
+        uses_new_paths = first_file.startswith(WORKFLOW_DIR_NEW.as_posix())
+    
+    for workflow_dir in [WORKFLOW_DIR_LEGACY, WORKFLOW_DIR_NEW]:
+        dir_path = repo_root / workflow_dir
+        if dir_path.exists():
+            for path in dir_path.glob(TEMPLATE_PATTERN):
+                if path.is_file():
+                    rel_path = path.relative_to(repo_root).as_posix()
+                    # Convert to match catalog style
+                    if uses_new_paths:
+                        if rel_path.startswith(WORKFLOW_DIR_LEGACY.as_posix()):
+                            rel_path = WORKFLOW_DIR_NEW.as_posix() + rel_path[len(WORKFLOW_DIR_LEGACY.as_posix()):]
+                    else:
+                        if rel_path.startswith(WORKFLOW_DIR_NEW.as_posix()):
+                            rel_path = WORKFLOW_DIR_LEGACY.as_posix() + rel_path[len(WORKFLOW_DIR_NEW.as_posix()):]
+                    files.append(rel_path)
+    return sorted(files)
 
 
 def run_check(*, repo_root: Path, catalog_rel: Path) -> tuple[int, dict[str, object]]:
@@ -135,8 +164,17 @@ def run_check(*, repo_root: Path, catalog_rel: Path) -> tuple[int, dict[str, obj
     listed_files = [entry["file"] for entry in entries]
     listed_set = set(listed_files)
 
-    missing_files = [rel for rel in listed_files if not (repo_root / rel).exists()]
-    repo_files = _catalog_workflow_files(repo_root)
+    # Check both legacy and new paths for missing files
+    missing_files = []
+    for rel in listed_files:
+        exists_legacy = (repo_root / rel).exists()
+        # Also check new path if it's a legacy path
+        rel_new = WORKFLOW_DIR_NEW.as_posix() + rel[len(WORKFLOW_DIR_LEGACY.as_posix()):] if rel.startswith(WORKFLOW_DIR_LEGACY.as_posix()) else rel
+        exists_new = (repo_root / rel_new).exists()
+        if not (exists_legacy or exists_new):
+            missing_files.append(rel)
+    
+    repo_files = _catalog_workflow_files(repo_root, entries)
     untracked_files = [rel for rel in repo_files if rel not in listed_set]
 
     if missing_files or untracked_files:
@@ -322,7 +360,7 @@ def run_scaffold(
     if template_key in existing_keys:
         raise ValueError(f"template_key already exists in catalog: {template_key}")
 
-    file_rel = (WORKFLOW_DIR / f"{template_key}.yml").as_posix()
+    file_rel = (_get_workflow_dir(repo_root) / f"{template_key}.yml").as_posix()
     file_path = repo_root / file_rel
     if file_path.exists():
         raise ValueError(f"target workflow already exists: {file_rel}")
@@ -370,11 +408,11 @@ def main(argv: list[str] | None = None) -> int:
 
     check_parser = subparsers.add_parser("check", help="Validate template catalog consistency")
     check_parser.add_argument("--repo-root", default="")
-    check_parser.add_argument("--catalog", default=str(CATALOG_PATH))
+    check_parser.add_argument("--catalog", default="")
 
     scaffold_parser = subparsers.add_parser("scaffold", help="Create a new standardized workflow from archetype")
     scaffold_parser.add_argument("--repo-root", default="")
-    scaffold_parser.add_argument("--catalog", default=str(CATALOG_PATH))
+    scaffold_parser.add_argument("--catalog", default="")
     scaffold_parser.add_argument("--template-key", required=True)
     scaffold_parser.add_argument("--archetype", required=True, choices=sorted(ALLOWED_ARCHETYPES))
     scaffold_parser.add_argument("--title", required=True)
@@ -383,11 +421,23 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
+    repo_root = _resolve_repo_root(args.repo_root)
+    
+    # Determine catalog path: use explicit --catalog if provided, otherwise auto-detect
+    if args.catalog:
+        catalog_rel = Path(args.catalog)
+    else:
+        catalog_path = _get_catalog_path(repo_root)
+        if catalog_path is None:
+            print(json.dumps({"status": "BLOCKED", "message": f"template catalog not found in {repo_root}"}, ensure_ascii=True))
+            return 2
+        catalog_rel = catalog_path
+
     try:
         if args.command == "scaffold":
             code, payload = run_scaffold(
-                repo_root=_resolve_repo_root(args.repo_root),
-                catalog_rel=Path(args.catalog),
+                repo_root=repo_root,
+                catalog_rel=catalog_rel,
                 template_key=args.template_key,
                 archetype=args.archetype,
                 title=args.title,
@@ -396,13 +446,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "check":
             code, payload = run_check(
-                repo_root=_resolve_repo_root(args.repo_root),
-                catalog_rel=Path(args.catalog),
+                repo_root=repo_root,
+                catalog_rel=catalog_rel,
             )
         else:
             code, payload = run_check(
-                repo_root=_resolve_repo_root(None),
-                catalog_rel=CATALOG_PATH,
+                repo_root=repo_root,
+                catalog_rel=catalog_rel,
             )
     except ValueError as exc:
         print(json.dumps({"status": "BLOCKED", "message": str(exc)}, ensure_ascii=True))

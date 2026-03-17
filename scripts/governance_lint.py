@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import hashlib
 import json
 import sys
 import yaml
@@ -22,11 +23,19 @@ def check_yaml_rulebook_schema(issues: list[str]) -> None:
     """Check YAML rulebooks for schema compliance."""
     root = ROOT
     schema_path = root / "schemas" / "rulebook.schema.json"
-    if not schema_path.exists():
-        return
+    schema = None
+    if schema_path.exists():
+        try:
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
+    
     rulesets_dir = root / "rulesets"
     if not rulesets_dir.exists():
+        rulesets_dir = root / "governance_spec" / "rulesets"
+    if not rulesets_dir.exists():
         return
+    
     for yml_file in rulesets_dir.rglob("*.yml"):
         try:
             data = yaml.safe_load(yml_file.read_text(encoding="utf-8"))
@@ -35,41 +44,80 @@ def check_yaml_rulebook_schema(issues: list[str]) -> None:
                 continue
             if "kind" not in data:
                 issues.append(f"{yml_file.name}: missing 'kind'")
+            elif data.get("kind") not in ("core", "profile"):
+                issues.append(f"{yml_file.name}: schema violation - kind must be 'core' or 'profile'")
             if "metadata" not in data:
                 issues.append(f"{yml_file.name}: missing 'metadata'")
+            else:
+                metadata = data.get("metadata", {})
+                if "schema_version" not in metadata:
+                    issues.append(f"{yml_file.name}: missing metadata.schema_version")
+                elif schema and "version" in schema:
+                    doc_version = str(metadata.get("schema_version", ""))
+                    schema_version = str(schema.get("version", ""))
+                    if doc_version and schema_version:
+                        doc_major = doc_version.split(".")[0] if "." in doc_version else doc_version
+                        schema_major = schema_version.split(".")[0] if "." in schema_version else schema_version
+                        if doc_major != schema_major:
+                            issues.append(f"{yml_file.name}: schema_version mismatch - doc={doc_version}, schema={schema_version}")
         except yaml.YAMLError as e:
-            issues.append(f"{yml_file.name}: parse error {e}")
+            issues.append(f"{yml_file.name}: failed to parse")
 
 
 def check_catalog_version_format(issues: list[str]) -> None:
-    """Check catalog files for version format."""
+    """Check catalog files for semver-3 version format."""
     root = ROOT
     catalogs_dir = root / "governance" / "assets" / "catalogs"
     if not catalogs_dir.exists():
+        catalogs_dir = root / "governance_content" / "governance" / "assets" / "catalogs"
+    if not catalogs_dir.exists():
         return
-    for cat_file in catalogs_dir.rglob("*.yaml"):
+    for cat_file in catalogs_dir.rglob("*.json"):
         try:
-            data = yaml.safe_load(cat_file.read_text(encoding="utf-8"))
-            if data and "version" in data:
+            data = json.loads(cat_file.read_text(encoding="utf-8"))
+            if "catalog_version" in data:
+                issues.append(f"{cat_file.name}: legacy key 'catalog_version' found")
+            if "version" in data:
                 version = str(data["version"])
-                if not version.replace(".", "").isdigit():
-                    issues.append(f"{cat_file.name}: invalid version format")
-        except yaml.YAMLError:
+                parts = version.split(".")
+                if len(parts) != 3:
+                    issues.append(f"{cat_file.name}: version '{version}' not semver-3 (need MAJOR.MINOR.PATCH)")
+                elif not all(p.isdigit() for p in parts):
+                    issues.append(f"{cat_file.name}: version '{version}' not semver-3 (must be numeric)")
+        except json.JSONDecodeError:
             pass
 
 
 def check_artifact_hash_integrity(issues: list[str]) -> None:
-    """Check artifact hash files for consistency."""
+    """Check artifact hash files for consistency with actual files."""
     root = ROOT
-    hashes_file = root / "hashes.json"
-    if not hashes_file.exists():
+    rulesets_dir = root / "rulesets" / "governance"
+    if not rulesets_dir.exists():
+        rulesets_dir = root / "governance_spec" / "rulesets" / "governance"
+    if not rulesets_dir.exists():
         return
-    try:
-        data = json.loads(hashes_file.read_text(encoding="utf-8"))
-        if "artifacts" not in data:
-            issues.append("hashes.json: missing 'artifacts' key")
-    except json.JSONDecodeError:
-        issues.append("hashes.json: invalid JSON")
+    for release_dir in rulesets_dir.iterdir():
+        if not release_dir.is_dir():
+            continue
+        hashes_file = release_dir / "hashes.json"
+        manifest_file = release_dir / "manifest.json"
+        lock_file = release_dir / "lock.json"
+        if not hashes_file.exists():
+            continue
+        try:
+            hashes = json.loads(hashes_file.read_text(encoding="utf-8"))
+            files_to_check = {}
+            if manifest_file.exists():
+                files_to_check["manifest.json"] = manifest_file
+            if lock_file.exists():
+                files_to_check["lock.json"] = lock_file
+            for fname, fpath in files_to_check.items():
+                if fname in hashes:
+                    actual_hash = hashlib.sha256(fpath.read_bytes()).hexdigest()
+                    if hashes[fname] != actual_hash:
+                        issues.append(f"{release_dir.name}/hashes.json: integrity FAILED for {fname}")
+        except json.JSONDecodeError:
+            issues.append(f"{release_dir.name}/hashes.json: invalid JSON")
 
 
 def main() -> int:

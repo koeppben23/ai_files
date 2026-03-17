@@ -5,7 +5,7 @@
   "title": "Governance Rulebook",
   "type": "object",
   "required": ["kind", "metadata"],
-  "additionalProperties": false,
+  "additionalProperties": true,
   "properties": {
     "kind": {
       "type": "string",
