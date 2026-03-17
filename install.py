@@ -53,6 +53,11 @@ from governance import (
     collect_runtime,
     collect_opencode_integration,
     exclude_state_files,
+    # Dual-read resolvers (Wave 15.2)
+    get_governance_docs_root,
+    get_profiles_root,
+    get_templates_root,
+    get_rulesets_root,
 )
 
 
@@ -1128,9 +1133,11 @@ def collect_governance_docs_files(source_dir: Path) -> list[Path]:
 
     These files (e.g. governance_schemas.md, doc_lint.md) are heavily
     referenced by master.md and rules.md but were previously not installed.
+    
+    Uses dual-read resolver to support both old and new directory structures.
     """
 
-    gov_docs_dir = source_dir / "docs" / "governance"
+    gov_docs_dir = get_governance_docs_root(source_dir) / "governance"
     if not gov_docs_dir.exists() or not gov_docs_dir.is_dir():
         return []
     return sorted(
@@ -1466,7 +1473,7 @@ def copy_with_optional_backup(
 
 
 def collect_profile_files(source_dir: Path) -> list[Path]:
-    profiles_src_dir = source_dir / PROFILES_DIR_NAME
+    profiles_src_dir = get_profiles_root(source_dir)
     if not profiles_src_dir.exists():
         return []
     return sorted(
@@ -1479,7 +1486,7 @@ def collect_profile_files(source_dir: Path) -> list[Path]:
 
 
 def collect_profile_addon_manifests(source_dir: Path) -> list[Path]:
-    profiles_src_dir = source_dir / PROFILES_DIR_NAME
+    profiles_src_dir = get_profiles_root(source_dir)
     if not profiles_src_dir.exists():
         return []
     return sorted(
