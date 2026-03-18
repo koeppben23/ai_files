@@ -59,7 +59,7 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
         )
 
     try:
-        from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
+        from governance_runtime.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
 
         embedded_codes = set(EMBEDDED_REASON_CODE_TO_SCHEMA_REF.keys())
         embedded_blocked = {c for c in embedded_codes if c.startswith("BLOCKED-")}

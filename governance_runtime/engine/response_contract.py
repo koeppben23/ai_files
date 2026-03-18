@@ -20,9 +20,9 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Literal, cast
 
-from governance.engine.canonical_json import canonical_json_hash, canonical_json_text
-from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
-from governance.domain.phase_state_machine import normalize_phase_token, phase_requires_ticket_input, resolve_phase_output_policy
+from governance_runtime.engine.canonical_json import canonical_json_hash, canonical_json_text
+from governance_runtime.engine.phase_next_action_contract import validate_phase_next_action_contract
+from governance_runtime.domain.phase_state_machine import normalize_phase_token, phase_requires_ticket_input, resolve_phase_output_policy
 from governance.domain.operating_profile import derive_mode_evidence
 from governance.application.use_cases.target_path_helpers import classify_output_class
 

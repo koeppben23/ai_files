@@ -99,7 +99,7 @@ def session_state_root(session_state_document: Mapping[str, object] | None) -> M
 
 
 def phase_token(value: str) -> str:
-    from governance.domain.phase_state_machine import normalize_phase_token
+    from governance_runtime.domain.phase_state_machine import normalize_phase_token
 
     return normalize_phase_token(value)
 
@@ -197,7 +197,7 @@ def _auto_propagate_gates(
       touch surface; handled by ``bootstrap_preflight`` + ``gate_evaluator``).
     - P6-ImplementationQA → NOT auto-propagated (requires explicit completion).
     """
-    from governance.domain.phase_state_machine import phase_rank
+    from governance_runtime.domain.phase_state_machine import phase_rank
 
     if status != "OK" or not next_token:
         return

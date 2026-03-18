@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
-from governance.application.ports.gateways import HostAdapter, resolve_repo_root
-from governance.domain.reason_codes import BLOCKED_REPO_IDENTITY_RESOLUTION, REASON_CODE_NONE
+from governance_runtime.application.ports.gateways import HostAdapter, resolve_repo_root
+from governance_runtime.domain.reason_codes import BLOCKED_REPO_IDENTITY_RESOLUTION, REASON_CODE_NONE
 
 
 @dataclass(frozen=True)

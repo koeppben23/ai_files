@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Literal
 
-from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
-from governance.engine._embedded_reason_schemas import EMBEDDED_REASON_SCHEMAS
-from governance.engine.reason_codes import REASON_CODE_NONE, is_registered_reason_code
-from governance.engine.sanitization import sanitize_for_output
-from governance.engine.schema_validator import validate_against_schema
+from governance_runtime.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
+from governance_runtime.engine._embedded_reason_schemas import EMBEDDED_REASON_SCHEMAS
+from governance_runtime.engine.reason_codes import REASON_CODE_NONE, is_registered_reason_code
+from governance_runtime.engine.sanitization import sanitize_for_output
+from governance_runtime.engine.schema_validator import validate_against_schema
 
 ReasonStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
 DecisionOutcome = Literal["ALLOW", "BLOCKED"]

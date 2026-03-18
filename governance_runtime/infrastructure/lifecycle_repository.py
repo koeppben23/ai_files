@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from governance.engine.lifecycle import rollback_engine_activation, stage_engine_activation
+from governance_runtime.engine.lifecycle import rollback_engine_activation, stage_engine_activation
 
 
 @dataclass(frozen=True)

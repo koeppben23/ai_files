@@ -4,9 +4,9 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from governance.application.ports.process_runner import ProcessResult, ProcessRunnerPort
-from governance.domain.errors.events import ErrorEvent
-from governance.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.application.ports.process_runner import ProcessResult, ProcessRunnerPort
+from governance_runtime.domain.errors.events import ErrorEvent
+from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 
 
 class LocalFS:

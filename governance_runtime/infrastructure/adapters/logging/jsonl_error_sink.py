@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.domain.errors.events import ErrorEvent
+from governance_runtime.domain.errors.events import ErrorEvent
 from governance.infrastructure.adapters.filesystem.atomic_write import atomic_write
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from dataclasses import dataclass, field
 
-from governance.application.ports.filesystem import FileSystemPort
+from governance_runtime.application.ports.filesystem import FileSystemPort
 
 
 @dataclass(frozen=True)

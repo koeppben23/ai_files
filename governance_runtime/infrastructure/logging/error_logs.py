@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 from typing import Any
 
-from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.logging.global_error_handler import emit_error_event, resolve_log_path
 
 

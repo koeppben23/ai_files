@@ -18,7 +18,7 @@ class CanonicalRootConfigResolver:
     def resolve_config_path(self) -> Path | None:
         """Resolve from canonical root (governance.paths.json)."""
         try:
-            from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+            from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
             resolver = BindingEvidenceResolver()
             evidence = resolver.resolve(mode=self._mode)
             if evidence.binding_ok and evidence.commands_home:

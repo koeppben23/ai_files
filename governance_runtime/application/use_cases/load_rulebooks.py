@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from governance.application.ports.rulebook_source import RulebookSourcePort
-from governance.domain.errors.events import ErrorEvent
-from governance.domain.models.rulebooks import RulebookSet
+from governance_runtime.application.ports.rulebook_source import RulebookSourcePort
+from governance_runtime.domain.errors.events import ErrorEvent
+from governance_runtime.domain.models.rulebooks import RulebookSet
 
 
 @dataclass(frozen=True)

@@ -1,3 +1,10 @@
+"""Canonical JSON utilities for governance runtime.
+
+.. deprecated::
+    Use governance_runtime.domain.canonical_json instead.
+    This module will be removed in a future release.
+"""
+
 from __future__ import annotations
 
 import hashlib

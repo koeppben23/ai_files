@@ -23,7 +23,7 @@ def _candidate_phase_api_paths() -> list[Path]:
     candidates: list[Path] = []
 
     try:
-        from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+        from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
         binding_resolver = BindingEvidenceResolver()
         evidence = binding_resolver.resolve(mode="kernel")
@@ -90,5 +90,5 @@ def load_phase_api_phases() -> list[Mapping[str, Any]]:
 
 def configure_phase_output_policy_loader() -> None:
     """Register the filesystem-based loader with the domain layer."""
-    from governance.domain.phase_state_machine import set_phase_api_loader
+    from governance_runtime.domain.phase_state_machine import set_phase_api_loader
     set_phase_api_loader(load_phase_api_phases)

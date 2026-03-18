@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from governance.infrastructure.path_contract import normalize_absolute_path
+from governance_runtime.infrastructure.path_contract import normalize_absolute_path
 
 SUPPORTED_BINDING_SCHEMAS = ("opencode-governance.paths.v1", "governance.paths.v1")
 

@@ -3,7 +3,7 @@
 Canonical implementation lives in `governance.domain.canonical_json`.
 """
 
-from governance.domain.canonical_json import (  # noqa: F401
+from governance_runtime.domain.canonical_json import (  # noqa: F401
     canonical_json_bytes,
     canonical_json_clone,
     canonical_json_hash,

@@ -1,3 +1,3 @@
 """Infrastructure selfcheck execution surface."""
 
-from governance.engine.selfcheck import run_engine_selfcheck  # noqa: F401
+from governance_runtime.engine.selfcheck import run_engine_selfcheck  # noqa: F401

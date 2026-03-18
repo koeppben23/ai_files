@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping
 
-from governance.engine.business_rules_validation import validate_inventory_markdown
+from governance_runtime.engine.business_rules_validation import validate_inventory_markdown
 from governance.infrastructure.session_pointer import is_session_pointer_document
 
 _CANONICAL_OUTCOMES = {"extracted", "gap-detected", "unresolved"}

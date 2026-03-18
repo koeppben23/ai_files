@@ -15,18 +15,18 @@ import os
 from pathlib import Path
 from typing import Any
 
-from governance.engine.canonical_json import canonical_json_clone, canonical_json_hash
-from governance.engine.reason_codes import (
+from governance_runtime.engine.canonical_json import canonical_json_clone, canonical_json_hash
+from governance_runtime.engine.reason_codes import (
     BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED,
     BLOCKED_STATE_OUTDATED,
     REASON_CODE_NONE,
     WARN_SESSION_STATE_LEGACY_COMPAT_MODE,
     WARN_SESSION_STATE_SCHEMA_VIOLATION,
 )
-from governance.engine.schema_validator import validate_against_schema
-from governance.engine._embedded_session_state_schema import SESSION_STATE_CORE_SCHEMA
-from governance.engine.session_state_invariants import validate_session_state_invariants
-from governance.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.engine.schema_validator import validate_against_schema
+from governance_runtime.engine._embedded_session_state_schema import SESSION_STATE_CORE_SCHEMA
+from governance_runtime.engine.session_state_invariants import validate_session_state_invariants
+from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 
 CURRENT_SESSION_STATE_VERSION = 1
 ROLLOUT_PHASE_DUAL_READ = 1

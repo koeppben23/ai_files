@@ -1,3 +1,10 @@
+"""Phase state machine for governance runtime.
+
+.. deprecated::
+    Use governance_runtime.domain.phase_state_machine instead.
+    This module will be removed in a future release.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

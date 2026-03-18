@@ -6,17 +6,17 @@ import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from governance.application.ports.filesystem import FileSystemPort
-from governance.application.ports.logger import ErrorLoggerPort
-from governance.application.ports.process_runner import ProcessRunnerPort
-from governance.application.ports.gateways import HostAdapter
+from governance_runtime.application.ports.filesystem import FileSystemPort
+from governance_runtime.application.ports.logger import ErrorLoggerPort
+from governance_runtime.application.ports.process_runner import ProcessRunnerPort
+from governance_runtime.application.ports.gateways import HostAdapter
 from governance.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
-from governance.domain.models.binding import Binding
-from governance.domain.models.layouts import WorkspaceLayout
-from governance.domain.models.repo_identity import RepoIdentity
+from governance_runtime.domain.models.binding import Binding
+from governance_runtime.domain.models.layouts import WorkspaceLayout
+from governance_runtime.domain.models.repo_identity import RepoIdentity
 from governance.domain.policies.write_policy import compute_write_policy
 
-from governance.domain.errors.events import ErrorEvent
+from governance_runtime.domain.errors.events import ErrorEvent
 
 
 ACTIVATION_INTENT_FILE = "governance.activation_intent.json"

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Mapping
 
-from governance.application.ports.gateways import build_reason_payload, canonicalize_reason_payload_failure
+from governance_runtime.application.ports.gateways import build_reason_payload, canonicalize_reason_payload_failure
 from governance.application.use_cases.session_state_helpers import extract_repo_identity
-from governance.domain.reason_codes import (
+from governance_runtime.domain.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
     BLOCKED_FINGERPRINT_MISMATCH,
     BLOCKED_MISSING_BINDING_FILE,
@@ -30,7 +30,7 @@ from governance.domain.reason_codes import (
 
 if TYPE_CHECKING:
     from pathlib import Path
-    from governance.application.ports.gateways import RepoDocEvidence
+    from governance_runtime.application.ports.gateways import RepoDocEvidence
 
 
 def build_hash_mismatch_diff(

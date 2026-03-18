@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple
 
 from governance.domain.audit_readout_contract import validate_audit_readout_v1
-from governance.domain.canonical_json import canonical_json_hash
+from governance_runtime.domain.canonical_json import canonical_json_hash
 from governance.domain.operating_profile import derive_mode_evidence
 
 POINTER_SCHEMA = "opencode-session-pointer.v1"

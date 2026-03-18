@@ -16,7 +16,7 @@ from governance.domain.operating_profile import (
 )
 
 if TYPE_CHECKING:
-    from governance.application.ports.gateways import HostAdapter, OperatingMode
+    from governance_runtime.application.ports.gateways import HostAdapter, OperatingMode
 
 
 _PROFILE_TO_RUNTIME_MODE: dict[str, "OperatingMode"] = {

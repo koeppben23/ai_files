@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from governance.domain.phase_state_machine import normalize_phase_token
-from governance.domain.reason_codes import (
+from governance_runtime.domain.phase_state_machine import normalize_phase_token
+from governance_runtime.domain.reason_codes import (
     PERSIST_CONFIRMATION_INVALID,
     PERSIST_CONFIRMATION_REQUIRED,
     PERSIST_DISALLOWED_IN_PIPELINE,

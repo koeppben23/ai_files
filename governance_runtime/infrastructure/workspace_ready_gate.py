@@ -31,7 +31,7 @@ import json
 import os
 import re
 
-from governance.domain.canonical_json import canonical_json_text
+from governance_runtime.domain.canonical_json import canonical_json_text
 from governance.infrastructure.session_pointer import (
     CANONICAL_POINTER_SCHEMA,
     LEGACY_POINTER_SCHEMAS,
@@ -39,7 +39,7 @@ from governance.infrastructure.session_pointer import (
     parse_pointer_payload,
     validate_fingerprint,
 )
-from governance.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 
 _LOCK_TTL_SECONDS: int = 120
 

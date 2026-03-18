@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+"""Atomic file system operations.
+
+.. deprecated::
+    Use governance_runtime.infrastructure.fs_atomic instead.
+    This module will be removed in a future release.
+"""
+
 import errno
 import json
 import os
+import time
 from pathlib import Path
 import tempfile
-import time
 from typing import Any, Callable, TypeVar
 
 T = TypeVar("T")

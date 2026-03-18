@@ -1,3 +1,8 @@
+"""Atomic file system operations.
+
+Canonical runtime implementation for atomic filesystem writes/replaces.
+"""
+
 from __future__ import annotations
 
 import errno

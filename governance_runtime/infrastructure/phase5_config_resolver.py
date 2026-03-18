@@ -13,7 +13,7 @@ class CanonicalRootPhase5ConfigResolver:
 
     def resolve_config_path(self) -> Path | None:
         try:
-            from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+            from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
             resolver = BindingEvidenceResolver()
             evidence = resolver.resolve(mode=self._mode)

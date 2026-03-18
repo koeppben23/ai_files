@@ -37,12 +37,12 @@ from governance.domain.model_identity import (
     infer_context_limit,
     is_known_model_id,
 )
-from governance.domain.reason_codes import (
+from governance_runtime.domain.reason_codes import (
     BLOCKED_MODEL_CONTEXT_LIMIT_INVALID,
     BLOCKED_MODEL_CONTEXT_LIMIT_REQUIRED,
     BLOCKED_MODEL_IDENTITY_UNTRUSTED,
 )
-from governance.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance.infrastructure.model_identity_resolver import resolve_from_environment
 
 

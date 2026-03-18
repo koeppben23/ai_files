@@ -52,6 +52,6 @@ class TestOpenCodeCommandSurface:
             "rules.md must NOT be in opencode/commands/ - it stays at root as compatibility surface"
 
     def test_root_rails_remain_for_backward_compatibility(self):
-        """Edge: Root Rails remain as temporary compatibility surface."""
+        """Edge: Root Rails have been definitively migrated to opencode/commands/."""
         root_rails = {f.name for f in REPO_ROOT.glob("*.md") if f.name in CANONICAL_RAILS}
-        assert len(root_rails) > 0, f"Root Rails must remain for backward compatibility, found: {root_rails}"
+        assert len(root_rails) == 0, f"Root Rails must NOT exist (migrated to opencode/commands/), found: {root_rails}"

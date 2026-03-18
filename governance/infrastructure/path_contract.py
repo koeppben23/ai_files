@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Path contract utilities.
+
+.. deprecated::
+    Use governance_runtime.infrastructure.path_contract instead.
+    This module will be removed in a future release.
+"""
+
 from dataclasses import dataclass
 import os
 from pathlib import Path

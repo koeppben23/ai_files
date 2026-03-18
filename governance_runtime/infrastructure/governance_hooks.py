@@ -39,7 +39,7 @@ from governance.infrastructure.governance_orchestrator import (
     build_governance_summary,
     run_governance_pipeline,
 )
-from governance.infrastructure.fs_atomic import atomic_write_json
+from governance_runtime.infrastructure.fs_atomic import atomic_write_json
 
 
 # ---------------------------------------------------------------------------

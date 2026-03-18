@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from governance.domain.models.rulebooks import RulebookRef
+from governance_runtime.domain.models.rulebooks import RulebookRef
 
 
 class RulebookSourcePort(Protocol):

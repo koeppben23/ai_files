@@ -1,3 +1,10 @@
+"""Workspace layout model.
+
+.. deprecated::
+    Use governance_runtime.domain.models.layouts instead.
+    This module will be removed in a future release.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

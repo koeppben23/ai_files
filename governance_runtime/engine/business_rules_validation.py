@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from governance.engine.business_rules_code_extraction import (
+from governance_runtime.engine.business_rules_code_extraction import (
     extract_code_rule_candidates_with_diagnostics,
     discover_code_surfaces,
 )
-from governance.engine.business_rules_coverage import (
+from governance_runtime.engine.business_rules_coverage import (
     RC_CODE_COVERAGE_INSUFFICIENT,
     RC_CODE_EXTRACTION_NOT_RUN,
     RC_CODE_TEMPLATE_OVERFIT,

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-from governance.infrastructure.path_contract import normalize_absolute_path
+from governance_runtime.infrastructure.path_contract import normalize_absolute_path
 
 
 class CanonicalPathError(RuntimeError):

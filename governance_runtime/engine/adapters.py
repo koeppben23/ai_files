@@ -15,9 +15,9 @@ import subprocess
 import sys
 from typing import Literal, Mapping, Protocol, Sequence
 
-from governance.engine.canonical_json import canonical_json_hash
-from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
-from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
+from governance_runtime.engine.canonical_json import canonical_json_hash
+from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance_runtime.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
 
 
 CwdTrustLevel = Literal["trusted", "untrusted"]

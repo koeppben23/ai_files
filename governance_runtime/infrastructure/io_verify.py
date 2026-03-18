@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Dict, Mapping, Optional, Tuple
 
-from governance.domain.canonical_json import canonical_json_hash
+from governance_runtime.domain.canonical_json import canonical_json_hash
 from governance.domain.operating_profile import derive_mode_evidence
 
 

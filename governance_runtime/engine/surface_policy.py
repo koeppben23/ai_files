@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from governance.engine.adapters import HostCapabilities, OperatingMode
+from governance_runtime.engine.adapters import HostCapabilities, OperatingMode
 
 SurfaceCapabilityKey = Literal[
     "fs_write_workspaces_home",

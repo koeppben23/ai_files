@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from governance.domain.models.policy_mode import PolicyMode
+from governance_runtime.domain.models.policy_mode import PolicyMode
 
 
 @dataclass(frozen=True)

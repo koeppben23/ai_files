@@ -16,10 +16,10 @@ from governance.application.policies.persistence_policy import (
     can_write as can_write_persistence,
 )
 from governance.application.use_cases.session_state_helpers import session_state_root
-from governance.domain.reason_codes import REASON_CODE_NONE
+from governance_runtime.domain.reason_codes import REASON_CODE_NONE
 
 if TYPE_CHECKING:
-    from governance.application.ports.gateways import OperatingMode
+    from governance_runtime.application.ports.gateways import OperatingMode
 
 
 WORKSPACE_MEMORY_CONFIRMATION = "Persist to workspace memory: YES"

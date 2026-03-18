@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping
 
-from governance.domain.canonical_json import canonical_json_hash
+from governance_runtime.domain.canonical_json import canonical_json_hash
 from governance.domain.access_control import Action, AccessDecision, Role, evaluate_access
 from governance.domain.operating_profile import runtime_mode_to_operating_profile
-from governance.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance.infrastructure.io_verify import verify_run_archive
 from governance.infrastructure.run_audit_artifacts import (
     build_checksums,

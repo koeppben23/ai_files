@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.domain.canonical_json import canonical_json_hash
+from governance_runtime.domain.canonical_json import canonical_json_hash
 
 def hash_payload(payload: dict[str, object]) -> str:
     return canonical_json_hash(payload)

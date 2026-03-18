@@ -1,5 +1,9 @@
 """Canonical governance reason-code registry.
 
+.. deprecated::
+    Use governance_runtime.domain.reason_codes instead.
+    This module will be removed in a future release.
+
 SSOT for all reason codes referenced by kernel-owned configs/schemas and
 profile/addon rulebooks.
 

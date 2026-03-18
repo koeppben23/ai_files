@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from governance.domain.canonical_json import canonical_json_text
-from governance.domain.reason_codes import PERSIST_DISALLOWED_IN_PIPELINE, REASON_CODE_NONE
-from governance.domain.reason_codes import PERSIST_CONFIRMATION_INVALID
-from governance.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.domain.canonical_json import canonical_json_text
+from governance_runtime.domain.reason_codes import PERSIST_DISALLOWED_IN_PIPELINE, REASON_CODE_NONE
+from governance_runtime.domain.reason_codes import PERSIST_CONFIRMATION_INVALID
+from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 
 
 @dataclass(frozen=True)

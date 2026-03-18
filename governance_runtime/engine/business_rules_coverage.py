@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Iterable, Mapping
 
-from governance.engine.business_rules_code_extraction import CodeSurface
+from governance_runtime.engine.business_rules_code_extraction import CodeSurface
 
 
 RC_CODE_EXTRACTION_NOT_RUN = "BUSINESS_RULES_CODE_EXTRACTION_NOT_RUN"

@@ -4,7 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from governance.domain.models.write_action import WriteAction
+from governance_runtime.domain.models.write_action import WriteAction
 
 
 def atomic_write(path: Path, content: str) -> None:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import Mapping
 
-from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
+from governance_runtime.domain.phase_state_machine import normalize_phase_token, phase_rank
 
 
 _PATH_FIELD_SUFFIXES = ("Path", "FilePath")

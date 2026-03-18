@@ -16,8 +16,8 @@ try:
 except Exception:  # pragma: no cover
     yaml = None  # type: ignore
 
-from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
-from governance.infrastructure.path_contract import normalize_absolute_path
+from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance_runtime.infrastructure.path_contract import normalize_absolute_path
 
 
 class PolicyBundleError(RuntimeError):

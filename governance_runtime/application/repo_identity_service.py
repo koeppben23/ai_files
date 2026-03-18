@@ -7,7 +7,7 @@ import re
 from typing import Literal
 from urllib.parse import urlsplit
 
-from governance.common.path_normalization import normalize_for_fingerprint
+from governance_runtime.common.path_normalization import normalize_for_fingerprint
 
 
 @dataclass(frozen=True)

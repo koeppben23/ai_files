@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Mapping
 
-from governance.engine.schema_validator import validate_against_schema
+from governance_runtime.engine.schema_validator import validate_against_schema
 
 
 _RFC3339_UTC_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")

@@ -12,7 +12,7 @@ try:
 except Exception:  # pragma: no cover
     yaml = None  # type: ignore
 
-from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
 
 class PhaseApiSpecError(RuntimeError):

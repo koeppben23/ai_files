@@ -93,7 +93,7 @@ def is_content_file(path: Path) -> bool:
     - Machine specs (.yaml, .yml, .json) - use spec_classifier
     - Commands (see command surface)
     """
-    from governance.engine.spec_classifier import is_spec_file as is_spec
+    from governance_runtime.engine.spec_classifier import is_spec_file as is_spec
     
     path = Path(path.as_posix() if hasattr(path, 'as_posix') else str(path))
     path_str = path.as_posix()

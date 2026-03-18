@@ -1,6 +1,6 @@
 """Infrastructure runtime activation surface."""
 
-from governance.engine.runtime import (  # noqa: F401
+from governance_runtime.engine.runtime import (  # noqa: F401
     EngineDeviation,
     EngineRuntimeDecision,
     LiveEnablePolicy,

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Callable, Literal, Mapping
 
-from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
+from governance_runtime.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
 
 
 _SUPPORTED_BINDING_SCHEMAS: tuple[str, ...] = (

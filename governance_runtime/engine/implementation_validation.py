@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from governance.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 
 
 RC_EXECUTOR_NOT_CONFIGURED = "IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED"

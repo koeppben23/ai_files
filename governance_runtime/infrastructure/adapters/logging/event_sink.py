@@ -6,7 +6,7 @@ from pathlib import Path
 import time
 from typing import Any
 
-from governance.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 
 
 def _append_line_with_lock(path: Path, line: str) -> None:

@@ -1,6 +1,13 @@
-"""Backward-compatible import surface for phase next-action contract."""
+"""Backward-compatible import surface for phase next-action contract.
 
-from governance.application.dto.phase_next_action_contract import (  # noqa: F401
+.. deprecated::
+    Use governance_runtime.engine.phase_next_action_contract instead.
+    This module will be removed in a future release.
+"""
+
+from __future__ import annotations
+
+from governance_runtime.application.dto.phase_next_action_contract import (  # noqa: F401
     contains_any,
     contains_scope_prompt,
     contains_ticket_prompt,

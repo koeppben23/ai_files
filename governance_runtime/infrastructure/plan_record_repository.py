@@ -29,7 +29,7 @@ from governance.application.policies.persistence_policy import (
     PersistencePolicyInput,
     can_write,
 )
-from governance.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 
 
 # ---------------------------------------------------------------------------

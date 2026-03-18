@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import re
 
-from governance.common.path_normalization import normalize_for_fingerprint
+from governance_runtime.common.path_normalization import normalize_for_fingerprint
 from typing import Literal
 
 

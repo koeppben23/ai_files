@@ -1,8 +1,13 @@
-"""Deterministic phase/next-action alignment contract checks."""
+"""Deterministic phase/next-action alignment contract checks.
+
+.. deprecated::
+    Use governance_runtime.application.dto.phase_next_action_contract instead.
+    This module will be removed in a future release.
+"""
 
 from __future__ import annotations
 
-from governance.domain.phase_state_machine import (
+from governance_runtime.domain.phase_state_machine import (
     normalize_phase_token,
     phase_rank as _phase_rank,
     phase_requires_ticket_input as _phase_requires_ticket_input,

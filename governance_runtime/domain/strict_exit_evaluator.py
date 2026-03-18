@@ -25,7 +25,7 @@ from governance.domain.evidence_policy import (
     parse_observed_at,
     resolve_ttl_seconds,
 )
-from governance.domain.reason_codes import (
+from governance_runtime.domain.reason_codes import (
     BLOCKED_STRICT_EVIDENCE_MISSING,
     BLOCKED_STRICT_EVIDENCE_STALE,
     BLOCKED_STRICT_THRESHOLD,

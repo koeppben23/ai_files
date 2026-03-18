@@ -9,10 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from governance.engine.gate_evaluator import GateEvaluation, evaluate_gate
-from governance.engine.reason_codes import BLOCKED_ENGINE_SELFCHECK, REASON_CODE_NONE, WARN_ENGINE_LIVE_DENIED
-from governance.engine.selfcheck import EngineSelfcheckResult, run_engine_selfcheck
-from governance.engine.state_machine import EngineState, build_state
+from governance_runtime.engine.gate_evaluator import GateEvaluation, evaluate_gate
+from governance_runtime.engine.reason_codes import BLOCKED_ENGINE_SELFCHECK, REASON_CODE_NONE, WARN_ENGINE_LIVE_DENIED
+from governance_runtime.engine.selfcheck import EngineSelfcheckResult, run_engine_selfcheck
+from governance_runtime.engine.state_machine import EngineState, build_state
 
 EngineRuntimeMode = Literal["shadow", "live"]
 LiveEnablePolicy = Literal["ci_strict", "auto_degrade"]

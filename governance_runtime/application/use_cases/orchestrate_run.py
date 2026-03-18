@@ -14,7 +14,7 @@ from governance.domain.evidence_policy import extract_verified_claim_evidence_id
 from governance.domain.integrity import build_activation_hash, build_ruleset_hash
 from governance.domain.policy_precedence import resolve_widening_precedence
 from governance.domain.strict_exit_evaluator import StrictExitResult
-from governance.domain.reason_codes import (
+from governance_runtime.domain.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
     BLOCKED_ACTIVATION_HASH_MISMATCH,
     BLOCKED_MISSING_BINDING_FILE,
@@ -48,7 +48,7 @@ from governance.domain.reason_codes import (
     REASON_CODE_NONE,
     WARN_PERMISSION_LIMITED,
 )
-from governance.application.ports.gateways import (
+from governance_runtime.application.ports.gateways import (
     RepoDocEvidence,
     HostAdapter,
     OperatingMode,

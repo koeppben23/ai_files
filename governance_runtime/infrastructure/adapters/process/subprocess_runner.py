@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import subprocess
 
-from governance.application.ports.process_runner import ProcessResult
+from governance_runtime.application.ports.process_runner import ProcessResult
 
 
 class SubprocessRunner:

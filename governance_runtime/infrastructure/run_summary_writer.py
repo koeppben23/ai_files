@@ -15,7 +15,7 @@ try:
 except Exception:  # pragma: no cover
     yaml = None  # type: ignore
 
-from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
 
 def compute_run_id(session_state: Mapping[str, Any], timestamp: str) -> str:
@@ -289,7 +289,7 @@ def write_run_summary(
 
     run_file = runs_dir / f"{summary['run_id']}.json"
 
-    from governance.infrastructure.fs_atomic import atomic_write_json
+    from governance_runtime.infrastructure.fs_atomic import atomic_write_json
 
     atomic_write_json(run_file, summary, ensure_ascii=True, indent=2)
 

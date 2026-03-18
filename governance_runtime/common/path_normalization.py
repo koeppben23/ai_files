@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-"""Path normalization utilities.
-
-.. deprecated::
-    Use governance_runtime.common.path_normalization instead.
-    This module will be removed in a future release.
-"""
-
 import os
 from pathlib import Path
 

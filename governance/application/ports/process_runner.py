@@ -1,3 +1,10 @@
+"""Process runner port interface.
+
+.. deprecated::
+    Use governance_runtime.application.ports.process_runner instead.
+    This module will be removed in a future release.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

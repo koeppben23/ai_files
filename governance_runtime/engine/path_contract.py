@@ -3,7 +3,7 @@
 Canonical implementation lives in `governance.infrastructure.path_contract`.
 """
 
-from governance.infrastructure.path_contract import (  # noqa: F401
+from governance_runtime.infrastructure.path_contract import (  # noqa: F401
     BindingEvidenceLocation,
     NotAbsoluteError,
     PathContractError,

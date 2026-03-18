@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Mapping
 
-from governance.engine.reason_codes import (
+from governance_runtime.engine.reason_codes import (
     BLOCKED_UNSPECIFIED,
     BLOCKED_P5_3_TEST_QUALITY_GATE,
     BLOCKED_P5_4_BUSINESS_RULES_GATE,
@@ -38,7 +38,7 @@ from governance.application.use_cases.validate_plan_compliance import (
     PlanComplianceReport,
     validate_plan_compliance,
 )
-from governance.engine.business_rules_hydration import has_br_signal
+from governance_runtime.engine.business_rules_hydration import has_br_signal
 
 GateStatus = Literal["blocked", "warn", "ok", "not_verified"]
 P53Status = Literal["pending", "pass", "pass-with-exceptions", "fail", "not-applicable"]

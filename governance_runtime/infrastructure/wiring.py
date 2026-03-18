@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from governance.application.ports.gateways import GatewayRegistry, set_gateway_registry
+from governance_runtime.application.ports.gateways import GatewayRegistry, set_gateway_registry
 from governance.application.policies.persistence_policy import configure_persistence_artifact_policy
 from governance.infrastructure.error_reason_router import canonicalize_reason_payload_failure
 from governance.infrastructure.phase4_config_resolver import configure_phase4_self_review_resolver

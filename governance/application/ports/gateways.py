@@ -1,5 +1,9 @@
 """Application ports for orchestrator use-case.
 
+.. deprecated::
+    Use governance_runtime.application.ports.gateways instead.
+    This module will be removed in a future release.
+
 This module defines pure contracts and dispatch wrappers. Concrete bindings are
 installed by infrastructure wiring at runtime.
 """

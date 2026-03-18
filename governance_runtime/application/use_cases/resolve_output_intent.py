@@ -29,7 +29,7 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
-from governance.domain.phase_state_machine import (
+from governance_runtime.domain.phase_state_machine import (
     PhaseOutputPolicy,
     PlanDiscipline,
     resolve_phase_output_policy,

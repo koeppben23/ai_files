@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+"""Binding evidence resolver.
+
+.. deprecated::
+    Use governance_runtime.infrastructure.binding_evidence_resolver instead.
+    This module will be removed in a future release.
+"""
+
 import os
 from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import Any, Callable, Literal, Mapping
 
-from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
+from governance_runtime.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
 
 
 _SUPPORTED_BINDING_SCHEMAS: tuple[str, ...] = (

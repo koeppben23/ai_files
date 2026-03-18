@@ -82,19 +82,23 @@ class TestInstalledTreeShape:
     # Files that MUST exist at REPO_ROOT (= source of commands/ in a dev checkout)
     # In the source tree, command files live at REPO_ROOT directly; the installer
     # copies them to ${CONFIG_ROOT}/commands/ on install.
-    # Note: master.md, rules.md, review.md moved to governance_content/ in Wave 15/20
+    # Note: master.md, rules.md, review.md moved to governance_content/ in Wave 15/20/26
     # Note: phase_api.yaml moved to governance_spec/ in Wave 21
+    # Note: Rails moved to opencode/commands/ in R1
     EXPECTED_SOURCE_FILES = [
         "governance_content/reference/master.md",  # was: master.md
         "governance_content/reference/rules.md",    # was: rules.md
         "governance_content/docs/review.md",       # was: review.md
         "governance_spec/phase_api.yaml",         # was: phase_api.yaml
+        "opencode/commands/continue.md",         # was: continue.md at root
+        "opencode/commands/review-decision.md",   # was: review-decision.md at root
+        "opencode/commands/implement.md",          # was: implement.md at root
+        "opencode/commands/plan.md",              # was: plan.md at root
+        "opencode/commands/ticket.md",             # was: ticket.md at root
+        "opencode/commands/audit-readout.md",      # was: audit-readout.md at root
+        "opencode/commands/review.md",             # was: review.md (command) at root
+        "opencode/commands/implementation-decision.md",  # was: implementation-decision.md at root
         "BOOTSTRAP.md",
-        "continue.md",
-        "review-decision.md",
-        "implement.md",
-        "plan.md",
-        "ticket.md",
         "README.md",
         "README-RULES.md",
         "README-OPENCODE.md",
@@ -102,7 +106,7 @@ class TestInstalledTreeShape:
     ]
 
     def test_happy_command_files_exist(self):
-        """Happy: All contract-listed command source files exist in the repo."""
+        """R1: All command source files are now in opencode/commands/."""
         missing = []
         for rel in self.EXPECTED_SOURCE_FILES:
             if not (REPO_ROOT / rel).is_file():

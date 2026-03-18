@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from governance.infrastructure.io_actions import ActionOutcome, WriteAction
-from governance.infrastructure.fs_atomic import safe_replace
+from governance_runtime.infrastructure.fs_atomic import safe_replace
 
 
 def atomic_write_text(path: Path, content: str, dry_run: bool = False) -> ActionOutcome:

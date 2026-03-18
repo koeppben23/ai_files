@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from governance.domain.phase_state_machine import (
+from governance_runtime.domain.phase_state_machine import (
     normalize_phase_token,
     phase_rank as _phase_rank,
     phase_requires_ticket_input as _phase_requires_ticket_input,
