@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from governance.domain.policies.gate_policy import persistence_gate, rulebook_gate
-from governance.domain.policies.phase_policy import normalize_phase_token
+from governance_runtime.domain.policies.gate_policy import persistence_gate, rulebook_gate
+from governance_runtime.domain.policies.phase_policy import normalize_phase_token
 
 
 @dataclass(frozen=True)

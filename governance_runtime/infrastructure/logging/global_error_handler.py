@@ -10,8 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, cast
 
-from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
-from governance.paths import get_workspace_logs_root
+from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event
+from governance_runtime.paths import get_workspace_logs_root
 
 
 _ERROR_CONTEXT: dict[str, Any] = {

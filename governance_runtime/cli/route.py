@@ -4,7 +4,7 @@ import argparse
 import json
 from typing import Optional
 
-from governance.application.use_cases.route_phase import RoutePhaseInput, RoutePhaseService
+from governance_runtime.application.use_cases.route_phase import RoutePhaseInput, RoutePhaseService
 
 
 def _parser() -> argparse.ArgumentParser:

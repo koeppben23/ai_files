@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from governance.domain.strict_exit_evaluator import StrictExitResult
-from governance.kernel.phase_kernel import RuntimeContext, api_in_scope as _api_in_scope, execute
-from governance.kernel.phase_kernel import _external_api_artifacts, _openapi_signal
+from governance_runtime.domain.strict_exit_evaluator import StrictExitResult
+from governance_runtime.kernel.phase_kernel import RuntimeContext, api_in_scope as _api_in_scope, execute
+from governance_runtime.kernel.phase_kernel import _external_api_artifacts, _openapi_signal
 
 
 @dataclass(frozen=True)

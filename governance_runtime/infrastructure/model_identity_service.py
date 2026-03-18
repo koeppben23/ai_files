@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from governance.domain.model_identity import (
+from governance_runtime.domain.model_identity import (
     ModelIdentity,
     ModelIdentitySource,
     TrustLevel,
@@ -43,7 +43,7 @@ from governance_runtime.domain.reason_codes import (
     BLOCKED_MODEL_IDENTITY_UNTRUSTED,
 )
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
-from governance.infrastructure.model_identity_resolver import resolve_from_environment
+from governance_runtime.infrastructure.model_identity_resolver import resolve_from_environment
 
 
 def _resolve_workspaces_home(workspaces_home: Path | None, config_root: Path | None) -> Path:

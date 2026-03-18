@@ -31,6 +31,6 @@ class CanonicalRootPhase5ConfigResolver:
 
 
 def configure_phase5_review_resolver(mode: str = "user") -> None:
-    from governance.application.use_cases.phase5_review_config import set_config_path_resolver
+    from governance_runtime.application.use_cases.phase5_review_config import set_config_path_resolver
 
     set_config_path_resolver(CanonicalRootPhase5ConfigResolver(mode=mode))

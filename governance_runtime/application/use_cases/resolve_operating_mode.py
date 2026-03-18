@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from governance.domain.operating_profile import (
+from governance_runtime.domain.operating_profile import (
     MISSING_OPERATING_MODE,
     EnforcementContext,
     OperatingProfileError,

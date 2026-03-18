@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from governance.application.policies.persistence_policy import (
+from governance_runtime.application.policies.persistence_policy import (
     ARTIFACT_WORKSPACE_MEMORY,
     PersistencePolicyInput,
     can_write,

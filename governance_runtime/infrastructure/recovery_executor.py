@@ -12,7 +12,7 @@ import hmac
 import hashlib
 from typing import Callable
 
-from governance.domain.failure_model import FailureReport, RecoveryStrategy
+from governance_runtime.domain.failure_model import FailureReport, RecoveryStrategy
 
 
 @dataclass(frozen=True)

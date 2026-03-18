@@ -20,7 +20,7 @@ from datetime import datetime
 from typing import Any, Callable, Final, Literal, Mapping, Sequence
 import math
 
-from governance.domain.evidence_policy import (
+from governance_runtime.domain.evidence_policy import (
     is_stale,
     parse_observed_at,
     resolve_ttl_seconds,

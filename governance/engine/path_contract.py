@@ -1,16 +1,6 @@
-"""Backward-compatible import surface for path contract.
+"""Legacy compatibility bridge for engine module `path_contract`.
 
-Canonical implementation lives in `governance.infrastructure.path_contract`.
+DEPRECATED: use governance_runtime.engine.path_contract.
 """
 
-from governance.infrastructure.path_contract import (  # noqa: F401
-    BindingEvidenceLocation,
-    NotAbsoluteError,
-    PathContractError,
-    WindowsDriveRelativeError,
-    binding_evidence_location,
-    canonical_config_root,
-    deterministic_home,
-    normalize_absolute_path,
-    normalize_for_fingerprint,
-)
+from governance_runtime.engine.path_contract import *  # noqa: F401,F403

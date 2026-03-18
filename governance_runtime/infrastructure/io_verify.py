@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, Mapping, Optional, Tuple
 
 from governance_runtime.domain.canonical_json import canonical_json_hash
-from governance.domain.operating_profile import derive_mode_evidence
+from governance_runtime.domain.operating_profile import derive_mode_evidence
 
 
 _RFC3339_UTC_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")

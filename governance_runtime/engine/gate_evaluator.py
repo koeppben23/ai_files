@@ -29,12 +29,12 @@ from governance_runtime.engine.reason_codes import (
     is_registered_reason_code,
 )
 
-from governance.domain.strict_exit_evaluator import (
+from governance_runtime.domain.strict_exit_evaluator import (
     StrictExitResult,
     evaluate_strict_exit,
 )
 
-from governance.application.use_cases.validate_plan_compliance import (
+from governance_runtime.application.use_cases.validate_plan_compliance import (
     PlanComplianceReport,
     validate_plan_compliance,
 )

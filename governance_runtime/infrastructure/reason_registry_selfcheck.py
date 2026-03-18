@@ -14,7 +14,7 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
         repo_root = Path(__file__).absolute().parents[2]
 
     try:
-        from governance.domain import reason_codes
+        from governance_runtime.domain import reason_codes
 
         domain_codes = set(reason_codes.CANONICAL_REASON_CODES)
         domain_blocked = {c for c in domain_codes if c.startswith("BLOCKED-")}

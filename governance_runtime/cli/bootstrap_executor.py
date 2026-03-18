@@ -8,7 +8,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Optional
 
-from governance.application.use_cases.repo_policy_setup import write_repo_operating_mode_policy
+from governance_runtime.application.use_cases.repo_policy_setup import write_repo_operating_mode_policy
 
 try:
     from governance_runtime.infrastructure.path_contract import normalize_absolute_path

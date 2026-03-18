@@ -1,6 +1,6 @@
-"""Backward-compatible import surface for audit readout contract."""
+"""Legacy compatibility bridge for engine module `audit_readout_contract`.
 
-from governance.domain.audit_readout_contract import (  # noqa: F401
-    AUDIT_READOUT_SCHEMA_V1,
-    validate_audit_readout_v1,
-)
+DEPRECATED: use governance_runtime.engine.audit_readout_contract.
+"""
+
+from governance_runtime.engine.audit_readout_contract import *  # noqa: F401,F403

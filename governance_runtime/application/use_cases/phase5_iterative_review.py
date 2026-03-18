@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Sequence, Any
 
-from governance.application.use_cases.phase5_review_config import (
+from governance_runtime.application.use_cases.phase5_review_config import (
     OperatingMode,
     Phase5ReviewConfig,
     load_phase5_review_config,

@@ -24,10 +24,10 @@ import hashlib
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
-from governance.domain.classification import ClassificationLevel
+from governance_runtime.domain.classification import ClassificationLevel
 from governance_runtime.engine.sanitization import sanitize_for_output
 from governance_runtime.domain.canonical_json import canonical_json_text
-from governance.domain.retention import (
+from governance_runtime.domain.retention import (
     ArchiveExportManifest,
     ArchiveFormat,
     LegalHold,
@@ -35,7 +35,7 @@ from governance.domain.retention import (
     RestoreValidation,
 )
 from governance_runtime.infrastructure.fs_atomic import atomic_write_json, atomic_write_text
-from governance.infrastructure.redaction import redact_archive
+from governance_runtime.infrastructure.redaction import redact_archive
 
 
 # ---------------------------------------------------------------------------

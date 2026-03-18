@@ -27,18 +27,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
-from governance.infrastructure.work_run_archive import (
+from governance_runtime.infrastructure.work_run_archive import (
     WorkRunArchiveResult,
     archive_active_run,
 )
-from governance.infrastructure.governance_hooks import (
+from governance_runtime.infrastructure.governance_hooks import (
     GovernanceHookResult,
     detect_regulated_mode,
     run_post_archive_governance,
 )
-from governance.infrastructure.workspace_paths import run_dir
-from governance.domain.access_control import Role
-from governance.domain.regulated_mode import RegulatedModeConfig
+from governance_runtime.infrastructure.workspace_paths import run_dir
+from governance_runtime.domain.access_control import Role
+from governance_runtime.domain.regulated_mode import RegulatedModeConfig
 
 
 # ---------------------------------------------------------------------------

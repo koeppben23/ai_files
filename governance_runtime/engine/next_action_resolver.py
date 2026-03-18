@@ -317,7 +317,7 @@ def _resolve_next_action_candidate(snapshot: Mapping[str, object]) -> NextAction
             )
         if gate == "rework clarification gate":
             if _review_clarification_has_input(snapshot):
-                from governance.application.use_cases.rework_clarification import (
+                from governance_runtime.application.use_cases.rework_clarification import (
                     classify_rework_clarification,
                     derive_next_rail,
                 )

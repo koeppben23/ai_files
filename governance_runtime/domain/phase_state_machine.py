@@ -199,7 +199,7 @@ def _load_phase_api_raw() -> list[Mapping[str, Any]]:
     if _phase_api_loader is None:
         # Auto-configure from infrastructure layer on first access
         try:
-            from governance.infrastructure.phase_api_output_policy_loader import configure_phase_output_policy_loader
+            from governance_runtime.infrastructure.phase_api_output_policy_loader import configure_phase_output_policy_loader
             configure_phase_output_policy_loader()
         except ImportError:
             pass

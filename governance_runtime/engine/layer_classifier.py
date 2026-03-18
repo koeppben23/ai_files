@@ -26,10 +26,10 @@ from __future__ import annotations
 from pathlib import Path
 from enum import Enum, auto
 
-from governance.engine import spec_classifier
-from governance.engine import content_classifier
-from governance.engine import command_surface
-from governance.engine import state_classifier
+from governance_runtime.engine import spec_classifier
+from governance_runtime.engine import content_classifier
+from governance_runtime.engine import command_surface
+from governance_runtime.engine import state_classifier
 
 
 class GovernanceLayer(Enum):

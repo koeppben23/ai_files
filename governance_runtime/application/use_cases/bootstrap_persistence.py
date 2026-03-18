@@ -10,11 +10,11 @@ from governance_runtime.application.ports.filesystem import FileSystemPort
 from governance_runtime.application.ports.logger import ErrorLoggerPort
 from governance_runtime.application.ports.process_runner import ProcessRunnerPort
 from governance_runtime.application.ports.gateways import HostAdapter
-from governance.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
+from governance_runtime.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
 from governance_runtime.domain.models.binding import Binding
 from governance_runtime.domain.models.layouts import WorkspaceLayout
 from governance_runtime.domain.models.repo_identity import RepoIdentity
-from governance.domain.policies.write_policy import compute_write_policy
+from governance_runtime.domain.policies.write_policy import compute_write_policy
 
 from governance_runtime.domain.errors.events import ErrorEvent
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from governance_runtime.domain.reason_codes import BLOCKED_INTEGRITY_FAILED
-from governance.infrastructure.artifact_integrity import verify_ruleset_integrity
+from governance_runtime.infrastructure.artifact_integrity import verify_ruleset_integrity
 from governance_runtime.infrastructure.fs_atomic import atomic_write_json
 
 

@@ -36,5 +36,5 @@ class CanonicalRootConfigResolver:
 
 def configure_phase4_self_review_resolver(mode: str = "user") -> None:
     """Configure the phase4_self_review module with infrastructure resolver."""
-    from governance.application.use_cases.phase4_self_review import set_config_path_resolver
+    from governance_runtime.application.use_cases.phase4_self_review import set_config_path_resolver
     set_config_path_resolver(CanonicalRootConfigResolver(mode=mode))

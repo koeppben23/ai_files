@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict
 
-from governance.infrastructure.io_actions import ActionOutcome, WriteAction
+from governance_runtime.infrastructure.io_actions import ActionOutcome, WriteAction
 from governance_runtime.infrastructure.fs_atomic import safe_replace
 
 

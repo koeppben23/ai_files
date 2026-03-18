@@ -10,10 +10,10 @@ import re
 from types import SimpleNamespace
 from typing import Any, Mapping
 
-from governance.domain.evidence_policy import extract_verified_claim_evidence_ids
-from governance.domain.integrity import build_activation_hash, build_ruleset_hash
-from governance.domain.policy_precedence import resolve_widening_precedence
-from governance.domain.strict_exit_evaluator import StrictExitResult
+from governance_runtime.domain.evidence_policy import extract_verified_claim_evidence_ids
+from governance_runtime.domain.integrity import build_activation_hash, build_ruleset_hash
+from governance_runtime.domain.policy_precedence import resolve_widening_precedence
+from governance_runtime.domain.strict_exit_evaluator import StrictExitResult
 from governance_runtime.domain.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
     BLOCKED_ACTIVATION_HASH_MISMATCH,
@@ -72,7 +72,7 @@ from governance_runtime.application.ports.gateways import (
     run_engine_selfcheck,
     summarize_classification,
 )
-from governance.application.policies.persistence_policy import (
+from governance_runtime.application.policies.persistence_policy import (
     ARTIFACT_BUSINESS_RULES,
     ARTIFACT_DECISION_PACK,
     ARTIFACT_REPO_CACHE,
@@ -81,34 +81,34 @@ from governance.application.policies.persistence_policy import (
     PersistencePolicyInput,
     can_write as can_write_persistence,
 )
-from governance.application.use_cases.phase_router import route_phase
-from governance.application.use_cases.resolve_operating_mode import (
+from governance_runtime.application.use_cases.phase_router import route_phase
+from governance_runtime.application.use_cases.resolve_operating_mode import (
     resolve_operating_mode_result,
     has_required_mode_capabilities,
 )
-from governance.application.use_cases.resolve_output_intent import (
+from governance_runtime.application.use_cases.resolve_output_intent import (
     ResolvedOutputIntent,
     resolve_output_intent,
 )
-from governance.application.use_cases.target_path_helpers import (
+from governance_runtime.application.use_cases.target_path_helpers import (
     VARIABLE_CAPTURE,
     extract_target_variable,
     is_code_output_request,
 )
-from governance.application.use_cases.session_state_helpers import (
+from governance_runtime.application.use_cases.session_state_helpers import (
     session_state_root,
     phase_token,
     extract_repo_identity,
     with_workspace_ready_gate,
     with_kernel_result,
 )
-from governance.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
-from governance.application.use_cases.evaluate_persistence_gate import (
+from governance_runtime.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
+from governance_runtime.application.use_cases.evaluate_persistence_gate import (
     PersistencePhaseGateDecision,
     WORKSPACE_MEMORY_CONFIRMATION,
     evaluate_phase_coupled_persistence,
 )
-from governance.application.use_cases.build_reason_context import (
+from governance_runtime.application.use_cases.build_reason_context import (
     build_hash_mismatch_diff,
     build_reason_context,
     build_orchestrator_reason_payload,

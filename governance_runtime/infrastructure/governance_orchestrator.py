@@ -31,38 +31,38 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
-from governance.domain.access_control import (
+from governance_runtime.domain.access_control import (
     AccessDecision,
     AccessEvaluation,
     Action,
     Role,
     evaluate_access,
 )
-from governance.domain.audit_contract import (
+from governance_runtime.domain.audit_contract import (
     AuditContractViolation,
     validate_cross_document_consistency,
     validate_run_lifecycle_invariants,
     validate_run_type_artifacts,
     validate_schema_identifier,
 )
-from governance.domain.classification import (
+from governance_runtime.domain.classification import (
     ClassificationLevel,
     get_classification_summary,
 )
-from governance.domain.failure_model import (
+from governance_runtime.domain.failure_model import (
     FailureReport,
     RecoveryStrategy,
     build_failure_report,
     failure_report_to_dict,
 )
-from governance.domain.regulated_mode import (
+from governance_runtime.domain.regulated_mode import (
     DEFAULT_CONFIG,
     RegulatedModeConfig,
     RegulatedModeEvaluation,
     evaluate_mode,
     regulated_mode_summary,
 )
-from governance.domain.retention import (
+from governance_runtime.domain.retention import (
     DeletionDecision,
     DeletionEvaluation,
     LegalHold,
@@ -72,14 +72,14 @@ from governance.domain.retention import (
     get_effective_retention_days,
     get_retention_summary,
 )
-from governance.infrastructure.archive_export import (
+from governance_runtime.infrastructure.archive_export import (
     export_finalized_bundle,
     load_legal_holds,
     validate_archive_for_export,
     ArchiveExportManifest,
 )
-from governance.infrastructure.redaction import redact_archive
-from governance.infrastructure.recovery_executor import (
+from governance_runtime.infrastructure.redaction import redact_archive
+from governance_runtime.infrastructure.recovery_executor import (
     RecoveryExecutionResult,
     build_resume_token,
     resume_recovery,

@@ -1,7 +1,6 @@
-"""Compatibility shim for the domain phase state machine."""
+"""Legacy compatibility bridge for engine module `state_machine`.
 
-from governance.domain.phase_state_machine import EnginePhaseState as EngineState
-from governance.domain.phase_state_machine import build_phase_state as build_state
-from governance.domain.phase_state_machine import transition_phase_state as transition_to
+DEPRECATED: use governance_runtime.engine.state_machine.
+"""
 
-__all__ = ["EngineState", "build_state", "transition_to"]
+from governance_runtime.engine.state_machine import *  # noqa: F401,F403

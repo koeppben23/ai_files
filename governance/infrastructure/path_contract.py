@@ -1,84 +1,28 @@
-from __future__ import annotations
+"""Legacy compatibility bridge for path contract utilities.
 
-"""Path contract utilities.
-
-.. deprecated::
-    Use governance_runtime.infrastructure.path_contract instead.
-    This module will be removed in a future release.
+DEPRECATED: use governance_runtime.infrastructure.path_contract.
 """
 
-from dataclasses import dataclass
-import os
-from pathlib import Path
-import re
+from governance_runtime.infrastructure.path_contract import (  # noqa: F401
+    BindingEvidenceLocation,
+    NotAbsoluteError,
+    PathContractError,
+    PathTraversalError,
+    WindowsDriveRelativeError,
+    binding_evidence_location,
+    canonical_config_root,
+    deterministic_home,
+    normalize_absolute_path,
+)
 
-from governance.common.path_normalization import normalize_for_fingerprint
-from typing import Literal
-
-
-class PathContractError(Exception):
-    pass
-
-
-class NotAbsoluteError(PathContractError):
-    pass
-
-
-class WindowsDriveRelativeError(PathContractError):
-    pass
-
-
-class PathTraversalError(PathContractError):
-    pass
-
-
-def deterministic_home() -> Path:
-    return Path.home().expanduser()
-
-
-def canonical_config_root(home: Path | None = None) -> Path:
-    base = home if home is not None else deterministic_home()
-    return Path(os.path.normpath(os.path.abspath(str(base.expanduser() / ".config" / "opencode"))))
-
-
-@dataclass(frozen=True)
-class BindingEvidenceLocation:
-    commands_home: Path | None
-    governance_paths_json: Path
-    source: Literal["canonical", "trusted_override"]
-
-
-def normalize_absolute_path(raw: str, *, purpose: str) -> Path:
-    token = str(raw or "").strip()
-    if not token:
-        raise NotAbsoluteError(f"{purpose}: empty path")
-    parts = Path(token).parts
-    if ".." in parts or "." in parts:
-        raise PathTraversalError(f"{purpose}: path traversal (.. or .) not allowed before normalization")
-    candidate = Path(token).expanduser()
-    if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
-        raise WindowsDriveRelativeError(f"{purpose}: drive-relative path is not allowed")
-    if not candidate.is_absolute():
-        raise NotAbsoluteError(f"{purpose}: path must be absolute")
-    return Path(os.path.normpath(os.path.abspath(str(candidate))))
-
-
-def binding_evidence_location(
-    *,
-    trusted_commands_root: str | None,
-    allow_trusted_override: bool,
-    mode: str,
-) -> BindingEvidenceLocation:
-    if allow_trusted_override and trusted_commands_root and str(mode).strip().lower() != "pipeline":
-        commands_home = normalize_absolute_path(trusted_commands_root, purpose="trusted_commands_root")
-        return BindingEvidenceLocation(
-            commands_home=commands_home,
-            governance_paths_json=commands_home / "governance.paths.json",
-            source="trusted_override",
-        )
-
-    return BindingEvidenceLocation(
-        commands_home=None,
-        governance_paths_json=canonical_config_root() / "commands" / "governance.paths.json",
-        source="canonical",
-    )
+__all__ = [
+    "BindingEvidenceLocation",
+    "NotAbsoluteError",
+    "PathContractError",
+    "PathTraversalError",
+    "WindowsDriveRelativeError",
+    "binding_evidence_location",
+    "canonical_config_root",
+    "deterministic_home",
+    "normalize_absolute_path",
+]

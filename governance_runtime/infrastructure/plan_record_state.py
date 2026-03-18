@@ -1,3 +1,5 @@
+"""Canonical runtime plan-record state resolution utilities."""
+
 from __future__ import annotations
 
 import json

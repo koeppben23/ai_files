@@ -4,7 +4,7 @@ import argparse
 import json
 from typing import Optional
 
-from governance.application.use_cases.artifact_backfill import (
+from governance_runtime.application.use_cases.artifact_backfill import (
     ArtifactBackfillInput,
     ArtifactBackfillService,
     ArtifactSpec,

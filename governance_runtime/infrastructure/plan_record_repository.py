@@ -24,7 +24,7 @@ from artifacts.writers.plan_record import (
     render_plan_record,
     stamp_version,
 )
-from governance.application.policies.persistence_policy import (
+from governance_runtime.application.policies.persistence_policy import (
     ARTIFACT_PLAN_RECORD,
     PersistencePolicyInput,
     can_write,

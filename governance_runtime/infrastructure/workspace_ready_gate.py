@@ -32,7 +32,7 @@ import os
 import re
 
 from governance_runtime.domain.canonical_json import canonical_json_text
-from governance.infrastructure.session_pointer import (
+from governance_runtime.infrastructure.session_pointer import (
     CANONICAL_POINTER_SCHEMA,
     LEGACY_POINTER_SCHEMAS,
     build_pointer_payload,

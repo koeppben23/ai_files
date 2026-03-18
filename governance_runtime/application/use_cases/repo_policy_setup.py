@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.application.repo_identity_service import derive_repo_identity
+from governance_runtime.application.repo_identity_service import derive_repo_identity
 
 
 def write_repo_operating_mode_policy(*, repo_root: Path, profile: str, now_utc: str) -> Path:

@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from governance.domain.model_identity import ModelIdentity, infer_context_limit, ModelIdentitySource
+from governance_runtime.domain.model_identity import ModelIdentity, infer_context_limit, ModelIdentitySource
 
 
 def resolve_from_environment() -> ModelIdentity | None:

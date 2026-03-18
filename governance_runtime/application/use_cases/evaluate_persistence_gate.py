@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Mapping
 
-from governance.application.policies.persistence_policy import (
+from governance_runtime.application.policies.persistence_policy import (
     ARTIFACT_BUSINESS_RULES,
     ARTIFACT_DECISION_PACK,
     ARTIFACT_PLAN_RECORD,
@@ -15,7 +15,7 @@ from governance.application.policies.persistence_policy import (
     PersistencePolicyInput,
     can_write as can_write_persistence,
 )
-from governance.application.use_cases.session_state_helpers import session_state_root
+from governance_runtime.application.use_cases.session_state_helpers import session_state_root
 from governance_runtime.domain.reason_codes import REASON_CODE_NONE
 
 if TYPE_CHECKING:

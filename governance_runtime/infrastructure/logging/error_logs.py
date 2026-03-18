@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
-from governance.infrastructure.logging.global_error_handler import emit_error_event, resolve_log_path
+from governance_runtime.infrastructure.logging.global_error_handler import emit_error_event, resolve_log_path
 
 
 def _read_only() -> bool:

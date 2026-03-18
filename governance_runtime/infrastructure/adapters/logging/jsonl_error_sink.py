@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from governance_runtime.domain.errors.events import ErrorEvent
-from governance.infrastructure.adapters.filesystem.atomic_write import atomic_write
+from governance_runtime.infrastructure.adapters.filesystem.atomic_write import atomic_write
 
 
 def write_error(path: Path, event: ErrorEvent) -> None:

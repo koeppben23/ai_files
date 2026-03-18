@@ -18,7 +18,7 @@ import hashlib
 import re
 from typing import Any, Mapping, Optional
 
-from governance.domain.classification import (
+from governance_runtime.domain.classification import (
     ClassificationLevel,
     FieldClassification,
     RedactionStrategy,

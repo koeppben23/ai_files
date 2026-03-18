@@ -25,14 +25,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Sequence
 
-from governance.domain.retention import (
+from governance_runtime.domain.retention import (
     DeletionDecision,
     DeletionEvaluation,
     LegalHold,
     LegalHoldStatus,
     evaluate_deletion,
 )
-from governance.domain.regulated_mode import (
+from governance_runtime.domain.regulated_mode import (
     DEFAULT_CONFIG,
     RegulatedModeConfig,
     evaluate_mode,

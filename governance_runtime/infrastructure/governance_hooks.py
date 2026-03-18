@@ -23,18 +23,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
-from governance.domain.access_control import Action, Role
-from governance.domain.regulated_mode import (
+from governance_runtime.domain.access_control import Action, Role
+from governance_runtime.domain.regulated_mode import (
     DEFAULT_CONFIG,
     RegulatedModeConfig,
     RegulatedModeState,
 )
-from governance.domain.retention import LegalHold
-from governance.infrastructure.governance_config_loader import (
+from governance_runtime.domain.retention import LegalHold
+from governance_runtime.infrastructure.governance_config_loader import (
     load_all_governance_configs,
     validate_all_governance_configs,
 )
-from governance.infrastructure.governance_orchestrator import (
+from governance_runtime.infrastructure.governance_orchestrator import (
     GovernancePipelineResult,
     build_governance_summary,
     run_governance_pipeline,

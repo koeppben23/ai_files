@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Mapping
 
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
-from governance.infrastructure.workspace_paths import current_run_path
+from governance_runtime.infrastructure.workspace_paths import current_run_path
 
 _POINTER_SCHEMA = "governance.current-run-pointer.v1"
 

@@ -1,21 +1,8 @@
-from __future__ import annotations
+"""Legacy compatibility bridge for path normalization.
 
-"""Path normalization utilities.
-
-.. deprecated::
-    Use governance_runtime.common.path_normalization instead.
-    This module will be removed in a future release.
+DEPRECATED: use governance_runtime.common.path_normalization.
 """
 
-import os
-from pathlib import Path
+from governance_runtime.common.path_normalization import normalize_for_fingerprint
 
-
-def normalize_for_fingerprint(path: Path) -> str:
-    """Return deterministic normalized path material for fingerprint hashing."""
-
-    normalized = os.path.normpath(os.path.abspath(str(path.expanduser())))
-    normalized = normalized.replace("\\", "/")
-    if os.name == "nt":
-        return normalized.casefold()
-    return normalized
+__all__ = ["normalize_for_fingerprint"]
