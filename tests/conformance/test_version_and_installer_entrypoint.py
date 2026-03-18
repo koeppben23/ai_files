@@ -26,13 +26,15 @@ class TestVersionSourceConformance:
         assert len(content) > 0, "governance_runtime/VERSION must not be empty"
 
     def test_version_source_for_compatibility(self):
-        """Legacy: VERSION at root or governance/ may exist for compatibility only."""
+        """Legacy VERSION files, if present, must mirror canonical runtime VERSION."""
         root_version = REPO_ROOT / "VERSION"
         gov_version = REPO_ROOT / "governance" / "VERSION"
-        
-        # These may exist but are not canonical anymore
-        # Canonical source is governance_runtime/VERSION
-        pass
+        canonical = (REPO_ROOT / "governance_runtime" / "VERSION").read_text(encoding="utf-8").strip()
+
+        if root_version.exists():
+            assert root_version.read_text(encoding="utf-8").strip() == canonical
+        if gov_version.exists():
+            assert gov_version.read_text(encoding="utf-8").strip() == canonical
 
 
 @pytest.mark.conformance
@@ -45,9 +47,11 @@ class TestInstallerEntrypointConformance:
         assert gr_install.exists(), "governance_runtime/install/install.py must exist as canonical entrypoint"
 
     def test_root_install_for_compatibility(self):
-        """Legacy: Root install.py may exist for compatibility only."""
+        """Root installer, if present, is compatibility surface while runtime installer is canonical."""
         root_install = REPO_ROOT / "install.py"
-        
-        # May exist but is not canonical anymore
-        # Canonical source is governance_runtime/install/install.py
-        pass
+        canonical = REPO_ROOT / "governance_runtime" / "install" / "install.py"
+        if root_install.exists():
+            root_content = root_install.read_text(encoding="utf-8")
+            canonical_content = canonical.read_text(encoding="utf-8")
+            assert "LLM Governance System - Installer" in root_content
+            assert "LLM Governance System - Installer" in canonical_content

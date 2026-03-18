@@ -75,16 +75,12 @@ def _candidate_log_paths(
     else:
         fp = _ERROR_CONTEXT.get("repo_fingerprint")
 
-    cmd_path = Path(cmd) if isinstance(cmd, str) else cmd
+    _ = cmd
     ws_path = Path(ws) if isinstance(ws, str) else ws
 
     candidates: list[Path] = []
     if fp and ws_path is not None:
         candidates.append(ws_path / fp / "logs" / "error.log.jsonl")
-    # Only create workspace candidate from fingerprint if workspaces_home was explicitly provided
-    # (not derived from config) - otherwise this creates false positives in tests
-    if cmd_path is not None:
-        candidates.append(cmd_path / "logs" / "error.log.jsonl")
     return candidates
 
 
