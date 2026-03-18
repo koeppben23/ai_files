@@ -10,7 +10,6 @@ DOC_FILES = [
     "governance/assets/catalogs/audit.md",
     "docs/phases.md",
     "docs/governance_invariants.md",
-    "docs/_archive/CLEANUP_ANALYSIS.md",
     "QUICKSTART.md",
     "SESSION_STATE_SCHEMA.md",
 ]
@@ -19,7 +18,6 @@ REQUIRED_PHRASE_DOCS = [
     "master.md",
     "docs/phases.md",
     "docs/governance_invariants.md",
-    "docs/_archive/CLEANUP_ANALYSIS.md",
     "QUICKSTART.md",
     "SESSION_STATE_SCHEMA.md",
 ]
