@@ -1,0 +1,51 @@
+{
+  "schema": "governance.ssot-guard-rules.v1",
+  "version": "1.0.0",
+  "policy": {
+    "owner": "kernel",
+    "default_md_role": "reference-only",
+    "fail_closed": true
+  },
+  "guards": [
+    {
+      "id": "kernel_owned_phase_api",
+      "source": "phase_api.yaml",
+      "owner": "kernel",
+      "md_references": ["master.md", "docs/phases.md"],
+      "severity": "high",
+      "notes": "Routing/phase transitions are kernel-owned. MD must be reference-only."
+    },
+    {
+      "id": "session_state_invariants",
+      "source": "governance/engine/session_state_invariants.py",
+      "owner": "kernel",
+      "md_references": ["SESSION_STATE_SCHEMA.md", "rules.md"],
+      "severity": "high",
+      "notes": "Invariants are enforced by kernel; MD must not restate normative logic."
+    },
+    {
+      "id": "bootstrap_preflight_contract",
+      "source": "governance/entrypoints/bootstrap_preflight_readonly.py",
+      "owner": "kernel",
+      "md_references": ["rules.md", "BOOTSTRAP.md"],
+      "severity": "high",
+      "notes": "Preflight/bootstrapping semantics are kernel-owned; MD is reference-only."
+    },
+    {
+      "id": "blocked_reason_catalog",
+      "source": "governance/assets/reasons/blocked_reason_catalog.yaml",
+      "owner": "kernel",
+      "md_references": ["master.md"],
+      "severity": "high",
+      "notes": "Blocked reason codes are kernel-owned list."
+    },
+    {
+      "id": "write_policy",
+      "source": "governance/entrypoints/write_policy.py",
+      "owner": "kernel",
+      "md_references": ["rules.md", "docs/governance_invariants.md"],
+      "severity": "medium",
+      "notes": "Write policy and read-only enforcement are kernel-owned."
+    }
+  ]
+}

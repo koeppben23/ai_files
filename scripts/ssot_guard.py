@@ -9,17 +9,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _docs_root() -> Path:
-    new_path = REPO_ROOT / "governance_content" / "docs"
-    if new_path.exists():
-        return new_path
-    return REPO_ROOT / "docs"
+    return REPO_ROOT / "governance_content" / "docs"
 
 
 def _catalog_path() -> Path:
-    new_path = REPO_ROOT / "governance_content" / "governance" / "assets" / "catalogs" / "SSOT_GUARD_RULES.json"
-    if new_path.exists():
-        return new_path
-    return REPO_ROOT / "governance" / "assets" / "catalogs" / "SSOT_GUARD_RULES.json"
+    return REPO_ROOT / "governance_content" / "governance" / "assets" / "catalogs" / "SSOT_GUARD_RULES.json"
 
 
 CATALOG_PATH = _catalog_path()
