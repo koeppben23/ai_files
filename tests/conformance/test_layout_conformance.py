@@ -403,3 +403,84 @@ class TestConfigRootSafety:
             src = bp_path.read_text(encoding="utf-8")
             assert "CONFIG_ROOT_INSIDE_REPO" in src or "config_root" in src.lower(), \
                 "bootstrap_persistence.py missing config-root safety check"
+
+
+# ---------------------------------------------------------------------------
+# Governance Layer Separation (Wave 18+)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.conformance
+class TestGovernanceLayerSeparation:
+    """Validate final directory layout for governance layer separation."""
+
+    def test_opencode_commands_directory_exists(self):
+        """Happy: opencode/commands/ directory exists."""
+        assert (REPO_ROOT / "opencode" / "commands").is_dir()
+
+    def test_opencode_plugins_directory_exists(self):
+        """Happy: opencode/plugins/ directory exists."""
+        assert (REPO_ROOT / "opencode" / "plugins").is_dir()
+
+    def test_opencode_config_directory_exists(self):
+        """Happy: opencode/config/ directory exists."""
+        assert (REPO_ROOT / "opencode" / "config").is_dir()
+
+    def test_governance_runtime_directory_exists(self):
+        """Happy: governance_runtime/ directory exists."""
+        assert (REPO_ROOT / "governance_runtime").is_dir()
+
+    def test_governance_runtime_has_cli(self):
+        """Happy: governance_runtime/cli/ exists."""
+        assert (REPO_ROOT / "governance_runtime" / "cli").is_dir()
+
+    def test_governance_runtime_has_scripts(self):
+        """Happy: governance_runtime/scripts/ exists."""
+        assert (REPO_ROOT / "governance_runtime" / "scripts").is_dir()
+
+    def test_governance_runtime_has_bin(self):
+        """Happy: governance_runtime/bin/ exists."""
+        assert (REPO_ROOT / "governance_runtime" / "bin").is_dir()
+
+    def test_governance_runtime_has_session_state(self):
+        """Happy: governance_runtime/session_state/ exists."""
+        assert (REPO_ROOT / "governance_runtime" / "session_state").is_dir()
+
+    def test_governance_runtime_has_install(self):
+        """Happy: governance_runtime/install/ exists."""
+        assert (REPO_ROOT / "governance_runtime" / "install").is_dir()
+
+    def test_governance_runtime_has_application(self):
+        """Happy: governance_runtime/application/ exists."""
+        assert (REPO_ROOT / "governance_runtime" / "application").is_dir()
+
+    def test_governance_runtime_has_domain(self):
+        """Happy: governance_runtime/domain/ exists."""
+        assert (REPO_ROOT / "governance_runtime" / "domain").is_dir()
+
+    def test_governance_runtime_has_engine(self):
+        """Happy: governance_runtime/engine/ exists."""
+        assert (REPO_ROOT / "governance_runtime" / "engine").is_dir()
+
+    def test_governance_runtime_has_infrastructure(self):
+        """Happy: governance_runtime/infrastructure/ exists."""
+        assert (REPO_ROOT / "governance_runtime" / "infrastructure").is_dir()
+
+    def test_governance_runtime_has_kernel(self):
+        """Happy: governance_runtime/kernel/ exists."""
+        assert (REPO_ROOT / "governance_runtime" / "kernel").is_dir()
+
+    def test_governance_content_reference_exists(self):
+        """Happy: governance_content/reference/ directory exists."""
+        assert (REPO_ROOT / "governance_content" / "reference").is_dir()
+
+    def test_governance_spec_contracts_exists(self):
+        """Happy: governance_spec/contracts/ directory exists."""
+        assert (REPO_ROOT / "governance_spec" / "contracts").is_dir()
+
+    def test_governance_spec_schemas_exists(self):
+        """Happy: governance_spec/schemas/ directory exists."""
+        assert (REPO_ROOT / "governance_spec" / "schemas").is_dir()
+
+    def test_governance_spec_config_exists(self):
+        """Happy: governance_spec/config/ directory exists."""
+        assert (REPO_ROOT / "governance_spec" / "config").is_dir()
