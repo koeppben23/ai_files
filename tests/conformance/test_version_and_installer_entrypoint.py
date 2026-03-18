@@ -16,34 +16,23 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 class TestVersionSourceConformance:
     """Validate version source requirements."""
 
-    def test_version_at_root_or_governance(self):
-        """Inventory: VERSION exists at root or governance/."""
-        root_version = REPO_ROOT / "VERSION"
-        gov_version = REPO_ROOT / "governance" / "VERSION"
-        
-        has_version = root_version.exists() or gov_version.exists()
-        assert has_version, "VERSION must exist at root or governance/"
-
-    def test_governance_runtime_version_recommended(self):
-        """Target: governance_runtime/VERSION should be the final source."""
-        # This documents the target - actual migration in 27b
+    def test_governance_runtime_version_exists(self):
+        """Target: governance_runtime/VERSION is the canonical source."""
         gr_version = REPO_ROOT / "governance_runtime" / "VERSION"
+        assert gr_version.exists(), "governance_runtime/VERSION must exist as canonical source"
         
-        # Currently may not exist - this is the target state
-        # The test documents intent
-        pass
+        # Should have valid semver content
+        content = gr_version.read_text(encoding="utf-8").strip()
+        assert len(content) > 0, "governance_runtime/VERSION must not be empty"
 
-    def test_no_duplicate_version_sources(self):
-        """Target: Only one version source should be canonical."""
-        # This test documents the intent for 27b
-        # Currently VERSION exists at both root and governance/
+    def test_version_source_for_compatibility(self):
+        """Legacy: VERSION at root or governance/ may exist for compatibility only."""
         root_version = REPO_ROOT / "VERSION"
         gov_version = REPO_ROOT / "governance" / "VERSION"
         
-        # Both exist currently - will be consolidated in 27b
-        if root_version.exists() and gov_version.exists():
-            # This is the current state - needs consolidation in 27b
-            pass
+        # These may exist but are not canonical anymore
+        # Canonical source is governance_runtime/VERSION
+        pass
 
 
 @pytest.mark.conformance
