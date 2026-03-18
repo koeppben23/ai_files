@@ -58,12 +58,12 @@ def get_ruleset_file(relative_path: str) -> Path:
 
 def get_master_path() -> Path:
     """Get master.md path (SSOT only)."""
-    return REPO_ROOT / "governance_content" / "master.md"
+    return REPO_ROOT / "governance_content" / "reference" / "master.md"
 
 
 def get_rules_path() -> Path:
     """Get rules.md path (SSOT only)."""
-    return REPO_ROOT / "governance_content" / "rules.md"
+    return REPO_ROOT / "governance_content" / "reference" / "rules.md"
 
 
 def get_phase_api_path() -> Path:
@@ -79,9 +79,9 @@ def get_review_path() -> Path:
 def _remap_legacy_relative_path(rel: str) -> str:
     """Map legacy repo-relative paths to new structure."""
     if rel == "master.md":
-        return "governance_content/master.md"
+        return "governance_content/reference/master.md"
     if rel == "rules.md":
-        return "governance_content/rules.md"
+        return "governance_content/reference/rules.md"
     if rel == "phase_api.yaml":
         return "governance_spec/phase_api.yaml"
     if rel.startswith("docs/"):

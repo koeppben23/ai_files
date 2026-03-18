@@ -88,7 +88,8 @@ def test_docs_ssot_clarification_present() -> None:
 
 
 def test_docs_do_not_claim_markdown_runtime_authority() -> None:
-    root = get_master_path().resolve().parent
+    from tests.util import get_docs_path
+    root = get_docs_path().resolve().parent
     forbidden = [
         re.compile(r"master\.md\s+is\s+the\s+system\s+source\s+of\s+truth", re.IGNORECASE),
         re.compile(r"master\.md\s+wins", re.IGNORECASE),
@@ -106,8 +107,8 @@ def test_docs_do_not_claim_markdown_runtime_authority() -> None:
 
 
 def test_install_layout_doc_has_required_structure() -> None:
-    root = get_master_path().resolve().parent
-    text = (root / "docs" / "install-layout.md").read_text(encoding="utf-8")
+    from tests.util import get_docs_path
+    text = (get_docs_path() / "install-layout.md").read_text(encoding="utf-8")
     required_markers = [
         "# Install Layout",
         "## Canonical Path Variables",
@@ -131,7 +132,7 @@ def test_desktop_phase4_plan_mode_guidance_is_present() -> None:
 
 
 def test_phase6_changes_requested_docs_match_rework_clarification_model() -> None:
-    root = get_master_path().resolve().parent
-    phases = (root / "docs" / "phases.md").read_text(encoding="utf-8")
+    from tests.util import get_docs_path
+    phases = (get_docs_path() / "phases.md").read_text(encoding="utf-8")
     assert "Rework Clarification Gate" in phases
     assert "Loop-reset within Phase 6" not in phases

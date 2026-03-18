@@ -23,9 +23,9 @@ FIELD_OWNERSHIP_PATH = _docs_root() / "governance" / "canonical_field_ownership.
 
 def _map_legacy_relpath(rel: str) -> str:
     if rel == "master.md":
-        return "governance_content/master.md"
+        return "governance_content/reference/master.md"
     if rel == "rules.md":
-        return "governance_content/rules.md"
+        return "governance_content/reference/rules.md"
     if rel == "phase_api.yaml":
         return "governance_spec/phase_api.yaml"
     if rel.startswith("docs/"):
