@@ -15,7 +15,14 @@ def _docs_root() -> Path:
     return REPO_ROOT / "docs"
 
 
-CATALOG_PATH = REPO_ROOT / "governance" / "assets" / "catalogs" / "SSOT_GUARD_RULES.json"
+def _catalog_path() -> Path:
+    new_path = REPO_ROOT / "governance_content" / "governance" / "assets" / "catalogs" / "SSOT_GUARD_RULES.json"
+    if new_path.exists():
+        return new_path
+    return REPO_ROOT / "governance" / "assets" / "catalogs" / "SSOT_GUARD_RULES.json"
+
+
+CATALOG_PATH = _catalog_path()
 MATRIX_PATH = _docs_root() / "governance" / "kernel_vs_docs_matrix.csv"
 FIELD_OWNERSHIP_PATH = _docs_root() / "governance" / "canonical_field_ownership.md"
 
@@ -95,7 +102,12 @@ def _validate_matrix_alignment(issues: list[str], guards: list[dict[str, object]
         if row:
             matrix_sources.add(row[0])
 
-    guard_sources = {guard.get("source") for guard in guards if isinstance(guard.get("source"), str)}
+    guard_sources = {
+        source
+        for guard in guards
+        for source in [guard.get("source")]
+        if isinstance(source, str)
+    }
     missing_in_matrix = sorted(source for source in guard_sources if source not in matrix_sources)
     if missing_in_matrix:
         issues.append("SSOT guard sources missing from kernel_vs_docs_matrix.csv: " + ", ".join(missing_in_matrix))
