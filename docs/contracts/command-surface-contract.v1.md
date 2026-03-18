@@ -1,1 +1,1 @@
-/Users/koeppben/work/ai_files/governance_content/docs/contracts/command-surface-contract.v1.md
+../../governance_content/docs/contracts/command-surface-contract.v1.md
