@@ -313,13 +313,21 @@ def _resolve_paths(runtime_ctx: RuntimeContext) -> tuple[Path | None, Path | Non
 
 
 def _resolve_flow_paths(commands_home: Path | None, workspaces_home: Path | None, repo_fingerprint: str) -> dict[str, Path]:
+    """Resolve flow log paths - workspace-only model.
+    
+    Wave 25b: Only return workspace log paths, no commands/logs/ fallback.
+    """
     paths: dict[str, Path] = {}
-    if commands_home is not None:
-        paths["commands_flow"] = commands_home / "logs" / "flow.log.jsonl"
-        paths["commands_boot"] = commands_home / "logs" / "boot.log.jsonl"
+    # Workspace-only paths (Wave 25b target)
     if workspaces_home is not None and repo_fingerprint:
         paths["workspace_events"] = workspaces_home / repo_fingerprint / "events.jsonl"
         paths["workspace_flow"] = get_workspace_logs_root(repo_fingerprint) / "flow.log.jsonl"
+        paths["workspace_boot"] = get_workspace_logs_root(repo_fingerprint) / "boot.log.jsonl"
+        paths["workspace_error"] = get_workspace_logs_root(repo_fingerprint) / "error.log.jsonl"
+    # Legacy paths kept for backward compatibility only - do NOT use for new writes
+    if commands_home is not None:
+        paths["commands_flow"] = commands_home / "logs" / "flow.log.jsonl"
+        paths["commands_boot"] = commands_home / "logs" / "boot.log.jsonl"
     return paths
 
 
