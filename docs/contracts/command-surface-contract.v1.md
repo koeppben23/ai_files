@@ -1,1 +1,0 @@
-../../governance_content/docs/contracts/command-surface-contract.v1.md

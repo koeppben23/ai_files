@@ -1,1 +1,0 @@
-../../governance_content/docs/contracts/python-binding-contract.v1.md
