@@ -1554,7 +1554,7 @@ def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks(
                     catalog_cmds.add(cmd)
 
     flow_files = [
-        REPO_ROOT / "master.md",
+        get_master_path(),
         REPO_ROOT / "BOOTSTRAP.md",
     ]
     flow_files.extend(sorted(PROFILES_DIR.glob("rules*.md")))

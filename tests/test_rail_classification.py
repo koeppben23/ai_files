@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_master_path
 
 # ---------------------------------------------------------------------------
 # Classification schema
@@ -427,7 +427,7 @@ class TestMasterMdContentGuards:
 
     @pytest.fixture(autouse=True)
     def _load_master(self) -> None:
-        self.path = REPO_ROOT / "master.md"
+        self.path = get_master_path()
         assert self.path.exists()
         self.content = self.path.read_text(encoding="utf-8")
 
