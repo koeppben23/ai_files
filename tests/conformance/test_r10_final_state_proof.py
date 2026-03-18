@@ -227,3 +227,19 @@ class TestR10FinalStateProof:
     def test_workspace_logs_only_write_targets(self) -> None:
         handler = (REPO_ROOT / "governance_runtime" / "infrastructure" / "logging" / "global_error_handler.py").read_text(encoding="utf-8")
         assert "cmd_path / \"logs\"" not in handler
+
+        runtime_installer = (REPO_ROOT / "governance_runtime" / "install" / "install.py").read_text(encoding="utf-8")
+        assert "<config_root>/commands/logs" not in runtime_installer
+
+    def test_no_planned_or_tbd_live_contracts(self) -> None:
+        contracts_root = REPO_ROOT / "governance_content" / "docs" / "contracts"
+        offenders: list[str] = []
+        for md in contracts_root.rglob("*.md"):
+            text = md.read_text(encoding="utf-8")
+            if re.search(r"^status:\s*planned\b", text, re.MULTILINE | re.IGNORECASE):
+                offenders.append(md.relative_to(REPO_ROOT).as_posix())
+            if re.search(r"^effective_version:\s*TBD\b", text, re.MULTILINE | re.IGNORECASE):
+                offenders.append(md.relative_to(REPO_ROOT).as_posix())
+            if re.search(r"^conformance_suite:\s*TBD\b", text, re.MULTILINE | re.IGNORECASE):
+                offenders.append(md.relative_to(REPO_ROOT).as_posix())
+        assert not offenders, f"planned/TBD live contracts remain: {sorted(set(offenders))}"

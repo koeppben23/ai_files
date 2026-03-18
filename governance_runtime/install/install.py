@@ -3079,12 +3079,10 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
 
 def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
     """
-    Remove installer/runtime-owned error log files:
-      - <config_root>/commands/logs/error.log.jsonl
-      - <config_root>/commands/logs/flow.log.jsonl
-      - <config_root>/commands/logs/boot.log.jsonl
+    Remove installer/runtime-owned error log files under workspace log roots:
       - <config_root>/workspaces/*/logs/error.log.jsonl
       - <config_root>/workspaces/*/logs/flow.log.jsonl
+      - <config_root>/workspaces/*/logs/boot.log.jsonl
       - legacy: <config_root>/logs/errors-*.jsonl
       - legacy: <config_root>/logs/errors-index.json
       - legacy: <config_root>/workspaces/*/logs/errors-*.jsonl
@@ -3637,7 +3635,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--keep-error-logs",
         action="store_true",
-        help="On uninstall: preserve runtime error logs under <config_root>/commands/logs and <config_root>/workspaces/*/logs (legacy <config_root>/logs paths may still exist).",
+        help="On uninstall: preserve runtime error logs under <config_root>/workspaces/*/logs (legacy <config_root>/logs paths may still exist).",
     )
     p.add_argument(
         "--keep-workspace-state",

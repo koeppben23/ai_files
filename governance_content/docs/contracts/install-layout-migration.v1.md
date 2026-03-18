@@ -1,17 +1,17 @@
 ---
 contract: install-layout-migration
 version: v1
-status: planned
+status: archived
 scope: Migration rules from install-layout v_current to v_next
 owner: install.py
-effective_version: TBD
+effective_version: archived
 supersedes: null
-conformance_suite: TBD
+conformance_suite: archived
 ---
 
 # Install Layout Migration Contract — v1
 
-> **Status:** planned | **Scope:** Per-migration rules for transitioning from v_current to v_next.
+> **Status:** archived | **Scope:** Historical migration draft for transitioning from v_current to v_next.
 > Each migration defines trigger, forward steps, backward compatibility, rollback, and fail-closed reason code.
 
 ## 1. Migration Index

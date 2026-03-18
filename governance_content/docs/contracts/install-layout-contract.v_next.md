@@ -1,17 +1,17 @@
 ---
 contract: install-layout
 version: v_next
-status: planned
+status: archived
 scope: Target install layout with state classification and dedicated pointer file
 owner: install.py + governance/infrastructure/workspace_paths.py
-effective_version: TBD
+effective_version: archived
 supersedes: install-layout-contract.v_current
-conformance_suite: TBD
+conformance_suite: archived
 ---
 
 # Install Layout Contract — v_next (Planned Evolution)
 
-> **Status:** planned | **This document describes the target architecture.**
+> **Status:** archived | **Historical target architecture draft (not live contract).**
 > **Nicht aktuell wirksam.** No element described here is implemented today.
 > See `install-layout-contract.v_current.md` for current reality.
 
