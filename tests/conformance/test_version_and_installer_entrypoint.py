@@ -39,18 +39,15 @@ class TestVersionSourceConformance:
 class TestInstallerEntrypointConformance:
     """Validate installer entrypoint requirements."""
 
-    def test_install_py_exists(self):
-        """Inventory: install.py exists at root or governance_runtime/install/."""
-        root_install = REPO_ROOT / "install.py"
+    def test_governance_runtime_install_canonical(self):
+        """Target: governance_runtime/install/install.py is the canonical entrypoint."""
         gr_install = REPO_ROOT / "governance_runtime" / "install" / "install.py"
-        
-        has_install = root_install.exists() or gr_install.exists()
-        assert has_install, "install.py must exist"
+        assert gr_install.exists(), "governance_runtime/install/install.py must exist as canonical entrypoint"
 
-    def test_governance_runtime_install_target(self):
-        """Target: install.py should eventually be at governance_runtime/install/install.py."""
-        # This documents the target - actual migration in 27c
-        gr_install = REPO_ROOT / "governance_runtime" / "install" / "install.py"
+    def test_root_install_for_compatibility(self):
+        """Legacy: Root install.py may exist for compatibility only."""
+        root_install = REPO_ROOT / "install.py"
         
-        # Currently exists at both locations
+        # May exist but is not canonical anymore
+        # Canonical source is governance_runtime/install/install.py
         pass
