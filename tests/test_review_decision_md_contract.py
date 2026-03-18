@@ -12,8 +12,8 @@ from .util import REPO_ROOT
 
 @pytest.mark.governance
 def test_review_decision_md_exists_and_documents_canonical_surface() -> None:
-    path = REPO_ROOT / "review-decision.md"
-    assert path.exists(), "review-decision.md must exist in repo root"
+    path = REPO_ROOT / "opencode" / "commands" / "review-decision.md"
+    assert path.exists(), "opencode/commands/review-decision.md must exist"
     content = path.read_text(encoding="utf-8")
     assert "--review-decision-persist" in content
     assert "governance.entrypoints.review_decision_persist" not in content

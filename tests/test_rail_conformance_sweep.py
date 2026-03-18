@@ -130,6 +130,12 @@ def _read(entry: _Entry) -> str:
 def _resolve_entry_path(rel_path: str) -> Path:
     if rel_path.startswith("docs/"):
         return DOCS_ROOT / rel_path[len("docs/"):]
+    if rel_path in {"master.md", "rules.md"}:
+        return REPO_ROOT / "governance_content" / rel_path
+    if "/" not in rel_path and rel_path.endswith(".md"):
+        command_path = REPO_ROOT / "opencode" / "commands" / rel_path
+        if command_path.exists():
+            return command_path
     return REPO_ROOT / rel_path
 
 
@@ -184,9 +190,7 @@ class TestInventoryExists:
         ids=[e.path for e in _ALL_ENFORCED],
     )
     def test_file_exists(self, entry: _Entry) -> None:
-        p = REPO_ROOT / entry.path
-        if entry.path.startswith("docs/"):
-            p = DOCS_ROOT / entry.path[len("docs/"):]
+        p = _resolve_entry_path(entry.path)
         assert p.is_file(), f"Inventoried file does not exist: {entry.path}"
 
 

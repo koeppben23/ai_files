@@ -108,18 +108,28 @@ def test_bootstrap_persistence_unresolved_identity_never_leaks_repo_root(tmp_pat
         origin=ExecResult(argv=("git",), cwd=str(repo), exit_code=0, stdout="", stderr=""),
     )
 
-    from governance.application.use_cases import bootstrap_session as sb
+    from governance_runtime.application.use_cases import bootstrap_persistence as bp
 
-    original = sb.derive_repo_identity
+    original = bp.evaluate_bootstrap_identity
     try:
         monkeypatch.setattr(
-            sb,
-            "derive_repo_identity",
-            lambda *args, **kwargs: type("Identity", (), {"fingerprint": ""})(),
+            bp,
+            "evaluate_bootstrap_identity",
+            lambda *args, **kwargs: type(
+                "Identity",
+                (),
+                {
+                    "repo_root": repo.resolve(),
+                    "repo_fingerprint": "",
+                    "discovery_method": "env:OPENCODE_REPO_ROOT",
+                    "workspace_ready": False,
+                    "reason": "identity-bootstrap-fingerprint-missing",
+                },
+            )(),
         )
         decision = decide_bootstrap_persistence(adapter=cast(HostAdapter, adapter))
     finally:
-        monkeypatch.setattr(sb, "derive_repo_identity", original)
+        monkeypatch.setattr(bp, "evaluate_bootstrap_identity", original)
 
     assert decision.workspace_ready is False
     assert decision.reason == "identity-bootstrap-fingerprint-missing"

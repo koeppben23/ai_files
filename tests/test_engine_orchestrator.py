@@ -974,7 +974,7 @@ def test_orchestrator_falls_back_to_engine_selfcheck_when_payload_builder_fails(
     def _raise(*args: object, **kwargs: object):
         raise ValueError("invalid reason payload:blocked_primary_action_required")
 
-    monkeypatch.setattr("governance.engine.orchestrator.build_reason_payload", _raise)
+    monkeypatch.setattr("governance_runtime.engine.orchestrator.build_reason_payload", _raise)
 
     out = run_engine_orchestrator(
         adapter=adapter,
@@ -1018,7 +1018,7 @@ def test_orchestrator_fallback_does_not_leak_exception_text(
     def _raise(*args: object, **kwargs: object):
         raise ValueError("reason_schema_missing:/abs/private/path/schema.json")
 
-    monkeypatch.setattr("governance.engine.orchestrator.build_reason_payload", _raise)
+    monkeypatch.setattr("governance_runtime.engine.orchestrator.build_reason_payload", _raise)
 
     out = run_engine_orchestrator(
         adapter=adapter,
@@ -1707,7 +1707,7 @@ def test_orchestrator_propagates_strict_exit_result(monkeypatch: pytest.MonkeyPa
         )
 
     monkeypatch.setattr(
-        "governance.application.use_cases.orchestrate_run.route_phase",
+        "governance_runtime.application.use_cases.orchestrate_run.route_phase",
         _fake_route_phase,
     )
 
@@ -1767,7 +1767,7 @@ def test_orchestrator_happy_populates_resolved_output_intent(
         )
 
     monkeypatch.setattr(
-        "governance.application.use_cases.orchestrate_run.route_phase",
+        "governance_runtime.application.use_cases.orchestrate_run.route_phase",
         _fake_route_phase,
     )
 
@@ -1829,7 +1829,7 @@ def test_orchestrator_corner_phase5_has_resolved_policy_status(
         )
 
     monkeypatch.setattr(
-        "governance.application.use_cases.orchestrate_run.route_phase",
+        "governance_runtime.application.use_cases.orchestrate_run.route_phase",
         _fake_route_phase,
     )
 
@@ -1889,7 +1889,7 @@ def test_orchestrator_edge_unbounded_phase_has_no_effective_policy(
         )
 
     monkeypatch.setattr(
-        "governance.application.use_cases.orchestrate_run.route_phase",
+        "governance_runtime.application.use_cases.orchestrate_run.route_phase",
         _fake_route_phase,
     )
 

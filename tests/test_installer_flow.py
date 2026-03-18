@@ -1302,8 +1302,8 @@ class TestRepoLauncherContractDrift:
 
     def test_bad_repo_wrapper_no_direct_entrypoint_module_in_docs(self) -> None:
         """Bad-path detector: canonical rail docs must not expose module names."""
-        plan_content = (REPO_ROOT / "plan.md").read_text(encoding="utf-8")
-        ticket_content = (REPO_ROOT / "ticket.md").read_text(encoding="utf-8")
+        plan_content = (REPO_ROOT / "opencode" / "commands" / "plan.md").read_text(encoding="utf-8")
+        ticket_content = (REPO_ROOT / "opencode" / "commands" / "ticket.md").read_text(encoding="utf-8")
         combined = (plan_content + "\n" + ticket_content)
         assert "--entrypoint governance.entrypoints." not in combined
 

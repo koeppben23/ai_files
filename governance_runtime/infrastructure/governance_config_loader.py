@@ -25,8 +25,13 @@ import yaml
 # ---------------------------------------------------------------------------
 
 def _assets_dir() -> Path:
-    """Locate the governance/assets directory relative to this module."""
-    return Path(__file__).parent.parent / "assets"
+    """Locate the governance assets directory relative to this module."""
+    module_root = Path(__file__).parent.parent
+    runtime_assets = module_root / "assets"
+    if runtime_assets.is_dir():
+        return runtime_assets
+    legacy_assets = module_root.parent / "governance" / "assets"
+    return legacy_assets
 
 
 def schemas_dir() -> Path:

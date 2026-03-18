@@ -33,6 +33,10 @@ def _read(relpath: str) -> str:
     new_path = REPO_ROOT / "governance_content" / relpath
     if new_path.exists():
         return read_text(new_path)
+    # Rail command markdown moved under opencode/commands/.
+    opencode_path = REPO_ROOT / "opencode" / "commands" / relpath
+    if opencode_path.exists():
+        return read_text(opencode_path)
     # Fall back to legacy
     p = REPO_ROOT / relpath
     try:

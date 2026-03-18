@@ -23,8 +23,24 @@ from tests.util import REPO_ROOT
 def _read(relpath: str) -> str:
     """Read a file relative to REPO_ROOT, fail fast if missing."""
     p = REPO_ROOT / relpath
-    assert p.exists(), f"Expected file not found: {relpath}"
-    return p.read_text(encoding="utf-8")
+    if p.exists():
+        return p.read_text(encoding="utf-8")
+
+    if relpath.startswith("docs/"):
+        migrated_docs = REPO_ROOT / "governance_content" / relpath
+        if migrated_docs.exists():
+            return migrated_docs.read_text(encoding="utf-8")
+
+    command_doc = REPO_ROOT / "opencode" / "commands" / Path(relpath).name
+    if command_doc.exists():
+        return command_doc.read_text(encoding="utf-8")
+
+    if relpath == "phase_api.yaml":
+        phase_api = REPO_ROOT / "governance_spec" / "phase_api.yaml"
+        if phase_api.exists():
+            return phase_api.read_text(encoding="utf-8")
+
+    assert False, f"Expected file not found: {relpath}"
 
 
 # ===================================================================

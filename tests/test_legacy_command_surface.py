@@ -6,6 +6,13 @@ from .util import REPO_ROOT
 
 
 def _read(relpath: str) -> str:
+    migrated = REPO_ROOT / "governance_content" / relpath
+    if migrated.exists():
+        return migrated.read_text(encoding="utf-8")
+    if relpath == "phase_api.yaml":
+        canonical = REPO_ROOT / "governance_spec" / "phase_api.yaml"
+        if canonical.exists():
+            return canonical.read_text(encoding="utf-8")
     return (REPO_ROOT / relpath).read_text(encoding="utf-8")
 
 

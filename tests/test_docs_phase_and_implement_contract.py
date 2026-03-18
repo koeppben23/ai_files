@@ -11,6 +11,9 @@ def _read(relpath: str) -> str:
     new_path = REPO / "governance_content" / relpath
     if new_path.exists():
         return new_path.read_text(encoding="utf-8")
+    opencode_path = REPO / "opencode" / "commands" / relpath
+    if opencode_path.exists():
+        return opencode_path.read_text(encoding="utf-8")
     return (REPO / relpath).read_text(encoding="utf-8")
 
 

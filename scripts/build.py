@@ -203,9 +203,16 @@ def _enforce_readme_baseline_claims(repo_root: Path) -> None:
             + ", ".join(sorted(missing_paths))
         )
 
-    reason_codes_path = repo_root / "governance" / "engine" / "reason_codes.py"
-    if not reason_codes_path.exists():
-        raise SystemExit("README baseline claims verification failed: governance/engine/reason_codes.py is missing")
+    reason_code_candidates = (
+        repo_root / "governance_runtime" / "domain" / "reason_codes.py",
+        repo_root / "governance" / "domain" / "reason_codes.py",
+    )
+    reason_codes_path = next((p for p in reason_code_candidates if p.exists()), None)
+    if reason_codes_path is None:
+        raise SystemExit(
+            "README baseline claims verification failed: reason code module missing "
+            "(expected governance_runtime/domain/reason_codes.py)"
+        )
     reason_codes_src = reason_codes_path.read_text(encoding="utf-8")
     missing_codes = [c for c in BASELINE_REQUIRED_REASON_CODES if c not in reason_codes_src]
     if missing_codes:
@@ -430,7 +437,7 @@ def _should_include_file(
     rel_legacy = _legacy_rel_alias(rel)
 
     def _is_governance_runtime_excluded(rel_path: str) -> bool:
-        if not rel_path.startswith("governance/"):
+        if not (rel_path.startswith("governance/") or rel_path.startswith("governance_runtime/")):
             return False
         parts = rel_path.split("/")
         if any(part in GOVERNANCE_EXCLUDE_DIRS for part in parts):
@@ -461,6 +468,12 @@ def _should_include_file(
     # Governance runtime should ship as a coherent tree, excluding only non-runtime artifacts.
     if rel.startswith("governance/"):
         return not _is_governance_runtime_excluded(rel)
+    if rel.startswith("governance_runtime/"):
+        if _is_governance_runtime_excluded(rel):
+            return False
+        if rel == "governance_runtime/VERSION":
+            return True
+        return p.suffix.lower() in {".py", ".json", ".yaml", ".yml", ".md"}
     # Bootstrap runtime modules required by governance entrypoints.
     if rel.startswith("bootstrap/") and p.suffix.lower() == ".py":
         return True
@@ -547,6 +560,7 @@ def _enforce_runtime_imports(files: Iterable[Path], repo_root: Path) -> None:
     import_re = re.compile(r"^\s*(?:from\s+([\w\.]+)|import\s+([\w\.]+))")
     allow_prefixes = (
         "governance.",
+        "governance_runtime.",
         "bootstrap.",
         "cli.",
         "yaml.",

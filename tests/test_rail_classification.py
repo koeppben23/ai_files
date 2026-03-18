@@ -71,6 +71,18 @@ RAIL_FILES: dict[str, dict[str, object]] = {
 CLASSIFICATION_RE = re.compile(r"<!--\s*rail-classification:\s*([^>]+)-->")
 
 
+def _rail_path(name: str) -> Path:
+    """Resolve canonical rail location under opencode/commands with legacy fallback."""
+    candidates = (
+        REPO_ROOT / "opencode" / "commands" / name,
+        REPO_ROOT / name,
+    )
+    for path in candidates:
+        if path.exists():
+            return path
+    return candidates[0]
+
+
 def _extract_classification(content: str) -> list[str] | None:
     """Extract classification tokens from rail-classification comment."""
     match = CLASSIFICATION_RE.search(content)
@@ -91,8 +103,8 @@ class TestRailClassificationHappy:
     @pytest.mark.parametrize("rail_name", list(RAIL_FILES.keys()))
     def test_classification_comment_exists(self, rail_name: str) -> None:
         """Each rail file must contain a rail-classification HTML comment."""
-        path = REPO_ROOT / rail_name
-        assert path.exists(), f"{rail_name} must exist in repo root"
+        path = _rail_path(rail_name)
+        assert path.exists(), f"{rail_name} must exist in opencode/commands/"
         content = path.read_text(encoding="utf-8")
         tokens = _extract_classification(content)
         assert tokens is not None, (
@@ -102,7 +114,7 @@ class TestRailClassificationHappy:
     @pytest.mark.parametrize("rail_name", list(RAIL_FILES.keys()))
     def test_classification_tokens_are_valid(self, rail_name: str) -> None:
         """All classification tokens must be from the allowed set."""
-        path = REPO_ROOT / rail_name
+        path = _rail_path(rail_name)
         content = path.read_text(encoding="utf-8")
         tokens = _extract_classification(content)
         assert tokens is not None
@@ -116,7 +128,7 @@ class TestRailClassificationHappy:
     def test_required_tokens_present(self, rail_name: str) -> None:
         """Each rail must contain its expected required classification tokens."""
         spec = RAIL_FILES[rail_name]
-        path = REPO_ROOT / rail_name
+        path = _rail_path(rail_name)
         content = path.read_text(encoding="utf-8")
         tokens = set(_extract_classification(content) or [])
         required = spec["required_tokens"]
@@ -130,7 +142,7 @@ class TestRailClassificationHappy:
     def test_forbidden_tokens_absent(self, rail_name: str) -> None:
         """Each rail must NOT contain forbidden classification tokens."""
         spec = RAIL_FILES[rail_name]
-        path = REPO_ROOT / rail_name
+        path = _rail_path(rail_name)
         content = path.read_text(encoding="utf-8")
         tokens = set(_extract_classification(content) or [])
         forbidden = spec["forbidden_tokens"]
@@ -152,7 +164,7 @@ class TestRailClassificationBad:
     @pytest.mark.parametrize("rail_name", list(RAIL_FILES.keys()))
     def test_no_contradictory_tokens(self, rail_name: str) -> None:
         """No rail may contain contradictory classification token pairs."""
-        path = REPO_ROOT / rail_name
+        path = _rail_path(rail_name)
         content = path.read_text(encoding="utf-8")
         tokens = set(_extract_classification(content) or [])
         for a, b in CONTRADICTORY_PAIRS:
@@ -164,7 +176,7 @@ class TestRailClassificationBad:
     @pytest.mark.parametrize("rail_name", list(RAIL_FILES.keys()))
     def test_classification_not_empty(self, rail_name: str) -> None:
         """Rail classification must not be empty."""
-        path = REPO_ROOT / rail_name
+        path = _rail_path(rail_name)
         content = path.read_text(encoding="utf-8")
         tokens = _extract_classification(content)
         assert tokens is not None and len(tokens) > 0, (
@@ -183,7 +195,7 @@ class TestRailClassificationEdge:
     @pytest.mark.parametrize("rail_name", list(RAIL_FILES.keys()))
     def test_classification_appears_exactly_once(self, rail_name: str) -> None:
         """The rail-classification comment must appear exactly once per file."""
-        path = REPO_ROOT / rail_name
+        path = _rail_path(rail_name)
         content = path.read_text(encoding="utf-8")
         matches = CLASSIFICATION_RE.findall(content)
         assert len(matches) == 1, (
@@ -194,7 +206,7 @@ class TestRailClassificationEdge:
     @pytest.mark.parametrize("rail_name", list(RAIL_FILES.keys()))
     def test_classification_appears_in_first_10_lines(self, rail_name: str) -> None:
         """Rail classification must appear near the top of the file (first 10 lines)."""
-        path = REPO_ROOT / rail_name
+        path = _rail_path(rail_name)
         content = path.read_text(encoding="utf-8")
         lines = content.split("\n")[:10]
         header = "\n".join(lines)
@@ -256,9 +268,9 @@ class TestRailClassificationLegacySurfaceGuard:
         assert "audit.md" not in RAIL_FILES
 
     def test_canonical_persist_subcommands_used_in_mutating_rails(self) -> None:
-        ticket = (REPO_ROOT / "ticket.md").read_text(encoding="utf-8")
-        plan = (REPO_ROOT / "plan.md").read_text(encoding="utf-8")
-        review_decision = (REPO_ROOT / "review-decision.md").read_text(encoding="utf-8")
+        ticket = _rail_path("ticket.md").read_text(encoding="utf-8")
+        plan = _rail_path("plan.md").read_text(encoding="utf-8")
+        review_decision = _rail_path("review-decision.md").read_text(encoding="utf-8")
         assert "--ticket-persist" in ticket
         assert "--plan-persist" in plan
         assert "--review-decision-persist" in review_decision
@@ -277,7 +289,7 @@ class TestRailClassificationLegacySurfaceGuard:
     @pytest.mark.parametrize("rail_name", list(RAIL_FILES.keys()))
     def test_classification_tokens_are_uppercase(self, rail_name: str) -> None:
         """All classification tokens must be UPPERCASE (canonical form)."""
-        path = REPO_ROOT / rail_name
+        path = _rail_path(rail_name)
         content = path.read_text(encoding="utf-8")
         tokens = _extract_classification(content)
         assert tokens is not None
@@ -289,7 +301,7 @@ class TestRailClassificationLegacySurfaceGuard:
     @pytest.mark.parametrize("rail_name", list(RAIL_FILES.keys()))
     def test_no_duplicate_tokens(self, rail_name: str) -> None:
         """No rail may declare the same classification token twice."""
-        path = REPO_ROOT / rail_name
+        path = _rail_path(rail_name)
         content = path.read_text(encoding="utf-8")
         tokens = _extract_classification(content)
         assert tokens is not None
@@ -312,7 +324,7 @@ class TestCrossRailConsistency:
     def _load_rails(self) -> None:
         self.contents: dict[str, str] = {}
         for name in self.BRIDGE_RAILS:
-            path = REPO_ROOT / name
+            path = _rail_path(name)
             assert path.exists(), f"{name} must exist"
             self.contents[name] = path.read_text(encoding="utf-8")
 
@@ -364,7 +376,7 @@ class TestCrossRailConsistency:
 
     def test_ticket_has_no_bridge_block(self) -> None:
         """ticket.md must NOT contain a kernel bridge block (it is MUTATING)."""
-        ticket_path = REPO_ROOT / "ticket.md"
+        ticket_path = _rail_path("ticket.md")
         content = ticket_path.read_text(encoding="utf-8")
         assert "GOVERNANCE KERNEL BRIDGE" not in content, (
             "ticket.md must NOT contain a kernel bridge block — "

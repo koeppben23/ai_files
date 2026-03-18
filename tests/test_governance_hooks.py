@@ -14,14 +14,14 @@ from pathlib import Path
 
 import pytest
 
-from governance.domain.access_control import Role
-from governance.domain.regulated_mode import (
+from governance_runtime.domain.access_control import Role
+from governance_runtime.domain.regulated_mode import (
     DEFAULT_CONFIG,
     RegulatedModeConfig,
     RegulatedModeState,
 )
-from governance.domain.retention import LegalHold, LegalHoldStatus
-from governance.infrastructure.governance_hooks import (
+from governance_runtime.domain.retention import LegalHold, LegalHoldStatus
+from governance_runtime.infrastructure.governance_hooks import (
     GovernanceHookResult,
     detect_regulated_mode,
     run_post_archive_governance,

@@ -225,7 +225,7 @@ class TestRuntimeEnforcementHappy:
         }
 
     def _make_kwargs(self, phase: str, requested_action: str | None = None) -> dict[str, Any]:
-        from governance.engine.response_contract import NextAction, Snapshot
+        from governance_runtime.engine.response_contract import NextAction, Snapshot
         return {
             "status": "OK",
             "session_state": self._make_session_state(phase),
@@ -236,24 +236,24 @@ class TestRuntimeEnforcementHappy:
         }
 
     def test_phase5_rejects_implementation(self) -> None:
-        from governance.engine.response_contract import build_strict_response
-        from governance.domain.phase_state_machine import clear_phase_output_policy_cache
+        from governance_runtime.engine.response_contract import build_strict_response
+        from governance_runtime.domain.phase_state_machine import clear_phase_output_policy_cache
         clear_phase_output_policy_cache()
         kwargs = self._make_kwargs("5-ArchitectureReview", requested_action="implement the feature")
         with pytest.raises(ValueError, match="forbidden"):
             build_strict_response(**kwargs)
 
     def test_phase5_rejects_code_delivery(self) -> None:
-        from governance.engine.response_contract import build_strict_response
-        from governance.domain.phase_state_machine import clear_phase_output_policy_cache
+        from governance_runtime.engine.response_contract import build_strict_response
+        from governance_runtime.domain.phase_state_machine import clear_phase_output_policy_cache
         clear_phase_output_policy_cache()
         kwargs = self._make_kwargs("5-ArchitectureReview", requested_action="deliver code to user")
         with pytest.raises(ValueError, match="forbidden"):
             build_strict_response(**kwargs)
 
     def test_phase5_allows_review(self) -> None:
-        from governance.engine.response_contract import build_strict_response
-        from governance.domain.phase_state_machine import clear_phase_output_policy_cache
+        from governance_runtime.engine.response_contract import build_strict_response
+        from governance_runtime.domain.phase_state_machine import clear_phase_output_policy_cache
         clear_phase_output_policy_cache()
         kwargs = self._make_kwargs("5-ArchitectureReview", requested_action="review architecture plan")
         # Should not raise
@@ -261,8 +261,8 @@ class TestRuntimeEnforcementHappy:
         assert result["mode"] == "STRICT"
 
     def test_phase5_allows_plan(self) -> None:
-        from governance.engine.response_contract import build_strict_response
-        from governance.domain.phase_state_machine import clear_phase_output_policy_cache
+        from governance_runtime.engine.response_contract import build_strict_response
+        from governance_runtime.domain.phase_state_machine import clear_phase_output_policy_cache
         clear_phase_output_policy_cache()
         kwargs = self._make_kwargs("5-ArchitectureReview", requested_action="plan the architecture approach")
         result = build_strict_response(**kwargs)
@@ -312,7 +312,7 @@ class TestPhase6TransitionHappy:
 
     def test_phase5_subtokens_inherit_policy(self) -> None:
         """5.* sub-tokens inherit output_policy from token '5'."""
-        from governance.domain.phase_state_machine import (
+        from governance_runtime.domain.phase_state_machine import (
             resolve_phase_output_policy,
             clear_phase_output_policy_cache,
         )
@@ -323,7 +323,7 @@ class TestPhase6TransitionHappy:
 
     def test_phase4_no_output_policy(self) -> None:
         """Token '4' must NOT have output_policy (different gating)."""
-        from governance.domain.phase_state_machine import (
+        from governance_runtime.domain.phase_state_machine import (
             resolve_phase_output_policy,
             clear_phase_output_policy_cache,
         )
@@ -344,35 +344,35 @@ class TestClassifyOutputClass:
     """Verify structural classification of requested actions."""
 
     def test_implement_classified_as_implementation(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("implement the feature") == "implementation"
 
     def test_review_classified_as_review(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("review architecture") == "review"
 
     def test_plan_classified_as_plan(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("plan the approach") == "plan"
 
     def test_patch_classified_as_patch(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("apply patch to module") == "patch"
 
     def test_diff_classified_as_diff(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("generate diff for changes") == "diff"
 
     def test_risk_classified_as_risk_analysis(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("risk analysis of migration") == "risk_analysis"
 
     def test_empty_defaults_to_safe_review_class(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("") == "review"
         assert classify_output_class(None) == "review"
 
     def test_unrecognized_action_fails_closed(self) -> None:
         """Unrecognized actions must fail-closed to 'implementation'."""
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("xyzzy frobulate the thing") == "implementation"

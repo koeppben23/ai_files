@@ -358,11 +358,12 @@ class TestRailDocFreeTextGuard:
 
     @pytest.fixture(autouse=True)
     def _load_rail_docs(self) -> None:
-        """Load continue.md, ticket.md, and plan.md from the repo root."""
+        """Load continue.md, ticket.md, and plan.md from opencode/commands/."""
         repo_root = Path(__file__).resolve().parent.parent
-        self.continue_md = (repo_root / "continue.md").read_text(encoding="utf-8")
-        self.ticket_md = (repo_root / "ticket.md").read_text(encoding="utf-8")
-        self.plan_md = (repo_root / "plan.md").read_text(encoding="utf-8")
+        commands_root = repo_root / "opencode" / "commands"
+        self.continue_md = (commands_root / "continue.md").read_text(encoding="utf-8")
+        self.ticket_md = (commands_root / "ticket.md").read_text(encoding="utf-8")
+        self.plan_md = (commands_root / "plan.md").read_text(encoding="utf-8")
 
     def test_continue_md_has_free_text_guard(self) -> None:
         """continue.md must contain the free-text guard section."""

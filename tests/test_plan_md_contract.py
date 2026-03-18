@@ -12,8 +12,8 @@ from .util import REPO_ROOT
 
 @pytest.mark.governance
 def test_plan_md_exists_and_documents_plan_persist_bridge() -> None:
-    plan_path = REPO_ROOT / "plan.md"
-    assert plan_path.exists(), "plan.md must exist in repo root"
+    plan_path = REPO_ROOT / "opencode" / "commands" / "plan.md"
+    assert plan_path.exists(), "opencode/commands/plan.md must exist"
     content = plan_path.read_text(encoding="utf-8")
     assert "--plan-persist" in content
     assert "phase5_plan_record_persist" not in content

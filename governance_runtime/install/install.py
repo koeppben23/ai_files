@@ -1192,20 +1192,28 @@ def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
     Collect governance runtime files for packaged state-machine execution.
     
     This function now uses the Governance API as the single source of truth.
-    It restricts collection to the governance/ directory.
+    It includes both governance/ legacy compatibility shims and
+    governance_runtime/ canonical runtime modules.
     
     Includes:
-    - Python files from governance/
-    - VERSION file from governance/
+    - Files from governance/
+    - Files from governance_runtime/
     
     Returns absolute paths (for compatibility with caller).
     """
-    runtime_dir = source_dir / GOVERNANCE_RUNTIME_DIR_NAME
-    if not runtime_dir.exists() or not runtime_dir.is_dir():
+    runtime_roots = [
+        source_dir / GOVERNANCE_RUNTIME_DIR_NAME,
+        source_dir / "governance_runtime",
+    ]
+
+    files: list[Path] = []
+    for runtime_dir in runtime_roots:
+        if not runtime_dir.exists() or not runtime_dir.is_dir():
+            continue
+        files.extend(p for p in runtime_dir.rglob("*") if p.is_file())
+
+    if not files:
         return []
-    
-    # Runtime payload includes the full governance package tree (code + assets).
-    files = [p for p in runtime_dir.rglob("*") if p.is_file()]
     
     result: list[Path] = []
     for f in files:

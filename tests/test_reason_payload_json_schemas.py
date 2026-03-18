@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-import governance.engine.reason_payload as reason_payload
-from governance.engine.reason_codes import (
+import governance_runtime.engine.reason_payload as reason_payload
+from governance_runtime.engine.reason_codes import (
     BLOCKED_EXEC_DISALLOWED,
     BLOCKED_STRICT_CONTRACT_MISSING,
     BLOCKED_STRICT_EVIDENCE_MISSING,

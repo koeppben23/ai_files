@@ -44,8 +44,8 @@ class TestSourceTemplate:
 
     @pytest.fixture(autouse=True)
     def _load_source(self) -> None:
-        self.source_path = REPO_ROOT / "continue.md"
-        assert self.source_path.exists(), "continue.md must exist in repo root"
+        self.source_path = REPO_ROOT / "opencode" / "commands" / "continue.md"
+        assert self.source_path.exists(), "opencode/commands/continue.md must exist"
         self.content = self.source_path.read_text(encoding="utf-8")
 
     def test_placeholder_present(self) -> None:
@@ -229,8 +229,8 @@ class TestNoModelRefusalPatterns:
     def _load_templates(self) -> None:
         self.contents: dict[str, str] = {}
         for name in self.TEMPLATES:
-            path = REPO_ROOT / name
-            assert path.exists(), f"{name} must exist in repo root"
+            path = REPO_ROOT / "opencode" / "commands" / name
+            assert path.exists(), f"opencode/commands/{name} must exist"
             self.contents[name] = path.read_text(encoding="utf-8")
 
     @pytest.mark.parametrize("template_name", TEMPLATES)

@@ -48,10 +48,10 @@ class TestCommandSurfaceClassification:
     @pytest.mark.parametrize("command", sorted(CANONICAL_COMMANDS))
     def test_canonical_command_recognized(self, command: str) -> None:
         """Each canonical command file must exist and be recognized."""
-        # Verify file exists in repo root
+        # Verify file exists in canonical opencode command surface.
         from tests.util import REPO_ROOT
-        cmd_path = REPO_ROOT / command
-        assert cmd_path.exists(), f"Canonical command {command} must exist in repo root"
+        cmd_path = REPO_ROOT / "opencode" / "commands" / command
+        assert cmd_path.exists(), f"Canonical command {command} must exist in opencode/commands/"
 
     @pytest.mark.parametrize("command", sorted(CANONICAL_COMMANDS))
     def test_canonical_command_not_classified_as_non_command(self, command: str) -> None:

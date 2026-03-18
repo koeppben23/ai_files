@@ -108,6 +108,7 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
     commands_home.mkdir(parents=True, exist_ok=True)
     dir_sources: dict[str, Path] = {
         "governance": checkout_root / "governance",
+        "governance_runtime": checkout_root / "governance_runtime",
         "profiles": get_profiles_path(),
         "scripts": checkout_root / "scripts",
         "templates": get_templates_path(),

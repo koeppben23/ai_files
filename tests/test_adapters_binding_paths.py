@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-import governance.engine.adapters as adapters_module
-from governance.engine.adapters import LocalHostAdapter, OpenCodeDesktopAdapter
+import governance_runtime.engine.adapters as adapters_module
+from governance_runtime.engine.adapters import LocalHostAdapter, OpenCodeDesktopAdapter
 
 
 def _write_binding(config_root: Path, *, commands_home: Path, workspaces_home: Path) -> None:

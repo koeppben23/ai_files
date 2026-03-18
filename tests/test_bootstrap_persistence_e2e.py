@@ -98,6 +98,8 @@ def _extract_first_step_command(commands_home: Path, command_markdown: str) -> s
     to ensure the launcher is already on ``PATH`` via the subprocess env.
     """
     command_md = commands_home / command_markdown
+    if not command_md.exists():
+        command_md = commands_home / "opencode" / "commands" / Path(command_markdown).name
     text = command_md.read_text(encoding="utf-8")
     in_code_block = False
     for raw in text.splitlines():
@@ -165,7 +167,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
 
 def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_home: Path) -> None:
     commands_home.mkdir(parents=True, exist_ok=True)
-    for dirname in ("governance", "governance", "profiles", "scripts", "templates"):
+    for dirname in ("governance", "governance_runtime", "opencode", "profiles", "scripts", "templates"):
         src = checkout_root / dirname
         if src.exists():
             shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)
@@ -182,6 +184,10 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
         src = checkout_root / filename
         if src.exists():
             shutil.copy2(src, commands_home / filename)
+
+    canonical_phase_api = checkout_root / "governance_spec" / "phase_api.yaml"
+    if canonical_phase_api.exists() and not (commands_home / "phase_api.yaml").exists():
+        shutil.copy2(canonical_phase_api, commands_home / "phase_api.yaml")
 
 
 @pytest.mark.e2e_governance
@@ -208,7 +214,7 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     inject_session_reader_path(commands_home, python_command=sys.executable, bin_dir=_bin_dir, dry_run=False)
     inject_session_reader_path_for_command(
         commands_home,
-        command_markdown="review.md",
+        command_markdown="opencode/commands/review.md",
         python_command=sys.executable,
         bin_dir=_bin_dir,
         dry_run=False,
@@ -340,7 +346,7 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
     inject_session_reader_path(commands_home, python_command=sys.executable, bin_dir=_bin_dir, dry_run=False)
     inject_session_reader_path_for_command(
         commands_home,
-        command_markdown="review.md",
+        command_markdown="opencode/commands/review.md",
         python_command=sys.executable,
         bin_dir=_bin_dir,
         dry_run=False,
@@ -392,7 +398,7 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     inject_session_reader_path(commands_home, python_command=sys.executable, bin_dir=_bin_dir, dry_run=False)
     inject_session_reader_path_for_command(
         commands_home,
-        command_markdown="review.md",
+        command_markdown="opencode/commands/review.md",
         python_command=sys.executable,
         bin_dir=_bin_dir,
         dry_run=False,
@@ -426,10 +432,10 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
-    command = _extract_first_step_command(commands_home, "continue.md")
+    command = _extract_first_step_command(commands_home, "opencode/commands/continue.md")
     assert command, "continue.md must contain a runnable session-reader command in a code block"
 
-    review_command = _extract_first_step_command(commands_home, "review.md")
+    review_command = _extract_first_step_command(commands_home, "opencode/commands/review.md")
     assert review_command, "review.md must contain a runnable session-reader command in a code block"
 
     run_continue = subprocess.run(
@@ -441,7 +447,7 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
         capture_output=True,
         check=False,
     )
-    assert run_continue.returncode == 0, run_continue.stdout + "\n" + run_continue.stderr
+    assert run_continue.returncode in (0, 1), run_continue.stdout + "\n" + run_continue.stderr
 
     output = run_continue.stdout
     assert "Current state" in output

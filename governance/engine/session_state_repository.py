@@ -4,3 +4,4 @@ DEPRECATED: use governance_runtime.engine.session_state_repository.
 """
 
 from governance_runtime.engine.session_state_repository import *  # noqa: F401,F403
+from governance_runtime.engine.session_state_repository import _canonicalize_for_write  # noqa: F401

@@ -49,7 +49,7 @@ def _git_init_repo(repo: Path) -> None:
 
 def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_home: Path) -> None:
     commands_home.mkdir(parents=True, exist_ok=True)
-    for dirname in ("governance", "governance", "profiles", "scripts", "templates"):
+    for dirname in ("governance", "governance_runtime", "profiles", "scripts", "templates"):
         src = checkout_root / dirname
         if src.exists():
             shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)
@@ -57,6 +57,10 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
         src = checkout_root / filename
         if src.exists():
             shutil.copy2(src, commands_home / filename)
+
+    canonical_phase_api = checkout_root / "governance_spec" / "phase_api.yaml"
+    if canonical_phase_api.exists() and not (commands_home / "phase_api.yaml").exists():
+        shutil.copy2(canonical_phase_api, commands_home / "phase_api.yaml")
 
 
 def _write_governance_paths(*, config_root: Path, commands_home: Path, workspaces_home: Path) -> None:

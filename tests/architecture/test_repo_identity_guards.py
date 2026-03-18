@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.mark.governance
 def test_repo_root_resolution_is_git_evidence_only():
-    resolver = REPO_ROOT / "governance" / "context" / "repo_context_resolver.py"
+    resolver = REPO_ROOT / "governance_runtime" / "infrastructure" / "repo_root_resolver.py"
     text = resolver.read_text(encoding="utf-8")
 
     required = [
@@ -34,7 +34,7 @@ def test_repo_root_resolution_is_git_evidence_only():
 
 @pytest.mark.governance
 def test_bootstrap_persistence_unresolved_requires_null_repo_root():
-    path = REPO_ROOT / "governance" / "application" / "use_cases" / "bootstrap_persistence.py"
+    path = REPO_ROOT / "governance_runtime" / "application" / "use_cases" / "bootstrap_persistence.py"
     text = path.read_text(encoding="utf-8")
 
     assert "reason=\"identity-bootstrap-fingerprint-missing\"" in text or "identity-bootstrap-fingerprint-missing" in text

@@ -15,7 +15,7 @@ def test_md_rails_tripwire_operational_markers_absent():
     files = [
         get_master_path(),
         get_rules_path(),
-        REPO_ROOT / "continue.md",
+        REPO_ROOT / "opencode" / "commands" / "continue.md",
         get_review_path(),
         get_docs_path() / "resume.md",
         get_docs_path() / "resume_prompt.md",

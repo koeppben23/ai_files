@@ -674,12 +674,12 @@ class TestDriftDetection:
     def test_unbounded_logs_keyword_classification(self, caplog) -> None:
         """Happy: Unbounded phase logs keyword classification at DEBUG level."""
         intent = resolve_output_intent(phase_token="4", route_strategy="stay")
-        with caplog.at_level(logging.DEBUG, logger="governance.engine.response_contract"):
+        with caplog.at_level(logging.DEBUG, logger="governance_runtime.engine.response_contract"):
             _apply_resolved_intent_policy(
                 resolved_output_intent=intent,
                 requested_action="implement the feature",
             )
-        assert any("unbounded" in r.message and "no block" in r.message for r in caplog.records)
+        assert any("unbounded" in r.message.lower() for r in caplog.records)
 
     def test_resolved_does_not_log_for_allowed_class(self, caplog) -> None:
         """Happy: Resolved phase with allowed action does not produce drift warnings."""

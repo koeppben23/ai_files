@@ -222,6 +222,8 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
                 continue
             if rel.startswith("governance/") and Path(name).suffix.lower() == ".py":
                 continue
+            if rel.startswith("governance_runtime/") and Path(name).suffix.lower() == ".py":
+                continue
             if rel.startswith("bootstrap/") and Path(name).suffix.lower() == ".py":
                 continue
             if rel.startswith("cli/") and Path(name).suffix.lower() == ".py":
@@ -229,6 +231,8 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
             if rel.startswith("governance/artifacts/opencode-plugins/") and Path(name).suffix.lower() in {".mjs", ".js"}:
                 continue
             if rel == "governance/VERSION":
+                continue
+            if rel == "governance_runtime/VERSION":
                 continue
             if rel in shipped_scripts:
                 observed_scripts.add(rel)
