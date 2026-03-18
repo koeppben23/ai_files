@@ -12,6 +12,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _norm(path: Path) -> str:
+    return path.as_posix()
+
+
 @pytest.mark.conformance
 class TestSSOTPathEnforcement:
     """Validate SSOT-only path enforcement."""
@@ -20,7 +24,7 @@ class TestSSOTPathEnforcement:
         """Happy: master.md is at governance_content/reference/master.md."""
         from tests.util import get_master_path
         path = get_master_path()
-        assert "governance_content/reference/master.md" in str(path), \
+        assert "governance_content/reference/master.md" in _norm(path), \
             f"master.md must be at governance_content/reference/, got: {path}"
         assert path.exists(), f"master.md must exist at: {path}"
 
@@ -28,7 +32,7 @@ class TestSSOTPathEnforcement:
         """Happy: rules.md is at governance_content/reference/rules.md."""
         from tests.util import get_rules_path
         path = get_rules_path()
-        assert "governance_content/reference/rules.md" in str(path), \
+        assert "governance_content/reference/rules.md" in _norm(path), \
             f"rules.md must be at governance_content/reference/, got: {path}"
         assert path.exists(), f"rules.md must exist at: {path}"
 
@@ -36,7 +40,7 @@ class TestSSOTPathEnforcement:
         """Happy: phase_api.yaml is at governance_spec/phase_api.yaml."""
         from tests.util import get_phase_api_path
         path = get_phase_api_path()
-        assert "governance_spec/phase_api.yaml" in str(path), \
+        assert "governance_spec/phase_api.yaml" in _norm(path), \
             f"phase_api.yaml must be at governance_spec/, got: {path}"
         assert path.exists(), f"phase_api.yaml must exist at: {path}"
 
@@ -44,7 +48,7 @@ class TestSSOTPathEnforcement:
         """Happy: docs are at governance_content/docs/."""
         from tests.util import get_docs_path
         path = get_docs_path()
-        assert "governance_content/docs" in str(path), \
+        assert "governance_content/docs" in _norm(path), \
             f"docs must be at governance_content/docs/, got: {path}"
         assert path.exists(), f"docs must exist at: {path}"
 
@@ -52,7 +56,7 @@ class TestSSOTPathEnforcement:
         """Happy: profiles are at governance_content/profiles/."""
         from tests.util import get_profiles_path
         path = get_profiles_path()
-        assert "governance_content/profiles" in str(path), \
+        assert "governance_content/profiles" in _norm(path), \
             f"profiles must be at governance_content/profiles/, got: {path}"
         assert path.exists(), f"profiles must exist at: {path}"
 
@@ -60,7 +64,7 @@ class TestSSOTPathEnforcement:
         """Happy: templates are at governance_content/templates/."""
         from tests.util import get_templates_path
         path = get_templates_path()
-        assert "governance_content/templates" in str(path), \
+        assert "governance_content/templates" in _norm(path), \
             f"templates must be at governance_content/templates/, got: {path}"
         assert path.exists(), f"templates must exist at: {path}"
 
@@ -68,7 +72,7 @@ class TestSSOTPathEnforcement:
         """Happy: rulesets are at governance_spec/rulesets/."""
         from tests.util import get_rulesets_path
         path = get_rulesets_path()
-        assert "governance_spec/rulesets" in str(path), \
+        assert "governance_spec/rulesets" in _norm(path), \
             f"rulesets must be at governance_spec/rulesets/, got: {path}"
         assert path.exists(), f"rulesets must exist at: {path}"
 
