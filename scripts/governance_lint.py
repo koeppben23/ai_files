@@ -91,9 +91,7 @@ def check_catalog_version_format(issues: list[str]) -> None:
 def check_artifact_hash_integrity(issues: list[str]) -> None:
     """Check artifact hash files for consistency with actual files."""
     root = ROOT
-    rulesets_dir = root / "rulesets" / "governance"
-    if not rulesets_dir.exists():
-        rulesets_dir = root / "governance_spec" / "rulesets" / "governance"
+    rulesets_dir = root / "governance_spec" / "rulesets" / "governance"
     if not rulesets_dir.exists():
         return
     for release_dir in rulesets_dir.iterdir():
