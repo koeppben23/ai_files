@@ -1,1 +1,1 @@
-# Governance Runtime CLI
+"""CLI entrypoint wrappers for kernel use-cases."""

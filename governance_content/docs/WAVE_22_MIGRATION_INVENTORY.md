@@ -79,7 +79,18 @@ governance_runtime/
 - Documentation references (can be updated later)
 
 ## Next Steps (Wave 22b)
-1. Physically move directories
-2. Update all imports
-3. Fix CLI entrypoints
-4. Run comprehensive test suite
+
+### Wave 22b - Completed as Package Tree Migration
+
+**This wave introduces governance_runtime/** as the new physical runtime target,
+while retaining legacy runtime paths temporarily for backward compatibility.**
+
+Legacy path removal is deferred to Wave 26 after resolver, installer, and contract updates are complete.
+
+1. ✅ governance/** → governance_runtime/** (copied, originals remain for BC)
+2. ✅ cli/bin/session_state → governance_runtime/ (copied, originals remain for BC)
+3. ✅ install.py → governance_runtime/install/ (copied, original remains for BC)
+
+### Subsequent Waves
+- Wave 22c: CLI/bin/session_state entrypoint migration (TBD)
+- Wave 26: Legacy path removal

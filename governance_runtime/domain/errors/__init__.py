@@ -1,0 +1,1 @@
+"""Governance kernel error contracts."""

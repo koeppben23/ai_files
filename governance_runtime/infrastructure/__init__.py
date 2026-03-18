@@ -1,1 +1,1 @@
-# Governance Runtime Infrastructure
+"""Infrastructure layer modules (FS/Env/Repositories/Adapters)."""

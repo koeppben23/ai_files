@@ -1,1 +1,1 @@
-# Governance Runtime Domain Layer
+"""Domain layer modules (pure policy/value objects, no IO)."""
