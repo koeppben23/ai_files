@@ -223,14 +223,16 @@ class TestPythonResolutionOrder:
 class TestRailInjection:
     """Validate rail injection invariants from contract section 4."""
 
+    # Rails moved to opencode/commands/ in Wave 19
     INJECTION_TARGETS = ["continue.md", "review.md", "plan.md", "ticket.md", "review-decision.md", "implement.md", "audit-readout.md"]
 
     def test_happy_injection_targets_exist(self):
         """Happy: All rail injection target source files exist in repo."""
-        # In the source tree, these live at REPO_ROOT directly
+        # In Wave 19+, Rails moved to opencode/commands/
+        opencode_commands = REPO_ROOT / "opencode" / "commands"
         missing = [f for f in self.INJECTION_TARGETS
-                   if not (REPO_ROOT / f).is_file()]
-        assert not missing, f"Rail injection targets missing: {missing}"
+                   if not (opencode_commands / f).is_file()]
+        assert not missing, f"Rail injection targets missing from opencode/commands/: {missing}"
 
     def test_happy_placeholders_in_source(self):
         """Happy: install.py contains BIN_DIR placeholder pattern (and legacy patterns)."""

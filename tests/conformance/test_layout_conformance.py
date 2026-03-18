@@ -82,13 +82,15 @@ class TestInstalledTreeShape:
     # Files that MUST exist at REPO_ROOT (= source of commands/ in a dev checkout)
     # In the source tree, command files live at REPO_ROOT directly; the installer
     # copies them to ${CONFIG_ROOT}/commands/ on install.
-    # Note: master.md and rules.md moved to governance_content/ in Wave 15
+    # Note: master.md, rules.md, review.md moved to governance_content/ in Wave 15/20
+    # Note: phase_api.yaml moved to governance_spec/ in Wave 21
     EXPECTED_SOURCE_FILES = [
-        "governance_content/master.md",  # was: master.md
-        "governance_content/rules.md",    # was: rules.md
+        "governance_content/reference/master.md",  # was: master.md
+        "governance_content/reference/rules.md",    # was: rules.md
+        "governance_content/docs/review.md",       # was: review.md
+        "governance_spec/phase_api.yaml",         # was: phase_api.yaml
         "BOOTSTRAP.md",
         "continue.md",
-        "review.md",
         "review-decision.md",
         "implement.md",
         "plan.md",

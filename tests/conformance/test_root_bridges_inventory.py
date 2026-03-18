@@ -14,20 +14,31 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.mark.conformance
 class TestRootBridgesInventory:
-    """Inventory of Root Bridge files."""
+    """Inventory of Root Bridge files - DELETED in Wave 26b."""
 
-    def test_master_md_at_root_exists(self):
-        """Inventory: master.md exists at root (should be moved to governance_content/reference/)."""
+    def test_master_md_at_root_deleted(self):
+        """Wave 26b: master.md at root is deleted."""
         root_master = REPO_ROOT / "master.md"
-        # Document that this exists - will be deleted in 26b
-        if root_master.exists():
-            # This is a Root Bridge - should be migrated to governance_content/reference/
-            gov_content_master = REPO_ROOT / "governance_content" / "reference" / "master.md"
-            assert gov_content_master.exists(), \
-                "master.md should exist at governance_content/reference/ before root version is deleted"
+        # Root Bridge deleted - should not exist
+        assert not root_master.exists(), "master.md should be deleted from root (moved to governance_content/reference/)"
 
-    def test_rules_md_at_root_exists(self):
-        """Inventory: rules.md exists at root (should be moved to governance_content/reference/)."""
+    def test_rules_md_at_root_deleted(self):
+        """Wave 26b: rules.md at root is deleted."""
+        root_rules = REPO_ROOT / "rules.md"
+        # Root Bridge deleted - should not exist
+        assert not root_rules.exists(), "rules.md should be deleted from root (moved to governance_content/reference/)"
+
+    def test_review_md_at_root_deleted(self):
+        """Wave 26b: review.md at root is deleted."""
+        root_review = REPO_ROOT / "review.md"
+        # Root Bridge deleted - should not exist
+        assert not root_review.exists(), "review.md should be deleted from root (moved to governance_content/docs/)"
+
+    def test_phase_api_yaml_at_root_deleted(self):
+        """Wave 26b: phase_api.yaml at root is deleted."""
+        root_phase = REPO_ROOT / "phase_api.yaml"
+        # Root Bridge deleted - should not exist
+        assert not root_phase.exists(), "phase_api.yaml should be deleted from root (moved to governance_spec/)"
         root_rules = REPO_ROOT / "rules.md"
         if root_rules.exists():
             gov_content_rules = REPO_ROOT / "governance_content" / "reference" / "rules.md"

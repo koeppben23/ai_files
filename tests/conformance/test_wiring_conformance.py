@@ -130,21 +130,21 @@ class TestAllContractRefsExist:
 class TestInstallerToFiles:
     """Validate that installer references to source files are resolvable."""
 
-    # Command source files that install.py copies to ${COMMANDS_HOME}/commands/
+    # Command source files - moved in Wave 19/20
+    # Rails are in opencode/commands/, content is in governance_content/
     COMMAND_SOURCES = [
-        "governance_content/master.md",
-        "governance_content/rules.md",
-        "BOOTSTRAP.md",
-        "continue.md",
-        "review.md",
-        "plan.md",
-        "ticket.md",
+        "governance_content/reference/master.md",  # was: governance_content/master.md
+        "governance_content/reference/rules.md",    # was: governance_content/rules.md
+        "governance_content/docs/review.md",         # was: review.md (command content)
+        "opencode/commands/continue.md",             # was: continue.md
+        "opencode/commands/plan.md",                # was: plan.md
+        "opencode/commands/ticket.md",              # was: ticket.md
     ]
 
     def test_happy_all_command_sources_exist(self):
         """Happy: All command source files referenced by install.py exist in source tree."""
         missing = [f for f in self.COMMAND_SOURCES if not (REPO_ROOT / f).is_file()]
-        assert not missing, f"Command source files missing from repo root: {missing}"
+        assert not missing, f"Command source files missing: {missing}"
 
     def test_happy_install_py_references_all_command_files(self):
         """Happy: install.py source code contains references to each command file."""
@@ -178,8 +178,9 @@ class TestInstallerToFiles:
 
     def test_edge_audit_readout_exists(self):
         """Edge: audit-readout.md (injection target) exists in source tree."""
-        assert (REPO_ROOT / "audit-readout.md").is_file(), (
-            "audit-readout.md missing — install.py injects session reader into it"
+        # Rails moved to opencode/commands/ in Wave 19
+        assert (REPO_ROOT / "opencode/commands" / "audit-readout.md").is_file(), (
+            "audit-readout.md missing from opencode/commands/ — install.py injects session reader into it"
         )
 
 
@@ -260,22 +261,23 @@ class TestLauncherToEntrypoints:
 class TestRailsToPaths:
     """Validate that rail files reference valid paths and placeholders."""
 
-    # All rail injection targets including audit-readout
+    # Rail files moved to opencode/commands/ in Wave 19
     RAIL_FILES_WITH_LAUNCHER = ["continue.md", "review.md", "audit-readout.md"]
     RAIL_FILES_WITH_ENTRYPOINT = ["plan.md", "ticket.md", "review-decision.md", "implement.md"]
     ALL_RAIL_FILES = RAIL_FILES_WITH_LAUNCHER + RAIL_FILES_WITH_ENTRYPOINT
+    OPENCODE_COMMANDS = "opencode/commands"
 
     BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
     def test_happy_all_rail_files_exist(self):
-        """Happy: All rail injection target files exist at repo root."""
-        missing = [f for f in self.ALL_RAIL_FILES if not (REPO_ROOT / f).is_file()]
-        assert not missing, f"Rail files missing: {missing}"
+        """Happy: All rail injection target files exist in opencode/commands/."""
+        missing = [f for f in self.ALL_RAIL_FILES if not (REPO_ROOT / self.OPENCODE_COMMANDS / f).is_file()]
+        assert not missing, f"Rail files missing from opencode/commands/: {missing}"
 
     def test_happy_launcher_rails_have_bin_dir_or_resolved(self):
         """Happy: Launcher rails have BIN_DIR placeholder or resolved opencode-governance-bootstrap."""
         for fname in self.RAIL_FILES_WITH_LAUNCHER:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / self.OPENCODE_COMMANDS / fname)
             has_placeholder = self.BIN_DIR_PLACEHOLDER in content
             has_launcher = "opencode-governance-bootstrap" in content
             assert has_placeholder or has_launcher, (
@@ -285,7 +287,7 @@ class TestRailsToPaths:
     def test_happy_all_rails_have_launcher_or_python_reference(self):
         """Happy: All rail files reference BIN_DIR/launcher or a resolved python command."""
         for fname in self.ALL_RAIL_FILES:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / self.OPENCODE_COMMANDS / fname)
             has_bin_dir = self.BIN_DIR_PLACEHOLDER in content
             has_launcher = "opencode-governance-bootstrap" in content
             has_python = "python" in content.lower()
@@ -295,42 +297,44 @@ class TestRailsToPaths:
 
     def test_happy_plan_uses_canonical_plan_subcommand(self):
         """Happy: plan.md uses canonical --plan-persist launcher surface."""
-        content = _read_source(REPO_ROOT / "plan.md")
+        content = _read_source(REPO_ROOT / self.OPENCODE_COMMANDS / "plan.md")
         assert "--plan-persist" in content, (
             "plan.md must use canonical --plan-persist subcommand"
         )
 
     def test_happy_ticket_uses_canonical_ticket_subcommand(self):
         """Happy: ticket.md uses canonical --ticket-persist launcher surface."""
-        content = _read_source(REPO_ROOT / "ticket.md")
+        content = _read_source(REPO_ROOT / self.OPENCODE_COMMANDS / "ticket.md")
         assert "--ticket-persist" in content, (
             "ticket.md must use canonical --ticket-persist subcommand"
         )
 
     def test_happy_review_decision_uses_canonical_subcommand(self):
         """Happy: review-decision.md uses canonical --review-decision-persist launcher surface."""
-        content = _read_source(REPO_ROOT / "review-decision.md")
+        content = _read_source(REPO_ROOT / self.OPENCODE_COMMANDS / "review-decision.md")
         assert "--review-decision-persist" in content, (
             "review-decision.md must use canonical --review-decision-persist subcommand"
         )
 
     def test_corner_legacy_entrypoint_not_in_primary_rails(self):
         """Corner: docs switched immediately to canonical subcommands."""
+        opencode_commands = self.OPENCODE_COMMANDS
         combined = (
-            _read_source(REPO_ROOT / "plan.md")
+            _read_source(REPO_ROOT / opencode_commands / "plan.md")
             + "\n"
-            + _read_source(REPO_ROOT / "ticket.md")
+            + _read_source(REPO_ROOT / opencode_commands / "ticket.md")
             + "\n"
-            + _read_source(REPO_ROOT / "review-decision.md")
+            + _read_source(REPO_ROOT / opencode_commands / "review-decision.md")
         )
         assert "--entrypoint governance.entrypoints." not in combined
 
     def test_happy_referenced_modules_exist(self):
         """Happy: All -m module references in rail files resolve to real files."""
+        opencode_commands = self.OPENCODE_COMMANDS
         entrypoints = REPO_ROOT / "governance" / "entrypoints"
         modules_referenced = set()
         for fname in self.ALL_RAIL_FILES:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / opencode_commands / fname)
             # Match patterns like: governance.entrypoints.<module_name>
             for m in re.finditer(r"governance\.entrypoints\.(\w+)", content):
                 modules_referenced.add(m.group(1))
@@ -348,8 +352,9 @@ class TestRailsToPaths:
     def test_edge_no_mixed_placeholder_and_resolved_in_same_rail(self):
         """Edge: A rail file should not have both an unresolved BIN_DIR placeholder AND a resolved
         absolute bin path (indicates partial injection)."""
+        opencode_commands = self.OPENCODE_COMMANDS
         for fname in self.RAIL_FILES_WITH_LAUNCHER:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / opencode_commands / fname)
             has_bin_dir_placeholder = self.BIN_DIR_PLACEHOLDER in content
             # A resolved bin dir looks like an absolute path before opencode-governance-bootstrap.
             # Match both POSIX and Windows installed rail formats:
@@ -368,8 +373,9 @@ class TestRailsToPaths:
     def test_bad_no_broken_placeholder_syntax(self):
         """Bad: No rail file has malformed placeholders like {BIN_DIR} (single brace)."""
         single_brace_pattern = re.compile(r"(?<!\{)\{(BIN_DIR|SESSION_READER_PATH|PYTHON_COMMAND)\}(?!\})")
+        opencode_commands = self.OPENCODE_COMMANDS
         for fname in self.ALL_RAIL_FILES:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / opencode_commands / fname)
             match = single_brace_pattern.search(content)
             assert match is None, (
                 f"{fname} has malformed single-brace placeholder: {match.group()}"
@@ -566,11 +572,12 @@ class TestNoRoguePaths:
     """Validate that no unplanned files or hardcoded paths violate the contract."""
 
     # Root-level files that are expected to exist (from install-layout-contract)
-    # This is the complete allowlist of files at REPO_ROOT
+    # Updated in Wave 19/20/26 - Rails moved to opencode/commands/, content to governance_*/
+    # Note: Original rail files still exist at root for BC - will be removed in later waves
     ALLOWED_ROOT_FILES = {
         # OS files
         ".DS_Store",
-        # Command sources (installed to commands/)
+        # Rails (originals at root for BC - primary location is now opencode/commands/)
         "continue.md",
         "review.md",
         "plan.md",
@@ -579,13 +586,9 @@ class TestNoRoguePaths:
         "implementation-decision.md",
         "implement.md",
         "audit-readout.md",
-        # Governance SSOT shims (also exist in governance_content/)
-        "master.md",
-        "rules.md",
-        "phase_api.yaml",
+        "BOOTSTRAP.md",
         "SESSION_STATE_SCHEMA.md",
         "TICKET_RECORD_TEMPLATE.md",
-        "BOOTSTRAP.md",
         # README files
         "README.md",
         "README-RULES.md",
@@ -701,6 +704,7 @@ class TestNoRoguePaths:
     def test_happy_no_rogue_path_references_in_rails(self):
         """Happy: Rail files do not reference non-installed paths.
         
+        Rails moved to opencode/commands/ in Wave 19.
         Rails should only reference paths that exist after installation:
         - governance.entrypoints.* modules
         - {{SESSION_READER_PATH}} / {{PYTHON_COMMAND}} placeholders
@@ -708,9 +712,10 @@ class TestNoRoguePaths:
         """
         entrypoints_dir = REPO_ROOT / "governance" / "entrypoints"
         rail_files = ["continue.md", "review.md", "plan.md", "ticket.md", "review-decision.md", "implement.md"]
+        opencode_commands = "opencode/commands"
 
         for fname in rail_files:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / opencode_commands / fname)
             # Check for governance module references
             module_refs = re.findall(r"governance\.entrypoints\.(\w+)", content)
             for mod in module_refs:
