@@ -8,6 +8,7 @@ from governance_runtime.domain.strict_exit_evaluator import (  # noqa: F401
     StrictExitResult,
     StrictVerdict,
     evaluate_strict_exit,
+    get_threshold_resolver,
 )
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     "StrictExitResult",
     "StrictVerdict",
     "evaluate_strict_exit",
+    "get_threshold_resolver",
 ]

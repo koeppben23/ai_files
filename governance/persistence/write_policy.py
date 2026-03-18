@@ -4,6 +4,8 @@ DEPRECATED: use governance_runtime.infrastructure.write_policy.
 """
 
 from governance_runtime.infrastructure.write_policy import (
+    BLOCKED_PERSISTENCE_PATH_VIOLATION,
+    BLOCKED_PERSISTENCE_TARGET_DEGENERATE,
     DETAIL_KEY_DRIVE_LETTER_ONLY,
     DETAIL_KEY_DRIVE_RELATIVE,
     DETAIL_KEY_DRIVE_ROOT_ONLY,
@@ -14,6 +16,7 @@ from governance_runtime.infrastructure.write_policy import (
     DETAIL_KEY_SINGLE_SEGMENT_RELATIVE,
     DETAIL_KEY_UNKNOWN_VARIABLE,
     DETAIL_OK,
+    _ALLOWED_CANONICAL_VARIABLES,
     WriteTargetPolicyResult,
     evaluate_target_path,
 )
@@ -29,6 +32,9 @@ __all__ = [
     "DETAIL_KEY_SINGLE_SEGMENT_RELATIVE",
     "DETAIL_KEY_UNKNOWN_VARIABLE",
     "DETAIL_OK",
+    "BLOCKED_PERSISTENCE_PATH_VIOLATION",
+    "BLOCKED_PERSISTENCE_TARGET_DEGENERATE",
+    "_ALLOWED_CANONICAL_VARIABLES",
     "WriteTargetPolicyResult",
     "evaluate_target_path",
 ]

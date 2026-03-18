@@ -4,3 +4,7 @@ DEPRECATED: use governance_runtime.kernel.phase_kernel.
 """
 
 from governance_runtime.kernel.phase_kernel import *  # noqa: F401,F403
+from governance_runtime.kernel.phase_kernel import (  # noqa: F401
+    _select_transition,
+    _deduplicate_criteria,
+)

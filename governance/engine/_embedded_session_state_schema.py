@@ -4,3 +4,6 @@ DEPRECATED: use governance_runtime.engine._embedded_session_state_schema.
 """
 
 from governance_runtime.engine._embedded_session_state_schema import *  # noqa: F401,F403
+from governance_runtime.engine._embedded_session_state_schema import (  # noqa: F401
+    _HARDCODED_FALLBACK_SCHEMA,
+)
