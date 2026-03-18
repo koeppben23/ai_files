@@ -11,87 +11,64 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 def get_docs_path() -> Path:
     """
-    Get the docs path supporting dual-read during migration.
-    
-    Prefers new structure (governance_content/docs/) over legacy (docs/).
+    Get the SSOT docs path.
     """
-    new_docs = REPO_ROOT / "governance_content" / "docs"
-    if new_docs.exists():
-        return new_docs
-    return REPO_ROOT / "docs"
+    return REPO_ROOT / "governance_content" / "docs"
 
 
 def get_profiles_path() -> Path:
-    """Get the profiles path supporting dual-read during migration."""
-    new_profiles = REPO_ROOT / "governance_content" / "profiles"
-    if new_profiles.exists():
-        return new_profiles
-    return REPO_ROOT / "profiles"
+    """Get the SSOT profiles path."""
+    return REPO_ROOT / "governance_content" / "profiles"
 
 
 def get_profile_addons_path() -> Path:
-    """Get the profile addons path supporting dual-read during migration."""
-    return get_profiles_path() / "addons"
+    """Get the SSOT profile addons path."""
+    return REPO_ROOT / "governance_content" / "profiles" / "addons"
 
 
 def get_profile_file(name: str) -> Path:
     """Get a specific profile file by name."""
-    return get_profiles_path() / name
+    return REPO_ROOT / "governance_content" / "profiles" / name
 
 
 def get_templates_path() -> Path:
-    """Get the templates path supporting dual-read during migration."""
-    new_templates = REPO_ROOT / "governance_content" / "templates"
-    if new_templates.exists():
-        return new_templates
-    return REPO_ROOT / "templates"
+    """Get the SSOT templates path."""
+    return REPO_ROOT / "governance_content" / "templates"
 
 
 def get_rulesets_path() -> Path:
-    """Get the rulesets path supporting dual-read during migration."""
-    new_rulesets = REPO_ROOT / "governance_spec" / "rulesets"
-    if new_rulesets.exists():
-        return new_rulesets
-    return REPO_ROOT / "rulesets"
+    """Get the SSOT rulesets path."""
+    return REPO_ROOT / "governance_spec" / "rulesets"
 
 
 def get_ruleset_core_path() -> Path:
-    """Get the rulesets/core path supporting dual-read during migration."""
-    return get_rulesets_path() / "core"
+    """Get the SSOT rulesets/core path."""
+    return REPO_ROOT / "governance_spec" / "rulesets" / "core"
 
 
 def get_ruleset_profiles_path() -> Path:
-    """Get the rulesets/profiles path supporting dual-read during migration."""
-    return get_rulesets_path() / "profiles"
+    """Get the SSOT rulesets/profiles path."""
+    return REPO_ROOT / "governance_spec" / "rulesets" / "profiles"
 
 
 def get_ruleset_file(relative_path: str) -> Path:
     """Get a specific ruleset file by relative path."""
-    return get_rulesets_path() / relative_path
+    return REPO_ROOT / "governance_spec" / "rulesets" / relative_path
 
 
 def get_master_path() -> Path:
-    """Get master.md path supporting dual-read during migration."""
-    new_master = REPO_ROOT / "governance_content" / "master.md"
-    if new_master.exists():
-        return new_master
-    return REPO_ROOT / "master.md"
+    """Get master.md path (SSOT only)."""
+    return REPO_ROOT / "governance_content" / "master.md"
 
 
 def get_rules_path() -> Path:
-    """Get rules.md path supporting dual-read during migration."""
-    new_rules = REPO_ROOT / "governance_content" / "rules.md"
-    if new_rules.exists():
-        return new_rules
-    return REPO_ROOT / "rules.md"
+    """Get rules.md path (SSOT only)."""
+    return REPO_ROOT / "governance_content" / "rules.md"
 
 
 def get_phase_api_path() -> Path:
-    """Get phase_api.yaml path supporting dual-read during migration."""
-    new_phase = REPO_ROOT / "governance_spec" / "phase_api.yaml"
-    if new_phase.exists():
-        return new_phase
-    return REPO_ROOT / "phase_api.yaml"
+    """Get phase_api.yaml path (SSOT only)."""
+    return REPO_ROOT / "governance_spec" / "phase_api.yaml"
 
 
 def _remap_legacy_relative_path(rel: str) -> str:
