@@ -1,10 +1,6 @@
-"""Infrastructure repository compatibility surface.
+"""Legacy compatibility bridge for `governance.infrastructure.session_state_repository`.
 
-Canonical implementation remains in `governance.engine.session_state_repository`.
+DEPRECATED: use governance_runtime.infrastructure.session_state_repository.
 """
 
-from governance.engine.session_state_repository import (  # noqa: F401
-    SessionStateMigrationResult,
-    SessionStateRepository,
-    migrate_session_state_document,
-)
+from governance_runtime.infrastructure.session_state_repository import *  # noqa: F401,F403

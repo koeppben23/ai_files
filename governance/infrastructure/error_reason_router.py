@@ -1,3 +1,6 @@
-"""Infrastructure reason routing surface."""
+"""Legacy compatibility bridge for `governance.infrastructure.error_reason_router`.
 
-from governance.engine.error_reason_router import canonicalize_reason_payload_failure  # noqa: F401
+DEPRECATED: use governance_runtime.infrastructure.error_reason_router.
+"""
+
+from governance_runtime.infrastructure.error_reason_router import *  # noqa: F401,F403

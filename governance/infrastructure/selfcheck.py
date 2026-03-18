@@ -1,3 +1,6 @@
-"""Infrastructure selfcheck execution surface."""
+"""Legacy compatibility bridge for `governance.infrastructure.selfcheck`.
 
-from governance.engine.selfcheck import run_engine_selfcheck  # noqa: F401
+DEPRECATED: use governance_runtime.infrastructure.selfcheck.
+"""
+
+from governance_runtime.infrastructure.selfcheck import *  # noqa: F401,F403

@@ -1,0 +1,267 @@
+# R4a Legacy Sunset Readiness and Hard Verification
+
+Generated: 2026-03-18
+
+## Runtime Hard Verification
+
+- governance_runtime legacy import edges: **0**
+
+## Legacy Inventory Classification
+
+- bridge_only: **109**
+- active_logic: **118**
+- dead: **0**
+- unclear: **11**
+
+## Bridge-Only (candidate: keep temporarily / delete later in R4b)
+
+- `governance/application/policies/persistence_policy.py`
+- `governance/application/repo_identity_service.py`
+- `governance/application/use_cases/artifact_backfill.py`
+- `governance/application/use_cases/audit_readout_builder.py`
+- `governance/application/use_cases/bootstrap_persistence.py`
+- `governance/application/use_cases/bootstrap_session.py`
+- `governance/application/use_cases/build_reason_context.py`
+- `governance/application/use_cases/evaluate_persistence_gate.py`
+- `governance/application/use_cases/load_rulebooks.py`
+- `governance/application/use_cases/orchestrate_run.py`
+- `governance/application/use_cases/phase4_self_review.py`
+- `governance/application/use_cases/phase5_iterative_review.py`
+- `governance/application/use_cases/phase5_review_config.py`
+- `governance/application/use_cases/phase_router.py`
+- `governance/application/use_cases/repo_policy_setup.py`
+- `governance/application/use_cases/resolve_operating_mode.py`
+- `governance/application/use_cases/resolve_output_intent.py`
+- `governance/application/use_cases/rework_clarification.py`
+- `governance/application/use_cases/route_phase.py`
+- `governance/application/use_cases/session_state_helpers.py`
+- `governance/application/use_cases/target_path_helpers.py`
+- `governance/application/use_cases/validate_plan_compliance.py`
+- `governance/common/path_normalization.py`
+- `governance/engine/_embedded_reason_registry.py`
+- `governance/engine/_embedded_reason_schemas.py`
+- `governance/engine/_embedded_session_state_schema.py`
+- `governance/engine/adapters.py`
+- `governance/engine/audit_readout_contract.py`
+- `governance/engine/business_rules_code_extraction.py`
+- `governance/engine/business_rules_coverage.py`
+- `governance/engine/business_rules_hydration.py`
+- `governance/engine/business_rules_validation.py`
+- `governance/engine/command_surface.py`
+- `governance/engine/content_classifier.py`
+- `governance/engine/error_reason_router.py`
+- `governance/engine/gate_evaluator.py`
+- `governance/engine/implementation_validation.py`
+- `governance/engine/interaction_gate.py`
+- `governance/engine/invariants.py`
+- `governance/engine/layer_classifier.py`
+- `governance/engine/lifecycle.py`
+- `governance/engine/mode_repo_rules.py`
+- `governance/engine/next_action_resolver.py`
+- `governance/engine/orchestrator.py`
+- `governance/engine/path_contract.py`
+- `governance/engine/reason_payload.py`
+- `governance/engine/response_contract.py`
+- `governance/engine/runtime.py`
+- `governance/engine/sanitization.py`
+- `governance/engine/schema_validator.py`
+- `governance/engine/selfcheck.py`
+- `governance/engine/session_state_invariants.py`
+- `governance/engine/session_state_repository.py`
+- `governance/engine/spec_classifier.py`
+- `governance/engine/state_classifier.py`
+- `governance/engine/state_machine.py`
+- `governance/engine/surface_policy.py`
+- `governance/infrastructure/archive_export.py`
+- `governance/infrastructure/artifact_integrity.py`
+- `governance/infrastructure/binding_evidence_resolver.py`
+- `governance/infrastructure/binding_paths.py`
+- `governance/infrastructure/current_run_pointer.py`
+- `governance/infrastructure/error_reason_router.py`
+- `governance/infrastructure/fs_atomic.py`
+- `governance/infrastructure/governance_config_loader.py`
+- `governance/infrastructure/governance_hooks.py`
+- `governance/infrastructure/governance_orchestrator.py`
+- `governance/infrastructure/governance_retention_guard.py`
+- `governance/infrastructure/governed_archive.py`
+- `governance/infrastructure/host_adapter.py`
+- `governance/infrastructure/interaction_gate.py`
+- `governance/infrastructure/io_actions.py`
+- `governance/infrastructure/io_atomic_write.py`
+- `governance/infrastructure/io_verify.py`
+- `governance/infrastructure/lifecycle_repository.py`
+- `governance/infrastructure/mode_repo_rules.py`
+- `governance/infrastructure/model_identity_resolver.py`
+- `governance/infrastructure/model_identity_service.py`
+- `governance/infrastructure/pack_lock.py`
+- `governance/infrastructure/path_contract.py`
+- `governance/infrastructure/persist_confirmation_store.py`
+- `governance/infrastructure/phase4_config_resolver.py`
+- `governance/infrastructure/phase5_config_resolver.py`
+- `governance/infrastructure/phase_api_output_policy_loader.py`
+- `governance/infrastructure/plan_record_repository.py`
+- `governance/infrastructure/plan_record_state.py`
+- `governance/infrastructure/policy_bundle_loader.py`
+- `governance/infrastructure/reason_payload.py`
+- `governance/infrastructure/reason_registry_selfcheck.py`
+- `governance/infrastructure/recovery_executor.py`
+- `governance/infrastructure/redaction.py`
+- `governance/infrastructure/repo_root_resolver.py`
+- `governance/infrastructure/run_audit_artifacts.py`
+- `governance/infrastructure/run_summary_writer.py`
+- `governance/infrastructure/runtime_activation.py`
+- `governance/infrastructure/selfcheck.py`
+- `governance/infrastructure/session_pointer.py`
+- `governance/infrastructure/session_state_repository.py`
+- `governance/infrastructure/surface_policy.py`
+- `governance/infrastructure/tenant_config.py`
+- `governance/infrastructure/wiring.py`
+- `governance/infrastructure/work_run_archive.py`
+- `governance/infrastructure/workspace_memory_repository.py`
+- `governance/infrastructure/workspace_paths.py`
+- `governance/infrastructure/workspace_ready_gate.py`
+- `governance/infrastructure/write_policy.py`
+- `governance/kernel/gates.py`
+- `governance/kernel/phase_api_spec.py`
+- `governance/kernel/phase_kernel.py`
+
+## Active Logic (must migrate before delete)
+
+- `governance/application/dto/phase_next_action_contract.py`
+- `governance/application/dto/response_envelope.py`
+- `governance/application/ports/clock.py`
+- `governance/application/ports/filesystem.py`
+- `governance/application/ports/gateways.py`
+- `governance/application/ports/git.py`
+- `governance/application/ports/logger.py`
+- `governance/application/ports/process_runner.py`
+- `governance/application/ports/rulebook_source.py`
+- `governance/contract.py`
+- `governance/contracts/compiler.py`
+- `governance/contracts/enforcement.py`
+- `governance/contracts/registry.py`
+- `governance/contracts/validator.py`
+- `governance/domain/access_control.py`
+- `governance/domain/audit_contract.py`
+- `governance/domain/audit_readout_contract.py`
+- `governance/domain/canonical_json.py`
+- `governance/domain/classification.py`
+- `governance/domain/errors/events.py`
+- `governance/domain/errors/exceptions.py`
+- `governance/domain/evidence_policy.py`
+- `governance/domain/failure_model.py`
+- `governance/domain/integrity.py`
+- `governance/domain/model_identity.py`
+- `governance/domain/models/binding.py`
+- `governance/domain/models/layouts.py`
+- `governance/domain/models/policy_mode.py`
+- `governance/domain/models/repo_identity.py`
+- `governance/domain/models/rulebooks.py`
+- `governance/domain/models/session_state.py`
+- `governance/domain/models/write_action.py`
+- `governance/domain/operating_profile.py`
+- `governance/domain/phase_state_machine.py`
+- `governance/domain/policies/gate_policy.py`
+- `governance/domain/policies/phase_policy.py`
+- `governance/domain/policies/precedence.py`
+- `governance/domain/policies/write_policy.py`
+- `governance/domain/policy_precedence.py`
+- `governance/domain/reason_codes.py`
+- `governance/domain/regulated_mode.py`
+- `governance/domain/retention.py`
+- `governance/enforce.py`
+- `governance/entrypoints/bootstrap_backfill.py`
+- `governance/entrypoints/bootstrap_binding_evidence.py`
+- `governance/entrypoints/bootstrap_executor.py`
+- `governance/entrypoints/bootstrap_persistence_hook.py`
+- `governance/entrypoints/bootstrap_preflight_readonly.py`
+- `governance/entrypoints/bootstrap_session_state.py`
+- `governance/entrypoints/bootstrap_session_state_orchestrator.py`
+- `governance/entrypoints/bootstrap_session_state_service.py`
+- `governance/entrypoints/command_profiles.py`
+- `governance/entrypoints/error_handler_bridge.py`
+- `governance/entrypoints/error_logs.py`
+- `governance/entrypoints/errors/global_handler.py`
+- `governance/entrypoints/global_error_handler.py`
+- `governance/entrypoints/governed_export_cli.py`
+- `governance/entrypoints/human_approval_persist.py`
+- `governance/entrypoints/implement_start.py`
+- `governance/entrypoints/implementation_decision_persist.py`
+- `governance/entrypoints/io/actions.py`
+- `governance/entrypoints/io/atomic_write.py`
+- `governance/entrypoints/io/fs_verify.py`
+- `governance/entrypoints/map_audit_to_canonical.py`
+- `governance/entrypoints/md_lint.py`
+- `governance/entrypoints/new_work_session.py`
+- `governance/entrypoints/persist_workspace_artifacts.py`
+- `governance/entrypoints/persist_workspace_artifacts_orchestrator.py`
+- `governance/entrypoints/phase4_intake_persist.py`
+- `governance/entrypoints/phase5_plan_record_persist.py`
+- `governance/entrypoints/reason_registry_selfcheck.py`
+- `governance/entrypoints/review_decision_persist.py`
+- `governance/entrypoints/review_pr.py`
+- `governance/entrypoints/schema_selfcheck.py`
+- `governance/entrypoints/session_reader.py`
+- `governance/entrypoints/session_state_contract.py`
+- `governance/entrypoints/verify_contracts.py`
+- `governance/entrypoints/work_session_restore.py`
+- `governance/entrypoints/workspace_lock.py`
+- `governance/entrypoints/write_policy.py`
+- `governance/infrastructure/adapters/filesystem/atomic_write.py`
+- `governance/infrastructure/adapters/filesystem/canonical_paths.py`
+- `governance/infrastructure/adapters/filesystem/in_memory.py`
+- `governance/infrastructure/adapters/filesystem/locks.py`
+- `governance/infrastructure/adapters/filesystem/verifier.py`
+- `governance/infrastructure/adapters/git/git_cli.py`
+- `governance/infrastructure/adapters/logging/event_sink.py`
+- `governance/infrastructure/adapters/logging/jsonl_error_sink.py`
+- `governance/infrastructure/adapters/process/subprocess_runner.py`
+- `governance/infrastructure/adapters/rulebooks/anchor_excerpts.py`
+- `governance/infrastructure/adapters/rulebooks/md_loader.py`
+- `governance/infrastructure/fs/canonical_paths.py`
+- `governance/infrastructure/logging/error_logs.py`
+- `governance/infrastructure/logging/global_error_handler.py`
+- `governance/installer.py`
+- `governance/layers.py`
+- `governance/packs/discovery.py`
+- `governance/packs/loader_policy.py`
+- `governance/packs/pack_service.py`
+- `governance/paths/binding.py`
+- `governance/paths/canonical.py`
+- `governance/paths/layer_adapter.py`
+- `governance/paths/layout.py`
+- `governance/presentation/renderer.py`
+- `governance/receipts/match.py`
+- `governance/receipts/store.py`
+- `governance/render/delta_renderer.py`
+- `governance/render/intent_router.py`
+- `governance/render/render_contract.py`
+- `governance/render/response_formatter.py`
+- `governance/render/token_guard.py`
+- `governance/structure.py`
+- `governance/verification/behavioral_verifier.py`
+- `governance/verification/builder_contract.py`
+- `governance/verification/completion_matrix.py`
+- `governance/verification/pipeline.py`
+- `governance/verification/runner.py`
+- `governance/verification/static_verifier.py`
+
+## Unclear (manual review required)
+
+- `governance/addon_catalog.py`
+- `governance/context/repo_context_resolver.py`
+- `governance/domain/errors/codes.py`
+- `governance/domain/strict_exit_evaluator.py`
+- `governance/engine/canonical_json.py`
+- `governance/engine/phase_next_action_contract.py`
+- `governance/engine/reason_codes.py`
+- `governance/packs/pack_lock.py`
+- `governance/persistence/write_policy.py`
+- `governance/verification/live_flow_verifier.py`
+- `governance/verification/user_surface_verifier.py`
+
+## Proposed R4b Delete Readiness
+
+- safe_to_delete_now: bridge_only + dead (after compatibility policy decision)
+- keep_temporarily: selected bridge_only files for backward compatibility window
+- migrate_first: active_logic + unclear

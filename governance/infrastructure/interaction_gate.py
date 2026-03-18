@@ -1,3 +1,6 @@
-"""Infrastructure interaction gate surface."""
+"""Legacy compatibility bridge for `governance.infrastructure.interaction_gate`.
 
-from governance.engine.interaction_gate import evaluate_interaction_gate  # noqa: F401
+DEPRECATED: use governance_runtime.infrastructure.interaction_gate.
+"""
+
+from governance_runtime.infrastructure.interaction_gate import *  # noqa: F401,F403

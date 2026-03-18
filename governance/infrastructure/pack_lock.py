@@ -1,3 +1,6 @@
-"""Infrastructure pack lock surface."""
+"""Legacy compatibility bridge for `governance.infrastructure.pack_lock`.
 
-from governance.packs.pack_lock import resolve_pack_lock  # noqa: F401
+DEPRECATED: use governance_runtime.infrastructure.pack_lock.
+"""
+
+from governance_runtime.infrastructure.pack_lock import *  # noqa: F401,F403

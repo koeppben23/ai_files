@@ -1,7 +1,6 @@
-"""Infrastructure surface-policy evaluation surface."""
+"""Legacy compatibility bridge for `governance.infrastructure.surface_policy`.
 
-from governance.engine.surface_policy import (  # noqa: F401
-    capability_satisfies_requirement,
-    mode_satisfies_requirement,
-    resolve_surface_policy,
-)
+DEPRECATED: use governance_runtime.infrastructure.surface_policy.
+"""
+
+from governance_runtime.infrastructure.surface_policy import *  # noqa: F401,F403

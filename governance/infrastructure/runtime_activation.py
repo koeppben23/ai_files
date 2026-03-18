@@ -1,9 +1,6 @@
-"""Infrastructure runtime activation surface."""
+"""Legacy compatibility bridge for `governance.infrastructure.runtime_activation`.
 
-from governance.engine.runtime import (  # noqa: F401
-    EngineDeviation,
-    EngineRuntimeDecision,
-    LiveEnablePolicy,
-    evaluate_runtime_activation,
-    golden_parity_fields,
-)
+DEPRECATED: use governance_runtime.infrastructure.runtime_activation.
+"""
+
+from governance_runtime.infrastructure.runtime_activation import *  # noqa: F401,F403

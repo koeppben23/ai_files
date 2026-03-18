@@ -1,9 +1,6 @@
-"""Infrastructure host adapter surface."""
+"""Legacy compatibility bridge for `governance.infrastructure.host_adapter`.
 
-from governance.engine.adapters import (  # noqa: F401
-    HostAdapter,
-    HostCapabilities,
-    LocalHostAdapter,
-    OpenCodeDesktopAdapter,
-    OperatingMode,
-)
+DEPRECATED: use governance_runtime.infrastructure.host_adapter.
+"""
+
+from governance_runtime.infrastructure.host_adapter import *  # noqa: F401,F403

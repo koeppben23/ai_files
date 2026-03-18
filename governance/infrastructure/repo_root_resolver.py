@@ -1,6 +1,6 @@
-"""Infrastructure repository root resolver surface."""
+"""Legacy compatibility bridge for `governance.infrastructure.repo_root_resolver`.
 
-from governance.context.repo_context_resolver import (  # noqa: F401
-    RepoRootResolutionResult,
-    resolve_repo_root,
-)
+DEPRECATED: use governance_runtime.infrastructure.repo_root_resolver.
+"""
+
+from governance_runtime.infrastructure.repo_root_resolver import *  # noqa: F401,F403
