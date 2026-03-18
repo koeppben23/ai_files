@@ -16,7 +16,7 @@ from governance.infrastructure.logging.global_error_handler import emit_error_ev
 from governance.paths import get_workspace_logs_root
 
 from governance_runtime.engine.gate_evaluator import evaluate_p6_prerequisites, can_promote_to_phase6, evaluate_strict_exit_gate
-from governance.engine import reason_codes
+from governance_runtime.engine import reason_codes
 
 from .phase_api_spec import PhaseApiSpec, PhaseApiSpecError, PhaseSpecEntry, load_phase_api
 
