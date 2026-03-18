@@ -40,7 +40,6 @@ CONTENT_PATTERNS: frozenset = frozenset({
     # Content directories (legacy)
     "docs",
     "docs/contracts",
-    "docs/_archive",
     "profiles",
     "templates",
     "templates/github-actions",

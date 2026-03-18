@@ -99,7 +99,7 @@ docs/: `docs/quality-benchmark-pack-matrix.md`, `docs/install-layout.md`, `docs/
 `docs/TERMINOLOGY_CLASSIFICATION.md`, `docs/contracts/*.md`, `docs/governance/*.md`,
 `docs/governance_invariants.md`, `docs/mode-aware-repo-rules.md`.
 
-Archive: `docs/_archive/**`.
+No archive subtree exists; only active SSOT docs are shipped.
 
 ## 4. Conformance Rules
 
