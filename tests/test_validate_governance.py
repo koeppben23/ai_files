@@ -2042,3 +2042,34 @@ def test_lint_passes_clean_version_and_hash_state():
     lint.check_catalog_version_format(issues)
     lint.check_artifact_hash_integrity(issues)
     assert not issues, f"Expected clean state, got: {issues}"
+
+
+@pytest.mark.governance
+def test_lint_hash_integrity_tolerates_crlf_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Hash integrity remains stable when checkout line endings are CRLF."""
+    lint = _import_governance_lint()
+    fake_root = tmp_path / "repo"
+
+    release_dir = fake_root / "governance_spec" / "rulesets" / "governance" / "0.1.0"
+    release_dir.mkdir(parents=True)
+
+    manifest_text_lf = '{\n  "version": "0.1.0"\n}\n'
+    lock_text_lf = '{\n  "files": []\n}\n'
+
+    (release_dir / "manifest.json").write_bytes(manifest_text_lf.replace("\n", "\r\n").encode("utf-8"))
+    (release_dir / "lock.json").write_bytes(lock_text_lf.replace("\n", "\r\n").encode("utf-8"))
+
+    (release_dir / "hashes.json").write_text(
+        json.dumps(
+            {
+                "manifest.json": hashlib.sha256(manifest_text_lf.encode("utf-8")).hexdigest(),
+                "lock.json": hashlib.sha256(lock_text_lf.encode("utf-8")).hexdigest(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(lint, "ROOT", fake_root)
+    issues: list[str] = []
+    lint.check_artifact_hash_integrity(issues)
+    assert not issues, f"Expected CRLF-tolerant hash integrity, got: {issues}"

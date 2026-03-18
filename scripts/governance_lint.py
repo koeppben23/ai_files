@@ -113,7 +113,8 @@ def check_artifact_hash_integrity(issues: list[str]) -> None:
                 files_to_check["lock.json"] = lock_file
             for fname, fpath in files_to_check.items():
                 if fname in hashes:
-                    actual_hash = hashlib.sha256(fpath.read_bytes()).hexdigest()
+                    file_bytes = fpath.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+                    actual_hash = hashlib.sha256(file_bytes).hexdigest()
                     if hashes[fname] != actual_hash:
                         issues.append(f"{release_dir.name}/hashes.json: integrity FAILED for {fname}")
         except json.JSONDecodeError:
