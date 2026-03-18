@@ -71,6 +71,11 @@ def get_phase_api_path() -> Path:
     return REPO_ROOT / "governance_spec" / "phase_api.yaml"
 
 
+def get_review_path() -> Path:
+    """Get review.md path (SSOT only)."""
+    return REPO_ROOT / "governance_content" / "docs" / "review.md"
+
+
 def _remap_legacy_relative_path(rel: str) -> str:
     """Map legacy repo-relative paths to new structure."""
     if rel == "master.md":
