@@ -1,10 +1,10 @@
-# R5-R10 Completion Record
+# R5-R10 Hardening and Readiness Record
 
 Generated: 2026-03-18
 
 ## Scope
 
-This record closes the remaining restplan phases after R4b.
+This record hardens and verifies readiness for the remaining restplan phases after R4b.
 
 ## R5 — Workspace Log Paths Only
 
@@ -36,7 +36,7 @@ This record closes the remaining restplan phases after R4b.
   - `governance_spec/migrations/R4a_Legacy_Sunset_Readiness.md`
   - `governance_spec/migrations/R4b_Legacy_Sunset_Delete_Preparation.md`
 
-## R10 — Final Hard Verification Gate
+## R10 — Final Hard Readiness Gate
 
 - Runtime authority and decoupling remain hard-enforced:
   - `tests/conformance/test_runtime_import_decoupling.py`
@@ -45,4 +45,4 @@ This record closes the remaining restplan phases after R4b.
   - `tests/conformance/test_r5_workspace_logs_only.py`
   - `tests/conformance/test_version_and_installer_entrypoint.py`
 
-Outcome: Restplan through R10 is complete with hard conformance checks and migration records.
+Outcome: Restplan through R10 is hardened and readiness-verified with hard conformance checks and migration records.

@@ -1,4 +1,4 @@
-"""R10 final completion gate for restplan closure."""
+"""R10 final readiness gate for restplan closure."""
 
 from __future__ import annotations
 
@@ -11,12 +11,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.conformance
-class TestR10FinalCompletionGate:
+class TestR10FinalReadinessGate:
     def test_required_migration_records_exist(self) -> None:
         required = [
             REPO_ROOT / "governance_spec" / "migrations" / "R4a_Legacy_Sunset_Readiness.md",
             REPO_ROOT / "governance_spec" / "migrations" / "R4b_Legacy_Sunset_Delete_Preparation.md",
-            REPO_ROOT / "governance_spec" / "migrations" / "R5_R10_Completion.md",
+            REPO_ROOT / "governance_spec" / "migrations" / "R5_R10_Hardening_and_Readiness.md",
         ]
         missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
         assert not missing, f"Missing required migration records: {missing}"
