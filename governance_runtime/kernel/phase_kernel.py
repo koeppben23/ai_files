@@ -7,13 +7,13 @@ from typing import Any, Mapping, Sequence, cast
 import uuid
 
 from governance_runtime.application.dto.phase_next_action_contract import contains_ticket_prompt
-from governance.domain.strict_exit_evaluator import StrictExitResult
-from governance.infrastructure.plan_record_state import resolve_plan_record_signal
+from governance_runtime.domain.strict_exit_evaluator import StrictExitResult
+from governance_runtime.infrastructure.plan_record_state import resolve_plan_record_signal
 from governance_runtime.domain.phase_state_machine import phase_rank, resolve_phase_output_policy
 from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.logging.global_error_handler import emit_error_event
-from governance.paths import get_workspace_logs_root
+from governance_runtime.paths import get_workspace_logs_root
 
 from governance_runtime.engine.gate_evaluator import evaluate_p6_prerequisites, can_promote_to_phase6, evaluate_strict_exit_gate
 from governance_runtime.engine import reason_codes
