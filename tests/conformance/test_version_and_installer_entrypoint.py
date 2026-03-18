@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 from pathlib import Path
+import re
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -20,10 +21,12 @@ class TestVersionSourceConformance:
         """Target: governance_runtime/VERSION is the canonical source."""
         gr_version = REPO_ROOT / "governance_runtime" / "VERSION"
         assert gr_version.exists(), "governance_runtime/VERSION must exist as canonical source"
-        
-        # Should have valid semver content
+
+        # Must be valid SemVer (core with optional prerelease/build)
         content = gr_version.read_text(encoding="utf-8").strip()
-        assert len(content) > 0, "governance_runtime/VERSION must not be empty"
+        assert re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?", content), (
+            "governance_runtime/VERSION must be SemVer-compatible"
+        )
 
     def test_version_source_for_compatibility(self):
         """Legacy VERSION files, if present, must mirror canonical runtime VERSION."""
@@ -47,11 +50,22 @@ class TestInstallerEntrypointConformance:
         assert gr_install.exists(), "governance_runtime/install/install.py must exist as canonical entrypoint"
 
     def test_root_install_for_compatibility(self):
-        """Root installer, if present, is compatibility surface while runtime installer is canonical."""
+        """Root and canonical installer must stay functionally aligned on critical contracts."""
         root_install = REPO_ROOT / "install.py"
         canonical = REPO_ROOT / "governance_runtime" / "install" / "install.py"
-        if root_install.exists():
-            root_content = root_install.read_text(encoding="utf-8")
-            canonical_content = canonical.read_text(encoding="utf-8")
-            assert "LLM Governance System - Installer" in root_content
-            assert "LLM Governance System - Installer" in canonical_content
+        assert root_install.exists(), "install.py compatibility installer must exist"
+        root_content = root_install.read_text(encoding="utf-8")
+        canonical_content = canonical.read_text(encoding="utf-8")
+
+        required_contract_tokens = [
+            "GOVERNANCE_PATHS_SCHEMA",
+            "def _write_python_binding_file(",
+            "OPENCODE_JSON_NAME",
+            "PYTHON_BINDING",
+            "opencode-governance.paths.v1",
+            "def _launcher_template_unix(",
+            "def _launcher_template_windows(",
+        ]
+        for token in required_contract_tokens:
+            assert token in root_content, f"Root install.py missing required contract token: {token}"
+            assert token in canonical_content, f"Canonical installer missing required contract token: {token}"
