@@ -9,7 +9,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-from tests.util import get_master_path, get_rules_path, get_docs_path, get_profiles_path
+from tests.util import get_master_path, get_rules_path, get_docs_path, get_profiles_path, get_review_path
 
 
 @pytest.mark.governance
@@ -20,7 +20,7 @@ def test_md_lint_runs_in_ci_mode_and_reports_json():
         get_master_path(),
         get_rules_path(),
         REPO_ROOT / "continue.md",
-        REPO_ROOT / "review.md",
+        get_review_path(),
         get_docs_path() / "resume.md",
         get_docs_path() / "resume_prompt.md",
         get_docs_path() / "new_profile.md",

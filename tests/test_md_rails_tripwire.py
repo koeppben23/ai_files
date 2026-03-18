@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from tests.util import REPO_ROOT, get_docs_path, get_master_path, get_profiles_path, get_rules_path
+from tests.util import REPO_ROOT, get_docs_path, get_master_path, get_profiles_path, get_rules_path, get_review_path
 
 
 def _strip_code_fences(text: str) -> str:
@@ -16,7 +16,7 @@ def test_md_rails_tripwire_operational_markers_absent():
         get_master_path(),
         get_rules_path(),
         REPO_ROOT / "continue.md",
-        REPO_ROOT / "review.md",
+        get_review_path(),
         get_docs_path() / "resume.md",
         get_docs_path() / "resume_prompt.md",
         get_docs_path() / "new_profile.md",
