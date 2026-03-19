@@ -17,7 +17,11 @@ set "COMMANDS_HOME=%OPENCODE_CONFIG_ROOT%\commands"
 set "OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%"
 set "OPENCODE_LOCAL_ROOT=%OPENCODE_LOCAL_ROOT%"
 if not defined OPENCODE_LOCAL_ROOT (
-    set "OPENCODE_LOCAL_ROOT=%OPENCODE_CONFIG_ROOT%"
+    if defined USERPROFILE (
+        set "OPENCODE_LOCAL_ROOT=%USERPROFILE%\.local\opencode"
+    ) else (
+        set "OPENCODE_LOCAL_ROOT=%HOMEDRIVE%%HOMEPATH%\.local\opencode"
+    )
 )
 set "PYTHONPATH=%OPENCODE_LOCAL_ROOT%;%COMMANDS_HOME%;!PYTHONPATH!"
 set "OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%"
@@ -60,7 +64,7 @@ if not defined OPENCODE_BOOTSTRAP_OUTPUT (
 rem --- Subcommand routing (python-binding-contract.v1 §4) ---
 if "%~1"=="--session-reader" (
     shift
-    "!PYTHON_EXE!" "%OPENCODE_LOCAL_ROOT%\governance_runtime\entrypoints\session_reader.py" %*
+    "!PYTHON_EXE!" -m governance_runtime.entrypoints.session_reader %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )

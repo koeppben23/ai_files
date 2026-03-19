@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OPENCODE_CONFIG_ROOT="${OPENCODE_CONFIG_ROOT:-"${SCRIPT_DIR}/.."}"
 OPENCODE_REPO_ROOT="${OPENCODE_REPO_ROOT:-}"
 COMMANDS_HOME="${COMMANDS_HOME:-"${OPENCODE_CONFIG_ROOT}/commands"}"
-OPENCODE_LOCAL_ROOT="${OPENCODE_LOCAL_ROOT:-"${OPENCODE_CONFIG_ROOT}"}"
+OPENCODE_LOCAL_ROOT="${OPENCODE_LOCAL_ROOT:-"${HOME}/.local/opencode"}"
 PYTHONPATH="${OPENCODE_LOCAL_ROOT}:${COMMANDS_HOME}:${PYTHONPATH}"
 
 export OPENCODE_CONFIG_ROOT
@@ -34,7 +34,7 @@ export OPENCODE_PYTHON="${PYTHON_BIN}"
 case "${1:-}" in
     --session-reader)
         shift
-        exec "${PYTHON_BIN}" "${OPENCODE_LOCAL_ROOT}/governance_runtime/entrypoints/session_reader.py" "$@"
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.session_reader "$@"
         ;;
     --review-pr)
         shift
