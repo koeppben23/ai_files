@@ -94,6 +94,48 @@ def _source_core_rules_yml(source_dir: Path) -> Path:
     return rulesets_root / "core" / "rules.yml"
 
 
+def _validate_repo_topology(source_dir: Path) -> list[str]:
+    """Validate that the source repository has the expected topology.
+    
+    Returns a list of issues found (empty if all checks pass).
+    
+    Topology checks:
+    - opencode/commands/ must exist (contains command surface)
+    - governance_content/reference/ should contain master.md and rules.md
+    - governance_spec/ must contain phase_api.yaml and rules.yml
+    - governance_runtime/ should exist as migration target
+    """
+    issues = []
+    
+    opencode_commands = source_dir / "opencode" / "commands"
+    if not opencode_commands.is_dir():
+        issues.append(f"opencode/commands/ not found at {opencode_commands}")
+    else:
+        md_files = list(opencode_commands.glob("*.md"))
+        if len(md_files) != 8:
+            issues.append(f"opencode/commands/ should contain 8 Rails, found {len(md_files)}")
+    
+    gov_content_ref = source_dir / "governance_content" / "reference"
+    if not (gov_content_ref / "master.md").exists():
+        issues.append(f"governance_content/reference/master.md not found")
+    if not (gov_content_ref / "rules.md").exists():
+        issues.append(f"governance_content/reference/rules.md not found")
+    
+    gov_spec = source_dir / "governance_spec"
+    if not (gov_spec / "phase_api.yaml").exists():
+        issues.append(f"governance_spec/phase_api.yaml not found")
+    if not (gov_spec / "rules.yml").exists():
+        issues.append(f"governance_spec/rules.yml not found")
+    if not (gov_spec / "rulesets").is_dir():
+        issues.append(f"governance_spec/rulesets/ not found")
+    
+    gov_runtime = source_dir / "governance_runtime"
+    if not gov_runtime.is_dir():
+        issues.append(f"governance_runtime/ not found (migration target)")
+    
+    return issues
+
+
 def _ensure_utf8_stdio() -> None:
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -3028,12 +3070,10 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
 
 def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
     """
-    Remove installer/runtime-owned error log files:
-      - <config_root>/commands/logs/error.log.jsonl
-      - <config_root>/commands/logs/flow.log.jsonl
-      - <config_root>/commands/logs/boot.log.jsonl
+    Remove installer/runtime-owned error log files under workspace log roots:
       - <config_root>/workspaces/*/logs/error.log.jsonl
       - <config_root>/workspaces/*/logs/flow.log.jsonl
+      - <config_root>/workspaces/*/logs/boot.log.jsonl
       - legacy: <config_root>/logs/errors-*.jsonl
       - legacy: <config_root>/logs/errors-index.json
       - legacy: <config_root>/workspaces/*/logs/errors-*.jsonl
@@ -3586,7 +3626,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--keep-error-logs",
         action="store_true",
-        help="On uninstall: preserve runtime error logs under <config_root>/commands/logs and <config_root>/workspaces/*/logs (legacy <config_root>/logs paths may still exist).",
+        help="On uninstall: preserve runtime error logs under <config_root>/workspaces/*/logs (legacy <config_root>/logs paths may still exist).",
     )
     p.add_argument(
         "--keep-workspace-state",
