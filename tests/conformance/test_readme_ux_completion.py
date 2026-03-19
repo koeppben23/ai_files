@@ -135,3 +135,42 @@ class TestReadmeUxCompletion:
         ]
         for token in required_tokens:
             assert token in merged, f"Operator truth missing canonical payload token: {token}"
+
+    def test_master_surfaces_include_runtime_authority_and_operator_truth(self) -> None:
+        docs = [
+            REPO_ROOT / "governance_content" / "master.md",
+            REPO_ROOT / "governance_content" / "reference" / "master.md",
+        ]
+        for path in docs:
+            content = _read(path)
+            assert "governance_runtime/kernel/*" in content
+            assert "governance/kernel/*" not in content
+            assert "opencode-governance-bootstrap init --profile" in content
+            assert ".config/opencode" in content
+            assert ".local/opencode" in content
+            assert "compatibility surface only" in content
+
+    def test_operator_runbook_contains_canonical_operator_truth(self) -> None:
+        runbook = _read(REPO_ROOT / "governance_content" / "docs" / "operator-runbook.md")
+        assert "opencode-governance-bootstrap init --profile" in runbook
+        assert ".config/opencode" in runbook
+        assert ".local/opencode" in runbook
+        assert "python -m ..." in runbook
+        assert "not primary operator guidance" in runbook
+
+    def test_docs_do_not_present_commands_governance_as_primary_model(self) -> None:
+        docs = [
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "QUICKSTART.md",
+            REPO_ROOT / "README-OPENCODE.md",
+            REPO_ROOT / "BOOTSTRAP.md",
+            REPO_ROOT / "governance_content" / "README.md",
+            REPO_ROOT / "governance_content" / "QUICKSTART.md",
+            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
+            REPO_ROOT / "governance_content" / "docs" / "operator-runbook.md",
+        ]
+        for path in docs:
+            content = _read(path)
+            assert "commands/governance/" not in content, (
+                f"{path.relative_to(REPO_ROOT)} must not describe commands/governance as active model"
+            )

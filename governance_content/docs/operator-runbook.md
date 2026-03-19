@@ -11,6 +11,13 @@
 Run these commands to verify system health. All three must pass before
 proceeding with any upgrade or troubleshooting.
 
+### 1.0 Canonical operator path truth
+
+- Config root: `~/.config/opencode` (`commands/`, `plugins/`, `workspaces/`, `bin/`)
+- Local root: `~/.local/opencode` (`governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, `VERSION`)
+- Primary bootstrap command: `opencode-governance-bootstrap init --profile <solo|team|regulated> --repo-root <repo-root>`
+- `python -m ...` invocation is internal/debug/compatibility only, not primary operator guidance.
+
 ### 1.1 Validate Rulebook
 
 ```bash

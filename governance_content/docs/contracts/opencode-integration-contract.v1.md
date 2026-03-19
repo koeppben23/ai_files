@@ -75,7 +75,7 @@ The plugin (`audit-new-session.mjs`) operates as follows:
 | **Deduplication** | In-memory `seen` Set keyed by session ID; per-process lifetime |
 | **Repo root resolution** | Priority cascade: `event.properties.info.directory` > `event.properties.directory` > `client.repo_root/repoRoot/cwd` > `process.cwd()` (fallback requires plausibility check) |
 | **Plausibility check** | Directory must contain at least one of: `.git`, `governance`, `governance.paths.json`, `pyproject.toml`, `package.json` |
-| **Governance invocation** | Spawns `python -m governance.entrypoints.new_work_session --trigger-source desktop-plugin --quiet` |
+| **Governance invocation** | Spawns `python -m governance_runtime.entrypoints.new_work_session --trigger-source desktop-plugin --quiet` |
 | **Output cap** | stdout/stderr capped at 64KB per stream |
 | **Failure mode** | Non-blocking; errors logged via `client.app.log()` best-effort |
 
