@@ -14,6 +14,12 @@ conformance_suite: archived
 > **Status:** archived | **Scope:** Historical migration draft for transitioning from v_current to v_next.
 > Each migration defines trigger, forward steps, backward compatibility, rollback, and fail-closed reason code.
 
+## Archived Notice
+
+- This migration contract is archived and non-operative.
+- It remains for audit traceability only.
+- Runtime/live contract enforcement must reference active contracts only.
+
 ## 1. Migration Index
 
 | ID | Name | Trigger | Reason Code on Drift |

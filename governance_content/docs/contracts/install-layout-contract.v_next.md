@@ -15,6 +15,12 @@ conformance_suite: archived
 > **Nicht aktuell wirksam.** No element described here is implemented today.
 > See `install-layout-contract.v_current.md` for current reality.
 
+## Archived Notice
+
+- This document is retained only as migration history.
+- It is not a live contract and must not be used as operational policy input.
+- Live install layout authority remains `install-layout-contract.v_current.md`.
+
 ## 1. Motivation
 
 The current layout has several structural ambiguities:
