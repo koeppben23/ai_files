@@ -152,30 +152,13 @@ def _emit_install_flow_event(
     installer_version: str,
     dry_run: bool,
 ) -> bool:
-    """Write a flow log event to <commands_home>/logs/flow.log.jsonl.
+    """No-op pre-workspace flow logging for final runtime mode.
 
-    Self-contained (no governance imports) so the installer can always log.
-    Returns True on success, False on failure (never raises).
+    Final-state Option A: do not persist installer flow logs before
+    a deterministic workspace fingerprint context exists.
     """
-    if dry_run:
-        return False
-    log_path = commands_home / ERROR_LOGS_DIR_NAME / "flow.log.jsonl"
-    event = {
-        "event": event_type,
-        "installerVersion": installer_version,
-        "governanceVersion": gov_version or "unknown",
-        "timestamp": datetime.now().isoformat(timespec="seconds"),
-        "platform": platform.system(),
-    }
-    try:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        line = json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n"
-        with log_path.open("a", encoding="utf-8", newline="\n") as fh:
-            fh.write(line)
-            fh.flush()
-        return True
-    except Exception:
-        return False
+    _ = (commands_home, event_type, gov_version, installer_version, dry_run)
+    return False
 
 
 VERSION = "1.1.0-RC.2"
@@ -471,7 +454,7 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
             f"OPENCODE_CONFIG_ROOT=\"{config_root}\"",
             "OPENCODE_REPO_ROOT=\"${OPENCODE_REPO_ROOT:-}\"",
             "COMMANDS_HOME=\"${OPENCODE_CONFIG_ROOT}/commands\"",
-            "PYTHONPATH=\"${COMMANDS_HOME}:${COMMANDS_HOME}/governance:${PYTHONPATH}\"",
+            "PYTHONPATH=\"${COMMANDS_HOME}:${COMMANDS_HOME}/governance_runtime:${PYTHONPATH}\"",
             "export OPENCODE_CONFIG_ROOT",
             "export OPENCODE_REPO_ROOT",
             "export COMMANDS_HOME",
@@ -498,30 +481,30 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
             "case \"${1:-}\" in",
             "    --session-reader)",
             "        shift",
-            "        exec \"${PYTHON_BIN}\" \"${COMMANDS_HOME}/governance/entrypoints/session_reader.py\" \"$@\"",
+            "        exec \"${PYTHON_BIN}\" \"${COMMANDS_HOME}/governance_runtime/entrypoints/session_reader.py\" \"$@\"",
             "        ;;",
             "    --ticket-persist)",
             "        shift",
-            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.phase4_intake_persist \"$@\"",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.phase4_intake_persist \"$@\"",
             "        ;;",
             "    --plan-persist)",
             "        shift",
-            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.phase5_plan_record_persist \"$@\"",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.phase5_plan_record_persist \"$@\"",
             "        ;;",
             "    --review-decision-persist)",
             "        shift",
-            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.review_decision_persist \"$@\"",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.review_decision_persist \"$@\"",
             "        ;;",
             "    --implement-start)",
             "        shift",
-            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.implement_start \"$@\"",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.implement_start \"$@\"",
             "        ;;",
             "    --implementation-decision-persist)",
             "        shift",
-            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.implementation_decision_persist \"$@\"",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.implementation_decision_persist \"$@\"",
             "        ;;",
             "    *)",
-            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.bootstrap_executor \"$@\"",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.bootstrap_executor \"$@\"",
             "        ;;",
             "esac",
             "",
@@ -594,41 +577,41 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
             "rem --- Subcommand routing (python-binding-contract.v1 §4) ---",
             "if \"%~1\"==\"--session-reader\" (",
             "    shift",
-            "    \"!PYTHON_EXE!\" \"%COMMANDS_HOME%\\governance\\entrypoints\\session_reader.py\" %*",
+            "    \"!PYTHON_EXE!\" \"%COMMANDS_HOME%\\governance_runtime\\entrypoints\\session_reader.py\" %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
             "if \"%~1\"==\"--ticket-persist\" (",
             "    shift",
-            "    \"!PYTHON_EXE!\" -m governance.entrypoints.phase4_intake_persist %*",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.phase4_intake_persist %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
             "if \"%~1\"==\"--plan-persist\" (",
             "    shift",
-            "    \"!PYTHON_EXE!\" -m governance.entrypoints.phase5_plan_record_persist %*",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.phase5_plan_record_persist %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
             "if \"%~1\"==\"--review-decision-persist\" (",
             "    shift",
-            "    \"!PYTHON_EXE!\" -m governance.entrypoints.review_decision_persist %*",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.review_decision_persist %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
             "if \"%~1\"==\"--implement-start\" (",
             "    shift",
-            "    \"!PYTHON_EXE!\" -m governance.entrypoints.implement_start %*",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.implement_start %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
             "if \"%~1\"==\"--implementation-decision-persist\" (",
             "    shift",
-            "    \"!PYTHON_EXE!\" -m governance.entrypoints.implementation_decision_persist %*",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.implementation_decision_persist %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
-            "\"!PYTHON_EXE!\" -m governance.entrypoints.bootstrap_executor %*",
+            "\"!PYTHON_EXE!\" -m governance_runtime.entrypoints.bootstrap_executor %*",
             "set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "endlocal & exit /b %WRAPPER_EXIT%",
             "",
@@ -1399,7 +1382,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
     profiles_home = commands_home / "profiles"
     governance_home = commands_home / "governance"
     workspaces_home = config_root / "workspaces"
-    global_error_logs_home = commands_home / ERROR_LOGS_DIR_NAME
+    global_error_logs_home = workspaces_home / "_global" / "logs"
     python_command = _path_for_json(Path(sys.executable))
 
     doc = {
@@ -1864,7 +1847,7 @@ def inject_session_reader_path_for_command(
     has_python_placeholder = PYTHON_COMMAND_PLACEHOLDER in content
 
     if (has_reader_placeholder or has_python_placeholder) and python_command is not None:
-        reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
+        reader_path = commands_dir / "governance_runtime" / "entrypoints" / "session_reader.py"
         concrete_path = str(reader_path)
 
         # Quote the python command if it is a single-token path that contains
@@ -1889,7 +1872,7 @@ def inject_session_reader_path_for_command(
     elif not has_bin_dir_placeholder and not has_reader_placeholder and not has_python_placeholder:
         # No known placeholders — attempt legacy regex fallback
         if python_command is not None:
-            reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
+            reader_path = commands_dir / "governance_runtime" / "entrypoints" / "session_reader.py"
             concrete_path = str(reader_path)
             safe_python = python_command
             if " " in safe_python and not (safe_python.startswith('"') and safe_python.endswith('"')):

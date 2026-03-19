@@ -300,11 +300,8 @@ phases:
     )
 
     assert result.status == "BLOCKED"
-    rows = [
-        json.loads(line)
-        for line in (commands_home / "logs" / "flow.log.jsonl").read_text(encoding="utf-8").splitlines()
-    ]
-    assert rows[-1]["event"] == "PHASE_BLOCKED"
+    assert result.source == "phase-api-missing"
+    assert not (commands_home / "logs" / "flow.log.jsonl").exists()
 
 
 @pytest.mark.governance
@@ -1674,31 +1671,18 @@ def test_kernel_strict_exit_deduplicates_criteria(tmp_path: Path) -> None:
     assert result.status == "BLOCKED"
     assert result.source == "strict-exit-gate"
 
-    # Read the JSONL event log to verify deduplicated criteria.
-    flow_log = commands_home / "logs" / "flow.log.jsonl"
-    assert flow_log.exists(), "Flow log should have been written"
-    rows = [
-        json.loads(line)
-        for line in flow_log.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    block_events = [r for r in rows if r.get("event") == "PHASE_BLOCKED"]
-    assert block_events, "Expected at least one PHASE_BLOCKED event"
-    last_block = block_events[-1]
-    detail = last_block.get("strict_exit_detail")
-    assert detail is not None, "strict_exit_detail should be present in event"
-
-    criteria_list = detail.get("criteria", [])
+    assert result.strict_exit_result is not None
+    criteria_list = result.strict_exit_result.criteria
     # The key assertion: exactly 1 criterion result, not 2.
     assert len(criteria_list) == 1, (
         f"Expected 1 deduplicated criterion result, got {len(criteria_list)} "
         f"(duplicate bug if 2)"
     )
     # Merged critical=True must have won.
-    assert criteria_list[0]["critical"] is True
+    assert criteria_list[0].critical is True
 
     # Exactly 1 reason code (not duplicated).
-    reason_codes_list = detail.get("reason_codes", [])
+    reason_codes_list = result.strict_exit_result.reason_codes
     assert len(reason_codes_list) == 1, (
         f"Expected 1 reason code, got {len(reason_codes_list)} "
         f"(inflated if >1)"

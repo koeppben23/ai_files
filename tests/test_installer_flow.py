@@ -1314,7 +1314,7 @@ class TestRepoLauncherContractDrift:
 
 
 class TestInstallLogsDirectory:
-    """Verify that install creates <commands_home>/logs/ and writes an initial flow event."""
+    """Verify final-state installer logging behavior (Option A)."""
 
     @pytest.mark.installer
     def test_happy_ensure_dirs_creates_logs_directory(self, tmp_path: Path) -> None:
@@ -1336,24 +1336,16 @@ class TestInstallLogsDirectory:
 
     @pytest.mark.installer
     def test_happy_install_writes_flow_log_event(self, tmp_path: Path) -> None:
-        """Happy: install writes an install-complete event to commands/logs/flow.log.jsonl."""
+        """Happy: install does not persist pre-workspace flow logs (Option A)."""
         config_root = tmp_path / "config-logs-flow"
         r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
         assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
         flow_log = config_root / "commands" / "logs" / "flow.log.jsonl"
-        assert flow_log.exists(), "Install must write flow.log.jsonl"
-        content = flow_log.read_text(encoding="utf-8").strip()
-        assert content, "flow.log.jsonl must not be empty"
-        event = json.loads(content.splitlines()[-1])
-        assert event["event"] == "install-complete"
-        assert "installerVersion" in event
-        assert "governanceVersion" in event
-        assert "timestamp" in event
-        assert "platform" in event
+        assert not flow_log.exists(), "Install must not write flow.log.jsonl before workspace context"
 
     @pytest.mark.installer
     def test_happy_governance_paths_json_includes_logs_home(self, tmp_path: Path) -> None:
-        """Happy: governance.paths.json globalErrorLogsHome matches commands/logs."""
+        """Happy: governance.paths.json globalErrorLogsHome matches workspaces/_global/logs."""
         config_root = tmp_path / "config-logs-paths"
         r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
         assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
@@ -1361,15 +1353,12 @@ class TestInstallLogsDirectory:
         assert paths_file.exists()
         data = json.loads(paths_file.read_text(encoding="utf-8"))
         logs_home = data["paths"]["globalErrorLogsHome"]
-        # globalErrorLogsHome must end with /commands/logs (POSIX-normalized)
-        assert logs_home.endswith("/commands/logs"), (
-            f"globalErrorLogsHome should end with /commands/logs, got: {logs_home}"
+        # globalErrorLogsHome must end with /workspaces/_global/logs (POSIX-normalized)
+        assert logs_home.endswith("/workspaces/_global/logs"), (
+            f"globalErrorLogsHome should end with /workspaces/_global/logs, got: {logs_home}"
         )
-        # The directory referenced by globalErrorLogsHome must actually exist
-        from pathlib import PurePosixPath
-        # Convert POSIX path back to OS path for existence check
-        logs_dir = config_root / "commands" / "logs"
-        assert logs_dir.is_dir(), "globalErrorLogsHome target directory must exist after install"
+        logs_dir = config_root / "workspaces" / "_global" / "logs"
+        assert not logs_dir.exists(), "globalErrorLogsHome target should be created lazily"
 
     @pytest.mark.installer
     def test_corner_ensure_dirs_idempotent(self, tmp_path: Path) -> None:
@@ -1404,18 +1393,14 @@ class TestInstallLogsDirectory:
 
     @pytest.mark.installer
     def test_corner_reinstall_appends_to_flow_log(self, tmp_path: Path) -> None:
-        """Corner: reinstall appends a second event to flow.log.jsonl."""
+        """Corner: reinstall still does not create pre-workspace flow logs."""
         config_root = tmp_path / "config-reinstall"
         r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
         assert r.returncode == 0, f"First install failed:\n{r.stdout}\n{r.stderr}"
         r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
         assert r.returncode == 0, f"Reinstall failed:\n{r.stdout}\n{r.stderr}"
         flow_log = config_root / "commands" / "logs" / "flow.log.jsonl"
-        lines = [l for l in flow_log.read_text(encoding="utf-8").splitlines() if l.strip()]
-        assert len(lines) >= 2, f"Expected at least 2 flow events after reinstall, got {len(lines)}"
-        for line in lines:
-            event = json.loads(line)
-            assert event["event"] == "install-complete"
+        assert not flow_log.exists(), "Reinstall must not create flow.log.jsonl"
 
     @pytest.mark.installer
     def test_edge_logs_dir_matches_error_logs_dir_name_constant(self) -> None:
@@ -1440,7 +1425,7 @@ class TestInstallLogsDirectory:
 
     @pytest.mark.installer
     def test_edge_emit_install_flow_event_returns_true_on_success(self, tmp_path: Path) -> None:
-        """Edge: _emit_install_flow_event returns True on successful write."""
+        """Edge: _emit_install_flow_event is a no-op and returns False."""
         from install import _emit_install_flow_event
         commands_home = tmp_path / "commands"
         commands_home.mkdir()
@@ -1451,9 +1436,9 @@ class TestInstallLogsDirectory:
             installer_version="1.0.0",
             dry_run=False,
         )
-        assert result is True
+        assert result is False
         flow_log = commands_home / "logs" / "flow.log.jsonl"
-        assert flow_log.exists()
+        assert not flow_log.exists()
 
     @pytest.mark.installer
     def test_bad_emit_flow_event_readonly_dir_does_not_raise(self, tmp_path: Path) -> None:

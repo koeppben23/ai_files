@@ -324,10 +324,7 @@ def _resolve_flow_paths(commands_home: Path | None, workspaces_home: Path | None
         paths["workspace_flow"] = get_workspace_logs_root(repo_fingerprint) / "flow.log.jsonl"
         paths["workspace_boot"] = get_workspace_logs_root(repo_fingerprint) / "boot.log.jsonl"
         paths["workspace_error"] = get_workspace_logs_root(repo_fingerprint) / "error.log.jsonl"
-    # Legacy paths kept for backward compatibility only - do NOT use for new writes
-    if commands_home is not None:
-        paths["commands_flow"] = commands_home / "logs" / "flow.log.jsonl"
-        paths["commands_boot"] = commands_home / "logs" / "boot.log.jsonl"
+    _ = commands_home
     return paths
 
 
@@ -1008,6 +1005,11 @@ def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -
     workspace_written = False
     workspace_path = log_paths.get("workspace_events")
     workspace_flow = log_paths.get("workspace_flow")
+    if workspace_path is None:
+        return True, {
+            "phase_flow": str(workspace_flow or ""),
+            "workspace_events": "",
+        }
     if workspace_path is not None:
         workspace_written = _append_event(workspace_path, event)
         if workspace_flow is not None:
@@ -1019,17 +1021,8 @@ def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -
             "phase_flow": str(phase_flow_path),
             "workspace_events": str(workspace_path),
         }
-
-    for key in ("commands_flow", "commands_boot"):
-        target = log_paths.get(key)
-        if target is not None and _append_event(target, event):
-            return True, {
-                "phase_flow": str(target),
-                "workspace_events": "",
-            }
-
     return False, {
-        "phase_flow": str(log_paths.get("commands_flow") or ""),
+        "phase_flow": str(workspace_flow or workspace_path or ""),
         "workspace_events": "",
     }
 
@@ -1186,7 +1179,10 @@ def execute(
             spec_hash="",
             spec_path="",
             spec_loaded_at="",
-            log_paths={"phase_flow": str(log_paths.get("commands_flow") or ""), "workspace_events": ""},
+            log_paths={
+                "phase_flow": str(log_paths.get("workspace_flow") or ""),
+                "workspace_events": str(log_paths.get("workspace_events") or ""),
+            },
             event_id=event_id,
             plan_record_status=plan_record_signal.status,
             plan_record_versions=plan_record_signal.versions,
@@ -1236,7 +1232,10 @@ def execute(
             spec_hash="",
             spec_path=phase_api_path,
             spec_loaded_at="",
-            log_paths={"phase_flow": str(log_paths.get("commands_flow") or ""), "workspace_events": ""},
+            log_paths={
+                "phase_flow": str(log_paths.get("workspace_flow") or ""),
+                "workspace_events": str(log_paths.get("workspace_events") or ""),
+            },
             event_id=event_id,
             plan_record_status=plan_record_signal.status,
             plan_record_versions=plan_record_signal.versions,
@@ -1290,8 +1289,8 @@ def execute(
         if readonly:
             # Readonly mode: skip all file writes, produce empty log paths
             result_paths: dict[str, str] = {
-                "phase_flow": str(log_paths.get("commands_flow") or ""),
-                "workspace_events": "",
+                "phase_flow": str(log_paths.get("workspace_flow") or ""),
+                "workspace_events": str(log_paths.get("workspace_events") or ""),
             }
         else:
             written, result_paths = _emit_phase_event(
@@ -1300,7 +1299,7 @@ def execute(
             )
             if not written:
                 emit_error_event(
-                    severity="CRITICAL",
+                    severity="HIGH",
                     code="PHASE_FLOW_LOG_WRITE_FAILED",
                     message="unable to write phase flow log",
                     repo_fingerprint=repo_fingerprint or None,
@@ -1309,8 +1308,6 @@ def execute(
                     commands_home=commands_home,
                     context={"phase": phase, "source": source},
                 )
-                next_gate_condition = "PHASE_BLOCKED: flow log write failed"
-                source = "flow-log-write-failed"
             emit_error_event(
                 severity="HIGH",
                 code="PHASE_BLOCKED",
@@ -1702,7 +1699,7 @@ def execute(
 
     if readonly:
         result_paths = {
-            "phase_flow": str(log_paths.get("commands_flow") or ""),
+            "phase_flow": str(log_paths.get("workspace_flow") or ""),
             "workspace_events": str(log_paths.get("workspace_events") or ""),
         }
     else:
@@ -1711,13 +1708,15 @@ def execute(
             event_payload,
         )
         if not written:
-            return _blocked_result(
-                phase=resolved_phase,
-                token=chosen_token,
-                active_gate=resolved_active_gate,
-                next_gate_condition="PHASE_BLOCKED: flow log write failed",
-                source="flow-log-write-failed",
-                reason="flow-log-write-failed",
+            emit_error_event(
+                severity="HIGH",
+                code="PHASE_FLOW_LOG_WRITE_FAILED",
+                message="unable to write phase flow log",
+                repo_fingerprint=repo_fingerprint or None,
+                config_root=config_root,
+                workspaces_home=workspaces_home,
+                commands_home=commands_home,
+                context={"phase": resolved_phase, "source": source},
             )
 
     return KernelResult(
