@@ -21,7 +21,7 @@ This record hardens and verifies readiness for the remaining restplan phases aft
 ## R7 — Installer Entrypoint Consolidation Hardening
 
 - Canonical installer remains `governance_runtime/install/install.py`.
-- Root `install.py` is treated as compatibility surface and must remain byte-identical to canonical installer.
+- Root `install.py` is a thin compatibility delegator to the canonical runtime installer.
 - Conformance strengthened in `tests/conformance/test_version_and_installer_entrypoint.py`.
 
 ## R8 — Legacy Bridge Purity
@@ -44,5 +44,6 @@ This record hardens and verifies readiness for the remaining restplan phases aft
   - `tests/conformance/test_r4b_legacy_bridge_purity.py`
   - `tests/conformance/test_r5_workspace_logs_only.py`
   - `tests/conformance/test_version_and_installer_entrypoint.py`
+  - `tests/conformance/test_r10_final_state_proof.py`
 
 Outcome: Restplan through R10 is hardened and readiness-verified with hard conformance checks and migration records.

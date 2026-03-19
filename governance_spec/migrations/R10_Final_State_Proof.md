@@ -135,4 +135,5 @@ Generated: 2026-03-18
 ## Notes
 
 - This proof captures the exact compatibility-surface contract for final-state enforcement.
-- Any drift in active compatibility files requires explicit test allowlist update.
+- This document is the frozen compatibility-surface authority for final-state legacy sunset.
+- Any drift in active compatibility files requires explicit update to this proof and conformance re-verification in `tests/conformance/test_r10_final_state_proof.py`.
