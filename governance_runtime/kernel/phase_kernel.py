@@ -1189,7 +1189,11 @@ def execute(
         )
 
     try:
-        spec = load_phase_api()
+        candidate_phase_api = (commands_home / "phase_api.yaml") if commands_home is not None else None
+        if candidate_phase_api is not None and candidate_phase_api.exists():
+            spec = load_phase_api(commands_home)
+        else:
+            spec = load_phase_api()
     except PhaseApiSpecError as exc:
         log_paths = _resolve_flow_paths(commands_home, workspaces_home, repo_fingerprint)
         phase_api_path = str((commands_home / "phase_api.yaml") if commands_home is not None else "")

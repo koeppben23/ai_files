@@ -25,7 +25,9 @@ def resolve_paths_full(config_root: Path | None = None) -> tuple[Path, Path, Pat
         cfg = Path(config_root)
         commands = cfg / "commands"
         workspaces = cfg / "workspaces"
-        paths_file = commands / "governance.paths.json"
+        paths_file = cfg / "governance.paths.json"
+        if not paths_file.exists():
+            paths_file = commands / "governance.paths.json"
         if paths_file.exists():
             try:
                 payload = json.loads(paths_file.read_text(encoding="utf-8"))

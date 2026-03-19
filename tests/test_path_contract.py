@@ -53,4 +53,4 @@ def test_binding_evidence_location_uses_canonical_by_default(monkeypatch: pytest
     )
     assert location.source == "canonical"
     assert location.commands_home is None
-    assert location.governance_paths_json == tmp_path / ".config" / "opencode" / "commands" / "governance.paths.json"
+    assert location.governance_paths_json == tmp_path / ".config" / "opencode" / "governance.paths.json"
