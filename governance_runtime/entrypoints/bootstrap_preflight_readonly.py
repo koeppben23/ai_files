@@ -131,6 +131,10 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     except Exception:
         return None
 
+    git_marker = normalized_repo_root / ".git"
+    if not (git_marker.is_dir() or git_marker.is_file()):
+        return None
+
     probe = subprocess.run(
         ["git", "-C", str(normalized_repo_root), "rev-parse", "--is-inside-work-tree"],
         capture_output=True,

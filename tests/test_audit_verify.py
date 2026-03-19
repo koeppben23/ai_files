@@ -2,11 +2,43 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from governance.infrastructure.workspace_paths import run_dir
 from governance.infrastructure.io_verify import verify_repository_manifest, verify_run_archive
 from governance.infrastructure.work_run_archive import archive_active_run
+
+
+def _platform_path(path: Path) -> str:
+    raw = os.path.abspath(str(path))
+    if os.name != "nt":
+        return raw
+    if raw.startswith("\\\\?\\"):
+        return raw
+    if raw.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + raw[2:]
+    return "\\\\?\\" + raw
+
+
+def _is_file(path: Path) -> bool:
+    return os.path.isfile(_platform_path(path))
+
+
+def _read_json(path: Path) -> dict:
+    with open(_platform_path(path), "r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    assert isinstance(payload, dict)
+    return payload
+
+
+def _write_json(path: Path, payload: dict) -> None:
+    with open(_platform_path(path), "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=True)
+
+
+def _unlink(path: Path) -> None:
+    os.unlink(_platform_path(path))
 
 
 def _recompute_checksums(run_root: Path) -> None:
@@ -25,8 +57,9 @@ def _recompute_checksums(run_root: Path) -> None:
         "pr-record.json",
     ]:
         candidate = run_root / name
-        if candidate.is_file():
-            files[name] = "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
+        if _is_file(candidate):
+            with open(_platform_path(candidate), "rb") as fh:
+                files[name] = "sha256:" + hashlib.sha256(fh.read()).hexdigest()
     payload = {"schema": "governance.run-checksums.v1", "files": files}
     (run_root / "checksums.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
 
@@ -847,7 +880,7 @@ def test_verify_rejects_finalized_run_without_finalization_record(tmp_path: Path
     )
 
     run_root = _run_root(workspaces_home, fingerprint, "run-no-finalization-record")
-    (run_root / "finalization-record.json").unlink()
+    _unlink(run_root / "finalization-record.json")
     _recompute_checksums(run_root)
 
     ok, _, message = verify_run_archive(run_root)
@@ -876,9 +909,9 @@ def test_verify_rejects_finalization_record_with_bundle_hash_mismatch(tmp_path: 
     )
 
     run_root = _run_root(workspaces_home, fingerprint, "run-finalization-hash-mismatch")
-    payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    payload = _read_json(run_root / "finalization-record.json")
     payload["bundle_manifest_hash"] = "sha256:" + "0" * 64
-    (run_root / "finalization-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _write_json(run_root / "finalization-record.json", payload)
     _recompute_checksums(run_root)
 
     ok, _, message = verify_run_archive(run_root)
@@ -907,9 +940,9 @@ def test_verify_rejects_finalization_record_reason_mismatch(tmp_path: Path) -> N
     )
 
     run_root = _run_root(workspaces_home, fingerprint, "run-finalization-reason-mismatch")
-    payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    payload = _read_json(run_root / "finalization-record.json")
     payload["finalization_reason"] = "tampered-reason"
-    (run_root / "finalization-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _write_json(run_root / "finalization-record.json", payload)
     _recompute_checksums(run_root)
 
     ok, _, message = verify_run_archive(run_root)
@@ -961,12 +994,9 @@ def test_verify_rejects_finalized_pr_record_pending_approval(tmp_path: Path) -> 
         "checksums": checksums_without_finalization,
     }
     raw = json.dumps(expected_bundle_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    finalization_payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    finalization_payload = _read_json(run_root / "finalization-record.json")
     finalization_payload["bundle_manifest_hash"] = "sha256:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
-    (run_root / "finalization-record.json").write_text(
-        json.dumps(finalization_payload, ensure_ascii=True),
-        encoding="utf-8",
-    )
+    _write_json(run_root / "finalization-record.json", finalization_payload)
     _recompute_checksums(run_root)
 
     ok, _, message = verify_run_archive(run_root)
@@ -1119,9 +1149,9 @@ def test_verify_rejects_finalization_record_mode_version_mismatch(tmp_path: Path
     )
 
     run_root = _run_root(workspaces_home, fingerprint, "run-finalization-mode-version-mismatch")
-    payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    payload = _read_json(run_root / "finalization-record.json")
     payload["resolvedOperatingMode"] = "team"
-    (run_root / "finalization-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _write_json(run_root / "finalization-record.json", payload)
     _recompute_checksums(run_root)
 
     ok, _, message = verify_run_archive(run_root)
@@ -1152,9 +1182,9 @@ def test_verify_rejects_finalization_record_verify_policy_mismatch(tmp_path: Pat
     )
 
     run_root = _run_root(workspaces_home, fingerprint, "run-finalization-verify-policy-mismatch")
-    payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    payload = _read_json(run_root / "finalization-record.json")
     payload["verifyPolicyVersion"] = "v2"
-    (run_root / "finalization-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _write_json(run_root / "finalization-record.json", payload)
     _recompute_checksums(run_root)
 
     ok, _, message = verify_run_archive(run_root)

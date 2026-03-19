@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 from typing import Dict, Mapping, Optional, Tuple
@@ -11,6 +12,31 @@ from governance_runtime.domain.operating_profile import derive_mode_evidence
 _RFC3339_UTC_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _REPO_FINGERPRINT_RE = re.compile(r"^[0-9a-f]{24}$")
 _SHA256_WITH_PREFIX_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+
+def _platform_path(path: Path) -> str:
+    raw = os.path.abspath(str(path))
+    if os.name != "nt":
+        return raw
+    if raw.startswith("\\\\?\\"):
+        return raw
+    if raw.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + raw[2:]
+    return "\\\\?\\" + raw
+
+
+def _read_bytes(path: Path) -> bytes:
+    with open(_platform_path(path), "rb") as fh:
+        return fh.read()
+
+
+def _read_text(path: Path) -> str:
+    with open(_platform_path(path), "r", encoding="utf-8") as fh:
+        return fh.read()
+
+
+def _is_file(path: Path) -> bool:
+    return os.path.isfile(_platform_path(path))
 
 
 def _verify_common_artifact_header(
@@ -53,11 +79,11 @@ def _stable_json_digest(payload: Mapping[str, object]) -> str:
 
 
 def verify_pointer(pointer_path: Path, expected_fingerprint: str) -> Tuple[bool, Optional[str]]:
-    if not pointer_path.is_file():
+    if not _is_file(pointer_path):
         return False, f"Path is not a file: {pointer_path}"
 
     try:
-        data = json.loads(pointer_path.read_text(encoding="utf-8"))
+        data = json.loads(_read_text(pointer_path))
     except (json.JSONDecodeError, IOError) as e:
         return False, f"Failed to read pointer: {e}"
 
@@ -99,7 +125,7 @@ def verify_artifacts(workspace_root: Path) -> Tuple[bool, Dict[str, bool], Optio
 
     results: Dict[str, bool] = {}
     for name in artifact_names:
-        results[name] = (workspace_root / name).is_file()
+        results[name] = _is_file(workspace_root / name)
 
     if all(results.values()):
         return True, results, None
@@ -119,13 +145,13 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "evidence-index.json",
         "checksums.json",
     ]
-    results: Dict[str, bool] = {name: (run_root / name).is_file() for name in required}
+    results: Dict[str, bool] = {name: _is_file(run_root / name) for name in required}
     if not all(results.values()):
         missing = [name for name, present in results.items() if not present]
         return False, results, f"Missing run artifacts: {', '.join(missing)}"
 
     try:
-        checksums_payload = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
+        checksums_payload = json.loads(_read_text(run_root / "checksums.json"))
     except Exception as exc:
         return False, results, f"Failed to parse checksums.json: {exc}"
     if not isinstance(checksums_payload, dict):
@@ -159,14 +185,14 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         if not isinstance(rel_name, str) or not isinstance(expected_digest, str):
             return False, results, "checksums.json contains invalid entry"
         candidate = run_root / rel_name
-        if not candidate.is_file():
+        if not _is_file(candidate):
             return False, results, f"Checksum target missing: {rel_name}"
-        actual = "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
+        actual = "sha256:" + hashlib.sha256(_read_bytes(candidate)).hexdigest()
         if actual != expected_digest:
             return False, results, f"Checksum mismatch: {rel_name}"
 
     try:
-        manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+        manifest = json.loads(_read_text(run_root / "run-manifest.json"))
     except Exception as exc:
         return False, results, f"Failed to parse run-manifest.json: {exc}"
     if not isinstance(manifest, dict):
@@ -176,7 +202,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         return False, results, f"Invalid run-manifest schema: {manifest_schema}"
 
     try:
-        metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
+        metadata = json.loads(_read_text(run_root / "metadata.json"))
     except Exception as exc:
         return False, results, f"Failed to parse metadata.json: {exc}"
     if not isinstance(metadata, dict):
@@ -186,7 +212,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         return False, results, f"Invalid metadata schema: {metadata_schema}"
 
     try:
-        session_state_document = json.loads((run_root / "SESSION_STATE.json").read_text(encoding="utf-8"))
+        session_state_document = json.loads(_read_text(run_root / "SESSION_STATE.json"))
     except Exception as exc:
         return False, results, f"Failed to parse SESSION_STATE.json: {exc}"
     if not isinstance(session_state_document, dict):
@@ -203,7 +229,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         return False, results, "snapshot_digest mismatch for SESSION_STATE.json"
 
     try:
-        provenance = json.loads((run_root / "provenance-record.json").read_text(encoding="utf-8"))
+        provenance = json.loads(_read_text(run_root / "provenance-record.json"))
     except Exception as exc:
         return False, results, f"Failed to parse provenance-record.json: {exc}"
     if not isinstance(provenance, dict):
@@ -224,7 +250,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         ("evidence-index.json", "governance.evidence-index.v1", "evidence_index"),
     ]:
         try:
-            artifact_payload = json.loads((run_root / filename).read_text(encoding="utf-8"))
+            artifact_payload = json.loads(_read_text(run_root / filename))
         except Exception as exc:
             return False, results, f"Failed to parse {filename}: {exc}"
         if not isinstance(artifact_payload, dict):
@@ -240,9 +266,9 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     optional_pr_record = run_root / "pr-record.json"
     pr_payload: Optional[dict] = None
-    if optional_pr_record.is_file():
+    if _is_file(optional_pr_record):
         try:
-            parsed_pr_payload = json.loads(optional_pr_record.read_text(encoding="utf-8"))
+            parsed_pr_payload = json.loads(_read_text(optional_pr_record))
         except Exception as exc:
             return False, results, f"Failed to parse pr-record.json: {exc}"
         if not isinstance(parsed_pr_payload, dict):
@@ -259,9 +285,9 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     optional_finalization_record = run_root / "finalization-record.json"
     finalization_payload: Optional[dict] = None
-    if optional_finalization_record.is_file():
+    if _is_file(optional_finalization_record):
         try:
-            parsed_finalization_payload = json.loads(optional_finalization_record.read_text(encoding="utf-8"))
+            parsed_finalization_payload = json.loads(_read_text(optional_finalization_record))
         except Exception as exc:
             return False, results, f"Failed to parse finalization-record.json: {exc}"
         if not isinstance(parsed_finalization_payload, dict):
@@ -528,7 +554,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     }
     for key, filename in archived_file_to_name.items():
         expected_present = bool(archived_files.get(key))
-        actual_present = (run_root / filename).is_file()
+        actual_present = _is_file(run_root / filename)
         if expected_present != actual_present:
             return False, results, f"archived_files mismatch for {filename}: expected={expected_present}, actual={actual_present}"
 
@@ -592,7 +618,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             filename = "run-manifest.json"
         if artifact_name == "provenance":
             filename = "provenance-record.json"
-        if not (run_root / filename).is_file():
+        if not _is_file(run_root / filename):
             return False, results, f"Required artifact missing: {filename}"
         if filename == "checksums.json":
             continue
@@ -605,7 +631,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "finalization-record.json",
     ]
     for filename in present_optional:
-        if (run_root / filename).is_file() and filename not in files:
+        if _is_file(run_root / filename) and filename not in files:
             return False, results, f"Present artifact not checksummed: {filename}"
 
     if run_status == "finalized" and finalization_payload is not None:
@@ -663,11 +689,11 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
 def verify_repository_manifest(runs_root: Path, *, expected_repo_fingerprint: Optional[str] = None) -> Tuple[bool, Optional[str]]:
     manifest_path = runs_root / "repository-manifest.json"
-    if not manifest_path.is_file():
+    if not _is_file(manifest_path):
         return False, f"Missing repository manifest: {manifest_path.name}"
 
     try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        payload = json.loads(_read_text(manifest_path))
     except Exception as exc:
         return False, f"Failed to parse repository-manifest.json: {exc}"
 

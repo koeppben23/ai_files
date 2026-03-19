@@ -19,6 +19,10 @@ from unittest.mock import patch
 from governance.paths import layer_adapter
 
 
+def _posix(path: Path) -> str:
+    return path.as_posix()
+
+
 class TestPathAdapterHappyPath:
     """Happy path: basic path resolution works."""
 
@@ -26,27 +30,27 @@ class TestPathAdapterHappyPath:
         """Config root can be overridden via environment variable."""
         with patch.dict(os.environ, {"OPENCODE_CONFIG_ROOT": "/test/config"}):
             layer_adapter.set_config_root_override(None)  # Clear any override
-            assert str(layer_adapter.get_config_root()) == "/test/config"
+            assert _posix(layer_adapter.get_config_root()) == "/test/config"
 
     def test_get_config_root_override_priority(self) -> None:
         """Programmatic override takes priority over environment."""
         layer_adapter.set_config_root_override("/override/path")
         with patch.dict(os.environ, {"OPENCODE_CONFIG_ROOT": "/env/path"}):
-            assert str(layer_adapter.get_config_root()) == "/override/path"
+            assert _posix(layer_adapter.get_config_root()) == "/override/path"
         layer_adapter.set_config_root_override(None)  # Cleanup
 
     def test_get_opencode_command_root(self) -> None:
         """OpenCode command root is derived from config root."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.get_opencode_command_root()
-        assert str(result) == "/test/config/commands"
+        assert _posix(result) == "/test/config/commands"
         layer_adapter.set_config_root_override(None)
 
     def test_get_governance_runtime_root(self) -> None:
         """Governance runtime root is derived from config root."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.get_governance_runtime_root()
-        assert str(result).endswith("/.local/opencode/governance_runtime")
+        assert _posix(result).endswith("/.local/opencode/governance_runtime")
         layer_adapter.set_config_root_override(None)
 
     def test_get_workspace_root_with_fingerprint(self) -> None:
@@ -54,7 +58,7 @@ class TestPathAdapterHappyPath:
         layer_adapter.set_config_root_override("/test/config")
         fp = "abc123def456"
         result = layer_adapter.get_workspace_root(fp)
-        assert str(result) == f"/test/config/workspaces/{fp}"
+        assert _posix(result) == f"/test/config/workspaces/{fp}"
         layer_adapter.set_config_root_override(None)
 
     def test_get_workspace_logs_root(self) -> None:
@@ -62,7 +66,7 @@ class TestPathAdapterHappyPath:
         layer_adapter.set_config_root_override("/test/config")
         fp = "abc123def456"
         result = layer_adapter.get_workspace_logs_root(fp)
-        assert str(result) == f"/test/config/workspaces/{fp}/logs"
+        assert _posix(result) == f"/test/config/workspaces/{fp}/logs"
         # Verify it's under the workspace
         workspace = layer_adapter.get_workspace_root(fp)
         assert result.parent == workspace
@@ -82,8 +86,8 @@ class TestPathAdapterHardRules:
         logs = layer_adapter.get_workspace_logs_root(fp)
         
         # Verify the logical path follows the rule
-        assert "workspaces" in str(logs)
-        assert str(logs).endswith("/logs")
+        assert "workspaces" in _posix(logs)
+        assert _posix(logs).endswith("/logs")
         
         # The hard rule is: NO code should write to commands/logs/
         # That path should NOT be used - only workspace logs
@@ -98,8 +102,8 @@ class TestPathAdapterHardRules:
         logs = layer_adapter.get_workspace_logs_root(fp)
         
         # Verify it contains workspace path
-        assert "workspaces" in str(logs)
-        assert "testfp" in str(logs)
+        assert "workspaces" in _posix(logs)
+        assert "testfp" in _posix(logs)
         
         layer_adapter.set_config_root_override(None)
 
@@ -110,7 +114,7 @@ class TestPathAdapterHardRules:
         # The config root should NOT have a logs subdir as primary location
         config_root = layer_adapter.get_config_root()
         # This is the expected layout - logs ONLY in workspace
-        assert str(config_root / "commands" / "logs") != str(config_root / "logs")
+        assert _posix(config_root / "commands" / "logs") != _posix(config_root / "logs")
         
         layer_adapter.set_config_root_override(None)
 
@@ -122,56 +126,56 @@ class TestLegacyPathMapping:
         """Legacy commands/ path resolves to opencode command root."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands")
-        assert str(result) == "/test/config/commands"
+        assert _posix(result) == "/test/config/commands"
         layer_adapter.set_config_root_override(None)
 
     def test_resolve_legacy_governance_path(self) -> None:
         """Legacy commands/governance/ path resolves to runtime root."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands/governance")
-        assert str(result).endswith("/.local/opencode/governance")
+        assert _posix(result).endswith("/.local/opencode/governance")
         layer_adapter.set_config_root_override(None)
 
     def test_resolve_legacy_governance_with_suffix_preserved(self) -> None:
         """Legacy path with suffix preserves the suffix."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands/governance/engine/x.py")
-        assert str(result).endswith("/.local/opencode/governance/engine/x.py")
+        assert _posix(result).endswith("/.local/opencode/governance/engine/x.py")
         layer_adapter.set_config_root_override(None)
 
     def test_resolve_legacy_docs_with_suffix_preserved(self) -> None:
         """Legacy docs path with suffix preserves the suffix."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands/docs/foo.md")
-        assert str(result).endswith("/.local/opencode/governance_content/docs/foo.md")
+        assert _posix(result).endswith("/.local/opencode/governance_content/docs/foo.md")
         layer_adapter.set_config_root_override(None)
 
     def test_resolve_legacy_profiles_with_suffix_preserved(self) -> None:
         """Legacy profiles path with suffix preserves the suffix."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands/profiles/rules.md")
-        assert str(result).endswith("/.local/opencode/governance_content/profiles/rules.md")
+        assert _posix(result).endswith("/.local/opencode/governance_content/profiles/rules.md")
         layer_adapter.set_config_root_override(None)
 
     def test_resolve_legacy_docs_path(self) -> None:
         """Legacy commands/docs/ path resolves to content root with docs."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands/docs")
-        assert str(result).endswith("/.local/opencode/governance_content/docs")
+        assert _posix(result).endswith("/.local/opencode/governance_content/docs")
         layer_adapter.set_config_root_override(None)
 
     def test_resolve_unknown_legacy_path_defaults_to_commands(self) -> None:
         """Unknown legacy paths default to commands root."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("some/unknown/path")
-        assert str(result) == "/test/config/commands"
+        assert _posix(result) == "/test/config/commands"
         layer_adapter.set_config_root_override(None)
 
     def test_legacy_path_with_backslash_normalized(self) -> None:
         """Windows backslash paths are normalized to forward slash."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands\\governance")
-        assert "\\" not in str(result)
+        assert "\\" not in _posix(result)
         layer_adapter.set_config_root_override(None)
 
 
@@ -203,7 +207,7 @@ class TestPathAdapterCornerCases:
         with patch.dict(os.environ, {"OPENCODE_CONFIG_ROOT": "/absolute/path"}):
             layer_adapter.set_config_root_override(None)
             result = layer_adapter.get_config_root()
-            assert str(result) == "/absolute/path"
+            assert _posix(result) == "/absolute/path"
 
     def test_relative_path_in_env_variable_accepted(self) -> None:
         """Relative paths in env var are accepted (not converted to absolute)."""
@@ -211,14 +215,14 @@ class TestPathAdapterCornerCases:
             layer_adapter.set_config_root_override(None)
             result = layer_adapter.get_config_root()
             # Relative paths are accepted as-is (not resolved to absolute)
-            assert "relative/path" in str(result)
+            assert "relative/path" in _posix(result)
 
     def test_path_with_trailing_slash(self) -> None:
         """Paths with trailing slashes are handled correctly."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands/")
         # Should not have double slashes
-        assert "//" not in str(result)
+        assert "//" not in _posix(result)
         layer_adapter.set_config_root_override(None)
 
     def test_path_with_leading_slash(self) -> None:
@@ -226,5 +230,5 @@ class TestPathAdapterCornerCases:
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("/commands/governance")
         # Should not have issues
-        assert str(result).endswith("/.local/opencode/governance")
+        assert _posix(result).endswith("/.local/opencode/governance")
         layer_adapter.set_config_root_override(None)

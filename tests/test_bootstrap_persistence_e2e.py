@@ -155,7 +155,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
             "configRoot": str(config_root),
             "localRoot": str(local_root),
             "commandsHome": str(commands_home),
-            "profilesHome": str(commands_home / "profiles"),
+            "profilesHome": str(local_root / "governance_content" / "profiles"),
             "governanceHome": str(local_root / "governance"),
             "runtimeHome": str(local_root / "governance_runtime"),
             "contentHome": str(local_root / "governance_content"),
@@ -234,6 +234,7 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     env["CI"] = ""
     env["OPENCODE_CONFIG_ROOT"] = str(config_root)
     env["COMMANDS_HOME"] = str(commands_home)
+    env["OPENCODE_LOCAL_ROOT"] = str(checkout_root)
     env["OPENCODE_PYTHON"] = sys.executable
     env.pop("OPENCODE_FORCE_READ_ONLY", None)
     user_site = site.getusersitepackages()
@@ -257,12 +258,12 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     hook_command = str(hook.get("bootstrap_hook_command") or "")
     if hook_command:
         if os.name == "nt":
-            assert " -m governance.entrypoints.bootstrap_persistence_hook" in hook_command
+            assert " -m governance_runtime.entrypoints.bootstrap_persistence_hook" in hook_command
             assert Path(hook_command.split(" -m ", 1)[0]).name.lower().startswith("python")
         else:
             hook_argv = shlex.split(hook_command)
             assert len(hook_argv) >= 3
-            assert hook_argv[1:3] == ["-m", "governance.entrypoints.bootstrap_persistence_hook"]
+            assert hook_argv[1:3] == ["-m", "governance_runtime.entrypoints.bootstrap_persistence_hook"]
     assert hook.get("cwd") == str(repo)
     assert hook.get("repo_root_detected") == str(repo)
     repo_fp = str(hook.get("repo_fingerprint") or "").strip()
@@ -367,6 +368,7 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
     env["OPENCODE_FORCE_READ_ONLY"] = "1"
     env["OPENCODE_CONFIG_ROOT"] = str(config_root)
     env["COMMANDS_HOME"] = str(commands_home)
+    env["OPENCODE_LOCAL_ROOT"] = str(checkout_root)
     env["OPENCODE_PYTHON"] = sys.executable
     user_site = site.getusersitepackages()
     if user_site:
@@ -418,6 +420,7 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     env["CI"] = ""
     env["OPENCODE_CONFIG_ROOT"] = str(config_root)
     env["COMMANDS_HOME"] = str(commands_home)
+    env["OPENCODE_LOCAL_ROOT"] = str(checkout_root)
     env["OPENCODE_PYTHON"] = sys.executable
     env.pop("OPENCODE_FORCE_READ_ONLY", None)
     # Ensure the launcher is resolvable on PATH — _extract_first_step_command

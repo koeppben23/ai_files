@@ -94,7 +94,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
             "configRoot": str(config_root),
             "localRoot": str(local_root),
             "commandsHome": str(commands_home),
-            "profilesHome": str(commands_home / "profiles"),
+            "profilesHome": str(local_root / "governance_content" / "profiles"),
             "governanceHome": str(local_root / "governance"),
             "runtimeHome": str(local_root / "governance_runtime"),
             "contentHome": str(local_root / "governance_content"),

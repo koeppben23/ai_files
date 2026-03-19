@@ -104,6 +104,8 @@ def run(cmd: list[str], *, env: dict[str, str] | None = None, cwd: Path | None =
         cwd=str(cwd or REPO_ROOT),
         env=e,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
@@ -153,9 +155,9 @@ def git_ls_files(*patterns: str) -> list[str]:
         cmd += list(patterns)
     r = run(cmd)
     if r.returncode == 0:
-        files = [l for l in r.stdout.splitlines() if l.strip()]
-        if files:
-            return files
+        tracked_files: list[str] = [str(l) for l in r.stdout.splitlines() if str(l).strip()]
+        if tracked_files:
+            return tracked_files
 
     # If legacy pattern yields no results, try new-structure mapped patterns.
     remapped_patterns = tuple(_remap_legacy_relative_path(p) for p in patterns)
@@ -163,9 +165,9 @@ def git_ls_files(*patterns: str) -> list[str]:
         cmd = ["git", "ls-files", *remapped_patterns]
         r = run(cmd)
         if r.returncode == 0:
-            files = [l for l in r.stdout.splitlines() if l.strip()]
-            if files:
-                return files
+            tracked_files: list[str] = [str(l) for l in r.stdout.splitlines() if str(l).strip()]
+            if tracked_files:
+                return tracked_files
 
     files: set[str] = set()
     search_patterns = patterns or ("**/*",)

@@ -417,6 +417,8 @@ def _is_excluded(path: Path, repo_root: Path) -> bool:
         return True
     if any(part.startswith(".tmp_dist") for part in rel.parts):
         return True
+    if any(part.startswith("tp_") for part in rel.parts):
+        return True
     # Exclude AppleDouble sidecar files (resource-fork metadata).
     if any(part.startswith("._") for part in rel.parts):
         return True

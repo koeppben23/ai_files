@@ -17,8 +17,8 @@ class CanonicalRootPhase5ConfigResolver:
 
             resolver = BindingEvidenceResolver()
             evidence = resolver.resolve(mode=self._mode)
-            if evidence.binding_ok and evidence.commands_home:
-                canonical_path = evidence.commands_home / "governance" / "assets" / "config" / "phase5_review_config.yaml"
+            if evidence.binding_ok and evidence.governance_home:
+                canonical_path = evidence.governance_home / "assets" / "config" / "phase5_review_config.yaml"
                 if canonical_path.exists():
                     return canonical_path
         except Exception:

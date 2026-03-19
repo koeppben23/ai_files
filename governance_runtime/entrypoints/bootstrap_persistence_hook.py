@@ -575,15 +575,26 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
     if workspaces_home is None:
         workspaces_home = commands_home.parent / "workspaces"
 
-    bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_session_state.py"
+    local_root_env = os.environ.get("OPENCODE_LOCAL_ROOT", "").strip()
+    bootstrap_candidates: list[Path] = []
+    if local_root_env:
+        bootstrap_candidates.append(Path(local_root_env) / "governance_runtime" / "entrypoints" / "bootstrap_session_state.py")
+    bootstrap_candidates.append(SCRIPT_DIR / "bootstrap_session_state.py")
+
+    bootstrap_script = bootstrap_candidates[0]
+    for candidate in bootstrap_candidates:
+        if candidate.exists():
+            bootstrap_script = candidate
+            break
+
     if not bootstrap_script.exists():
         emit_gate_failure(
             gate="PERSISTENCE",
             code="BOOTSTRAP_SCRIPT_MISSING",
             message="bootstrap_session_state.py not found at expected location.",
-            expected="bootstrap script exists under governance entrypoints",
+            expected="bootstrap script exists under OPENCODE_LOCAL_ROOT/governance_runtime/entrypoints or as sibling to hook",
             observed={"expected_path": str(bootstrap_script)},
-            remediation="Reinstall governance commands or fix commands home binding.",
+            remediation="Set OPENCODE_LOCAL_ROOT correctly or reinstall governance runtime payload.",
         )
         result = {
             "workspacePersistenceHook": "failed",
@@ -602,8 +613,8 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             command="bootstrap_persistence_hook.py",
             component="persistence-hook",
             observed_value={"expected_path": str(bootstrap_script)},
-            expected_constraint="bootstrap_session_state.py exists in ${COMMANDS_HOME}/governance/entrypoints/",
-            remediation="Reinstall governance or verify commands home configuration.",
+            expected_constraint="bootstrap_session_state.py exists in ${OPENCODE_LOCAL_ROOT}/governance_runtime/entrypoints/ or next to bootstrap_persistence_hook.py",
+            remediation="Set OPENCODE_LOCAL_ROOT correctly or reinstall governance runtime payload.",
         )
         return _with_log_path(result, repo_fingerprint=repo_fp)
 

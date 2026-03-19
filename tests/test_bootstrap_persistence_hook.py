@@ -162,7 +162,9 @@ class TestPersistenceHookBadPaths:
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
             with patch.object(module, "safe_log_error") as mock_log:
                 with patch.object(module, "COMMANDS_HOME", tmp_path):
-                    result = module.run_persistence_hook(repo_root=tmp_path)
+                    with patch.object(module, "SCRIPT_DIR", tmp_path):
+                        with patch.dict(os.environ, {"OPENCODE_LOCAL_ROOT": str(tmp_path / "missing-local")}, clear=False):
+                            result = module.run_persistence_hook(repo_root=tmp_path)
         
         assert result["workspacePersistenceHook"] == "failed"
         assert result["reason"] == "bootstrap-script-not-found"

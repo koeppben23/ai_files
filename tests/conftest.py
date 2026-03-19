@@ -49,7 +49,13 @@ def _configure_binding_evidence(tmp_path_factory: pytest.TempPathFactory):
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(config_root),
+            "localRoot": str(REPO_ROOT),
             "commandsHome": str(commands_home),
+            "runtimeHome": str(REPO_ROOT / "governance_runtime"),
+            "governanceHome": str(REPO_ROOT / "governance"),
+            "contentHome": str(REPO_ROOT / "governance_content"),
+            "specHome": str(REPO_ROOT / "governance_spec"),
+            "profilesHome": str(REPO_ROOT / "governance_content" / "profiles"),
             "workspacesHome": str(workspaces_home),
             "pythonCommand": sys.executable,
         },

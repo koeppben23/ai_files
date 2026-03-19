@@ -47,8 +47,12 @@ def main() -> int:
     debug_paths = {
         "configRoot": str(config_root) if config_root else "unknown",
         "commandsHome": str(evidence.commands_home) if evidence.commands_home else "unknown",
-        "profilesHome": str(evidence.commands_home / "profiles") if evidence.commands_home else "unknown",
-        "governanceHome": str(evidence.commands_home / "governance") if evidence.commands_home else "unknown",
+        "localRoot": str(evidence.local_root) if evidence.local_root else "unknown",
+        "profilesHome": str(evidence.profiles_home) if evidence.profiles_home else "unknown",
+        "governanceHome": str(evidence.governance_home) if evidence.governance_home else "unknown",
+        "runtimeHome": str(evidence.runtime_home) if evidence.runtime_home else "unknown",
+        "contentHome": str(evidence.content_home) if evidence.content_home else "unknown",
+        "specHome": str(evidence.spec_home) if evidence.spec_home else "unknown",
         "workspacesHome": str(evidence.workspaces_home) if evidence.workspaces_home else "unknown",
     }
 

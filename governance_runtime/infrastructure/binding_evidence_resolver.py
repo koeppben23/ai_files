@@ -24,6 +24,12 @@ class BindingEvidence:
     commands_home: Path | None
     workspaces_home: Path | None
     config_root: Path | None
+    local_root: Path | None
+    runtime_home: Path | None
+    governance_home: Path | None
+    content_home: Path | None
+    spec_home: Path | None
+    profiles_home: Path | None
     governance_paths_json: Path | None
     source: Literal["canonical", "missing", "invalid"]
     binding_ok: bool
@@ -84,6 +90,12 @@ class BindingEvidenceResolver:
                         commands_home=None,
                         workspaces_home=None,
                         config_root=None,
+                        local_root=None,
+                        runtime_home=None,
+                        governance_home=None,
+                        content_home=None,
+                        spec_home=None,
+                        profiles_home=None,
                         governance_paths_json=None,
                         source="invalid",
                         binding_ok=False,
@@ -100,6 +112,12 @@ class BindingEvidenceResolver:
                     commands_home=None,
                     workspaces_home=None,
                     config_root=None,
+                    local_root=None,
+                    runtime_home=None,
+                    governance_home=None,
+                    content_home=None,
+                    spec_home=None,
+                    profiles_home=None,
                     governance_paths_json=None,
                     source="invalid",
                     binding_ok=False,
@@ -134,6 +152,12 @@ class BindingEvidenceResolver:
                 commands_home=None,
                 workspaces_home=None,
                 config_root=None,
+                local_root=None,
+                runtime_home=None,
+                governance_home=None,
+                content_home=None,
+                spec_home=None,
+                profiles_home=None,
                 governance_paths_json=None,
                 source="missing",
                 binding_ok=False,
@@ -149,11 +173,40 @@ class BindingEvidenceResolver:
                 raise ValueError("paths missing")
             if payload.get("schema") not in _SUPPORTED_BINDING_SCHEMAS:
                 raise ValueError("schema invalid")
+            config_root = normalize_absolute_path(str(paths.get("configRoot", "")), purpose="paths.configRoot")
             commands = normalize_absolute_path(str(paths.get("commandsHome", "")), purpose="paths.commandsHome")
             workspaces = normalize_absolute_path(str(paths.get("workspacesHome", "")), purpose="paths.workspacesHome")
+
+            raw_local_root = str(paths.get("localRoot", "")).strip()
+            if raw_local_root:
+                local_root = normalize_absolute_path(raw_local_root, purpose="paths.localRoot")
+            elif (commands / "governance").exists() or (commands / "governance_runtime").exists():
+                local_root = commands
+            else:
+                local_root = commands.parent
+
+            def _optional_home(key: str, purpose: str, default: Path) -> Path:
+                token = str(paths.get(key, "")).strip()
+                if token:
+                    return normalize_absolute_path(token, purpose=purpose)
+                return default
+
+            runtime_home = _optional_home("runtimeHome", "paths.runtimeHome", local_root / "governance_runtime")
+            governance_home = _optional_home("governanceHome", "paths.governanceHome", local_root / "governance")
+            content_home = _optional_home("contentHome", "paths.contentHome", local_root / "governance_content")
+            spec_home = _optional_home("specHome", "paths.specHome", local_root / "governance_spec")
+            profiles_home = _optional_home("profilesHome", "paths.profilesHome", content_home / "profiles")
+
             cmd_profiles = self._parse_command_profiles(payload.get("commandProfiles") if isinstance(payload, dict) else None)
             resolved_paths = {
+                "configRoot": str(config_root),
+                "localRoot": str(local_root),
                 "commandsHome": str(commands),
+                "runtimeHome": str(runtime_home),
+                "governanceHome": str(governance_home),
+                "contentHome": str(content_home),
+                "specHome": str(spec_home),
+                "profilesHome": str(profiles_home),
                 "workspacesHome": str(workspaces),
             }
             raw_python = paths.get("pythonCommand")
@@ -169,6 +222,12 @@ class BindingEvidenceResolver:
                 commands_home=None,
                 workspaces_home=None,
                 config_root=None,
+                local_root=None,
+                runtime_home=None,
+                governance_home=None,
+                content_home=None,
+                spec_home=None,
+                profiles_home=None,
                 governance_paths_json=binding_file,
                 source="invalid",
                 binding_ok=False,
@@ -178,18 +237,26 @@ class BindingEvidenceResolver:
             )
 
         issues: list[str] = []
-        config_root: Path | None = None
 
-        raw_config_root = paths.get("configRoot")
-        if not isinstance(raw_config_root, str) or not raw_config_root.strip():
-            issues.append("binding.paths.configRoot.missing")
-        else:
-            try:
-                config_root = normalize_absolute_path(raw_config_root, purpose="paths.configRoot")
-            except Exception:
-                issues.append("binding.paths.configRoot.invalid")
+        if commands != (config_root / "commands"):
+            issues.append("binding.paths.commandsHome.mismatch")
+        if workspaces != (config_root / "workspaces"):
+            issues.append("binding.paths.workspacesHome.mismatch")
+        if runtime_home.parent != local_root:
+            issues.append("binding.paths.runtimeHome.parent-mismatch")
+        if governance_home.parent != local_root:
+            issues.append("binding.paths.governanceHome.parent-mismatch")
+        if content_home.parent != local_root:
+            issues.append("binding.paths.contentHome.parent-mismatch")
+        if spec_home.parent != local_root:
+            issues.append("binding.paths.specHome.parent-mismatch")
+        if profiles_home.parent != content_home:
+            issues.append("binding.paths.profilesHome.parent-mismatch")
 
-        binding_ok = len(issues) == 0
+        blocking_issues = [
+            issue for issue in issues if issue not in {"binding.paths.commandsHome.mismatch", "binding.paths.workspacesHome.mismatch"}
+        ]
+        binding_ok = len(blocking_issues) == 0
 
         return BindingEvidence(
             python_command=python_command,
@@ -199,6 +266,12 @@ class BindingEvidenceResolver:
             commands_home=commands,
             workspaces_home=workspaces,
             config_root=config_root,
+            local_root=local_root,
+            runtime_home=runtime_home,
+            governance_home=governance_home,
+            content_home=content_home,
+            spec_home=spec_home,
+            profiles_home=profiles_home,
             governance_paths_json=binding_file,
             source="canonical",
             binding_ok=binding_ok,

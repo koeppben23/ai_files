@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -597,9 +598,20 @@ def build_finalization_record(
 
 
 def build_checksums(files: Mapping[str, Path]) -> dict[str, object]:
+    def _platform_path(path: Path) -> str:
+        raw = os.path.abspath(str(path))
+        if os.name != "nt":
+            return raw
+        if raw.startswith("\\\\?\\"):
+            return raw
+        if raw.startswith("\\\\"):
+            return "\\\\?\\UNC\\" + raw[2:]
+        return "\\\\?\\" + raw
+
     digests: dict[str, str] = {}
     for name, path in files.items():
-        payload = path.read_bytes()
+        with open(_platform_path(path), "rb") as fh:
+            payload = fh.read()
         digests[name] = "sha256:" + hashlib.sha256(payload).hexdigest()
     return {
         "schema": "governance.run-checksums.v1",

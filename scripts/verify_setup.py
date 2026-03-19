@@ -41,7 +41,8 @@ def check_command(cmd: str) -> tuple[bool, str]:
 def check_binding_file() -> tuple[bool, str, dict[str, Any] | None]:
     """Check if binding file exists and is valid."""
     home = Path.home()
-    config_root = home / ".config" / "opencode"
+    config_root = Path(os.environ.get("OPENCODE_CONFIG_ROOT", str(home / ".config" / "opencode"))).expanduser()
+    local_root = Path(os.environ.get("OPENCODE_LOCAL_ROOT", str(home / ".local" / "opencode"))).expanduser()
     binding_file = config_root / "commands" / "governance.paths.json"
     
     if not binding_file.exists():
@@ -51,18 +52,63 @@ def check_binding_file() -> tuple[bool, str, dict[str, Any] | None]:
         with open(binding_file, "r", encoding="utf-8") as f:
             data = json.load(f)
         
-        required_keys = {"configRoot", "commandsHome", "profilesHome"}
+        required_keys = {
+            "configRoot",
+            "localRoot",
+            "commandsHome",
+            "profilesHome",
+            "governanceHome",
+            "runtimeHome",
+            "contentHome",
+            "specHome",
+            "workspacesHome",
+            "pythonCommand",
+        }
         paths = data.get("paths", {})
         if not required_keys.issubset(paths.keys()):
             missing = required_keys - paths.keys()
             return False, f"missing keys: {missing}", data
-        
+
+        config_root_path = Path(str(paths.get("configRoot", "")))
+        local_root_path = Path(str(paths.get("localRoot", "")))
+        commands_home = Path(str(paths.get("commandsHome", "")))
+        workspaces_home = Path(str(paths.get("workspacesHome", "")))
+        runtime_home = Path(str(paths.get("runtimeHome", "")))
+        governance_home = Path(str(paths.get("governanceHome", "")))
+        content_home = Path(str(paths.get("contentHome", "")))
+        spec_home = Path(str(paths.get("specHome", "")))
+        profiles_home = Path(str(paths.get("profilesHome", "")))
+
+        relationship_errors: list[str] = []
+        if commands_home != config_root_path / "commands":
+            relationship_errors.append("commandsHome != configRoot/commands")
+        if workspaces_home != config_root_path / "workspaces":
+            relationship_errors.append("workspacesHome != configRoot/workspaces")
+        if runtime_home != local_root_path / "governance_runtime":
+            relationship_errors.append("runtimeHome != localRoot/governance_runtime")
+        if governance_home != local_root_path / "governance":
+            relationship_errors.append("governanceHome != localRoot/governance")
+        if content_home != local_root_path / "governance_content":
+            relationship_errors.append("contentHome != localRoot/governance_content")
+        if spec_home != local_root_path / "governance_spec":
+            relationship_errors.append("specHome != localRoot/governance_spec")
+        if profiles_home != content_home / "profiles":
+            relationship_errors.append("profilesHome != contentHome/profiles")
+        if relationship_errors:
+            return False, "; ".join(relationship_errors), data
+
         flat_data = {
             "user_home": str(home),
-            "config_root": paths.get("configRoot", ""),
-            "commands_home": paths.get("commandsHome", ""),
-            "profiles_home": paths.get("profilesHome", ""),
-            "workspaces_home": paths.get("workspacesHome", ""),
+            "config_root": str(config_root_path),
+            "local_root": str(local_root_path),
+            "commands_home": str(commands_home),
+            "profiles_home": str(profiles_home),
+            "runtime_home": str(runtime_home),
+            "content_home": str(content_home),
+            "spec_home": str(spec_home),
+            "workspaces_home": str(workspaces_home),
+            "config_root_env": str(config_root),
+            "local_root_env": str(local_root),
         }
         
         return True, "valid", flat_data

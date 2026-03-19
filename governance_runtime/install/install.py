@@ -210,7 +210,7 @@ VERSION = "1.1.0-RC.2"
 # - Include/Exclude logic moved to governance/installer.py
 # - Legacy constants kept for uninstall safety net only
 
-# Profiles copied into <config_root>/commands/profiles/**
+# Profiles copied into <local_root>/governance_content/profiles/**
 PROFILES_DIR_NAME = "profiles"
 
 # Customer helper scripts copied into <config_root>/commands/scripts/**
@@ -321,12 +321,12 @@ def ensure_dirs(config_root: Path, local_root: Path | None = None, dry_run: bool
         config_root / "bin",
         config_root / OPENCODE_PLUGINS_DIR_NAME,
         config_root / "commands",
-        config_root / "commands" / "profiles",
-        config_root / "commands" / "profiles" / "addons",
         config_root / "workspaces",
         local_root,
         local_root / "governance_runtime",
         local_root / "governance_content",
+        local_root / "governance_content" / "profiles",
+        local_root / "governance_content" / "profiles" / "addons",
         local_root / "governance_spec",
         local_root / "governance",
     ]
@@ -773,7 +773,7 @@ def build_plan(
     if local_root is None:
         local_root = get_local_root()
     commands_dir = config_root / "commands"
-    profiles_dst_dir = commands_dir / "profiles"
+    profiles_dst_dir = local_root / "governance_content" / "profiles"
     manifest_path = commands_dir / MANIFEST_NAME
     governance_paths_path = commands_dir / GOVERNANCE_PATHS_NAME
     return InstallPlan(
@@ -1430,10 +1430,10 @@ def build_governance_paths_payload(config_root: Path, local_root: Path | None = 
         local_root = get_local_root()
 
     commands_home = config_root / "commands"
-    profiles_home = commands_home / "profiles"
     governance_home = local_root / "governance"
     runtime_home = local_root / "governance_runtime"
     content_home = local_root / "governance_content"
+    profiles_home = content_home / "profiles"
     spec_home = local_root / "governance_spec"
     workspaces_home = config_root / "workspaces"
     global_error_logs_home = workspaces_home / "_global" / "logs"
@@ -2218,7 +2218,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     # copy profiles
     profile_files = collect_profile_files(plan.source_dir)
     if profile_files:
-        print("\n📋 Copying profile rulebooks to commands/profiles/ ...")
+        print("\n📋 Copying profile rulebooks to local governance_content/profiles/ ...")
         profiles_root = get_profiles_root(plan.source_dir)
         for pf in profile_files:
             # Strip the profiles root to get relative path within profiles/
@@ -2246,11 +2246,11 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     # copy addon manifests (required for dynamic addon activation/reload)
     addon_manifests = collect_profile_addon_manifests(plan.source_dir)
     if addon_manifests:
-        print("\n📋 Copying addon manifests to commands/profiles/addons/ ...")
+        print("\n📋 Copying addon manifests to local governance_content/profiles/addons/ ...")
         profiles_root = get_profiles_root(plan.source_dir)
         for af in addon_manifests:
             rel = af.relative_to(profiles_root)  # profiles/addons/*.addon.yml
-            dst = plan.commands_dir / "profiles" / rel
+            dst = plan.profiles_dst_dir / rel
             entry = copy_with_optional_backup(
                 src=af,
                 dst=dst,

@@ -16,6 +16,17 @@ from typing import Any, Callable, TypeVar
 T = TypeVar("T")
 
 
+def _platform_path(path: Path) -> str:
+    raw = os.path.abspath(str(path))
+    if os.name != "nt":
+        return raw
+    if raw.startswith("\\\\?\\"):
+        return raw
+    if raw.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + raw[2:]
+    return "\\\\?\\" + raw
+
+
 def is_retryable_replace_error(exc: OSError) -> bool:
     return getattr(exc, "errno", None) in {errno.EACCES, errno.EPERM, errno.EBUSY, 13, 16}
 
@@ -37,7 +48,7 @@ def bounded_retry(fn: Callable[[], T], attempts: int = 5, backoff_ms: int = 50) 
 
 def fsync_dir(path: Path) -> None:
     try:
-        fd = os.open(str(path), os.O_RDONLY)
+        fd = os.open(_platform_path(path), os.O_RDONLY)
     except OSError:
         return
     try:
@@ -50,7 +61,7 @@ def fsync_dir(path: Path) -> None:
 
 def safe_replace_with_retries(tmp: Path, target: Path, *, attempts: int = 5, backoff_ms: int = 50) -> int:
     def _replace() -> None:
-        os.replace(str(tmp), str(target))
+        os.replace(_platform_path(tmp), _platform_path(target))
         fsync_dir(target.parent)
 
     for attempt in range(attempts):
@@ -80,7 +91,7 @@ def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: 
             mode="w",
             encoding="utf-8",
             newline="\n" if newline_lf else None,
-            dir=str(path.parent),
+            dir=_platform_path(path.parent),
             prefix=".",
             suffix=".tmp",
             delete=False,
