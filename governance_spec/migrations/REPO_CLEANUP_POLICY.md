@@ -44,3 +44,4 @@ Historical governance docs move to `governance_content/docs/archived/`.
 - No redundant frozen-surface raw dump in active migrations.
 - Historical R2 migration records stay archived, not active.
 - Historical governance decision/wave docs stay archived, not active.
+- High-risk cleanup candidates must have explicit keep/archive/delete entries in `governance_spec/migrations/CLEANUP_DECISION_LOG.md`.

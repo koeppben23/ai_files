@@ -33,6 +33,7 @@ This record defines the hard completion gate for F100 final-state closure.
 - `tests/conformance/test_repo_hygiene_no_unclassified_backlog_docs.py`
 - `tests/conformance/test_repo_hygiene_no_redundant_proof_dumps.py`
 - `tests/conformance/test_repo_hygiene_archive_boundaries.py`
+- `tests/conformance/test_repo_hygiene_cleanup_decision_log.py`
 
 ## Completion Condition
 

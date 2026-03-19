@@ -18,6 +18,7 @@ def test_active_migrations_are_constrained_to_final_state_records() -> None:
     allowed = sorted(
         [
             "F100_Completion_Gate.md",
+            "CLEANUP_DECISION_LOG.md",
             "F100_Final_Snapshot_Signoff.md",
             "PR7_README_UX_Completion.md",
             "R4a_Legacy_Sunset_Readiness.md",
