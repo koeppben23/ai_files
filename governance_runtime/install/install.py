@@ -2580,6 +2580,8 @@ def uninstall(
         # configuration that must survive uninstall (see docstring above).
 
         rc = delete_targets(targets, plan, dry_run=dry_run)
+        rc = max(rc, purge_tree_contents(plan.commands_dir, dry_run=dry_run))
+        rc = max(rc, purge_tree_contents(plan.local_root, dry_run=dry_run))
         if not keep_error_logs:
             rc = max(rc, purge_runtime_error_logs(plan.config_root, dry_run=dry_run))
         if not keep_workspace_state:
@@ -2642,6 +2644,8 @@ def uninstall(
             return 0
 
     rc = delete_targets(targets, plan, dry_run=dry_run)
+    rc = max(rc, purge_tree_contents(plan.commands_dir, dry_run=dry_run))
+    rc = max(rc, purge_tree_contents(plan.local_root, dry_run=dry_run))
 
     # Manifest-backed uninstall can safely clear stale installer trees that may
     # survive due to historical path drift (for example legacy "governnce/").
@@ -2742,10 +2746,37 @@ def purge_manifest_leftover_trees(commands_dir: Path, local_root: Path, dry_run:
     return 0 if errors == 0 else 8
 
 
+def purge_tree_contents(root: Path, dry_run: bool) -> int:
+    """Remove all files/symlinks under a root and prune empty directories."""
+
+    if not root.exists() or not root.is_dir():
+        return 0
+
+    errors = 0
+    for item in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if item.is_symlink() or item.is_file():
+            if dry_run:
+                print(f"  [DRY-RUN] rm {item}")
+            else:
+                try:
+                    item.unlink()
+                    print(f"  ✅ Removed residual: {item}")
+                except Exception as e:
+                    eprint(f"  ❌ Failed removing residual file {item}: {e}")
+                    errors += 1
+        elif item.is_dir():
+            try_remove_empty_dir(item, dry_run=dry_run)
+
+    try_remove_empty_dir(root, dry_run=dry_run)
+    return 0 if errors == 0 else 9
+
+
 def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) -> int:
     errors = 0
     allowed_config_files = {
         (plan.config_root / "INSTALL_HEALTH.json").resolve(),
+        plan.governance_paths_path.resolve(),
+        plan.manifest_path.resolve(),
     }
     for t in targets:
         # Safety guard: only delete installer-owned locations.

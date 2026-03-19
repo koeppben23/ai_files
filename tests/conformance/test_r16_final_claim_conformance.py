@@ -85,7 +85,7 @@ class TestR16FinalClaimConformance:
             "CANONICAL_RAIL_FILENAMES",
             'GOVERNANCE_PATHS_NAME',
             'MANIFEST_NAME',
-            'allowed_names = set(CANONICAL_RAIL_FILENAMES) | {GOVERNANCE_PATHS_NAME, MANIFEST_NAME}',
+            'allowed_names = set(CANONICAL_RAIL_FILENAMES)',
         ]
         for token in strict_allowlist_tokens:
             assert token in installer, f"installer missing strict commands allowlist token: {token}"

@@ -34,11 +34,11 @@ def _local_dir(config_root: Path) -> Path:
 
 
 def _manifest_path(config_root: Path) -> Path:
-    return _commands_dir(config_root) / MANIFEST_NAME
+    return config_root / MANIFEST_NAME
 
 
 def _paths_file(config_root: Path) -> Path:
-    return _commands_dir(config_root) / "governance.paths.json"
+    return config_root / "governance.paths.json"
 
 
 def _load_manifest(config_root: Path) -> dict:
@@ -59,7 +59,11 @@ def _iter_manifest_entries(files_obj, commands: Path):
     bin_base = (commands.parent / "bin").resolve()
     config_base = commands.parent.resolve()
     local_base = (commands.parent.parent / f"{commands.parent.name}-local").resolve()
-    allowed_config_files = {config_base / "INSTALL_HEALTH.json"}
+    allowed_config_files = {
+        config_base / "INSTALL_HEALTH.json",
+        config_base / "governance.paths.json",
+        config_base / MANIFEST_NAME,
+    }
     plugins_base = (commands.parent / "plugins").resolve()
 
     def assert_under_base(p: Path, label: str) -> None:
@@ -176,7 +180,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         assert f.exists(), f"Missing: {f}"
 
     command_files = sorted(p.name for p in commands.glob("*") if p.is_file())
-    expected_command_files = sorted(CANONICAL_RAILS + ["governance.paths.json", MANIFEST_NAME])
+    expected_command_files = sorted(CANONICAL_RAILS)
     assert command_files == expected_command_files, (
         "commands/ strict allowlist mismatch: "
         f"expected={expected_command_files}, actual={command_files}"
@@ -283,7 +287,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     if commands.exists():
         leftovers = [p for p in commands.rglob("*") if p.is_file()]
         assert not leftovers, f"Commands dir not empty after uninstall: {[p.name for p in leftovers[:25]]}"
-    assert commands.exists(), "commands directory must remain after uninstall"
+    assert not commands.exists() or not any(commands.iterdir()), "commands directory must be absent or empty after uninstall"
 
     bin_dir = config_root / "bin"
     if bin_dir.exists():
@@ -1266,7 +1270,7 @@ class TestPythonBindingArtifact:
         assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
         # Read both sources
         binding_file = config_root / "bin" / "PYTHON_BINDING"
-        paths_file = config_root / "commands" / "governance.paths.json"
+        paths_file = config_root / "governance.paths.json"
         assert binding_file.exists() and paths_file.exists()
         binding_value = binding_file.read_text(encoding="utf-8").strip()
         paths_data = json.loads(paths_file.read_text(encoding="utf-8"))
@@ -1381,7 +1385,7 @@ class TestInstallLogsDirectory:
         config_root = tmp_path / "config-logs-paths"
         r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
         assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
-        paths_file = config_root / "commands" / "governance.paths.json"
+        paths_file = config_root / "governance.paths.json"
         assert paths_file.exists()
         data = json.loads(paths_file.read_text(encoding="utf-8"))
         logs_home = data["paths"]["globalErrorLogsHome"]
