@@ -18,6 +18,7 @@ This record defines the hard completion gate for F100 final-state closure.
 ## Canonical Gate Suites
 
 - `tests/conformance/test_f100_runtime_purity_gate.py`
+- `tests/conformance/test_f100_workspace_logs_only.py`
 - `tests/conformance/test_contract_liveness_conformance.py`
 - `tests/conformance/test_installer_ssot_conformance.py`
 - `tests/conformance/test_r10_final_state_proof.py`

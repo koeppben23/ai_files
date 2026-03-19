@@ -32,6 +32,7 @@ class TestF100CompletionGate:
         text = _record_text()
         required = [
             "tests/conformance/test_f100_runtime_purity_gate.py",
+            "tests/conformance/test_f100_workspace_logs_only.py",
             "tests/conformance/test_contract_liveness_conformance.py",
             "tests/conformance/test_installer_ssot_conformance.py",
             "tests/conformance/test_r10_final_state_proof.py",
