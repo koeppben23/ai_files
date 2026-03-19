@@ -17,7 +17,7 @@ def test_governance_version_file_exists():
 
 @pytest.mark.release
 def test_install_py_has_version_constant():
-    text = read_text(REPO_ROOT / "install.py")
+    text = read_text(REPO_ROOT / "governance_runtime" / "install" / "install.py")
     m = re.search(r'VERSION\s*=\s*"([^"]+)"', text)
     assert m, "No VERSION found in install.py"
 
@@ -28,7 +28,7 @@ def test_versions_are_consistent_version_install_changelog():
     gv = version_file.read_text(encoding="utf-8").strip()
     assert gv, "governance/VERSION is empty"
 
-    install_text = read_text(REPO_ROOT / "install.py")
+    install_text = read_text(REPO_ROOT / "governance_runtime" / "install" / "install.py")
     m_inst = re.search(r'VERSION\s*=\s*"([^"]+)"', install_text)
     assert m_inst, "No VERSION found in install.py"
     iv = m_inst.group(1)
@@ -36,4 +36,4 @@ def test_versions_are_consistent_version_install_changelog():
     changelog = read_text(REPO_ROOT / "CHANGELOG.md")
     assert f"## [{gv}]" in changelog, f"CHANGELOG.md missing section for [{gv}]"
 
-    assert iv == gv, f"install.py VERSION ({iv}) != governance/VERSION ({gv})"
+    assert iv == gv, f"runtime installer VERSION ({iv}) != governance/VERSION ({gv})"

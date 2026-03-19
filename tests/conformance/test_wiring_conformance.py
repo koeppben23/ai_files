@@ -21,6 +21,8 @@ import yaml
 
 from tests.util import REPO_ROOT, get_docs_path, get_master_path, get_rules_path, get_profiles_path
 
+INSTALLER_SOURCE_PATH = REPO_ROOT / "governance_runtime" / "install" / "install.py"
+
 # ---------------------------------------------------------------------------
 # Contract documents — all 5 contracts must be validated
 # ---------------------------------------------------------------------------
@@ -148,7 +150,7 @@ class TestInstallerToFiles:
 
     def test_happy_install_py_references_all_command_files(self):
         """Happy: install.py source code contains references to each command file."""
-        install_src = _read_source(REPO_ROOT / "install.py")
+        install_src = _read_source(INSTALLER_SOURCE_PATH)
         unreferenced = []
         for cmd in self.COMMAND_SOURCES:
             token = Path(cmd).name
@@ -160,14 +162,14 @@ class TestInstallerToFiles:
 
     def test_happy_governance_paths_json_schema_referenced(self):
         """Happy: install.py defines the binding evidence schema string."""
-        install_src = _read_source(REPO_ROOT / "install.py")
+        install_src = _read_source(INSTALLER_SOURCE_PATH)
         assert "opencode-governance.paths.v1" in install_src, (
             "install.py missing governance.paths schema definition"
         )
 
     def test_happy_plugin_source_referenced_in_installer(self):
         """Happy: install.py references the plugin source file."""
-        install_src = _read_source(REPO_ROOT / "install.py")
+        install_src = _read_source(INSTALLER_SOURCE_PATH)
         assert "audit-new-session.mjs" in install_src, (
             "install.py missing reference to plugin source"
         )
@@ -242,7 +244,7 @@ class TestLauncherToEntrypoints:
 
     def test_bad_no_dangling_entrypoint_references(self):
         """Bad: No entrypoint reference in install.py points to a non-existent module."""
-        install_src = _read_source(REPO_ROOT / "install.py")
+        install_src = _read_source(INSTALLER_SOURCE_PATH)
         # Extract governance.entrypoints.<module> references
         refs = re.findall(r"governance\.entrypoints\.(\w+)", install_src)
         for module_name in set(refs):
@@ -346,7 +348,7 @@ class TestRailsToPaths:
 
     def test_corner_bin_dir_placeholder_in_install(self):
         """Corner: install.py defines BIN_DIR_PLACEHOLDER constant."""
-        install_src = _read_source(REPO_ROOT / "install.py")
+        install_src = _read_source(INSTALLER_SOURCE_PATH)
         assert "BIN_DIR_PLACEHOLDER" in install_src or "BIN_DIR" in install_src
 
     def test_edge_no_mixed_placeholder_and_resolved_in_same_rail(self):

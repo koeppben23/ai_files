@@ -50,14 +50,21 @@ class TestInstallerEntrypointConformance:
         assert gr_install.exists(), "governance_runtime/install/install.py must exist as canonical entrypoint"
 
     def test_root_install_for_compatibility(self):
-        """Root and canonical installer must stay functionally aligned on critical contracts."""
+        """Root installer must delegate to canonical runtime installer."""
         root_install = REPO_ROOT / "install.py"
         canonical = REPO_ROOT / "governance_runtime" / "install" / "install.py"
         assert root_install.exists(), "install.py compatibility installer must exist"
         root_content = root_install.read_text(encoding="utf-8")
         canonical_content = canonical.read_text(encoding="utf-8")
 
-        required_contract_tokens = [
+        required_root_tokens = [
+            "import governance_runtime.install.install as _impl",
+            "--source-dir",
+        ]
+        for token in required_root_tokens:
+            assert token in root_content, f"Root install.py missing required delegator token: {token}"
+
+        required_canonical_tokens = [
             "GOVERNANCE_PATHS_SCHEMA",
             "def _write_python_binding_file(",
             "OPENCODE_JSON_NAME",
@@ -66,6 +73,5 @@ class TestInstallerEntrypointConformance:
             "def _launcher_template_unix(",
             "def _launcher_template_windows(",
         ]
-        for token in required_contract_tokens:
-            assert token in root_content, f"Root install.py missing required contract token: {token}"
+        for token in required_canonical_tokens:
             assert token in canonical_content, f"Canonical installer missing required contract token: {token}"

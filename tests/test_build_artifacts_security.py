@@ -165,7 +165,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
     required_rel.update(_shipped_customer_scripts())
     required_rel.update(_shipped_workflow_templates())
 
-    allowed_suffixes = {".md", ".json", ".yaml"}
+    allowed_suffixes = {".md", ".json", ".yaml", ".yml"}
 
     def assert_policy(members: list[str], label: str):
         files = [m for m in members if m and not m.endswith("/")]

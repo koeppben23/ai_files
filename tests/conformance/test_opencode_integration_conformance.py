@@ -23,6 +23,7 @@ from tests.util import REPO_ROOT, get_docs_path, get_master_path, get_rules_path
 
 CONTRACT_PATH = get_docs_path() / "contracts" / "opencode-integration-contract.v1.md"
 THIS_FILE_REL = "tests/conformance/test_opencode_integration_conformance.py"
+INSTALLER_SOURCE_PATH = REPO_ROOT / "governance_runtime" / "install" / "install.py"
 
 
 # ---------------------------------------------------------------------------
@@ -82,18 +83,18 @@ class TestMergeOwnership:
 
     def test_happy_ensure_opencode_json_importable(self):
         """Happy: ensure_opencode_json function exists in install.py module."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         assert "def ensure_opencode_json" in install_src, \
             "ensure_opencode_json function not found in install.py"
 
     def test_happy_canonical_instructions_defined(self):
         """Happy: OPENCODE_COMMAND_FILES constant is defined in install.py."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         assert "OPENCODE_COMMAND_FILES" in install_src
 
     def test_happy_canonical_instructions_content(self):
         """Happy: All 8 canonical command paths are present in source."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         expected_instructions = [
             "commands/continue.md",
             "commands/plan.md",
@@ -109,14 +110,14 @@ class TestMergeOwnership:
 
     def test_happy_merge_preserves_user_keys(self):
         """Happy: Source code only modifies 'command_files' and 'plugin' keys."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         # The merge logic should reference specific keys, not do wholesale replacement
         assert '"command_files"' in install_src or "'command_files'" in install_src
         assert '"plugin"' in install_src or "'plugin'" in install_src
 
     def test_corner_corrupt_json_handling_documented(self):
         """Corner: install.py handles corrupt/non-dict JSON gracefully."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         # Should have exception handling for JSON parse errors
         assert "JSONDecodeError" in install_src or "json.loads" in install_src or "json.load" in install_src
 
@@ -181,7 +182,7 @@ class TestPluginLifecycle:
 
     def test_happy_plugin_uninstall_removes_uri_only(self):
         """Happy: install.py has function to remove only the plugin URI."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         assert "remove_installer_plugin" in install_src or "plugin" in install_src.lower()
 
     def test_bad_plugin_must_not_fail_hard_without_python(self):
@@ -236,14 +237,14 @@ class TestRailInjection:
 
     def test_happy_placeholders_in_source(self):
         """Happy: install.py contains BIN_DIR placeholder pattern (and legacy patterns)."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         assert "{{BIN_DIR}}" in install_src or "BIN_DIR_PLACEHOLDER" in install_src
         # Legacy patterns should still be defined for backwards compatibility
         assert "SESSION_READER_PATH" in install_src or "PYTHON_COMMAND" in install_src
 
     def test_happy_injection_function_exists(self):
         """Happy: inject_session_reader_path_for_command exists in install.py."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         assert "def inject_session_reader_path" in install_src or "inject_session_reader" in install_src
 
     def test_corner_injection_targets_have_placeholders_or_resolved_paths(self):
@@ -262,7 +263,7 @@ class TestRailInjection:
 
     def test_edge_python_quoting_logic_in_source(self):
         """Edge: install.py has path-quoting logic for Python commands with spaces."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         # Should handle quoting for paths with spaces
         assert "quote" in install_src.lower() or '" "' in install_src or "os.sep" in install_src or "pathsep" in install_src or "\\\\" in install_src
 
@@ -278,7 +279,7 @@ class TestUninstallGuarantee:
     def test_happy_three_protection_sites(self):
         """Happy: install.py has at least 2 runtime guard sites for OPENCODE_JSON_NAME."""
         import re
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         # R14 replaced assert-based guards with RuntimeError guards that survive -O mode.
         # Find if-guard + raise RuntimeError patterns referencing OPENCODE_JSON_NAME.
         guard_count = len(re.findall(
@@ -292,18 +293,18 @@ class TestUninstallGuarantee:
 
     def test_happy_opencode_json_name_constant(self):
         """Happy: OPENCODE_JSON_NAME constant is defined."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         assert "OPENCODE_JSON_NAME" in install_src
 
     def test_bad_opencode_json_not_in_delete_targets(self):
         """Bad: opencode.json must not appear in any deletion target list."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         # The runtime guards in install.py enforce this — we verify the guards exist
         guard_present = "RuntimeError" in install_src and "OPENCODE_JSON" in install_src
         assert guard_present, "Missing RuntimeError guard protecting opencode.json from deletion"
 
     def test_bad_plugin_removal_function_exists(self):
         """Bad: Plugin URI removal function must exist (plugin is removed, file is not)."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         assert "remove_installer_plugin" in install_src, \
             "Missing function to remove plugin URI from opencode.json"

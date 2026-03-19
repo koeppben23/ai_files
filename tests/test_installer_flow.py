@@ -850,7 +850,7 @@ class TestRuntimeGuards:
 
     def test_happy_opencode_json_safety_guard_present(self) -> None:
         """Happy: OPENCODE_JSON_NAME safety check uses RuntimeError, not assert."""
-        source_path = Path(__file__).resolve().parents[1] / "install.py"
+        source_path = Path(__file__).resolve().parents[1] / "governance_runtime" / "install" / "install.py"
         source = source_path.read_text(encoding="utf-8")
         assert 'raise RuntimeError' in source and 'OPENCODE_JSON_NAME' in source, (
             "opencode.json safety guard must use raise RuntimeError"

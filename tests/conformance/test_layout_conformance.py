@@ -23,6 +23,7 @@ from tests.util import REPO_ROOT, get_docs_path, get_profiles_path
 
 CONTRACT_PATH = get_docs_path() / "contracts" / "install-layout-contract.v_current.md"
 THIS_FILE_REL = "tests/conformance/test_layout_conformance.py"
+INSTALLER_SOURCE_PATH = REPO_ROOT / "governance_runtime" / "install" / "install.py"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -344,7 +345,7 @@ class TestUninstallRetention:
 
     def test_happy_opencode_json_never_delete_assertions_in_source(self):
         """Happy: install.py contains runtime guards protecting opencode.json from deletion."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         # Contract says protection sites guard opencode.json
         assert "OPENCODE_JSON_NAME" in install_src, "OPENCODE_JSON_NAME constant missing"
         # At least 2 runtime guard sites (raise RuntimeError) mentioning OPENCODE_JSON_NAME
@@ -359,14 +360,14 @@ class TestUninstallRetention:
 
     def test_happy_purge_uses_allowlist(self):
         """Happy: purge_runtime_state uses an allowlist, not a glob delete."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         # The purge function should reference specific artifact names
         for artifact in ["SESSION_STATE.json", "repo-cache.yaml", "plan-record.json"]:
             assert artifact in install_src, f"Purge allowlist missing: {artifact}"
 
     def test_edge_purge_flat_file_count_matches_contract(self):
         """Edge: The 9 flat files listed in contract section 5.2 are all referenced in install.py."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         flat_files = [
             "SESSION_STATE.json",
             "repo-identity-map.yaml",

@@ -213,6 +213,11 @@ class TestR10FinalStateProof:
         root_install = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
         runtime_install = (REPO_ROOT / "governance_runtime" / "install" / "install.py").read_text(encoding="utf-8")
         for token in [
+            "import governance_runtime.install.install as _impl",
+            "--source-dir",
+        ]:
+            assert token in root_install
+        for token in [
             "GOVERNANCE_PATHS_SCHEMA",
             "def _write_python_binding_file(",
             "OPENCODE_JSON_NAME",
@@ -221,7 +226,6 @@ class TestR10FinalStateProof:
             "def _launcher_template_unix(",
             "def _launcher_template_windows(",
         ]:
-            assert token in root_install
             assert token in runtime_install
 
     def test_workspace_logs_only_write_targets(self) -> None:

@@ -65,11 +65,15 @@ class TestR10FinalReadinessGate:
         content = root_install.read_text(encoding="utf-8")
         canonical = canonical_install.read_text(encoding="utf-8")
         for token in [
+            "import governance_runtime.install.install as _impl",
+            "--source-dir",
+        ]:
+            assert token in content, f"Root installer missing delegator token: {token}"
+        for token in [
             "OPENCODE_JSON_NAME",
             "PYTHON_BINDING",
             "def _write_python_binding_file(",
             "def _launcher_template_unix(",
             "def _launcher_template_windows(",
         ]:
-            assert token in content, f"Root installer missing critical contract token: {token}"
             assert token in canonical, f"Canonical installer missing critical contract token: {token}"

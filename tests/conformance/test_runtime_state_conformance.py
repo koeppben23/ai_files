@@ -22,6 +22,7 @@ from tests.util import REPO_ROOT, get_docs_path
 
 CONTRACT_PATH = get_docs_path() / "contracts" / "runtime-state-contract.v1.md"
 THIS_FILE_REL = "tests/conformance/test_runtime_state_conformance.py"
+INSTALLER_SOURCE_PATH = REPO_ROOT / "governance_runtime" / "install" / "install.py"
 
 # ---------------------------------------------------------------------------
 # State Classification Taxonomy — source of truth from the contract
@@ -269,7 +270,7 @@ class TestPurgeRules:
 
     def test_happy_purge_allowlist_flat_files(self):
         """Happy: All 9 contract flat files appear in install.py purge logic."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         flat_files = [
             "SESSION_STATE.json",
             "repo-identity-map.yaml",
@@ -286,19 +287,19 @@ class TestPurgeRules:
 
     def test_happy_purge_subtrees(self):
         """Happy: All 3 contract subtrees appear in install.py purge logic."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         subtrees = ["plan-record-archive", "evidence"]
         missing = [s for s in subtrees if s not in install_src]
         assert not missing, f"Purge allowlist subtrees missing: {missing}"
 
     def test_happy_config_root_purge_targets(self):
         """Happy: Both config-root-level purge targets in install.py."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         assert "governance.activation_intent.json" in install_src
 
     def test_corner_purge_does_not_use_glob(self):
         """Corner: purge_runtime_state uses explicit names, not glob/wildcard patterns."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         # Extract purge function body (rough heuristic)
         purge_idx = install_src.find("def purge_runtime_state")
         if purge_idx >= 0:
@@ -309,7 +310,7 @@ class TestPurgeRules:
     def test_bad_opencode_json_never_purged(self):
         """Bad: opencode.json must be protected from purge by runtime guards."""
         import re
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         # R14 replaced assert-based guards with RuntimeError guards that survive -O mode.
         guard_count = len(re.findall(
             r"if\s+OPENCODE_JSON_NAME\b.*?raise\s+RuntimeError",

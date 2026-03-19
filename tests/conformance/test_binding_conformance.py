@@ -22,7 +22,8 @@ import yaml
 from tests.util import REPO_ROOT, get_docs_path
 
 CONTRACT_PATH = get_docs_path() / "contracts" / "python-binding-contract.v1.md"
-INSTALL_PATH = REPO_ROOT / "install.py"
+INSTALL_PATH = REPO_ROOT / "governance_runtime" / "install" / "install.py"
+ROOT_INSTALL_PATH = REPO_ROOT / "install.py"
 PLUGIN_PATH = (
     REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
 )
@@ -115,6 +116,11 @@ class TestCorePolicySingleBinding:
         install_src = _read_source(INSTALL_PATH)
         assert "PYTHON_BINDING" in install_src
         assert "governance.paths.json" in install_src
+
+    def test_happy_root_installer_delegates_to_runtime_installer(self) -> None:
+        root_src = _read_source(ROOT_INSTALL_PATH)
+        assert "import governance_runtime.install.install as _impl" in root_src
+        assert "_runtime_main = _impl.main" in root_src
 
     def test_happy_installer_writes_python_binding_file(self) -> None:
         """Happy: install.py defines _write_python_binding_file function."""
