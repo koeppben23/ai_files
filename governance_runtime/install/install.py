@@ -1461,6 +1461,8 @@ def install_governance_paths_file(
     """
     dst = plan.governance_paths_path
     dst_exists = dst.exists()
+    rel = GOVERNANCE_PATHS_NAME
+    rel_base = "config"
 
     desired_doc = build_governance_paths_payload(plan.config_root, plan.local_root, deterministic=plan.deterministic_paths_file)
 
@@ -1487,6 +1489,8 @@ def install_governance_paths_file(
                         "status": "planned-patch",
                         "src": "generated",
                         "dst": str(dst),
+                        "rel": rel,
+                        "rel_base": rel_base,
                         "backup": backup_path,
                         "sha256": hashlib.sha256(json_bytes(existing)).hexdigest(),
                         "note": f"patched missing keys: {','.join(missing_keys)}",
@@ -1497,12 +1501,20 @@ def install_governance_paths_file(
                     "status": "patched",
                     "src": "generated",
                     "dst": str(dst),
+                    "rel": rel,
+                    "rel_base": rel_base,
                     "backup": backup_path,
                     "sha256": sha256_file(dst),
                     "note": f"patched missing keys: {','.join(missing_keys)}",
                 }
 
-        return {"status": "skipped-exists", "src": "generated", "dst": str(dst)}
+        return {
+            "status": "skipped-exists",
+            "src": "generated",
+            "dst": str(dst),
+            "rel": rel,
+            "rel_base": rel_base,
+        }
 
     backup_path = None
     if dst_exists and backup_enabled:
@@ -1516,6 +1528,8 @@ def install_governance_paths_file(
             "status": "planned-copy",
             "src": "generated",
             "dst": str(dst),
+            "rel": rel,
+            "rel_base": rel_base,
             "backup": backup_path,
             "sha256": sha_pred,
             "note": "governance paths bootstrap",
@@ -1527,6 +1541,8 @@ def install_governance_paths_file(
         "status": "copied",
         "src": "generated",
         "dst": str(dst),
+        "rel": rel,
+        "rel_base": rel_base,
         "backup": backup_path,
         "sha256": sha256_file(dst),
         "note": "governance paths bootstrap",
@@ -2327,7 +2343,24 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
                 base_dir = plan.local_root
             else:
                 base_dir = plan.commands_dir
-            rel_value = str(Path(e["dst"]).resolve().relative_to(base_dir.resolve())) if "dst" in e else None
+            if "dst" in e:
+                dst_path = Path(e["dst"]).resolve()
+                try:
+                    rel_value = str(dst_path.relative_to(base_dir.resolve()))
+                except Exception:
+                    if dst_path.is_relative_to(plan.config_root.resolve()):
+                        rel_base = "config"
+                        rel_value = str(dst_path.relative_to(plan.config_root.resolve()))
+                    elif dst_path.is_relative_to(plan.local_root.resolve()):
+                        rel_base = "local"
+                        rel_value = str(dst_path.relative_to(plan.local_root.resolve()))
+                    elif dst_path.is_relative_to(plan.commands_dir.resolve()):
+                        rel_base = "commands"
+                        rel_value = str(dst_path.relative_to(plan.commands_dir.resolve()))
+                    else:
+                        rel_value = dst_path.name
+            else:
+                rel_value = None
         installed_files.append(
             {
                 "dst": e["dst"],
