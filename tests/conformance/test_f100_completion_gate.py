@@ -24,6 +24,7 @@ class TestF100CompletionGate:
             REPO_ROOT / "governance_spec" / "migrations" / "R5_R10_Hardening_and_Readiness.md",
             REPO_ROOT / "governance_spec" / "migrations" / "R10_Final_State_Proof.md",
             REPO_ROOT / "governance_spec" / "migrations" / "PR7_README_UX_Completion.md",
+            REPO_ROOT / "governance_spec" / "migrations" / "REPO_CLEANUP_POLICY.md",
             F100_RECORD,
         ]
         missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
@@ -39,6 +40,9 @@ class TestF100CompletionGate:
             "tests/conformance/test_r10_final_state_proof.py",
             "tests/conformance/test_r10_final_readiness_gate.py",
             "tests/conformance/test_readme_ux_completion.py",
+            "tests/conformance/test_repo_hygiene_no_python_cache_artifacts.py",
+            "tests/conformance/test_repo_hygiene_no_unclassified_backlog_docs.py",
+            "tests/conformance/test_repo_hygiene_no_redundant_proof_dumps.py",
         ]
         missing = [suite for suite in required if suite not in text]
         assert not missing, f"F100 record missing canonical gate suites: {missing}"

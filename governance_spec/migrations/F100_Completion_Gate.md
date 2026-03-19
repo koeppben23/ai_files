@@ -15,6 +15,7 @@ This record defines the hard completion gate for F100 final-state closure.
 - Legacy compatibility surface: frozen and controlled by `governance_spec/migrations/R10_Final_State_Proof.md`.
 - Workspace-only log write targets: no `commands/logs` write fallback in runtime logging paths.
 - README and quickstart UX completion: governance-content user docs must be substantive and canonical-command aligned.
+- Repo hygiene: cache/test junk, unclassified backlog notes, and redundant raw proof dumps are excluded from active tree.
 
 ## Canonical Gate Suites
 
@@ -25,6 +26,9 @@ This record defines the hard completion gate for F100 final-state closure.
 - `tests/conformance/test_r10_final_state_proof.py`
 - `tests/conformance/test_r10_final_readiness_gate.py`
 - `tests/conformance/test_readme_ux_completion.py`
+- `tests/conformance/test_repo_hygiene_no_python_cache_artifacts.py`
+- `tests/conformance/test_repo_hygiene_no_unclassified_backlog_docs.py`
+- `tests/conformance/test_repo_hygiene_no_redundant_proof_dumps.py`
 
 ## Completion Condition
 

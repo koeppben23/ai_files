@@ -1,11 +1,14 @@
 dist/
- __pycache__/
- .pytest_cache/
- .venv/
- .DS_Store
- logs/*.jsonl
- logs/
- governance/governance_lint_report.json
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.DS_Store
+.mypy_cache/
+.ruff_cache/
+logs/*.jsonl
+logs/
+governance/governance_lint_report.json
  !.gitignore
  !husky.sh
 .opencode/
