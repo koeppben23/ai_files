@@ -26,6 +26,7 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
 
     module = _load_install_module()
     source = tmp_path / "source"
+    (source / "opencode" / "commands").mkdir(parents=True, exist_ok=True)
     (source / "profiles" / "addons").mkdir(parents=True, exist_ok=True)
     (source / "governance").mkdir(parents=True, exist_ok=True)
     (source / "governance" / "engine").mkdir(parents=True, exist_ok=True)
@@ -35,7 +36,7 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     (source / "templates" / "github-actions").mkdir(parents=True, exist_ok=True)
 
     # valid files
-    (source / "master.md").write_text("# master", encoding="utf-8")
+    (source / "opencode" / "commands" / "continue.md").write_text("# continue", encoding="utf-8")
     (source / "profiles" / "rules.backend-python.md").write_text("# profile", encoding="utf-8")
     (source / "profiles" / "addons" / "backendPythonTemplates.addon.yml").write_text(
         "addon_key: backendPythonTemplates\n", encoding="utf-8"
@@ -76,7 +77,7 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     plugin_files = module.collect_opencode_plugin_files(source)
     workflow_template_files = module.collect_workflow_template_files(source, strict=True)
 
-    assert [p.relative_to(source).as_posix() for p in root_files] == ["master.md"]
+    assert [p.relative_to(source).as_posix() for p in root_files] == ["opencode/commands/continue.md"]
     assert [p.relative_to(source).as_posix() for p in profile_files] == ["profiles/rules.backend-python.md"]
     assert [p.relative_to(source).as_posix() for p in addon_files] == ["profiles/addons/backendPythonTemplates.addon.yml"]
     assert [p.relative_to(source).as_posix() for p in runtime_files] == [

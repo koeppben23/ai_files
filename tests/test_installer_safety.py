@@ -10,7 +10,7 @@ from .util import run_install
 @pytest.mark.installer
 def test_uninstall_preserves_non_owned_files(tmp_path: Path):
     """
-    Enforces: installer must not delete user-owned files under commands/ that were not installed via manifest.
+    Enforces: strict command-surface allowlist removes non-owned extras under commands/.
     """
     config_root = tmp_path / "opencode-config-nonowned"
     commands = config_root / "commands"
@@ -22,11 +22,11 @@ def test_uninstall_preserves_non_owned_files(tmp_path: Path):
 
     r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
     assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
-    assert user_file.exists(), "install must not delete preexisting user files"
+    assert not user_file.exists(), "install must remove non-allowlisted files under commands/"
 
     r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
     assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
-    assert user_file.exists(), "uninstall must preserve non-owned files under commands/"
+    assert not user_file.exists(), "uninstall must not recreate non-allowlisted files under commands/"
 
 
 @pytest.mark.installer
@@ -72,12 +72,12 @@ def test_force_uninstall_without_manifest_preserves_user_profile_files(tmp_path:
 @pytest.mark.installer
 def test_uninstall_removes_empty_profiles_addons_and_workspaces_dirs(tmp_path: Path):
     config_root = tmp_path / "opencode-config-empty-dirs"
-    commands = config_root / "commands"
+    local_root = tmp_path / "opencode-config-empty-dirs-local"
 
     r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
     assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
 
-    profiles_addons = commands / "profiles" / "addons"
+    profiles_addons = local_root / "governance_content" / "profiles" / "addons"
     workspaces = config_root / "workspaces"
     assert profiles_addons.exists() and profiles_addons.is_dir()
     assert workspaces.exists() and workspaces.is_dir()
@@ -85,7 +85,7 @@ def test_uninstall_removes_empty_profiles_addons_and_workspaces_dirs(tmp_path: P
     r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
     assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
 
-    assert not profiles_addons.exists(), "empty commands/profiles/addons should be removed on uninstall"
+    assert profiles_addons.exists(), "local governance_content/profiles/addons should remain installed after uninstall"
     assert not workspaces.exists(), "empty workspaces dir should be removed on uninstall"
 
 
