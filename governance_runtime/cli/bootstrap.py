@@ -5,7 +5,7 @@ from typing import Optional
 
 def main(argv: Optional[list[str]] = None) -> int:
     try:
-        from governance.entrypoints.bootstrap_executor import main as executor_main
+        from governance_runtime.entrypoints.bootstrap_executor import main as executor_main
     except Exception as exc:
         print("Bootstrap launcher error:", exc, file=sys.stderr)
         return 1

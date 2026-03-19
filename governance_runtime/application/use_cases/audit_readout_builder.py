@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import importlib
 import json
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple
@@ -16,23 +15,27 @@ POINTER_SCHEMA = "opencode-session-pointer.v1"
 
 
 def _verify_repository_manifest_proxy(runs_dir: Path, *, expected_repo_fingerprint: str) -> Tuple[bool, Optional[str]]:
-    module = importlib.import_module("governance.infrastructure.io_verify")
-    return module.verify_repository_manifest(runs_dir, expected_repo_fingerprint=expected_repo_fingerprint)
+    from governance_runtime.infrastructure.io_verify import verify_repository_manifest
+
+    return verify_repository_manifest(runs_dir, expected_repo_fingerprint=expected_repo_fingerprint)
 
 
 def _verify_run_archive_proxy(run_dir: Path) -> Tuple[bool, Dict[str, bool], Optional[str]]:
-    module = importlib.import_module("governance.infrastructure.io_verify")
-    return module.verify_run_archive(run_dir)
+    from governance_runtime.infrastructure.io_verify import verify_run_archive
+
+    return verify_run_archive(run_dir)
 
 
 def _parse_session_pointer_document_proxy(payload: object) -> dict[str, str]:
-    module = importlib.import_module("governance.infrastructure.session_pointer")
-    return module.parse_session_pointer_document(payload)
+    from governance_runtime.infrastructure.session_pointer import parse_session_pointer_document
+
+    return parse_session_pointer_document(payload)
 
 
 def _resolve_active_session_state_path_proxy(pointer: Mapping[str, object], *, config_root: Path) -> Path:
-    module = importlib.import_module("governance.infrastructure.session_pointer")
-    return module.resolve_active_session_state_path(pointer, config_root=config_root)
+    from governance_runtime.infrastructure.session_pointer import resolve_active_session_state_path
+
+    return resolve_active_session_state_path(pointer, config_root=config_root)
 
 
 def _read_json(path: Path) -> dict[str, object]:

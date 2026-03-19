@@ -182,7 +182,7 @@ def test_review_injection_legacy_replaces_placeholders(tmp_path: Path) -> None:
     content = review_md.read_text(encoding="utf-8")
     assert SESSION_READER_PLACEHOLDER not in content
     assert PYTHON_COMMAND_PLACEHOLDER not in content
-    assert str(commands_dir / "governance" / "entrypoints" / "session_reader.py") in content
+    assert str(commands_dir / "governance_runtime" / "entrypoints" / "session_reader.py") in content
 
 
 # ---------------------------------------------------------------------------

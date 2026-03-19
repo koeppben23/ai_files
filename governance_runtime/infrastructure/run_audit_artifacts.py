@@ -330,7 +330,7 @@ def build_provenance_record(
             "repo_fingerprint": repo_fingerprint,
             "session_run_id": str(state_view.get("session_run_id") or run_id),
         },
-        "launcher": "governance.entrypoints.new_work_session",
+        "launcher": "governance_runtime.entrypoints.new_work_session",
         "timestamps": {
             "materialized_at": observed_at,
         },

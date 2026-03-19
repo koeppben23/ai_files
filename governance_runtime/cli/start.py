@@ -10,7 +10,7 @@ def main():
         env["OPENCODE_CONFIG_ROOT"] = env["OPENCODE_CONFIG_ROOT"]
     if "OPENCODE_REPO_ROOT" in env:
         env["OPENCODE_REPO_ROOT"] = env["OPENCODE_REPO_ROOT"]
-    code = subprocess.call([sys.executable, "-m", "governance.entrypoints.bootstrap_preflight_readonly"], env=env)
+    code = subprocess.call([sys.executable, "-m", "governance_runtime.entrypoints.bootstrap_preflight_readonly"], env=env)
     return code
 
 if __name__ == "__main__":

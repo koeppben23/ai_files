@@ -466,12 +466,12 @@ class TestInjectSessionReaderPath:
         assert PYTHON_COMMAND_PLACEHOLDER not in content
 
     def test_injected_path_is_correct(self, commands_dir: Path) -> None:
-        """Injected path points to governance/entrypoints/session_reader.py."""
+        """Injected path points to governance_runtime/entrypoints/session_reader.py."""
         self._write_template(commands_dir)
         inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
-        expected_path = str(commands_dir / "governance" / "entrypoints" / "session_reader.py")
+        expected_path = str(commands_dir / "governance_runtime" / "entrypoints" / "session_reader.py")
         assert expected_path in content
 
     def test_injected_path_is_absolute(self, commands_dir: Path) -> None:
@@ -481,7 +481,7 @@ class TestInjectSessionReaderPath:
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
         # The path should be absolute — starts with / on Unix or drive letter on Windows
-        expected_path = str(commands_dir / "governance" / "entrypoints" / "session_reader.py")
+        expected_path = str(commands_dir / "governance_runtime" / "entrypoints" / "session_reader.py")
         assert os.path.isabs(expected_path)
         assert expected_path in content
 
@@ -509,7 +509,7 @@ class TestInjectSessionReaderPath:
 
     def test_legacy_python_reader_command_is_upgraded(self, commands_dir: Path) -> None:
         continue_md = commands_dir / "continue.md"
-        legacy_reader = commands_dir / "governance" / "entrypoints" / "session_reader.py"
+        legacy_reader = commands_dir / "governance_runtime" / "entrypoints" / "session_reader.py"
         continue_md.write_text(
             f"# Governance Continue\npython \"{legacy_reader}\"\n",
             encoding="utf-8",
