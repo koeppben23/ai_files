@@ -464,6 +464,9 @@ def _should_include_file(
         return True
     if rel in {"phase_api.yaml", "governance_spec/phase_api.yaml"} or rel_legacy == "phase_api.yaml":
         return True
+    # Canonical rail command templates required for strict command-surface install.
+    if rel.startswith("opencode/commands/") and p.suffix.lower() == ".md":
+        return True
     # Addon manifests are required at runtime for deterministic addon activation/reload.
     if (rel.startswith("profiles/addons/") or rel.startswith("governance_content/profiles/addons/") or rel_legacy.startswith("profiles/addons/")) and name.endswith(".addon.yml"):
         return True
