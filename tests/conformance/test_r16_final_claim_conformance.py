@@ -19,6 +19,8 @@ class TestR16FinalClaimConformance:
     def test_architecture_runtime_is_canonical_and_legacy_is_passive(self) -> None:
         runtime_root = REPO_ROOT / "governance_runtime"
         legacy_import = re.compile(r"^(?:from|import)\s+(governance\.[^\s;]+)", re.MULTILINE)
+        legacy_dynamic_import = re.compile(r"importlib\.import_module\(\s*[\"']governance\.")
+        legacy_module_launcher = re.compile(r"-m\s+governance\.")
         offenders: list[str] = []
         for py in runtime_root.rglob("*.py"):
             if py.name == "__init__.py":
@@ -26,11 +28,26 @@ class TestR16FinalClaimConformance:
             text = _read(py)
             if legacy_import.search(text):
                 offenders.append(py.relative_to(REPO_ROOT).as_posix())
+            if legacy_dynamic_import.search(text):
+                offenders.append(py.relative_to(REPO_ROOT).as_posix())
+            if legacy_module_launcher.search(text):
+                offenders.append(py.relative_to(REPO_ROOT).as_posix())
         assert not offenders, f"runtime canonicality broken by legacy import edges: {offenders}"
 
         plugin = _read(REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs")
         assert "governance_runtime.entrypoints.new_work_session" in plugin
         assert "governance.entrypoints.new_work_session" not in plugin
+
+        bootstrap_surfaces = [
+            REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs",
+            REPO_ROOT / "governance_runtime" / "bin" / "opencode-governance-bootstrap",
+            REPO_ROOT / "governance_runtime" / "bin" / "opencode-governance-bootstrap.cmd",
+        ]
+        for surface in bootstrap_surfaces:
+            text = _read(surface)
+            assert "-m governance." not in text, (
+                f"legacy module launcher must not appear in active bootstrap surface: {surface.relative_to(REPO_ROOT)}"
+            )
 
     def test_command_surface_has_exact_rail_count(self) -> None:
         rails_dir = REPO_ROOT / "opencode" / "commands"
@@ -106,6 +123,9 @@ class TestR16FinalClaimConformance:
             assert "python -m governance_runtime" not in text
             assert ".config/opencode" in text
             assert ".local/opencode" in text
+            assert ("~/.config/opencode/bin" in text) or ("${CONFIG_ROOT}/bin" in text), (
+                f"canonical bin truth missing in {path.relative_to(REPO_ROOT)}"
+            )
 
     def test_hygiene_no_cache_bytecode_or_pytest_cache_artifacts(self) -> None:
         result = subprocess.run(

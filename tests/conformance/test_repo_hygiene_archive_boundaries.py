@@ -74,3 +74,27 @@ def test_historical_governance_docs_are_archived_not_active() -> None:
 def test_archived_docs_directory_has_readme() -> None:
     readme = DOCS_ARCHIVED / "README.md"
     assert readme.exists(), "archived governance docs directory must include README.md"
+
+
+@pytest.mark.conformance
+def test_no_unclassified_historical_named_docs_in_active_paths() -> None:
+    historical_markers = ("wave", "rollup", "inventory", "decision", "backlog")
+    active_allowlist = {"CLEANUP_DECISION_LOG.md"}
+    offenders: list[str] = []
+
+    for path in MIGRATIONS.glob("*.md"):
+        lowered = path.name.lower()
+        if path.name in active_allowlist:
+            continue
+        if any(marker in lowered for marker in historical_markers):
+            offenders.append(path.relative_to(REPO_ROOT).as_posix())
+
+    for path in DOCS.glob("*.md"):
+        lowered = path.name.lower()
+        if any(marker in lowered for marker in historical_markers):
+            offenders.append(path.relative_to(REPO_ROOT).as_posix())
+
+    assert not offenders, (
+        "historical-named docs must be archived or explicitly reclassified before staying active: "
+        f"{offenders}"
+    )

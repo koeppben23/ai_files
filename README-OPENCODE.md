@@ -35,6 +35,7 @@ Install/layout truth:
 
 - `${CONFIG_ROOT}` (default `~/.config/opencode`) contains `commands/`, `plugins/`, `workspaces/`, and `bin/`.
 - `${LOCAL_ROOT}` (default `~/.local/opencode`) contains `governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, and `VERSION`.
+- Canonical launcher directory: `${CONFIG_ROOT}/bin` (default `~/.config/opencode/bin`).
 
 ## If execution is unavailable
 

@@ -94,6 +94,22 @@ class TestReadmeUxCompletion:
             content = _read(path)
             assert expected in content, f"{path.relative_to(REPO_ROOT)} missing canonical bootstrap command"
 
+    def test_canonical_bin_directory_truth_is_explicit(self) -> None:
+        docs = [
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "QUICKSTART.md",
+            REPO_ROOT / "README-OPENCODE.md",
+            REPO_ROOT / "BOOTSTRAP.md",
+            REPO_ROOT / "governance_content" / "README.md",
+            REPO_ROOT / "governance_content" / "QUICKSTART.md",
+            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
+        ]
+        for path in docs:
+            content = _read(path)
+            assert ("~/.config/opencode/bin" in content) or ("${CONFIG_ROOT}/bin" in content), (
+                f"{path.relative_to(REPO_ROOT)} missing canonical bin directory guidance"
+            )
+
     def test_python_module_invocation_not_primary_in_user_docs(self) -> None:
         docs = [
             REPO_ROOT / "README.md",
@@ -108,6 +124,21 @@ class TestReadmeUxCompletion:
             content = _read(path)
             assert "python -m governance" not in content
             assert "python -m governance_runtime" not in content
+
+    def test_no_equal_rank_alternative_bootstrap_command_paths(self) -> None:
+        docs = [
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "QUICKSTART.md",
+            REPO_ROOT / "README-OPENCODE.md",
+            REPO_ROOT / "BOOTSTRAP.md",
+            REPO_ROOT / "governance_content" / "README.md",
+            REPO_ROOT / "governance_content" / "QUICKSTART.md",
+            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
+        ]
+        for path in docs:
+            content = _read(path)
+            assert "governance.entrypoints.new_work_session" not in content
+            assert "governance_runtime.entrypoints.new_work_session" not in content
 
     def test_operator_truth_paths_are_consistent(self) -> None:
         docs = [
