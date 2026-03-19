@@ -50,8 +50,14 @@ Post-install directory layout (`<config_root>`):
 
 ```text
 <config_root>/
+  bin/
+    opencode-governance-bootstrap
+    opencode-governance-bootstrap.cmd
   commands/
     governance.paths.json
+    # canonical rails + normative docs only
+  plugins/
+    audit-new-session.mjs
   workspaces/
     <repo_fingerprint>/
       SESSION_STATE.json
@@ -62,6 +68,24 @@ Post-install directory layout (`<config_root>`):
     _global/
       logs/
 ```
+
+```text
+<local_root>/
+  governance_runtime/
+  governance_content/
+  governance_spec/
+  governance/        # compatibility-only surface
+  VERSION
+```
+
+## Canonical operator truth
+
+- Install root (config): `~/.config/opencode`
+- Install root (local payload): `~/.local/opencode`
+- Canonical bin directory: `~/.config/opencode/bin`
+- Canonical bootstrap entrypoint: `opencode-governance-bootstrap init --profile <solo|team|regulated> --repo-root <repo-root>`
+- Commands/plugins/workspaces live under config root; runtime/content/spec/compatibility live under local root.
+- `python -m ...` invocation is internal/debug/compatibility only and is not the primary operator path.
 
 ## Start a governed session
 

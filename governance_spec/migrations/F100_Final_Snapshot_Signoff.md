@@ -6,8 +6,16 @@ Generated: 2026-03-19
 
 - Branch: `refactor/governance-layer-separation`
 - Merge base vs `origin/main`: `c85c789a84846b1ca0f1ba09e7a99acd14c2ef7a`
-- Snapshot head (before this signoff record): `bdefaa1d29fbd3a26a665c4d5945b7880bcaf2a4`
+- Snapshot head (before this signoff record update): `bce957d`
 - PR1-PR7 execution stream baseline: `c893d61`
+
+## R11-R15 Hardening Scope Added
+
+- R11 install/layout finalization (config/local split + commands surface hardening)
+- R12 legacy passive finalization (runtime launcher authority + compatibility-only posture)
+- R13 operator UX truth harmonization (launcher-first + unified path semantics)
+- R14 cleanup/archive sweep for historical governance decision docs
+- R15 hygiene enforcement expansion (archive-boundary conformance)
 
 ## PR1-PR7 Commit Stream (ordered)
 
@@ -35,13 +43,19 @@ python3 -m pytest -q \
   tests/conformance/test_installer_ssot_conformance.py \
   tests/conformance/test_r10_final_state_proof.py \
   tests/conformance/test_r10_final_readiness_gate.py \
+  tests/conformance/test_r12_legacy_passive_finalization.py \
   tests/conformance/test_readme_ux_completion.py \
+  tests/conformance/test_repo_hygiene_no_python_cache_artifacts.py \
+  tests/conformance/test_repo_hygiene_no_unclassified_backlog_docs.py \
+  tests/conformance/test_repo_hygiene_no_redundant_proof_dumps.py \
+  tests/conformance/test_repo_hygiene_archive_boundaries.py \
+  tests/conformance/test_layout_conformance.py \
   tests/conformance/test_f100_completion_gate.py
 ```
 
 Result:
 
-- `38 passed`
+- `102 passed`
 
 ## Full Repository Snapshot Validation
 
@@ -53,9 +67,9 @@ python3 -m pytest -q
 
 Result:
 
-- `5072 passed, 3 skipped, 8 warnings`
+- `5095 passed, 3 skipped, 8 warnings`
 
 ## Signoff
 
-Patch-sequenced PR1-PR7 finalization is validated on a fresh full snapshot run.
-The F100 canonical gate bundle and full repository suite both pass at this snapshot.
+Patch-sequenced PR1-PR7 plus R11-R15 hardening is validated on a fresh full snapshot run.
+The expanded F100 canonical gate bundle and full repository suite both pass at this snapshot.

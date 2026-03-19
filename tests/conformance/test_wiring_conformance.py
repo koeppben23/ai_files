@@ -205,7 +205,7 @@ class TestLauncherToEntrypoints:
 
     # The key entrypoint modules that launchers/plugin invoke
     REQUIRED_ENTRYPOINTS = [
-        "new_work_session.py",      # Plugin invokes via -m governance.entrypoints.new_work_session
+        "new_work_session.py",      # Plugin invokes via -m governance_runtime.entrypoints.new_work_session
         "session_reader.py",        # Rail injection target
         "phase4_intake_persist.py", # ticket.md invokes via -m
         "phase5_plan_record_persist.py",  # plan.md invokes via -m
@@ -231,11 +231,11 @@ class TestLauncherToEntrypoints:
         assert (self.ENTRYPOINTS_DIR / "__init__.py").is_file()
 
     def test_happy_plugin_references_correct_module(self):
-        """Happy: Plugin source references governance.entrypoints.new_work_session."""
+        """Happy: Plugin source references governance_runtime.entrypoints.new_work_session."""
         plugin_src = _read_source(
             REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
         )
-        assert "governance.entrypoints.new_work_session" in plugin_src
+        assert "governance_runtime.entrypoints.new_work_session" in plugin_src
 
     def test_corner_session_reader_is_importable_module(self):
         """Corner: session_reader.py has a recognizable entrypoint pattern."""
@@ -402,9 +402,9 @@ class TestPluginToRuntime:
     PLUGIN_PATH = REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
 
     def test_happy_plugin_invokes_governance_module(self):
-        """Happy: Plugin uses -m governance.entrypoints.new_work_session."""
+        """Happy: Plugin uses -m governance_runtime.entrypoints.new_work_session."""
         src = _read_source(self.PLUGIN_PATH)
-        assert "governance.entrypoints.new_work_session" in src
+        assert "governance_runtime.entrypoints.new_work_session" in src
 
     def test_happy_plugin_passes_trigger_source(self):
         """Happy: Plugin passes --trigger-source desktop-plugin."""
@@ -772,7 +772,7 @@ class TestNoRoguePaths:
         )
         # The plugin should not reference governance files by absolute path
         # It should only use -m module invocation
-        assert "governance.entrypoints.new_work_session" in plugin_src, (
+        assert "governance_runtime.entrypoints.new_work_session" in plugin_src, (
             "Plugin missing -m module reference to new_work_session"
         )
 

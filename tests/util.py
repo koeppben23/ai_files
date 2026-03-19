@@ -127,7 +127,16 @@ def run_install(args: list[str], *, env: dict[str, str] | None = None) -> subpro
     script = source_dir / "install.py"
     if not script.exists():
         script = REPO_ROOT / "install.py"
-    return run([sys.executable, "-X", "utf8", str(script), *args], env=env, cwd=source_dir)
+    effective_env = dict(env or {})
+    if "OPENCODE_LOCAL_ROOT" not in effective_env:
+        config_root_arg = None
+        for i, arg in enumerate(args):
+            if arg == "--config-root" and i + 1 < len(args):
+                config_root_arg = Path(args[i + 1]).resolve()
+                break
+        if config_root_arg is not None:
+            effective_env["OPENCODE_LOCAL_ROOT"] = str(config_root_arg.parent / f"{config_root_arg.name}-local")
+    return run([sys.executable, "-X", "utf8", str(script), *args], env=effective_env, cwd=source_dir)
 
 
 def run_build(args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
@@ -184,22 +193,32 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def write_governance_paths(config_root: Path, *, workspaces_home: Path | None = None) -> Path:
+def write_governance_paths(
+    config_root: Path,
+    *,
+    local_root: Path | None = None,
+    workspaces_home: Path | None = None,
+) -> Path:
     """Create minimal installer-owned governance.paths.json for tests."""
 
     root = Path(os.path.normpath(os.path.abspath(config_root)))
     commands = root / "commands"
-    governance = commands / "governance"
+    local = (Path(os.path.normpath(os.path.abspath(local_root))) if local_root is not None else (root.parent / f"{root.name}-local"))
+    governance = local / "governance"
     workspaces = (Path(os.path.normpath(os.path.abspath(workspaces_home))) if workspaces_home is not None else (root / "workspaces"))
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(root),
+            "localRoot": str(local),
             "commandsHome": str(commands),
-            "profilesHome": str(root / "profiles"),
+            "profilesHome": str(commands / "profiles"),
             "governanceHome": str(governance),
+            "runtimeHome": str(local / "governance_runtime"),
+            "contentHome": str(local / "governance_content"),
+            "specHome": str(local / "governance_spec"),
             "workspacesHome": str(workspaces),
-            "globalErrorLogsHome": str(commands / "logs"),
+            "globalErrorLogsHome": str(workspaces / "_global" / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces / "<repo_fingerprint>" / "logs"),
             "pythonCommand": "py -3" if os.name == "nt" else "python3",
         },

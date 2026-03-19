@@ -34,9 +34,13 @@ Delete artifacts that have no active value and no archive value:
 Active migration records remain in `governance_spec/migrations/`.
 Historical migration records move to `governance_spec/migrations/archived/`.
 
+Active governance docs remain in `governance_content/docs/`.
+Historical governance docs move to `governance_content/docs/archived/`.
+
 ## Cleanup Invariants
 
 - No Python cache artifacts tracked in the repository tree.
 - No unclassified backlog markdown under `governance_content/docs/backlog/`.
 - No redundant frozen-surface raw dump in active migrations.
 - Historical R2 migration records stay archived, not active.
+- Historical governance decision/wave docs stay archived, not active.

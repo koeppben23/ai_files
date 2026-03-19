@@ -39,10 +39,12 @@ class TestF100CompletionGate:
             "tests/conformance/test_installer_ssot_conformance.py",
             "tests/conformance/test_r10_final_state_proof.py",
             "tests/conformance/test_r10_final_readiness_gate.py",
+            "tests/conformance/test_r12_legacy_passive_finalization.py",
             "tests/conformance/test_readme_ux_completion.py",
             "tests/conformance/test_repo_hygiene_no_python_cache_artifacts.py",
             "tests/conformance/test_repo_hygiene_no_unclassified_backlog_docs.py",
             "tests/conformance/test_repo_hygiene_no_redundant_proof_dumps.py",
+            "tests/conformance/test_repo_hygiene_archive_boundaries.py",
         ]
         missing = [suite for suite in required if suite not in text]
         assert not missing, f"F100 record missing canonical gate suites: {missing}"

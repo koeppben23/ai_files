@@ -1,9 +1,11 @@
 ## What this bundle provides
 
 - Deterministic governance workflow (Phases 1-6) with explicit gate outcomes.
-- Installer-managed runtime and policy assets under `governance/`.
+- Canonical runtime authority under `governance_runtime/`.
+- Canonical docs and operator rails under `governance_content/`.
+- Canonical policy/spec artifacts under `governance_spec/`.
 - OpenCode launcher and command surfaces for governed session execution.
-- Profile and addon support under `profiles/`.
+- Legacy `governance/` remains an explicit frozen compatibility surface only.
 
 ## Install
 
@@ -32,6 +34,58 @@ cd customer-install-bundle-v1
 ```
 
 `governance.paths.json` under `<config_root>/commands/` is required for canonical bootstrap behavior.
+
+## Architecture snapshot (final state)
+
+Source-repo canonical surfaces:
+
+```text
+governance_runtime/  # runtime authority (kernel, application, infrastructure)
+governance_content/  # operator docs and command rails
+governance_spec/     # policy/spec source of truth
+governance/          # frozen compatibility surface (non-authoritative)
+```
+
+Post-install directory layout (`<config_root>`):
+
+```text
+<config_root>/
+  bin/
+    opencode-governance-bootstrap
+    opencode-governance-bootstrap.cmd
+  commands/
+    governance.paths.json
+    # canonical rails + normative docs only
+  plugins/
+    audit-new-session.mjs
+  workspaces/
+    <repo_fingerprint>/
+      SESSION_STATE.json
+      logs/
+        error.log.jsonl
+        flow.log.jsonl
+        boot.log.jsonl
+    _global/
+      logs/
+```
+
+```text
+<local_root>/
+  governance_runtime/
+  governance_content/
+  governance_spec/
+  governance/        # compatibility-only surface
+  VERSION
+```
+
+## Canonical operator truth
+
+- Install root (config): `~/.config/opencode`
+- Install root (local payload): `~/.local/opencode`
+- Canonical bin directory: `~/.config/opencode/bin`
+- Canonical bootstrap entrypoint: `opencode-governance-bootstrap init --profile <solo|team|regulated> --repo-root <repo-root>`
+- Commands/plugins/workspaces live under config root; runtime/content/spec/compatibility live under local root.
+- `python -m ...` invocation is internal/debug/compatibility only and is not the primary operator path.
 
 ## Start a governed session
 
@@ -112,8 +166,8 @@ opencode-governance-bootstrap --set-operating-mode solo --repo-root /path/to/rep
 
 ## Docs and troubleshooting
 
-- OpenCode lifecycle: `README-OPENCODE.md`
-- Quickstart: `QUICKSTART.md`
+- Quickstarts: `QUICKSTART.md`, `README-OPENCODE.md`
+- OpenCode lifecycle details: `README-OPENCODE.md`
 - Rules overview: `README-RULES.md`
 - Install path binding details: `docs/install-layout.md`
 

@@ -451,11 +451,8 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     provenance_launcher = str(provenance.get("launcher") or "").strip()
     if provenance_trigger != "new_work_session_created":
         return False, results, f"Invalid provenance trigger: {provenance_trigger}"
-    allowed_launchers = {
-        "governance_runtime.entrypoints.new_work_session",
-        "governance.entrypoints.new_work_session",
-    }
-    if provenance_launcher not in allowed_launchers:
+    allowed_launcher = "governance_runtime.entrypoints.new_work_session"
+    if provenance_launcher != allowed_launcher:
         return False, results, f"Invalid provenance launcher: {provenance_launcher}"
 
     binding = provenance.get("binding")

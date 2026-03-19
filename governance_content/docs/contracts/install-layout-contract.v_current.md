@@ -3,7 +3,7 @@ contract: install-layout
 version: v_current
 status: active
 scope: Canonical install layout, workspace artifacts, ownership and retention rules
-owner: install.py + governance/infrastructure/workspace_paths.py
+owner: governance_runtime/install/install.py + governance/infrastructure/workspace_paths.py
 effective_version: 0.1.0
 supersedes: null
 conformance_suite: tests/conformance/test_layout_conformance.py
@@ -19,8 +19,10 @@ conformance_suite: tests/conformance/test_layout_conformance.py
 | Variable | Resolution | Source |
 |----------|-----------|--------|
 | `${CONFIG_ROOT}` | OpenCode config root, runtime-resolved (e.g. `~/.config/opencode`) | `governance/paths/layout.py:ConfigLayout` |
+| `${LOCAL_ROOT}` | OpenCode local payload root (e.g. `~/.local/opencode`) | installer (`OPENCODE_LOCAL_ROOT` override or default) |
 | `${COMMANDS_HOME}` | `${CONFIG_ROOT}/commands` (default from installer binding evidence) | `governance/infrastructure/binding_paths.py` |
 | `${PROFILES_HOME}` | `${COMMANDS_HOME}/profiles` | `docs/install-layout.md` |
+| `${PLUGINS_HOME}` | `${CONFIG_ROOT}/plugins` | installer (`install.py`) |
 | `${WORKSPACES_HOME}` | `${CONFIG_ROOT}/workspaces` (default from installer binding evidence) | `governance/infrastructure/binding_paths.py` |
 | `${SESSION_STATE_POINTER_FILE}` | `${CONFIG_ROOT}/SESSION_STATE.json` (global pointer) | `governance/infrastructure/workspace_paths.py:global_pointer_path` |
 
@@ -36,14 +38,11 @@ Both must be explicit and auditable.
 ```text
 ${CONFIG_ROOT}/
   SESSION_STATE.json              # Global active-session pointer (NOT state)
-  governance.paths.json           # Installer binding evidence
-  INSTALL_MANIFEST.json           # Installer manifest (SHA256, paths)
-  INSTALL_HEALTH.json             # Installer health status
   governance.activation_intent.json  # Bootstrap activation intent
   bin/
     opencode-governance-bootstrap      # Local launcher (POSIX)
     opencode-governance-bootstrap.cmd  # Local launcher (Windows)
-  opencode-plugins/
+  plugins/                        # = ${PLUGINS_HOME}
     audit-new-session.mjs         # OpenCode Desktop plugin
   opencode.json                   # OpenCode Desktop bridge config (user-owned)
   commands/                       # = ${COMMANDS_HOME}
@@ -63,18 +62,21 @@ ${CONFIG_ROOT}/
     SESSION_STATE_SCHEMA.md
     STABILITY_SLA.md
     CONFLICT_RESOLUTION.md
-    governance.paths.json         # Copy at commands level
-    INSTALL_MANIFEST.json         # Copy at commands level
+    governance.paths.json         # Installer binding evidence
+    INSTALL_MANIFEST.json         # Installer manifest (SHA256, paths)
+    INSTALL_HEALTH.json           # Installer health status
     profiles/
       rules.<stack>.md
       addons/*.addon.yml
-    governance/                   # Governance runtime + schemas
-    scripts/                      # Customer script catalog
-    templates/                    # Workflow template families
-    docs/                         # Customer-facing docs
-    cli/                          # Bootstrap launcher package
   workspaces/                     # = ${WORKSPACES_HOME}
     <repo_fingerprint>/           # Per-repo workspace (see section 3)
+
+${LOCAL_ROOT}/
+  governance_runtime/             # Canonical runtime authority
+  governance_content/             # Canonical docs/profiles/templates content
+  governance_spec/                # Canonical machine-readable specs/contracts
+  governance/                     # Frozen compatibility surface only
+  VERSION
 ```
 
 ## 3. Workspace Artifact Layout

@@ -34,7 +34,7 @@ def test_plugin_uses_node_builtins_and_spawn_args_array() -> None:
     assert "spawnSync(" in content
     assert "exec(" not in content
     assert '"-m"' in content
-    assert '"governance.entrypoints.new_work_session"' in content
+    assert '"governance_runtime.entrypoints.new_work_session"' in content
     assert '"--trigger-source"' in content
     assert '"desktop-plugin"' in content
     assert "OPENCODE_PYTHON" in content

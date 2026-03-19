@@ -51,10 +51,15 @@ class TestReadmeUxCompletion:
         assert "Quickstarts: `QUICKSTART.md`, `README-OPENCODE.md`" in readme
         assert "Post-install directory layout" in readme
         assert "<config_root>/" in readme
+        assert "<local_root>/" in readme
         assert "governance.paths.json" in readme
+        assert "plugins/" in readme
         assert "workspaces/" in readme
         assert "<repo_fingerprint>/" in readme
         assert "_global/" in readme
+        assert "governance_runtime/" in readme
+        assert "governance_content/" in readme
+        assert "governance_spec/" in readme
 
     def test_opencode_readme_covers_launcher_and_gates(self) -> None:
         opencode = _read(REPO_ROOT / "governance_content" / "README-OPENCODE.md")
@@ -73,3 +78,60 @@ class TestReadmeUxCompletion:
         assert "/review" in quickstart
         assert "read-only rail entrypoint" in quickstart
         assert "/review-decision" in quickstart
+
+    def test_canonical_bootstrap_command_is_consistent_across_user_docs(self) -> None:
+        expected = "opencode-governance-bootstrap init --profile"
+        docs = [
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "QUICKSTART.md",
+            REPO_ROOT / "README-OPENCODE.md",
+            REPO_ROOT / "BOOTSTRAP.md",
+            REPO_ROOT / "governance_content" / "README.md",
+            REPO_ROOT / "governance_content" / "QUICKSTART.md",
+            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
+        ]
+        for path in docs:
+            content = _read(path)
+            assert expected in content, f"{path.relative_to(REPO_ROOT)} missing canonical bootstrap command"
+
+    def test_python_module_invocation_not_primary_in_user_docs(self) -> None:
+        docs = [
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "QUICKSTART.md",
+            REPO_ROOT / "README-OPENCODE.md",
+            REPO_ROOT / "BOOTSTRAP.md",
+            REPO_ROOT / "governance_content" / "README.md",
+            REPO_ROOT / "governance_content" / "QUICKSTART.md",
+            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
+        ]
+        for path in docs:
+            content = _read(path)
+            assert "python -m governance" not in content
+            assert "python -m governance_runtime" not in content
+
+    def test_operator_truth_paths_are_consistent(self) -> None:
+        docs = [
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "QUICKSTART.md",
+            REPO_ROOT / "README-OPENCODE.md",
+            REPO_ROOT / "BOOTSTRAP.md",
+            REPO_ROOT / "governance_content" / "README.md",
+            REPO_ROOT / "governance_content" / "QUICKSTART.md",
+            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
+        ]
+        contents = {path: _read(path) for path in docs}
+        for path, content in contents.items():
+            assert ".config/opencode" in content, f"{path.relative_to(REPO_ROOT)} missing config root truth"
+            assert ".local/opencode" in content, f"{path.relative_to(REPO_ROOT)} missing local root truth"
+            assert "commands" in content, f"{path.relative_to(REPO_ROOT)} missing commands truth"
+            assert "plugins" in content, f"{path.relative_to(REPO_ROOT)} missing plugins truth"
+            assert "workspaces" in content, f"{path.relative_to(REPO_ROOT)} missing workspaces truth"
+
+        merged = "\n".join(contents.values())
+        required_tokens = [
+            "governance_runtime",
+            "governance_content",
+            "governance_spec",
+        ]
+        for token in required_tokens:
+            assert token in merged, f"Operator truth missing canonical payload token: {token}"

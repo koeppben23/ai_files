@@ -87,15 +87,20 @@ def _git_init_repo(repo: Path) -> None:
 
 
 def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_root: Path) -> None:
+    local_root = config_root.parent / f"{config_root.name}-local"
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(config_root),
+            "localRoot": str(local_root),
             "commandsHome": str(commands_home),
             "profilesHome": str(commands_home / "profiles"),
-            "governanceHome": str(commands_home / "governance"),
+            "governanceHome": str(local_root / "governance"),
+            "runtimeHome": str(local_root / "governance_runtime"),
+            "contentHome": str(local_root / "governance_content"),
+            "specHome": str(local_root / "governance_spec"),
             "workspacesHome": str(workspaces_home),
-            "globalErrorLogsHome": str(commands_home / "logs"),
+            "globalErrorLogsHome": str(workspaces_home / "_global" / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces_home / "<repo_fingerprint>" / "logs"),
             "pythonCommand": sys.executable,
         },

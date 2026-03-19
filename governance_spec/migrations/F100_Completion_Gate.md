@@ -13,9 +13,11 @@ This record defines the hard completion gate for F100 final-state closure.
 - Installer single source: `governance_runtime/install/install.py` is canonical; root `install.py` is a thin delegator.
 - Contract liveness: no live contract metadata may use `planned`/`TBD`; archived contracts must be explicitly archived.
 - Legacy compatibility surface: frozen and controlled by `governance_spec/migrations/R10_Final_State_Proof.md`.
+- Legacy authority finalization: `governance/` is compatibility-only under local root and not an active command-surface runtime target.
 - Workspace-only log write targets: no `commands/logs` write fallback in runtime logging paths.
 - README and quickstart UX completion: governance-content user docs must be substantive and canonical-command aligned.
 - Repo hygiene: cache/test junk, unclassified backlog notes, and redundant raw proof dumps are excluded from active tree.
+- Archive boundaries: historical migration/governance docs are archived and excluded from active policy surfaces.
 
 ## Canonical Gate Suites
 
@@ -25,10 +27,12 @@ This record defines the hard completion gate for F100 final-state closure.
 - `tests/conformance/test_installer_ssot_conformance.py`
 - `tests/conformance/test_r10_final_state_proof.py`
 - `tests/conformance/test_r10_final_readiness_gate.py`
+- `tests/conformance/test_r12_legacy_passive_finalization.py`
 - `tests/conformance/test_readme_ux_completion.py`
 - `tests/conformance/test_repo_hygiene_no_python_cache_artifacts.py`
 - `tests/conformance/test_repo_hygiene_no_unclassified_backlog_docs.py`
 - `tests/conformance/test_repo_hygiene_no_redundant_proof_dumps.py`
+- `tests/conformance/test_repo_hygiene_archive_boundaries.py`
 
 ## Completion Condition
 

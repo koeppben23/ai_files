@@ -22,12 +22,19 @@ from typing import Optional
 
 # Environment variable overrides (for testing/migration)
 _OPENCODE_CONFIG_ROOT: Optional[str] = None
+_OPENCODE_LOCAL_ROOT: Optional[str] = None
 
 
 def set_config_root_override(path: str | None) -> None:
     """Set override for config root (testing only)."""
     global _OPENCODE_CONFIG_ROOT
     _OPENCODE_CONFIG_ROOT = path
+
+
+def set_local_root_override(path: str | None) -> None:
+    """Set override for local root (testing only)."""
+    global _OPENCODE_LOCAL_ROOT
+    _OPENCODE_LOCAL_ROOT = path
 
 
 def get_config_root() -> Path:
@@ -41,6 +48,16 @@ def get_config_root() -> Path:
     return Path.home() / ".config" / "opencode"
 
 
+def get_local_root() -> Path:
+    """Get local payload root for runtime/content/spec payloads."""
+    if _OPENCODE_LOCAL_ROOT:
+        return Path(_OPENCODE_LOCAL_ROOT)
+    env_root = os.environ.get("OPENCODE_LOCAL_ROOT")
+    if env_root:
+        return Path(env_root)
+    return Path.home() / ".local" / "opencode"
+
+
 def get_opencode_command_root() -> Path:
     """Get the OpenCode commands root (where rails live)."""
     return get_config_root() / "commands"
@@ -48,23 +65,17 @@ def get_opencode_command_root() -> Path:
 
 def get_governance_runtime_root() -> Path:
     """Get the governance runtime root."""
-    # Current layout: runtime lives under commands/governance
-    # Future: will be separate
-    return get_config_root() / "commands" / "governance"
+    return get_local_root() / "governance_runtime"
 
 
 def get_governance_content_root() -> Path:
     """Get the governance content root (docs, profiles, templates)."""
-    # Current layout: content is mixed under commands/
-    # Future: will be separate
-    return get_config_root() / "commands"
+    return get_local_root() / "governance_content"
 
 
 def get_governance_spec_root() -> Path:
     """Get the governance spec root (machine SSOT files)."""
-    # Current layout: spec is mixed under commands/governance/
-    # Future: will be separate
-    return get_config_root() / "commands" / "governance"
+    return get_local_root() / "governance_spec"
 
 
 def get_workspace_root(repo_fingerprint: str) -> Path:
@@ -174,8 +185,9 @@ LEGACY_PATH_MAPPINGS = [
     ("governance_content/templates", lambda: get_governance_content_root() / "templates"),
     ("governance_spec", get_governance_spec_root),
     ("governance_spec/rulesets", lambda: get_governance_spec_root() / "rulesets"),
+    ("governance", lambda: get_local_root() / "governance"),
     # Old structure (deprecated - for backward compatibility only)
-    ("commands/governance", get_governance_runtime_root),
+    ("commands/governance", lambda: get_local_root() / "governance"),
     ("commands/docs", lambda: get_governance_content_root() / "docs"),
     ("commands/profiles", lambda: get_governance_content_root() / "profiles"),
     # Base paths

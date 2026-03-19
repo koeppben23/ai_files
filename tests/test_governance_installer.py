@@ -348,7 +348,7 @@ class TestInstallTargets:
 
     def test_runtime_target(self) -> None:
         """Returns runtime target path."""
-        assert install_runtime_target() == "commands/governance"
+        assert install_runtime_target() == "local/governance_runtime"
 
 
 class TestCollectForInstallTarget:

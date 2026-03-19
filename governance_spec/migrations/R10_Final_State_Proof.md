@@ -8,6 +8,15 @@ Generated: 2026-03-18
 - governance/** bridge files (legacy -> runtime): **117**
 - governance/** explicit active compatibility surface files: **121**
 
+## Legacy Authority Finalization
+
+- Canonical runtime authority is `governance_runtime/**`.
+- `governance/**` is a frozen passive compatibility surface only.
+- Compatibility surface files are not primary installer/bootstrap/runtime authorities.
+- Installer placement invariant:
+  - `~/.local/opencode/governance/` may exist for compatibility.
+  - `~/.config/opencode/commands/governance/` must not be used as active runtime installation target.
+
 ## Explicit Active Compatibility Surface
 
 - `governance/addon_catalog.py`

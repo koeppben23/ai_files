@@ -378,7 +378,7 @@ def install_spec_target() -> str:
 
 def install_runtime_target() -> str:
     """Get the target path for runtime installation."""
-    return "commands/governance"
+    return "local/governance_runtime"
 
 
 def collect_for_install_target(

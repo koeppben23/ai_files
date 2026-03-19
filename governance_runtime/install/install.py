@@ -229,10 +229,10 @@ OPENCODE_PLUGINS_DIR_NAME = "plugins"
 CUSTOMER_SCRIPT_CATALOG_REL = Path("governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
 CUSTOMER_SCRIPT_CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
 
-# Governance assets copied into <config_root>/commands/governance/assets/**
+# Governance compatibility assets copied into <local_root>/governance/assets/**
 GOVERNANCE_ASSETS_DIR_NAME = "governance/assets"
 
-# Governance runtime package copied into <config_root>/commands/governance/**
+# Legacy compatibility package copied into <local_root>/governance/**
 GOVERNANCE_RUNTIME_DIR_NAME = "governance"
 
 FORBIDDEN_METADATA_SEGMENTS = {"__MACOSX", "__pycache__", "_backup"}
@@ -301,19 +301,34 @@ def get_config_root() -> Path:
     return (Path.home().resolve() / ".config" / "opencode").resolve()
 
 
-def ensure_dirs(config_root: Path, dry_run: bool) -> None:
+def get_local_root() -> Path:
+    """Determine local payload root for runtime/content/spec payloads.
+
+    Default: <user-home>/.local/opencode
+    Override: OPENCODE_LOCAL_ROOT
+    """
+    env_local = os.environ.get("OPENCODE_LOCAL_ROOT")
+    if env_local:
+        return Path(env_local).resolve()
+    return (Path.home().resolve() / ".local" / "opencode").resolve()
+
+
+def ensure_dirs(config_root: Path, local_root: Path | None = None, dry_run: bool = False) -> None:
+    if local_root is None:
+        local_root = get_local_root()
     dirs = [
         config_root,
         config_root / "bin",
         config_root / OPENCODE_PLUGINS_DIR_NAME,
         config_root / "commands",
-        config_root / "commands" / "scripts",
-        config_root / "commands" / "templates",
-        config_root / "commands" / "templates" / "github-actions",
         config_root / "commands" / "profiles",
         config_root / "commands" / "profiles" / "addons",
-        config_root / "commands" / ERROR_LOGS_DIR_NAME,
         config_root / "workspaces",
+        local_root,
+        local_root / "governance_runtime",
+        local_root / "governance_content",
+        local_root / "governance_spec",
+        local_root / "governance",
     ]
     for d in dirs:
         if dry_run:
@@ -333,45 +348,10 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
     commands_home = _path_for_json(plan.commands_dir)
     workspaces_home = _path_for_json(plan.config_root / "workspaces")
 
-    # Copy cli/ package to commands_home so launcher has a local runtime.
-    cli_source = SCRIPT_DIR / "cli"
-    cli_dest = plan.commands_dir / "cli"
-
     created_entries: list[dict] = []
-
     if dry_run:
-        print(f"  [DRY-RUN] copy {cli_source} -> {cli_dest}")
         created_entries.extend(
             _planned_launcher_entries(plan=plan, bin_dir=bin_dir)
-        )
-    else:
-        if cli_dest.exists():
-            if cli_dest.is_symlink():
-                raise RuntimeError(
-                    f"Refusing to remove {cli_dest}: path is a symlink (C3 safety guard)"
-                )
-            shutil.rmtree(cli_dest)
-        cli_dest.mkdir(parents=True, exist_ok=True)
-        for f in sorted(cli_source.rglob("*.py")):
-            rel = f.relative_to(cli_source)
-            dst = cli_dest / rel
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(f, dst)
-        print(f"  ✅ {cli_dest}")
-
-        # Launcher generation deferred until governance.paths.json is written.
-
-    for f in sorted(cli_source.rglob("*.py")):
-        rel = f.relative_to(cli_source)
-        installed_path = cli_dest / rel
-        created_entries.append(
-            {
-                "dst": str(installed_path.resolve()) if not dry_run else str(installed_path),
-                "rel": str(Path("cli") / rel),
-                "rel_base": "commands",
-                "status": "planned-copy" if dry_run else "copied",
-                "src": str(f),
-            }
         )
 
     launcher_unix = bin_dir / "opencode-governance-bootstrap"
@@ -471,7 +451,9 @@ def _resolve_python_executable(binding_path: Path, *, fallback: str, strict: boo
     return fallback
 
 
-def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
+def _launcher_template_unix(*, python_exe: str, config_root: Path, local_root: Path | None = None) -> str:
+    if local_root is None:
+        local_root = get_local_root()
     """Generate Unix launcher with fail-closed Python resolution and subcommand routing.
 
     Resolution cascade (python-binding-contract.v1 §3):
@@ -494,10 +476,12 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
             "set -e",
             "SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
             f"OPENCODE_CONFIG_ROOT=\"{config_root}\"",
+            f"OPENCODE_LOCAL_ROOT=\"{local_root}\"",
             "OPENCODE_REPO_ROOT=\"${OPENCODE_REPO_ROOT:-}\"",
             "COMMANDS_HOME=\"${OPENCODE_CONFIG_ROOT}/commands\"",
-            "PYTHONPATH=\"${COMMANDS_HOME}:${COMMANDS_HOME}/governance_runtime:${PYTHONPATH}\"",
+            "PYTHONPATH=\"${COMMANDS_HOME}:${OPENCODE_LOCAL_ROOT}:${PYTHONPATH}\"",
             "export OPENCODE_CONFIG_ROOT",
+            "export OPENCODE_LOCAL_ROOT",
             "export OPENCODE_REPO_ROOT",
             "export COMMANDS_HOME",
             "export PYTHONPATH",
@@ -554,7 +538,9 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
     )
 
 
-def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
+def _launcher_template_windows(*, python_exe: str, config_root: Path, local_root: Path | None = None) -> str:
+    if local_root is None:
+        local_root = get_local_root()
     """Generate Windows launcher with fail-closed Python resolution and subcommand routing.
 
     Resolution cascade (python-binding-contract.v1 §3):
@@ -577,6 +563,7 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
             "setlocal EnableDelayedExpansion",
             "set \"SCRIPT_DIR=%~dp0\"",
             f"set \"OPENCODE_CONFIG_ROOT={config_root}\"",
+            f"set \"OPENCODE_LOCAL_ROOT={local_root}\"",
             "set \"OPENCODE_REPO_ROOT=%OPENCODE_REPO_ROOT%\"",
             "if not defined OPENCODE_REPO_ROOT (",
             "    if defined GITHUB_WORKSPACE (",
@@ -585,7 +572,7 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
             ")",
             "set \"COMMANDS_HOME=%OPENCODE_CONFIG_ROOT%\\commands\"",
             "set \"OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%\"",
-            "set \"PYTHONPATH=%COMMANDS_HOME%;%COMMANDS_HOME%\\governance;!PYTHONPATH!\"",
+            "set \"PYTHONPATH=%COMMANDS_HOME%;%OPENCODE_LOCAL_ROOT%;!PYTHONPATH!\"",
             "set \"OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
             "set \"OPENCODE_BOOTSTRAP_BINDING_PATH=%COMMANDS_HOME%\\governance.paths.json\"",
             "if defined OPENCODE_REPO_ROOT (",
@@ -702,8 +689,8 @@ def _write_launcher_wrappers(
         "status": "generated",
     })
 
-    unix_payload = _launcher_template_unix(python_exe=python_exec, config_root=plan.config_root)
-    win_payload = _launcher_template_windows(python_exe=python_exec, config_root=plan.config_root)
+    unix_payload = _launcher_template_unix(python_exe=python_exec, config_root=plan.config_root, local_root=plan.local_root)
+    win_payload = _launcher_template_windows(python_exe=python_exec, config_root=plan.config_root, local_root=plan.local_root)
 
     dest_unix.write_text(unix_payload, encoding="utf-8")
     dest_unix.chmod(0o755)
@@ -766,6 +753,7 @@ def read_governance_version_metadata(version_file: Path) -> str | None:
 class InstallPlan:
     source_dir: Path
     config_root: Path
+    local_root: Path
     commands_dir: Path
     profiles_dst_dir: Path
     manifest_path: Path
@@ -777,10 +765,13 @@ class InstallPlan:
 def build_plan(
     source_dir: Path,
     config_root: Path,
+    local_root: Path | None = None,
     *,
     skip_paths_file: bool,
     deterministic_paths_file: bool,
 ) -> InstallPlan:
+    if local_root is None:
+        local_root = get_local_root()
     commands_dir = config_root / "commands"
     profiles_dst_dir = commands_dir / "profiles"
     manifest_path = commands_dir / MANIFEST_NAME
@@ -788,6 +779,7 @@ def build_plan(
     return InstallPlan(
         source_dir=source_dir,
         config_root=config_root,
+        local_root=local_root,
         commands_dir=commands_dir,
         profiles_dst_dir=profiles_dst_dir,
         manifest_path=manifest_path,
@@ -962,7 +954,7 @@ def _is_forbidden_installed_path(path: Path, commands_dir: Path) -> bool:
         return True
     if rel.name in FORBIDDEN_METADATA_FILENAMES:
         return True
-    # Logs must never be inside commands/governance/.
+    # Logs must never be inside commands/governance/ compatibility leftovers.
     # The only valid runtime logs location is workspace-scoped:
     #   <config_root>/workspaces/<repo_fingerprint>/logs/
     if len(rel.parts) >= 2 and rel.parts[0] == "governance" and rel.parts[1] == ERROR_LOGS_DIR_NAME:
@@ -1026,6 +1018,20 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
         violations.append(rel)
 
     return (sorted(dict.fromkeys(removed)), sorted(dict.fromkeys(violations)))
+
+
+def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> list[str]:
+    """Remove forbidden local payload artifacts under compatibility runtime trees."""
+    removed: list[str] = []
+    governance_logs = local_root / "governance" / ERROR_LOGS_DIR_NAME
+    if governance_logs.exists() and governance_logs.is_dir():
+        rel = governance_logs.relative_to(local_root).as_posix()
+        removed.append(rel)
+        if dry_run:
+            print(f"  [DRY-RUN] rm -rf {governance_logs}")
+        else:
+            shutil.rmtree(governance_logs, ignore_errors=True)
+    return removed
 
 def collect_command_root_files(source_dir: Path) -> list[Path]:
     """
@@ -1408,7 +1414,7 @@ def collect_workflow_template_files(source_dir: Path, *, strict: bool) -> list[P
     return unique
 
 
-def build_governance_paths_payload(config_root: Path, *, deterministic: bool) -> dict:
+def build_governance_paths_payload(config_root: Path, local_root: Path | None = None, *, deterministic: bool) -> dict:
     """
     Create a small, installer-owned JSON document that records the canonical absolute paths
     derived from config_root. This is *not* an OpenCode config file and is therefore not
@@ -1420,9 +1426,15 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
         """R3: POSIX-normalized absolute path string for JSON serialization."""
         return _path_for_json(p)
 
+    if local_root is None:
+        local_root = get_local_root()
+
     commands_home = config_root / "commands"
     profiles_home = commands_home / "profiles"
-    governance_home = commands_home / "governance"
+    governance_home = local_root / "governance"
+    runtime_home = local_root / "governance_runtime"
+    content_home = local_root / "governance_content"
+    spec_home = local_root / "governance_spec"
     workspaces_home = config_root / "workspaces"
     global_error_logs_home = workspaces_home / "_global" / "logs"
     python_command = _path_for_json(Path(sys.executable))
@@ -1431,9 +1443,13 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
         "schema": GOVERNANCE_PATHS_SCHEMA,
         "paths": {
             "configRoot": norm(config_root),
+            "localRoot": norm(local_root),
             "commandsHome": norm(commands_home),
             "profilesHome": norm(profiles_home),
             "governanceHome": norm(governance_home),
+            "runtimeHome": norm(runtime_home),
+            "contentHome": norm(content_home),
+            "specHome": norm(spec_home),
             "workspacesHome": norm(workspaces_home),
             "globalErrorLogsHome": norm(global_error_logs_home),
             "workspaceErrorLogsHomeTemplate": norm(workspaces_home / "<repo_fingerprint>" / "logs"),
@@ -1465,7 +1481,7 @@ def install_governance_paths_file(
     dst = plan.governance_paths_path
     dst_exists = dst.exists()
 
-    desired_doc = build_governance_paths_payload(plan.config_root, deterministic=plan.deterministic_paths_file)
+    desired_doc = build_governance_paths_payload(plan.config_root, plan.local_root, deterministic=plan.deterministic_paths_file)
 
     if dst_exists and not force:
         existing = _load_json(dst)
@@ -2010,7 +2026,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 
     print(f"Target config root: {plan.config_root}")
     print("Ensuring directory structure...")
-    ensure_dirs(plan.config_root, dry_run=dry_run)
+    ensure_dirs(plan.config_root, plan.local_root, dry_run=dry_run)
 
     # backup root
     backup_root = plan.config_root / ".installer-backups" / now_ts()
@@ -2254,72 +2270,15 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     else:
         print("\nℹ️  No addon manifests found under profiles/addons/*.addon.yml.")
 
-    # copy customer documentation (docs/*.md relevant to customers)
-    docs_files = collect_customer_docs_files(plan.source_dir)
-    if docs_files:
-        print("\n📋 Copying customer documentation to commands/docs/ ...")
-        docs_dst_dir = plan.commands_dir / DOCS_DIR_NAME
-        docs_root = get_governance_docs_root(plan.source_dir)
-        for df in docs_files:
-            # Handle both absolute and relative paths
-            if df.is_absolute():
-                rel = df.relative_to(docs_root)
-            else:
-                rel = df
-            dst = docs_dst_dir / rel
-            entry = copy_with_optional_backup(
-                src=df,
-                dst=dst,
-                backup_enabled=backup_enabled,
-                backup_root=backup_root,
-                dry_run=dry_run,
-                overwrite=force,
-            )
-            copied_entries.append(entry)
-            status = entry["status"]
-            if status in ("planned-copy", "copied"):
-                print(f"  ✅ docs/{rel} ({status})")
-            elif status == "skipped-exists":
-                print(f"  ⏭️  docs/{rel} exists (use --force to overwrite)")
-            else:
-                print(f"  ⚠️  docs/{rel} missing (skipping)")
-    else:
-        print("\nℹ️  No customer-relevant documentation found (skipping).")
+    print("\nℹ️  Installer no longer copies docs payload to commands/docs/ (R11 hardening).")
 
-    # copy governance documentation (docs/governance/*.md — referenced by master.md/rules.md)
-    gov_docs_files = collect_governance_docs_files(plan.source_dir)
-    if gov_docs_files:
-        print("\n📋 Copying governance documentation to commands/docs/governance/ ...")
-        docs_root = get_governance_docs_root(plan.source_dir)
-        for gd in gov_docs_files:
-            rel = gd.relative_to(docs_root)
-            dst = plan.commands_dir / "docs" / rel
-            entry = copy_with_optional_backup(
-                src=gd,
-                dst=dst,
-                backup_enabled=backup_enabled,
-                backup_root=backup_root,
-                dry_run=dry_run,
-                overwrite=force,
-            )
-            copied_entries.append(entry)
-            status = entry["status"]
-            if status in ("planned-copy", "copied"):
-                print(f"  ✅ docs/{rel} ({status})")
-            elif status == "skipped-exists":
-                print(f"  ⏭️  docs/{rel} exists (use --force to overwrite)")
-            else:
-                print(f"  ⚠️  docs/{rel} missing (skipping)")
-    else:
-        print("\nℹ️  No governance documentation found under docs/governance/ (skipping).")
-
-    # copy governance runtime package (state machine execution modules)
+    # copy governance runtime + compatibility packages to local root
     runtime_files = collect_governance_runtime_files(plan.source_dir)
     if runtime_files:
-        print("\n📋 Copying governance runtime package to commands/governance/ ...")
+        print("\n📋 Copying governance runtime/compatibility packages to local root ...")
         for rf in runtime_files:
             rel = rf.relative_to(plan.source_dir)
-            dst = plan.commands_dir / rel
+            dst = plan.local_root / rel
             entry = copy_with_optional_backup(
                 src=rf,
                 dst=dst,
@@ -2328,6 +2287,8 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
                 dry_run=dry_run,
                 overwrite=force,
             )
+            entry["rel"] = str(rel.as_posix())
+            entry["rel_base"] = "local"
             copied_entries.append(entry)
             status = entry["status"]
             if status in ("planned-copy", "copied"):
@@ -2339,107 +2300,45 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     else:
         print("\nℹ️  No governance runtime package found (skipping).")
 
-    # copy customer helper scripts (catalog-driven)
-    # In dry-run mode, be lenient about optional catalogs to allow planning
-    try:
-        customer_scripts = collect_customer_script_files(plan.source_dir, strict=(not dry_run))
-    except RuntimeError as exc:
-        safe_log_error(
-            reason_key="ERR-INSTALL-CUSTOMER-SCRIPT-CATALOG-INVALID",
-            message="Installer blocked: customer script catalog invalid or missing required entries.",
-            config_root=plan.config_root,
-            phase="installer",
-            gate="customer-scripts",
-            mode="repo-aware",
-            repo_fingerprint=None,
-            command="install.py",
-            component="installer-customer-scripts",
-            observed_value={"catalog": str(CUSTOMER_SCRIPT_CATALOG_REL), "error": str(exc)},
-            expected_constraint="Valid governance/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release scripts",
-            remediation="Restore customer script catalog and listed script files, then rerun install.",
-            action="abort",
-            result="failed",
-            reason_namespace="installer-internal",
-        )
-        eprint(f"❌ {exc}")
-        return 2
-
-    print("\n📋 Copying customer scripts to commands/scripts/ ...")
-    for sf in customer_scripts:
-        rel = sf.relative_to(plan.source_dir)
-        dst = plan.commands_dir / rel
-        entry = copy_with_optional_backup(
-            src=sf,
-            dst=dst,
-            backup_enabled=backup_enabled,
-            backup_root=backup_root,
-            dry_run=dry_run,
-            overwrite=force,
-        )
-        copied_entries.append(entry)
-        status = entry["status"]
-        if status in ("planned-copy", "copied"):
-            print(f"  ✅ {rel} ({status})")
-        elif status == "skipped-exists":
-            print(f"  ⏭️  {rel} exists (use --force to overwrite)")
-        else:
-            print(f"  ⚠️  {rel} missing (skipping)")
-
-    # copy workflow templates (catalog-driven)
-    workflow_templates = []
-    if not dry_run:
-        try:
-            workflow_templates = collect_workflow_template_files(plan.source_dir, strict=False)
-        except RuntimeError:
-            safe_log_error(
-                reason_key="ERR-INSTALL-WORKFLOW-TEMPLATE-CATALOG-INVALID",
-                message="Installer blocked: workflow template catalog invalid or missing template files.",
-                config_root=plan.config_root,
-                phase="installer",
-                gate="workflow-templates",
-                mode="repo-aware",
-                repo_fingerprint=None,
-                command="install.py",
-                component="installer-workflow-templates",
-                observed_value={"catalog": str(TEMPLATE_CATALOG_REL), "error": "invalid template catalog"},
-                expected_constraint="Valid templates/github-actions/template_catalog.json with existing template files",
-                remediation="Restore workflow template catalog and listed files, then rerun install.",
-                action="abort",
-                result="failed",
-                reason_namespace="installer-internal",
+    # copy governance content + spec payloads to local root
+    local_payload_roots = ["governance_content", "governance_spec"]
+    print("\n📋 Copying governance content/spec payloads to local root ...")
+    for local_dir_name in local_payload_roots:
+        src_root = plan.source_dir / local_dir_name
+        if not src_root.exists() or not src_root.is_dir():
+            continue
+        for lf in sorted(p for p in src_root.rglob("*") if p.is_file()):
+            if _is_forbidden_metadata_path(lf, plan.source_dir):
+                continue
+            rel = lf.relative_to(plan.source_dir)
+            dst = plan.local_root / rel
+            entry = copy_with_optional_backup(
+                src=lf,
+                dst=dst,
+                backup_enabled=backup_enabled,
+                backup_root=backup_root,
+                dry_run=dry_run,
+                overwrite=force,
             )
-            eprint("❌ Workflow template catalog invalid.")
-            return 2
+            entry["rel"] = str(rel.as_posix())
+            entry["rel_base"] = "local"
+            copied_entries.append(entry)
 
-    print("\n📋 Copying workflow templates to commands/templates/ ...")
-    templates_root = get_templates_root(plan.source_dir)
-    catalog_file = templates_root / "github-actions" / "template_catalog.json"
-    template_sources: list[Path] = []
-    if catalog_file.exists():
-        template_sources.append(catalog_file)
-    for tf in workflow_templates:
-        if tf not in template_sources:
-            template_sources.append(tf)
-
-    for tf in template_sources:
-        rel = tf.relative_to(templates_root)
-        dst = plan.commands_dir / "templates" / rel
+    version_src = plan.source_dir / "VERSION"
+    if version_src.exists() and version_src.is_file():
         entry = copy_with_optional_backup(
-            src=tf,
-            dst=dst,
+            src=version_src,
+            dst=plan.local_root / "VERSION",
             backup_enabled=backup_enabled,
             backup_root=backup_root,
             dry_run=dry_run,
             overwrite=force,
         )
+        entry["rel"] = "VERSION"
+        entry["rel_base"] = "local"
         copied_entries.append(entry)
-        status = entry["status"]
-        if status in ("planned-copy", "copied"):
-            print(f"  ✅ templates/{rel} ({status})")
-        elif status == "skipped-exists":
-            print(f"  ⏭️  templates/{rel} exists (use --force to overwrite)")
-        else:
-            print(f"  ⚠️  templates/{rel} missing (skipping)")
+
+    print("\nℹ️  Installer no longer copies scripts/templates payloads to commands/ (R11 hardening).")
 
     # copy optional OpenCode plugins to global plugins dir
     plugin_files = collect_opencode_plugin_files(plan.source_dir)
@@ -2476,7 +2375,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     # YAML rulebooks are authoritative; MD files are optional guidance
     critical = [
         plan.commands_dir / "rulesets" / "core" / "rules.yml",
-        plan.commands_dir / "governance" / "VERSION",
+        plan.local_root / "governance_runtime" / "VERSION",
         # Do not treat root rules.yml as critical to avoid false negatives when only placeholders exist
         # plan.commands_dir / "rules.yml",
     ]
@@ -2502,6 +2401,12 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             eprint(f"  - {rel}")
         eprint("Recovery: remove forbidden artifacts and rerun installer.")
         return 3
+
+    local_removed = enforce_local_payload_hygiene(local_root=plan.local_root, dry_run=dry_run)
+    if local_removed:
+        preview = ", ".join(local_removed[:6])
+        suffix = "" if len(local_removed) <= 6 else ", ..."
+        print(f"  ✅ removed forbidden local payload artifacts: {preview}{suffix}")
 
     # --- OpenCode Desktop bridge: opencode.json + session reader path injection ---
     print("\n🔗 Configuring OpenCode Desktop governance bridge...")
@@ -2600,7 +2505,12 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         rel_base = str(e.get("rel_base") or "commands")
         rel_value = e.get("rel")
         if not rel_value:
-            base_dir = plan.config_root if rel_base == "config" else plan.commands_dir
+            if rel_base == "config":
+                base_dir = plan.config_root
+            elif rel_base == "local":
+                base_dir = plan.local_root
+            else:
+                base_dir = plan.commands_dir
             rel_value = str(Path(e["dst"]).resolve().relative_to(base_dir.resolve())) if "dst" in e else None
         installed_files.append(
             {
@@ -2634,6 +2544,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         "governanceVersion": gov_ver,
         "installedAt": datetime.now().isoformat(timespec="seconds"),
         "configRoot": _path_for_json(plan.config_root),
+        "localRoot": _path_for_json(plan.local_root),
         "commandsDir": _path_for_json(plan.commands_dir),
         "files": installed_files,
     }
@@ -2714,10 +2625,24 @@ def uninstall(
             rel = src.relative_to(profiles_root)
             targets.append(plan.commands_dir / "profiles" / rel)
 
-        # Governance runtime from current source snapshot
+        # Governance runtime + compatibility packages from current source snapshot
         for src in collect_governance_runtime_files(plan.source_dir):
             rel = src.relative_to(plan.source_dir)
-            targets.append(plan.commands_dir / rel)
+            targets.append(plan.local_root / rel)
+
+        # Governance content/spec payloads under local root
+        for local_dir_name in ("governance_content", "governance_spec"):
+            src_root = plan.source_dir / local_dir_name
+            if not src_root.exists() or not src_root.is_dir():
+                continue
+            for src in src_root.rglob("*"):
+                if src.is_file() and not _is_forbidden_metadata_path(src, plan.source_dir):
+                    rel = src.relative_to(plan.source_dir)
+                    targets.append(plan.local_root / rel)
+
+        src_version = plan.source_dir / "VERSION"
+        if src_version.exists():
+            targets.append(plan.local_root / "VERSION")
 
         # Customer docs from current source snapshot
         docs_root = get_governance_docs_root(plan.source_dir)
@@ -2827,6 +2752,8 @@ def uninstall(
                 rel_base = "config"
             if rel_base == "config":
                 targets.append(plan.config_root / rel)
+            elif rel_base == "local":
+                targets.append(plan.local_root / rel)
             else:
                 targets.append(plan.commands_dir / rel)
         elif dst:
@@ -2869,7 +2796,7 @@ def uninstall(
 
     # Manifest-backed uninstall can safely clear stale installer trees that may
     # survive due to historical path drift (for example legacy "governnce/").
-    rc = max(rc, purge_manifest_leftover_trees(plan.commands_dir, dry_run=dry_run))
+    rc = max(rc, purge_manifest_leftover_trees(plan.commands_dir, plan.local_root, dry_run=dry_run))
 
     if not keep_error_logs:
         rc = max(rc, purge_runtime_error_logs(plan.config_root, dry_run=dry_run))
@@ -2899,9 +2826,13 @@ def uninstall(
         plan.commands_dir / "scripts",
         plan.commands_dir / "governance",
         plan.commands_dir / "cli",
-        plan.commands_dir / "logs",
         plan.commands_dir / "docs",
         plan.commands_dir / "_backup",
+        plan.local_root / "governance_runtime",
+        plan.local_root / "governance_content",
+        plan.local_root / "governance_spec",
+        plan.local_root / "governance",
+        plan.local_root,
         plan.config_root / "bin",
         plan.config_root / "workspaces",
         plan.config_root / OPENCODE_PLUGINS_DIR_NAME,
@@ -2927,7 +2858,7 @@ def uninstall(
     return rc
 
 
-def purge_manifest_leftover_trees(commands_dir: Path, dry_run: bool) -> int:
+def purge_manifest_leftover_trees(commands_dir: Path, local_root: Path, dry_run: bool) -> int:
     """Remove stale files under installer-owned trees after manifest uninstall."""
 
     errors = 0
@@ -2935,6 +2866,8 @@ def purge_manifest_leftover_trees(commands_dir: Path, dry_run: bool) -> int:
         commands_dir / "docs",
         commands_dir / "governance",
         commands_dir / "governnce",
+        local_root / "governance",
+        local_root / "governnce",
     ]
 
     for root in legacy_trees:
@@ -2972,10 +2905,11 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
             commands_resolved = plan.commands_dir.resolve()
             bin_resolved = (plan.config_root / "bin").resolve()
             plugins_resolved = (plan.config_root / OPENCODE_PLUGINS_DIR_NAME).resolve()
+            local_resolved = plan.local_root.resolve()
             
-            # Allow deletion in commands_dir, config_root/bin, config_root/plugins,
+            # Allow deletion in commands_dir, config_root/bin, config_root/plugins, local_root,
             # or explicit installer-owned config files.
-            allowed_bases = [commands_resolved, bin_resolved, plugins_resolved]
+            allowed_bases = [commands_resolved, bin_resolved, plugins_resolved, local_resolved]
             is_under_allowed = any(
                 base_resolved in t_resolved.parents or t_resolved == base_resolved
                 for base_resolved in allowed_bases
@@ -2996,7 +2930,7 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
                     component="installer-delete-guard",
                     observed_value={"target": str(t), "resolvedTarget": str(t_resolved)},
                     expected_constraint=(
-                        f"Target must be under {commands_resolved}, {bin_resolved}, {plugins_resolved}, "
+                        f"Target must be under {commands_resolved}, {bin_resolved}, {plugins_resolved}, {local_resolved}, "
                         f"or in explicit installer-owned config files"
                     ),
                     remediation="Inspect manifest/targets and rerun uninstall.",
@@ -3097,6 +3031,7 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
                 *list((config_root / "workspaces").glob("*/logs/errors-index.json")),
                 *list((config_root / "workspaces").glob("*/logs/error.log.jsonl")),
                 *list((config_root / "workspaces").glob("*/logs/flow.log.jsonl")),
+                *list((config_root / "workspaces").glob("*/logs/boot.log.jsonl")),
             ]
         )
     )
@@ -3612,6 +3547,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="Override config root (default: auto-detect).",
     )
+    p.add_argument(
+        "--local-root",
+        type=Path,
+        default=None,
+        help="Override local payload root (default: ~/.local/opencode).",
+    )
     p.add_argument("--dry-run", action="store_true", help="Show what would happen without writing anything.")
     p.add_argument("--force", action="store_true", help="Overwrite without prompting / uninstall without prompt.")
     p.add_argument("--no-backup", action="store_true", help="Disable backup on overwrite (install only).")
@@ -3648,6 +3589,8 @@ def main(argv: list[str]) -> int:
     # produce inconsistent governance.paths.json entries.
     if args.config_root is not None:
         args.config_root = args.config_root.resolve()
+    if args.local_root is not None:
+        args.local_root = args.local_root.resolve()
 
     # --version: show version and exit (read-only)
     if args.version:
@@ -3674,9 +3617,11 @@ def main(argv: list[str]) -> int:
         return run_smoketest(config_root)
 
     config_root = args.config_root if args.config_root is not None else get_config_root()
+    local_root = args.local_root if args.local_root is not None else get_local_root()
     plan = build_plan(
         args.source_dir,
         config_root,
+        local_root,
         skip_paths_file=args.skip_paths_file,
         deterministic_paths_file=args.deterministic_paths_file,
     )
@@ -3700,6 +3645,7 @@ def main(argv: list[str]) -> int:
     # install flow
     print(f"Source dir:  {plan.source_dir}")
     print(f"Config root: {plan.config_root}")
+    print(f"Local root:  {plan.local_root}")
 
     # prompt only if interactive and not forced and not dry-run
     if not args.force and not args.dry_run and is_interactive():

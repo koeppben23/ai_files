@@ -66,15 +66,20 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
 def _write_governance_paths(*, config_root: Path, commands_home: Path, workspaces_home: Path) -> None:
     commands_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
+    local_root = config_root.parent / f"{config_root.name}-local"
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(config_root),
+            "localRoot": str(local_root),
             "commandsHome": str(commands_home),
             "profilesHome": str(commands_home / "profiles"),
-            "governanceHome": str(commands_home / "governance"),
+            "governanceHome": str(local_root / "governance"),
+            "runtimeHome": str(local_root / "governance_runtime"),
+            "contentHome": str(local_root / "governance_content"),
+            "specHome": str(local_root / "governance_spec"),
             "workspacesHome": str(workspaces_home),
-            "globalErrorLogsHome": str(commands_home / "logs"),
+            "globalErrorLogsHome": str(workspaces_home / "_global" / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces_home / "<repo_fingerprint>" / "logs"),
             "pythonCommand": sys.executable,
         },

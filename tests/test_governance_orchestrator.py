@@ -162,7 +162,7 @@ def _create_finalized_archive(base: Path, run_id: str = _RUN_ID) -> Path:
         "trigger": "new_work_session_created",
         "policy_fingerprint": "",
         "binding": {"repo_fingerprint": _FINGERPRINT, "session_run_id": run_id},
-        "launcher": "governance.entrypoints.new_work_session",
+        "launcher": "governance_runtime.entrypoints.new_work_session",
         "timestamps": {"materialized_at": _OBSERVED_AT},
     }
     (archive_path / "provenance-record.json").write_text(

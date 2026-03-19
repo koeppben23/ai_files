@@ -89,6 +89,11 @@ opencode-governance-bootstrap --set-operating-mode solo --repo-root /path/to/rep
 
 Use `--verbose` for step-by-step bootstrap output.
 
+### What goes where (operator map)
+
+- `${CONFIG_ROOT}` (default `~/.config/opencode`) contains `commands/`, `plugins/`, `workspaces/`, `bin/`.
+- `${LOCAL_ROOT}` (default `~/.local/opencode`) contains `governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, `VERSION`.
+
 | Error | Fix |
 |-------|-----|
 | Launcher not found | Run the installer from the bundle first |
@@ -105,6 +110,14 @@ If you choose `reject`, the workflow returns to the Ticket Input Gate; primary n
 Alternative: run `/review` for read-only feedback before re-entering the development path.
 If the command cannot be executed, the model asks the user to paste the command output.
 For rail details and lifecycle behavior, use `README-OPENCODE.md`.
+
+## Step 5: Troubleshooting flow (linear)
+
+1. Verify launcher exists at `${CONFIG_ROOT}/bin/`.
+2. Re-run `opencode-governance-bootstrap init ...` with explicit `--repo-root`.
+3. Check workspace logs at `${WORKSPACES_HOME}/<repo_fingerprint>/logs/`.
+4. Check global logs at `${WORKSPACES_HOME}/_global/logs/`.
+5. Run installer status/smoketest and then retry bootstrap.
 
 ## Output Codes
 

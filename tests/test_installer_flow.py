@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,10 @@ MANIFEST_NAME = "INSTALL_MANIFEST.json"
 
 def _commands_dir(config_root: Path) -> Path:
     return config_root / "commands"
+
+
+def _local_dir(config_root: Path) -> Path:
+    return config_root.parent / f"{config_root.name}-local"
 
 
 def _manifest_path(config_root: Path) -> Path:
@@ -43,6 +48,7 @@ def _iter_manifest_entries(files_obj, commands: Path):
     base = commands.resolve()
     bin_base = (commands.parent / "bin").resolve()
     config_base = commands.parent.resolve()
+    local_base = (commands.parent.parent / f"{commands.parent.name}-local").resolve()
     allowed_config_files = {config_base / "INSTALL_HEALTH.json"}
     plugins_base = (commands.parent / "plugins").resolve()
 
@@ -58,11 +64,14 @@ def _iter_manifest_entries(files_obj, commands: Path):
                 try:
                     p.relative_to(plugins_base)
                 except ValueError:
-                    if p not in allowed_config_files:
-                        raise AssertionError(
-                            f"{label} escapes commands/bin/plugins dirs: {p} "
-                            f"(base={base}, bin={bin_base}, plugins={plugins_base})"
-                        )
+                    try:
+                        p.relative_to(local_base)
+                    except ValueError:
+                        if p not in allowed_config_files:
+                            raise AssertionError(
+                                f"{label} escapes commands/bin/plugins/local dirs: {p} "
+                                f"(base={base}, bin={bin_base}, plugins={plugins_base}, local={local_base})"
+                            )
         assert p.exists(), f"{label} missing on disk: {p}"
 
     def looks_like_sha256(s: object) -> bool:
@@ -139,6 +148,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
 
     commands = _commands_dir(config_root)
+    local_root = _local_dir(config_root)
     manifest = _manifest_path(config_root)
     paths_file = _paths_file(config_root)
 
@@ -147,13 +157,9 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         commands / "master.md",
         commands / "rules.md",
         commands / "BOOTSTRAP.md",
-        commands / "governance" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json",
-        commands / "governance" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json",
-        commands / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
-        commands / "scripts" / "workflow_template_factory.py",
-        commands / "scripts" / "rulebook_factory.py",
-        commands / "templates" / "github-actions" / "template_catalog.json",
-        commands / "templates" / "github-actions" / "governance-pr-gate-shadow-live-verify.yml",
+        local_root / "governance" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json",
+        local_root / "governance" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json",
+        local_root / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
         config_root / "plugins" / "audit-new-session.mjs",
         manifest,
         paths_file,
@@ -178,9 +184,13 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     assert "paths" in p and isinstance(p["paths"], dict), "governance.paths.json missing 'paths' object"
     required_paths = [
         "configRoot",
+        "localRoot",
         "commandsHome",
         "profilesHome",
         "governanceHome",
+        "runtimeHome",
+        "contentHome",
+        "specHome",
         "workspacesHome",
         "globalErrorLogsHome",
         "workspaceErrorLogsHomeTemplate",
@@ -191,11 +201,8 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
 
     commands_home = p["paths"]["commandsHome"]
     governance_home = p["paths"]["governanceHome"]
-    dh = governance_home.replace("\\", "/").rstrip("/")
-    ch = commands_home.replace("\\", "/").rstrip("/")
-    assert dh in {f"{ch}/governance", f"{ch}/governance"} or dh.endswith(("/governance", "/governance")), (
-        f"governanceHome unexpected: {governance_home} (commandsHome={commands_home})"
-    )
+    dh = governance_home.replace("\\", "/")
+    assert dh.endswith("-local/governance"), f"governanceHome unexpected: {governance_home}"
 
     python_command = str(p["paths"].get("pythonCommand", "")).strip()
     assert python_command, "governance.paths.json paths.pythonCommand must be non-empty"
@@ -312,15 +319,16 @@ def test_install_keeps_backup_and_metadata_artifacts_outside_commands_payload(tm
     assert target.exists(), f"expected installed file missing: {target}"
     target.write_text("modified\n", encoding="utf-8")
     (commands_dir / ".DS_Store").write_text("meta", encoding="utf-8")
-    (commands_dir / "governance" / "logs").mkdir(parents=True, exist_ok=True)
-    (commands_dir / "governance" / "logs" / "error.log.jsonl").write_text("{}\n", encoding="utf-8")
+    local_root = _local_dir(config_root)
+    (local_root / "governance" / "logs").mkdir(parents=True, exist_ok=True)
+    (local_root / "governance" / "logs" / "error.log.jsonl").write_text("{}\n", encoding="utf-8")
 
     second = run_install(["--force", "--config-root", str(config_root)])
     assert second.returncode == 0, f"reinstall failed:\n{second.stderr}\n{second.stdout}"
 
     assert not (commands_dir / "_backup").exists(), "commands/_backup must not exist after install"
     assert not (commands_dir / ".DS_Store").exists(), "commands/.DS_Store must be removed by hygiene guard"
-    assert not (commands_dir / "governance" / "logs").exists(), "commands/governance/logs must never exist after install"
+    assert not (local_root / "governance" / "logs").exists(), "local/governance/logs must never exist after install"
 
     backup_root = config_root / ".installer-backups"
     assert backup_root.exists(), "backup root should exist outside commands/"
@@ -424,7 +432,8 @@ def test_uninstall_removes_docs_and_governance_even_with_manifest_drift(tmp_path
     assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
 
     doc_leftovers = [p.as_posix() for p in (commands / "docs").rglob("*") if p.is_file()] if (commands / "docs").exists() else []
-    gov_leftovers = [p.as_posix() for p in (commands / "governance").rglob("*") if p.is_file()] if (commands / "governance").exists() else []
+    local_root = _local_dir(config_root)
+    gov_leftovers = [p.as_posix() for p in (local_root / "governance").rglob("*") if p.is_file()] if (local_root / "governance").exists() else []
     assert not doc_leftovers, f"docs files left behind after uninstall: {doc_leftovers[:20]}"
     assert not gov_leftovers, f"governance files left behind after uninstall: {gov_leftovers[:20]}"
 
@@ -438,7 +447,8 @@ def test_uninstall_purges_legacy_governnce_and_docs_leftovers(tmp_path: Path):
     commands = _commands_dir(config_root)
     legacy = commands / "governnce" / "nested"
     docs_extra = commands / "docs" / "legacy"
-    gov_extra = commands / "governance" / "legacy"
+    local_root = _local_dir(config_root)
+    gov_extra = local_root / "governance" / "legacy"
     legacy.mkdir(parents=True, exist_ok=True)
     docs_extra.mkdir(parents=True, exist_ok=True)
     gov_extra.mkdir(parents=True, exist_ok=True)
@@ -453,7 +463,8 @@ def test_uninstall_purges_legacy_governnce_and_docs_leftovers(tmp_path: Path):
     assert not (commands / "governnce").exists(), "legacy commands/governnce tree should be removed"
 
     docs_leftovers = [p.as_posix() for p in (commands / "docs").rglob("*") if p.is_file()] if (commands / "docs").exists() else []
-    gov_leftovers = [p.as_posix() for p in (commands / "governance").rglob("*") if p.is_file()] if (commands / "governance").exists() else []
+    local_root = _local_dir(config_root)
+    gov_leftovers = [p.as_posix() for p in (local_root / "governance").rglob("*") if p.is_file()] if (local_root / "governance").exists() else []
     assert not docs_leftovers, f"docs files left behind after uninstall: {docs_leftovers[:20]}"
     assert not gov_leftovers, f"governance files left behind after uninstall: {gov_leftovers[:20]}"
 
@@ -471,7 +482,7 @@ def test_install_patches_existing_installer_owned_paths_with_missing_keys_withou
             "configRoot": str(config_root),
             "commandsHome": str(commands),
             "profilesHome": str(commands / "profiles"),
-            "governanceHome": str(commands / "governance"),
+            "governanceHome": str(_local_dir(config_root) / "governance"),
             "workspacesHome": str(config_root / "workspaces"),
         },
     }
@@ -625,11 +636,12 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
         [f"- {m}" for m in missing_normative]
     )
 
+    local_root = _local_dir(config_root)
     required_governance = [
-        commands / "governance" / "entrypoints" / "map_audit_to_canonical.py",
-        commands / "governance" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json",
-        commands / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
-        commands / "governance" / "assets" / "catalogs" / "tool_requirements.json",
+        local_root / "governance" / "entrypoints" / "map_audit_to_canonical.py",
+        local_root / "governance" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json",
+        local_root / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
+        local_root / "governance" / "assets" / "catalogs" / "tool_requirements.json",
     ]
     missing_governance = [str(p) for p in required_governance if not p.exists()]
     assert not missing_governance, "Missing required governance bridge files after install:\n" + "\n".join(
@@ -637,34 +649,19 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     )
 
     required_runtime = [
-        commands / "governance" / "engine" / "orchestrator.py",
-        commands / "governance" / "engine" / "response_contract.py",
-        commands / "governance" / "render" / "render_contract.py",
+        local_root / "governance" / "engine" / "orchestrator.py",
+        local_root / "governance" / "engine" / "response_contract.py",
+        local_root / "governance" / "render" / "render_contract.py",
     ]
     missing_runtime = [str(p) for p in required_runtime if not p.exists()]
     assert not missing_runtime, "Missing governance runtime package files after install:\n" + "\n".join(
         [f"- {m}" for m in missing_runtime]
     )
 
-    required_customer_scripts = [
-        commands / "scripts" / "workflow_template_factory.py",
-        commands / "scripts" / "rulebook_factory.py",
-        commands / "scripts" / "run_quality_benchmark.py",
-    ]
-    missing_customer_scripts = [str(p) for p in required_customer_scripts if not p.exists()]
-    assert not missing_customer_scripts, "Missing customer scripts after install:\n" + "\n".join(
-        [f"- {m}" for m in missing_customer_scripts]
-    )
-
-    required_templates = [
-        commands / "templates" / "github-actions" / "template_catalog.json",
-        commands / "templates" / "github-actions" / "governance-pr-gate-shadow-live-verify.yml",
-        commands / "templates" / "github-actions" / "governance-ruleset-release.yml",
-    ]
-    missing_templates = [str(p) for p in required_templates if not p.exists()]
-    assert not missing_templates, "Missing workflow templates after install:\n" + "\n".join(
-        [f"- {m}" for m in missing_templates]
-    )
+    assert not (commands / "scripts").exists(), "commands/scripts must not be installed in final layout"
+    assert not (commands / "templates").exists(), "commands/templates must not be installed in final layout"
+    assert not (commands / "docs").exists(), "commands/docs must not be installed in final layout"
+    assert not (commands / "cli").exists(), "commands/cli must not be installed in final layout"
 
     manifests = sorted((commands / "profiles" / "addons").glob("*.addon.yml"))
     assert manifests, "No addon manifests found under installed commands/profiles/addons"
@@ -760,14 +757,12 @@ class TestSymlinkGuards:
     is_symlink() check to prevent symlink-escape attacks.
     """
 
-    def test_happy_create_launcher_has_symlink_guard(self) -> None:
-        """Happy: create_launcher checks is_symlink before rmtree."""
+    def test_happy_create_launcher_no_cli_tree_copy(self) -> None:
+        """Happy: create_launcher no longer copies commands/cli payload."""
         import inspect
         from install import create_launcher
         source = inspect.getsource(create_launcher)
-        assert "is_symlink()" in source, (
-            "create_launcher must check is_symlink() before shutil.rmtree (C3 guard)"
-        )
+        assert "commands_dir / \"cli\"" not in source
 
     def test_happy_all_rmtree_sites_guarded(self) -> None:
         """Happy: every shutil.rmtree in install.py is preceded by is_symlink check."""
@@ -787,21 +782,14 @@ class TestSymlinkGuards:
             f"shutil.rmtree at line(s) {unguarded} missing is_symlink() guard (C3)"
         )
 
-    @pytest.mark.skipif(
-        not hasattr(os, "symlink") or os.name == "nt",
-        reason="symlink creation unavailable on this platform without privileges",
-    )
-    def test_edge_create_launcher_refuses_symlink_cli_dest(self, tmp_path: Path) -> None:
-        """Edge: create_launcher raises if cli_dest is a symlink."""
+    def test_edge_create_launcher_works_without_cli_source_tree(self, tmp_path: Path) -> None:
+        """Edge: create_launcher does not require a source cli tree."""
         from install import create_launcher, build_plan
         # Create minimal source dir with required files
         src = tmp_path / "src"
         src.mkdir()
         (src / "VERSION").write_text("1.0.0", encoding="utf-8")
         (src / "rules.yml").write_text("", encoding="utf-8")
-        cli_src = src / "cli"
-        cli_src.mkdir()
-        (cli_src / "__init__.py").write_text("", encoding="utf-8")
 
         config_root = tmp_path / "config"
         config_root.mkdir(parents=True)
@@ -813,15 +801,30 @@ class TestSymlinkGuards:
             deterministic_paths_file=False,
         )
 
-        # Replace cli dest with a symlink
-        real_dir = tmp_path / "real_target"
-        real_dir.mkdir()
-        cli_dest = plan.commands_dir / "cli"
-        cli_dest.parent.mkdir(parents=True, exist_ok=True)
-        os.symlink(real_dir, cli_dest)
+        (plan.governance_paths_path).parent.mkdir(parents=True, exist_ok=True)
+        (plan.governance_paths_path).write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "configRoot": str(config_root),
+                        "commandsHome": str(plan.commands_dir),
+                        "profilesHome": str(plan.commands_dir / "profiles"),
+                        "governanceHome": str(_local_dir(config_root) / "governance"),
+                        "workspacesHome": str(config_root / "workspaces"),
+                        "globalErrorLogsHome": str(config_root / "workspaces" / "_global" / "logs"),
+                        "workspaceErrorLogsHomeTemplate": str(config_root / "workspaces" / "<repo_fingerprint>" / "logs"),
+                        "pythonCommand": sys.executable,
+                    },
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        (config_root / "bin").mkdir(parents=True, exist_ok=True)
 
-        with pytest.raises(RuntimeError, match="symlink"):
-            create_launcher(plan, dry_run=False, force=True)
+        entries = create_launcher(plan, dry_run=False, force=True)
+        assert entries
 
 
 # ---------------------------------------------------------------------------
@@ -1317,22 +1320,25 @@ class TestInstallLogsDirectory:
     """Verify final-state installer logging behavior (Option A)."""
 
     @pytest.mark.installer
-    def test_happy_ensure_dirs_creates_logs_directory(self, tmp_path: Path) -> None:
-        """Happy: ensure_dirs() creates commands/logs/ alongside other directories."""
+    def test_happy_ensure_dirs_creates_local_payload_directories(self, tmp_path: Path) -> None:
+        """Happy: ensure_dirs() creates local payload directories."""
         from install import ensure_dirs
         config_root = tmp_path / "config"
-        ensure_dirs(config_root, dry_run=False)
-        logs_dir = config_root / "commands" / "logs"
-        assert logs_dir.is_dir(), "ensure_dirs must create commands/logs/"
+        local_root = _local_dir(config_root)
+        ensure_dirs(config_root, local_root=local_root, dry_run=False)
+        assert (local_root / "governance_runtime").is_dir()
+        assert (local_root / "governance_content").is_dir()
+        assert (local_root / "governance_spec").is_dir()
+        assert (local_root / "governance").is_dir()
 
     @pytest.mark.installer
-    def test_happy_full_install_creates_logs_directory(self, tmp_path: Path) -> None:
-        """Happy: full install creates <config_root>/commands/logs/ directory."""
+    def test_happy_full_install_does_not_create_commands_logs_directory(self, tmp_path: Path) -> None:
+        """Happy: full install does not create commands/logs/ directory."""
         config_root = tmp_path / "config-logs-happy"
         r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
         assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
         logs_dir = config_root / "commands" / "logs"
-        assert logs_dir.is_dir(), "Install must create commands/logs/ directory"
+        assert not logs_dir.exists(), "Install must not create commands/logs/ directory"
 
     @pytest.mark.installer
     def test_happy_install_writes_flow_log_event(self, tmp_path: Path) -> None:
@@ -1362,17 +1368,17 @@ class TestInstallLogsDirectory:
 
     @pytest.mark.installer
     def test_corner_ensure_dirs_idempotent(self, tmp_path: Path) -> None:
-        """Corner: calling ensure_dirs twice does not fail or remove logs/."""
+        """Corner: calling ensure_dirs twice does not fail or remove local runtime dir."""
         from install import ensure_dirs
         config_root = tmp_path / "config"
-        ensure_dirs(config_root, dry_run=False)
-        logs_dir = config_root / "commands" / "logs"
-        assert logs_dir.is_dir()
-        # Place a file in logs/ and ensure it survives a second call
-        sentinel = logs_dir / "sentinel.txt"
+        local_root = _local_dir(config_root)
+        ensure_dirs(config_root, local_root=local_root, dry_run=False)
+        local_runtime_dir = local_root / "governance_runtime"
+        assert local_runtime_dir.is_dir()
+        sentinel = local_runtime_dir / "sentinel.txt"
         sentinel.write_text("keep me\n", encoding="utf-8")
-        ensure_dirs(config_root, dry_run=False)
-        assert sentinel.exists(), "ensure_dirs must be idempotent and preserve existing logs"
+        ensure_dirs(config_root, local_root=local_root, dry_run=False)
+        assert sentinel.exists(), "ensure_dirs must be idempotent and preserve existing local payload"
 
     @pytest.mark.installer
     def test_corner_dry_run_does_not_create_logs_directory(self, tmp_path: Path) -> None:

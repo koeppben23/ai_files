@@ -277,7 +277,7 @@ function runInitializer({ cwd, python, sessionId, reason, onExit, onError }) {
   const args = [
     ...python.argvPrefix,
     "-m",
-    "governance.entrypoints.new_work_session",
+    "governance_runtime.entrypoints.new_work_session",
     "--trigger-source",
     "desktop-plugin",
     "--quiet",
