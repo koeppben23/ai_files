@@ -33,10 +33,10 @@ class TestInstallerTopologyValidation:
         
         assert "opencode_commands = source_dir / \"opencode\" / \"commands\"" in content, \
             "Installer must check opencode/commands/"
-        assert "md_files = list(opencode_commands.glob" in content, \
-            "Installer must check for Rails files"
-        assert "8" in content and "Rails" in content, \
-            "Installer must check for 8 Rails"
+        assert "md_names = sorted" in content, \
+            "Installer must compute rail markdown file names"
+        assert "CANONICAL_RAIL_FILENAMES" in content, \
+            "Installer must validate rail set against canonical allowlist"
 
     def test_validate_repo_topology_checks_governance_content_reference(self):
         """Happy: validates governance_content/reference/ master.md and rules.md."""

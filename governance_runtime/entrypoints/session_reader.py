@@ -5,9 +5,9 @@ Reads SESSION_STATE.json via the global pointer and emits the guided
 governance surface in normal mode. Debug, audit, and diagnostic views are
 explicit opt-in modes.
 
-Self-bootstrapping: this script resolves its own location to derive
-commands_home, then reads governance.paths.json for validation. No
-external PYTHONPATH setup is required.
+Self-bootstrapping: this script resolves commands_home from binding evidence
+or canonical config-root environment, then reads governance.paths.json for
+validation. No external PYTHONPATH setup is required.
 
 Normal mode output is the guided presentation used by operators. Debug and
 diagnostic modes emit a machine-readable key-value view for troubleshooting.
@@ -44,12 +44,45 @@ POINTER_SCHEMA = CANONICAL_POINTER_SCHEMA
 
 
 def _derive_commands_home() -> Path:
-    """Derive commands_home from this script's own location.
+    """Resolve commands_home in a runtime-safe order.
 
-    Layout: commands/governance/entrypoints/session_reader.py
-    So commands_home = parents[2] relative to __file__.
+    Priority:
+    1) COMMANDS_HOME environment variable
+    2) Binding evidence resolver (governance.paths.json)
+    3) OPENCODE_CONFIG_ROOT + /commands
+    4) Legacy script-layout fallback for older installs
     """
-    return Path(__file__).resolve().parents[2]
+    env_commands = os.environ.get("COMMANDS_HOME", "").strip()
+    if env_commands:
+        try:
+            return Path(env_commands).expanduser().resolve()
+        except Exception:
+            pass
+
+    try:
+        from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+
+        evidence = BindingEvidenceResolver().resolve(mode="kernel")
+        if evidence.commands_home is not None:
+            return evidence.commands_home
+    except Exception:
+        pass
+
+    env_config = os.environ.get("OPENCODE_CONFIG_ROOT", "").strip()
+    if env_config:
+        try:
+            return (Path(env_config).expanduser().resolve() / "commands").resolve()
+        except Exception:
+            pass
+
+    script_root = Path(__file__).resolve().parents[2]
+    if script_root.name == "commands":
+        return script_root
+    legacy_candidate = script_root / "commands"
+    if legacy_candidate.exists():
+        return legacy_candidate
+
+    return (Path.home() / ".config" / "opencode" / "commands").resolve()
 
 
 def _ensure_commands_home_on_syspath(commands_home: Path) -> None:

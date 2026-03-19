@@ -15,9 +15,11 @@ def _candidate_phase_api_paths() -> list[Path]:
     """Resolve ordered candidates for phase_api.yaml.
 
     Priority:
-    1) Runtime commands home (binding evidence / env)
-    2) Repo SSOT fallback (governance_spec/phase_api.yaml)
-    3) Legacy repo root fallback (phase_api.yaml)
+    1) Runtime spec home (binding evidence)
+    2) Runtime commands home (legacy fallback)
+    3) OPENCODE_LOCAL_ROOT/governance_spec/phase_api.yaml
+    4) Repo SSOT fallback (governance_spec/phase_api.yaml)
+    5) Legacy repo root fallback (phase_api.yaml)
     """
 
     candidates: list[Path] = []
@@ -27,10 +29,16 @@ def _candidate_phase_api_paths() -> list[Path]:
 
         binding_resolver = BindingEvidenceResolver()
         evidence = binding_resolver.resolve(mode="kernel")
+        if evidence.spec_home is not None:
+            candidates.append(evidence.spec_home / "phase_api.yaml")
         if evidence.commands_home is not None:
             candidates.append(evidence.commands_home / "phase_api.yaml")
     except Exception:
         pass
+
+    env_local_root = os.environ.get("OPENCODE_LOCAL_ROOT", "").strip()
+    if env_local_root:
+        candidates.append(Path(env_local_root).expanduser() / "governance_spec" / "phase_api.yaml")
 
     env_commands_home = os.environ.get("COMMANDS_HOME", "").strip()
     if env_commands_home:

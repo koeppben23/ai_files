@@ -95,18 +95,19 @@ class TestMergeOwnership:
     def test_happy_canonical_instructions_content(self):
         """Happy: All 8 canonical command paths are present in source."""
         install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
-        expected_instructions = [
-            "commands/continue.md",
-            "commands/plan.md",
-            "commands/review.md",
-            "commands/review-decision.md",
-            "commands/ticket.md",
-            "commands/implement.md",
-            "commands/implementation-decision.md",
-            "commands/audit-readout.md",
+        expected_rails = [
+            "continue.md",
+            "plan.md",
+            "review.md",
+            "review-decision.md",
+            "ticket.md",
+            "implement.md",
+            "implementation-decision.md",
+            "audit-readout.md",
         ]
-        missing = [i for i in expected_instructions if i not in install_src]
-        assert not missing, f"Missing canonical instructions: {missing}"
+        missing = [i for i in expected_rails if i not in install_src]
+        assert not missing, f"Missing canonical rails in installer source: {missing}"
+        assert "OPENCODE_COMMAND_FILES = [f\"commands/{name}\" for name in CANONICAL_RAIL_FILENAMES]" in install_src
 
     def test_happy_merge_preserves_user_keys(self):
         """Happy: Source code only modifies 'command_files' and 'plugin' keys."""

@@ -44,15 +44,8 @@ from typing import Iterable
 # Governance API - single source of truth for file classification
 # Installer classification is derived exclusively from governance installer/layer APIs
 from governance import (
-    GovernanceLayer,
-    classify_layer,
-    is_installable_layer,
-    collect_commands,
     collect_content,
     collect_specs,
-    collect_runtime,
-    collect_opencode_integration,
-    exclude_state_files,
     # Dual-read resolvers (Wave 15.2)
     get_governance_docs_root,
     get_profiles_root,
@@ -111,9 +104,13 @@ def _validate_repo_topology(source_dir: Path) -> list[str]:
     if not opencode_commands.is_dir():
         issues.append(f"opencode/commands/ not found at {opencode_commands}")
     else:
-        md_files = list(opencode_commands.glob("*.md"))
-        if len(md_files) != 8:
-            issues.append(f"opencode/commands/ should contain 8 Rails, found {len(md_files)}")
+        md_names = sorted(p.name for p in opencode_commands.glob("*.md") if p.is_file())
+        expected_names = sorted(CANONICAL_RAIL_FILENAMES)
+        if md_names != expected_names:
+            issues.append(
+                "opencode/commands/ rail set mismatch: "
+                f"expected {expected_names}, found {md_names}"
+            )
     
     gov_content_ref = source_dir / "governance_content" / "reference"
     if not (gov_content_ref / "master.md").exists():
@@ -204,6 +201,18 @@ def _emit_install_flow_event(
 
 
 VERSION = "1.1.0-RC.2"
+# Canonical command rail surface installed under <config_root>/commands/
+CANONICAL_RAIL_FILENAMES = (
+    "audit-readout.md",
+    "continue.md",
+    "implement.md",
+    "implementation-decision.md",
+    "plan.md",
+    "review-decision.md",
+    "review.md",
+    "ticket.md",
+)
+
 # Files copied into <config_root>/commands
 # Strategy: copy governance artifacts that are relevant at runtime.
 # Classification now uses Governance API as single source of truth.
@@ -507,7 +516,7 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path, local_root: P
             "case \"${1:-}\" in",
             "    --session-reader)",
             "        shift",
-            "        exec \"${PYTHON_BIN}\" \"${COMMANDS_HOME}/governance_runtime/entrypoints/session_reader.py\" \"$@\"",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.session_reader \"$@\"",
             "        ;;",
             "    --ticket-persist)",
             "        shift",
@@ -606,7 +615,7 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path, local_root
             "rem --- Subcommand routing (python-binding-contract.v1 §4) ---",
             "if \"%~1\"==\"--session-reader\" (",
             "    shift",
-            "    \"!PYTHON_EXE!\" \"%COMMANDS_HOME%\\governance_runtime\\entrypoints\\session_reader.py\" %*",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.session_reader %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
@@ -846,30 +855,11 @@ def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
                     has_rules = True
                     break
     if not has_rules:
-        # If still no rules found, create a minimal placeholder to allow installation to proceed
-        placeholder_created = False
-        for cand in [
-            _source_rules_yml(source_dir),
-            source_dir / "governance" / "rules.yml",
-            source_dir / "governance" / "rulesets" / "core" / "rules.yml",
-            _source_core_rules_yml(source_dir),
-        ]:
-            if not cand.parent.exists():
-                cand.parent.mkdir(parents=True, exist_ok=True)
-            if not cand.exists():
-                try:
-                    cand.write_text("rules: {}\n", encoding="utf-8")
-                    placeholder_created = True
-                    has_rules = True
-                    break
-                except Exception:
-                    pass
-        if not placeholder_created:
-            # Provide common hints to help diagnose layout issues in bundles
-            if _source_core_rules_yml(source_dir).exists() is False:
-                missing.append("rulesets/core/rules.yml")
-            if _source_rules_yml(source_dir).exists() is False:
-                missing.append("rules.yml")
+        # Fail closed: no source mutation/placeholders in installer precheck.
+        if _source_core_rules_yml(source_dir).exists() is False:
+            missing.append("rulesets/core/rules.yml")
+        if _source_rules_yml(source_dir).exists() is False:
+            missing.append("rules.yml")
 
     unsafe_symlinks = collect_unsafe_source_symlinks(source_dir)
     return (len(missing) == 0 and len(unsafe_symlinks) == 0, missing, unsafe_symlinks)
@@ -963,66 +953,95 @@ def _is_forbidden_installed_path(path: Path, commands_dir: Path) -> bool:
 
 
 def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list[str], list[str]]:
-    """Remove forbidden installer artifacts from commands/ and report residual violations."""
+    """Enforce strict commands/ allowlist and report residual violations.
+
+    Allowed files under commands/:
+    - 8 canonical rail markdown files
+    - governance.paths.json
+    - INSTALL_MANIFEST.json
+    """
 
     if not commands_dir.exists() or not commands_dir.is_dir():
         return ([], [])
 
     removed: list[str] = []
+    allowed_names = set(CANONICAL_RAIL_FILENAMES) | {GOVERNANCE_PATHS_NAME, MANIFEST_NAME}
 
-    backup_dir = commands_dir / "_backup"
-    if backup_dir.exists():
-        if backup_dir.is_symlink():
-            removed.append(f"{str(backup_dir.relative_to(commands_dir)).replace(chr(92), '/')} [SYMLINK-SKIPPED]")
-        else:
-            rel = str(backup_dir.relative_to(commands_dir)).replace("\\", "/")
+    for path in sorted(commands_dir.iterdir(), key=lambda p: p.name):
+        rel = path.relative_to(commands_dir).as_posix()
+        if path.is_file():
+            if path.name in allowed_names:
+                continue
             removed.append(rel)
             if dry_run:
-                print(f"  [DRY-RUN] rm -rf {backup_dir}")
+                print(f"  [DRY-RUN] rm {path}")
             else:
-                shutil.rmtree(backup_dir, ignore_errors=True)
-
-    # Remove accidental governance-local logs directory if present.
-    governance_logs_dir = commands_dir / "governance" / ERROR_LOGS_DIR_NAME
-    if governance_logs_dir.exists():
-        rel = str(governance_logs_dir.relative_to(commands_dir)).replace("\\", "/")
-        if governance_logs_dir.is_symlink():
-            removed.append(f"{rel} [SYMLINK-SKIPPED]")
-        elif dry_run:
+                try:
+                    path.unlink()
+                except Exception:
+                    pass
+            continue
+        if path.is_dir():
             removed.append(rel)
-            print(f"  [DRY-RUN] rm -rf {governance_logs_dir}")
-        else:
-            shutil.rmtree(governance_logs_dir, ignore_errors=True)
-            removed.append(rel)
-
-    for path in sorted(commands_dir.rglob("*")):
-        if not path.exists() or path.is_dir():
-            continue
-        if not _is_forbidden_installed_path(path, commands_dir):
-            continue
-        rel = str(path.relative_to(commands_dir)).replace("\\", "/")
-        removed.append(rel)
-        if dry_run:
-            print(f"  [DRY-RUN] rm {path}")
-            continue
-        try:
-            path.unlink()
-        except Exception:
-            pass
+            if dry_run:
+                print(f"  [DRY-RUN] rm -rf {path}")
+            else:
+                if path.is_symlink():
+                    try:
+                        path.unlink()
+                    except Exception:
+                        pass
+                else:
+                    shutil.rmtree(path, ignore_errors=True)
 
     violations: list[str] = []
     for path in sorted(commands_dir.rglob("*")):
-        if not _is_forbidden_installed_path(path, commands_dir):
+        rel = path.relative_to(commands_dir).as_posix()
+        if path.is_dir():
+            violations.append(rel + "/")
             continue
-        rel = str(path.relative_to(commands_dir)).replace("\\", "/")
-        violations.append(rel)
+        if path.name not in allowed_names:
+            violations.append(rel)
+
+    md_files = sorted(p.name for p in commands_dir.glob("*.md") if p.is_file())
+    expected_md = sorted(CANONICAL_RAIL_FILENAMES)
+    if md_files != expected_md:
+        violations.append(f"RAIL_SET_MISMATCH expected={expected_md} actual={md_files}")
 
     return (sorted(dict.fromkeys(removed)), sorted(dict.fromkeys(violations)))
 
 
-def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> list[str]:
-    """Remove forbidden local payload artifacts under compatibility runtime trees."""
+def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[list[str], list[str]]:
+    """Enforce strict local-root top-level allowlist for installer payload."""
     removed: list[str] = []
+    allowed_top_level = {"governance_runtime", "governance_content", "governance_spec", "governance", "VERSION"}
+
+    if local_root.exists() and local_root.is_dir():
+        for path in sorted(local_root.iterdir(), key=lambda p: p.name):
+            if path.name in allowed_top_level:
+                continue
+            rel = path.relative_to(local_root).as_posix()
+            removed.append(rel)
+            if dry_run:
+                if path.is_dir():
+                    print(f"  [DRY-RUN] rm -rf {path}")
+                else:
+                    print(f"  [DRY-RUN] rm {path}")
+                continue
+            if path.is_dir():
+                if path.is_symlink():
+                    try:
+                        path.unlink()
+                    except Exception:
+                        pass
+                else:
+                    shutil.rmtree(path, ignore_errors=True)
+            else:
+                try:
+                    path.unlink()
+                except Exception:
+                    pass
+
     governance_logs = local_root / "governance" / ERROR_LOGS_DIR_NAME
     if governance_logs.exists() and governance_logs.is_dir():
         rel = governance_logs.relative_to(local_root).as_posix()
@@ -1031,7 +1050,14 @@ def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> list[st
             print(f"  [DRY-RUN] rm -rf {governance_logs}")
         else:
             shutil.rmtree(governance_logs, ignore_errors=True)
-    return removed
+
+    violations: list[str] = []
+    if local_root.exists() and local_root.is_dir():
+        for path in sorted(local_root.iterdir(), key=lambda p: p.name):
+            if path.name not in allowed_top_level:
+                suffix = "/" if path.is_dir() else ""
+                violations.append(path.name + suffix)
+    return removed, violations
 
 def collect_command_root_files(source_dir: Path) -> list[Path]:
     """
@@ -1044,56 +1070,13 @@ def collect_command_root_files(source_dir: Path) -> list[Path]:
     """
     from pathlib import Path
     
+    commands_root = source_dir / "opencode" / "commands"
     files: list[Path] = []
-    
-    # Only canonical commands
-    for cmd in collect_commands(source_dir, relative=False):
-        files.append(cmd)
-
-    # Install canonical guidance/spec roots into commands/ root (product layout)
-    for extra in (
-        _source_master_md(source_dir),
-        _source_rules_md(source_dir),
-        _source_phase_api_yaml(source_dir),
-        _source_rules_yml(source_dir),
-    ):
-        if extra.exists() and extra not in files:
-            files.append(extra)
-
-    # Install required root-level normative documents into commands/ root.
-    required_root_docs = (
-        "BOOTSTRAP.md",
-        "SESSION_STATE_SCHEMA.md",
-        "QUALITY_INDEX.md",
-        "CONFLICT_RESOLUTION.md",
-        "STABILITY_SLA.md",
-        "TICKET_RECORD_TEMPLATE.md",
-        "README.md",
-        "README-RULES.md",
-        "README-OPENCODE.md",
-        "ADR.md",
-        "CHANGELOG.md",
-        "SCOPE-AND-CONTEXT.md",
-    )
-    for name in required_root_docs:
-        p = source_dir / name
-        if p.exists() and p not in files:
+    for name in CANONICAL_RAIL_FILENAMES:
+        p = commands_root / name
+        if p.exists() and p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir):
             files.append(p)
-    
-    # Exclude installer scripts
-    exclude_names = {
-        "install.py",
-        "install.corrected.py",
-        "install.updated.py",
-    }
-    
-    result: list[Path] = []
-    for f in files:
-        if f.name in exclude_names:
-            continue
-        result.append(f)
-    
-    return sorted(result, key=lambda p: str(p))
+    return sorted(files, key=lambda p: str(p))
 
 
 def collect_content_files(source_dir: Path) -> list[Path]:
@@ -1715,16 +1698,7 @@ OPENCODE_JSON_NAME = "opencode.json"
 
 # Canonical command markdown files - ONLY these are true slash commands
 # Note: NON-command content (master.md, rules.md, etc.) is NOT installed as command surface
-OPENCODE_COMMAND_FILES = [
-    "commands/continue.md",
-    "commands/plan.md",
-    "commands/review.md",
-    "commands/review-decision.md",
-    "commands/ticket.md",
-    "commands/implement.md",
-    "commands/implementation-decision.md",
-    "commands/audit-readout.md",
-]
+OPENCODE_COMMAND_FILES = [f"commands/{name}" for name in CANONICAL_RAIL_FILENAMES]
 OPENCODE_PLUGIN_KEY = "plugin"
 OPENCODE_PLUGIN_RELATIVE = f"{OPENCODE_PLUGINS_DIR_NAME}/audit-new-session.mjs"
 
@@ -2110,165 +2084,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         else:
             print(f"  ✅ {name} ({status})")
 
-    # If YAML rules are missing but rules.md exists in source, create a minimal placeholders
-    core_rules_target = plan.commands_dir / "rules.yml"
-    core_rules_target_rulesets = plan.commands_dir / "rulesets" / "core" / "rules.yml"
-    if not core_rules_target.exists() and _source_rules_md(plan.source_dir).exists():
-        try:
-            core_rules_target.parent.mkdir(parents=True, exist_ok=True)
-            core_rules_target.write_text("rules: {}\n", encoding="utf-8")
-            print(f"  ✅ Created placeholder {core_rules_target} (rules.yml)")
-        except Exception:
-            pass
-
-    # Ensure phase_api.yaml exists in commands home; copy from governance if missing
-    phase_yaml_target = plan.commands_dir / "phase_api.yaml"
-    if not phase_yaml_target.exists():
-        # Fallback: create a minimal phase_api.yaml if missing to satisfy bootstrap requirements
-        try:
-            phase_yaml_target.parent.mkdir(parents=True, exist_ok=True)
-            phase_yaml_target.write_text("phase_api:\n  phases:\n    - id: 1\n      name: bootstrap\n", encoding="utf-8")
-            print(f"  ✅ Created fallback {phase_yaml_target} for phase_api.yaml")
-        except Exception:
-            pass
-    # Also prefer governance-provided phase_api.yaml when available
-    governance_phase = _source_phase_api_yaml(plan.source_dir)
-    if governance_phase.exists():
-        try:
-            phase_yaml_target.parent.mkdir(parents=True, exist_ok=True)
-            phase_yaml_target.write_text(governance_phase.read_text(encoding="utf-8"), encoding="utf-8")
-            print(f"  ✅ Copied governance phase_api.yaml to {phase_yaml_target}")
-        except Exception:
-            pass
-
-    # Ensure a minimal rules.yml placeholder exists if no YAML/Markdown rule sources are present
-    rules_candidates = [
-        _source_rules_yml(plan.source_dir),
-        plan.source_dir / "governance" / "rules.yml",
-        _source_core_rules_yml(plan.source_dir),
-        plan.source_dir / "governance" / "rulesets" / "core" / "rules.yml",
-    ]
-    if not any(p.exists() for p in rules_candidates):
-        placeholder = plan.commands_dir / "rules.yml"
-        if not placeholder.exists():
-            try:
-                placeholder.parent.mkdir(parents=True, exist_ok=True)
-                placeholder.write_text("rules: {}\n", encoding="utf-8")
-                print(f"  ✅ Created placeholder {placeholder} for rules.yml (no YAML rule sources found)")
-            except Exception:
-                pass
-        for cand in [
-            _source_phase_api_yaml(plan.source_dir),
-            plan.source_dir / "governance" / "phase_api.yaml",
-        ]:
-            if cand.exists():
-                try:
-                    phase_yaml_target.parent.mkdir(parents=True, exist_ok=True)
-                    phase_yaml_target.write_text(cand.read_text(encoding="utf-8"), encoding="utf-8")
-                    print(f"  ✅ Copied missing phase_api.yaml to {phase_yaml_target}")
-                    break
-                except Exception:
-                    pass
-        # Also create mandatory path for core rules as required by the installer validation
-        try:
-            core_rulesets_parent = core_rules_target_rulesets.parent
-            core_rulesets_parent.mkdir(parents=True, exist_ok=True)
-            if not core_rules_target_rulesets.exists():
-                core_rules_target_rulesets.write_text("rules: {}\n", encoding="utf-8")
-                print(f"  ✅ Created placeholder {core_rules_target_rulesets} (rules.yml) under rulesets/core")
-        except Exception:
-            pass
-
-    # Ensure core rulebook is installed in commands/rulesets/core/rules.yml
-    core_dest_dir = plan.commands_dir / "rulesets" / "core"
-    core_dst = core_dest_dir / "rules.yml"
-    # Always attempt to copy core rules.yml if a source exists, to keep manifest
-    # stable across reinstalls (idempotent behavior).
-    core_src_candidates = [
-            _source_core_rules_yml(plan.source_dir),
-            _source_rules_yml(plan.source_dir),
-            plan.source_dir / "governance" / "rulesets" / "core" / "rules.yml",
-            plan.source_dir / "governance" / "rules.yml",
-    ]
-    core_src = None
-    for cand in core_src_candidates:
-        if cand.exists():
-            core_src = cand
-            break
-    if core_src is not None:
-        core_dst.parent.mkdir(parents=True, exist_ok=True)
-        entry = copy_with_optional_backup(
-            src=core_src,
-            dst=core_dst,
-            backup_enabled=backup_enabled,
-            backup_root=backup_root,
-            dry_run=dry_run,
-            overwrite=force,
-        )
-        copied_entries.append(entry)
-        status = entry["status"]
-        rel_out = f"rulesets/core/rules.yml"
-        if status in ("planned-copy", "copied"):
-            print(f"  ✅ {rel_out} ({status})")
-        elif status == "skipped-exists":
-            print(f"  ⏭️  {rel_out} exists (use --force to overwrite)")
-        else:
-            print(f"  ⚠️  {rel_out} missing (skipping)")
-
-    # copy profiles
-    profile_files = collect_profile_files(plan.source_dir)
-    if profile_files:
-        print("\n📋 Copying profile rulebooks to local governance_content/profiles/ ...")
-        profiles_root = get_profiles_root(plan.source_dir)
-        for pf in profile_files:
-            # Strip the profiles root to get relative path within profiles/
-            rel = pf.relative_to(profiles_root)
-            dst = plan.profiles_dst_dir / rel
-            entry = copy_with_optional_backup(
-                src=pf,
-                dst=dst,
-                backup_enabled=backup_enabled,
-                backup_root=backup_root,
-                dry_run=dry_run,
-                overwrite=force,
-            )
-            copied_entries.append(entry)
-            status = entry["status"]
-            if status in ("planned-copy", "copied"):
-                print(f"  ✅ profiles/{rel} ({status})")
-            elif status == "skipped-exists":
-                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
-            else:
-                print(f"  ⚠️  {rel} missing (skipping)")
-    else:
-        print("\nℹ️  No profiles directory found or no *.md profiles to copy.")
-
-    # copy addon manifests (required for dynamic addon activation/reload)
-    addon_manifests = collect_profile_addon_manifests(plan.source_dir)
-    if addon_manifests:
-        print("\n📋 Copying addon manifests to local governance_content/profiles/addons/ ...")
-        profiles_root = get_profiles_root(plan.source_dir)
-        for af in addon_manifests:
-            rel = af.relative_to(profiles_root)  # profiles/addons/*.addon.yml
-            dst = plan.profiles_dst_dir / rel
-            entry = copy_with_optional_backup(
-                src=af,
-                dst=dst,
-                backup_enabled=backup_enabled,
-                backup_root=backup_root,
-                dry_run=dry_run,
-                overwrite=force,
-            )
-            copied_entries.append(entry)
-            status = entry["status"]
-            if status in ("planned-copy", "copied"):
-                print(f"  ✅ profiles/{rel} ({status})")
-            elif status == "skipped-exists":
-                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
-            else:
-                print(f"  ⚠️  {rel} missing (skipping)")
-    else:
-        print("\nℹ️  No addon manifests found under profiles/addons/*.addon.yml.")
+    print("\nℹ️  Profiles/addons are installed via local governance_content payload copy.")
 
     print("\nℹ️  Installer no longer copies docs payload to commands/docs/ (R11 hardening).")
 
@@ -2372,12 +2188,8 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 
     # validation (critical installed files)
     print("\n🔍 Validating installation...")
-    # YAML rulebooks are authoritative; MD files are optional guidance
     critical = [
-        plan.commands_dir / "rulesets" / "core" / "rules.yml",
         plan.local_root / "governance_runtime" / "VERSION",
-        # Do not treat root rules.yml as critical to avoid false negatives when only placeholders exist
-        # plan.commands_dir / "rules.yml",
     ]
     missing_critical = [p.name for p in critical if not p.exists() and not dry_run]
     if missing_critical:
@@ -2402,11 +2214,17 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         eprint("Recovery: remove forbidden artifacts and rerun installer.")
         return 3
 
-    local_removed = enforce_local_payload_hygiene(local_root=plan.local_root, dry_run=dry_run)
+    local_removed, local_hygiene_violations = enforce_local_payload_hygiene(local_root=plan.local_root, dry_run=dry_run)
     if local_removed:
         preview = ", ".join(local_removed[:6])
         suffix = "" if len(local_removed) <= 6 else ", ..."
         print(f"  ✅ removed forbidden local payload artifacts: {preview}{suffix}")
+    if local_hygiene_violations:
+        eprint("❌ Local payload hygiene failed. Forbidden top-level artifacts remain under local root:")
+        for rel in local_hygiene_violations:
+            eprint(f"  - {rel}")
+        eprint("Recovery: remove forbidden local-root artifacts and rerun installer.")
+        return 3
 
     # --- OpenCode Desktop bridge: opencode.json + session reader path injection ---
     print("\n🔗 Configuring OpenCode Desktop governance bridge...")
@@ -3301,13 +3119,12 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
     else:
         print(f"\n⚠️  Governance paths file missing: {paths_file.name}")
 
-    # List key directories
-    print("\nInstalled Directories:")
-    for subdir in ["profiles", "scripts", "templates", "governance", "governance"]:
-        path = commands_home / subdir
-        if path.exists():
-            count = sum(1 for _ in path.rglob("*") if (_.is_file() and not _.name.startswith(".")))
-            print(f"  - {subdir}/: {count} items")
+    # List command-surface files
+    print("\nCommands Surface:")
+    command_files = sorted(p.name for p in commands_home.glob("*") if p.is_file())
+    print(f"  - files: {len(command_files)}")
+    for name in command_files:
+        print(f"    - {name}")
 
     print("\n" + "=" * 60)
     return 0
@@ -3389,7 +3206,7 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
             issues_found.append("manifest-missing")
 
         # Check key files
-        key_files = ["master.md", "rules.md", "BOOTSTRAP.md"]
+        key_files = list(CANONICAL_RAIL_FILENAMES)
         key_ok = True
         for kf in key_files:
             kf_path = commands_home / kf
@@ -3409,6 +3226,24 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
         print(f"   {paths_icon} governance.paths.json: {'present' if paths_exists else 'missing'}")
         if not paths_exists:
             issues_found.append("paths-json-missing")
+
+        manifest_exists = (commands_home / MANIFEST_NAME).exists()
+        manifest_icon = "✅" if manifest_exists else "❌"
+        print(f"   {manifest_icon} {MANIFEST_NAME}: {'present' if manifest_exists else 'missing'}")
+        if not manifest_exists:
+            issues_found.append("manifest-file-missing")
+
+        allowed = set(CANONICAL_RAIL_FILENAMES) | {GOVERNANCE_PATHS_NAME, MANIFEST_NAME}
+        extras = sorted(
+            p.name for p in commands_home.glob("*") if p.is_file() and p.name not in allowed
+        )
+        md_files = sorted(p.name for p in commands_home.glob("*.md") if p.is_file())
+        if extras:
+            print(f"   ❌ commands/ contains non-allowlisted files: {extras}")
+            issues_found.append("commands-allowlist-extra")
+        if md_files != sorted(CANONICAL_RAIL_FILENAMES):
+            print(f"   ❌ commands rail set mismatch: {md_files}")
+            issues_found.append("commands-rail-set-mismatch")
 
         # Check local bootstrap launcher
         bin_dir = config_root / "bin"
@@ -3462,7 +3297,13 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
             print("   - Check directory permissions")
         if "no-installation" in issues_found:
             print("   - Run: ${PYTHON_COMMAND} install.py")
-        if "manifest-missing" in issues_found or any(i.startswith("key-file-") for i in issues_found):
+        if (
+            "manifest-missing" in issues_found
+            or "manifest-file-missing" in issues_found
+            or "commands-allowlist-extra" in issues_found
+            or "commands-rail-set-mismatch" in issues_found
+            or any(i.startswith("key-file-") for i in issues_found)
+        ):
             print("   - Run: ${PYTHON_COMMAND} install.py --force")
         if "launcher-missing" in issues_found:
             print("   - Run: ${PYTHON_COMMAND} install.py --force")
@@ -3497,6 +3338,28 @@ def run_smoketest(config_root: Path) -> int:
         issues.append("paths-json-missing")
     else:
         print("✅ governance.paths.json present")
+
+    manifest_json = config_root / "commands" / MANIFEST_NAME
+    if not manifest_json.exists():
+        print(f"❌ {MANIFEST_NAME} missing")
+        issues.append("manifest-missing")
+    else:
+        print(f"✅ {MANIFEST_NAME} present")
+
+    commands_home = config_root / "commands"
+    allowed = set(CANONICAL_RAIL_FILENAMES) | {GOVERNANCE_PATHS_NAME, MANIFEST_NAME}
+    extras = sorted(p.name for p in commands_home.glob("*") if p.is_file() and p.name not in allowed)
+    rails = sorted(p.name for p in commands_home.glob("*.md") if p.is_file())
+    if extras:
+        print(f"❌ commands/ contains non-allowlisted files: {extras}")
+        issues.append("commands-allowlist-extra")
+    else:
+        print("✅ commands/ file allowlist clean")
+    if rails != sorted(CANONICAL_RAIL_FILENAMES):
+        print(f"❌ commands rail set mismatch: {rails}")
+        issues.append("commands-rail-set-mismatch")
+    else:
+        print("✅ commands rail set exact (8)")
 
     # Check launcher execution against installed runtime (not source checkout).
     launcher = launcher_unix if launcher_unix.exists() else launcher_win

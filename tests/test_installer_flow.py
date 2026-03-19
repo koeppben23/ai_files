@@ -13,6 +13,16 @@ from .util import REPO_ROOT, run_install, read_text, sha256_file, is_flag_suppor
 
 
 MANIFEST_NAME = "INSTALL_MANIFEST.json"
+CANONICAL_RAILS = [
+    "audit-readout.md",
+    "continue.md",
+    "implement.md",
+    "implementation-decision.md",
+    "plan.md",
+    "review-decision.md",
+    "review.md",
+    "ticket.md",
+]
 
 
 def _commands_dir(config_root: Path) -> Path:
@@ -154,9 +164,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
 
     # Verify critical files
     critical = [
-        commands / "master.md",
-        commands / "rules.md",
-        commands / "BOOTSTRAP.md",
+        *(commands / name for name in CANONICAL_RAILS),
         local_root / "governance" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json",
         local_root / "governance" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json",
         local_root / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
@@ -166,6 +174,13 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     ]
     for f in critical:
         assert f.exists(), f"Missing: {f}"
+
+    command_files = sorted(p.name for p in commands.glob("*") if p.is_file())
+    expected_command_files = sorted(CANONICAL_RAILS + ["governance.paths.json", MANIFEST_NAME])
+    assert command_files == expected_command_files, (
+        "commands/ strict allowlist mismatch: "
+        f"expected={expected_command_files}, actual={command_files}"
+    )
 
     # Manifest roundtrip + (optional) sha validation
     data = _load_manifest(config_root)
@@ -256,9 +271,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
 
     # Verify uninstall cleanliness (installer-owned artifacts removed)
     must_be_gone = [
-        commands / "master.md",
-        commands / "rules.md",
-        commands / "BOOTSTRAP.md",
+        *(commands / name for name in CANONICAL_RAILS),
         config_root / "plugins" / "audit-new-session.mjs",
         manifest,
         paths_file,  # this should be removed for a normal install-owned paths file
@@ -315,7 +328,7 @@ def test_install_keeps_backup_and_metadata_artifacts_outside_commands_payload(tm
     assert first.returncode == 0, f"initial install failed:\n{first.stderr}\n{first.stdout}"
 
     commands_dir = _commands_dir(config_root)
-    target = commands_dir / "master.md"
+    target = commands_dir / "continue.md"
     assert target.exists(), f"expected installed file missing: {target}"
     target.write_text("modified\n", encoding="utf-8")
     (commands_dir / ".DS_Store").write_text("meta", encoding="utf-8")
@@ -335,7 +348,7 @@ def test_install_keeps_backup_and_metadata_artifacts_outside_commands_payload(tm
 
     backup_files = sorted(p for p in backup_root.rglob("*") if p.is_file())
     assert backup_files, "expected backup files after overwrite install"
-    assert any(p.name == "master.md" for p in backup_files), "expected backup of overwritten master.md"
+    assert any(p.name == "continue.md" for p in backup_files), "expected backup of overwritten continue.md"
     for path in backup_files:
         rel = path.relative_to(backup_root).as_posix()
         assert not rel.startswith("Users/"), f"backup path leaked host absolute segments: {rel}"
@@ -481,7 +494,7 @@ def test_install_patches_existing_installer_owned_paths_with_missing_keys_withou
         "paths": {
             "configRoot": str(config_root),
             "commandsHome": str(commands),
-            "profilesHome": str(commands / "profiles"),
+            "profilesHome": str(_local_dir(config_root) / "governance_content" / "profiles"),
             "governanceHome": str(_local_dir(config_root) / "governance"),
             "workspacesHome": str(config_root / "workspaces"),
         },
@@ -567,24 +580,25 @@ def test_installer_copies_addon_manifests_for_dynamic_activation(tmp_path: Path)
     """Ensure profiles/addons/*.addon.yml are installed so Phase 1.4 can trigger/reload addons."""
     config_root = tmp_path / "opencode-config-addons"
     commands = _commands_dir(config_root)
+    local_root = _local_dir(config_root)
 
     r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
     assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
 
     expected = [
-        commands / "profiles" / "addons" / "angularNxTemplates.addon.yml",
-        commands / "profiles" / "addons" / "backendJavaTemplates.addon.yml",
-        commands / "profiles" / "addons" / "backendPythonTemplates.addon.yml",
-        commands / "profiles" / "addons" / "frontendCypress.addon.yml",
-        commands / "profiles" / "addons" / "frontendOpenApiTsClient.addon.yml",
-        commands / "profiles" / "addons" / "kafka.addon.yml",
-        commands / "profiles" / "addons" / "openapi.addon.yml",
-        commands / "profiles" / "addons" / "cucumber.addon.yml",
-        commands / "profiles" / "addons" / "dbLiquibase.addon.yml",
-        commands / "profiles" / "addons" / "docsGovernance.addon.yml",
-        commands / "profiles" / "addons" / "principalExcellence.addon.yml",
-        commands / "profiles" / "addons" / "riskTiering.addon.yml",
-        commands / "profiles" / "addons" / "scorecardCalibration.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "angularNxTemplates.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "backendJavaTemplates.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "backendPythonTemplates.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "frontendCypress.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "frontendOpenApiTsClient.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "kafka.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "openapi.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "cucumber.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "dbLiquibase.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "docsGovernance.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "principalExcellence.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "riskTiering.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "scorecardCalibration.addon.yml",
     ]
 
     missing = [str(p) for p in expected if not p.exists()]
@@ -592,22 +606,26 @@ def test_installer_copies_addon_manifests_for_dynamic_activation(tmp_path: Path)
 
     manifest = _load_manifest(config_root)
     entries = list(_iter_manifest_entries(manifest["files"], commands))
-    installed = {t.resolve().relative_to(commands.resolve()).as_posix() for t, _ in entries if t.resolve().is_relative_to(commands.resolve())}
+    installed = {
+        t.resolve().relative_to(local_root.resolve()).as_posix()
+        for t, _ in entries
+        if t.resolve().is_relative_to(local_root.resolve())
+    }
 
     required_rel = {
-        "profiles/addons/angularNxTemplates.addon.yml",
-        "profiles/addons/backendJavaTemplates.addon.yml",
-        "profiles/addons/backendPythonTemplates.addon.yml",
-        "profiles/addons/frontendCypress.addon.yml",
-        "profiles/addons/frontendOpenApiTsClient.addon.yml",
-        "profiles/addons/kafka.addon.yml",
-        "profiles/addons/openapi.addon.yml",
-        "profiles/addons/cucumber.addon.yml",
-        "profiles/addons/dbLiquibase.addon.yml",
-        "profiles/addons/docsGovernance.addon.yml",
-        "profiles/addons/principalExcellence.addon.yml",
-        "profiles/addons/riskTiering.addon.yml",
-        "profiles/addons/scorecardCalibration.addon.yml",
+        "governance_content/profiles/addons/angularNxTemplates.addon.yml",
+        "governance_content/profiles/addons/backendJavaTemplates.addon.yml",
+        "governance_content/profiles/addons/backendPythonTemplates.addon.yml",
+        "governance_content/profiles/addons/frontendCypress.addon.yml",
+        "governance_content/profiles/addons/frontendOpenApiTsClient.addon.yml",
+        "governance_content/profiles/addons/kafka.addon.yml",
+        "governance_content/profiles/addons/openapi.addon.yml",
+        "governance_content/profiles/addons/cucumber.addon.yml",
+        "governance_content/profiles/addons/dbLiquibase.addon.yml",
+        "governance_content/profiles/addons/docsGovernance.addon.yml",
+        "governance_content/profiles/addons/principalExcellence.addon.yml",
+        "governance_content/profiles/addons/riskTiering.addon.yml",
+        "governance_content/profiles/addons/scorecardCalibration.addon.yml",
     }
     missing_in_manifest = sorted(required_rel - installed)
     assert not missing_in_manifest, (
@@ -623,20 +641,18 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
 
     commands = _commands_dir(config_root)
-    required_normative = [
-        commands / "master.md",
-        commands / "rules.md",
-        commands / "QUALITY_INDEX.md",
-        commands / "CONFLICT_RESOLUTION.md",
-        commands / "STABILITY_SLA.md",
-        commands / "SESSION_STATE_SCHEMA.md",
-    ]
+    required_normative = [commands / name for name in CANONICAL_RAILS]
     missing_normative = [str(p) for p in required_normative if not p.exists()]
     assert not missing_normative, "Missing required normative files in commands/ after install:\n" + "\n".join(
         [f"- {m}" for m in missing_normative]
     )
 
     local_root = _local_dir(config_root)
+    local_top_level = sorted(p.name for p in local_root.iterdir())
+    assert local_top_level == sorted(["VERSION", "governance", "governance_content", "governance_runtime", "governance_spec"]), (
+        f"local_root strict top-level mismatch: {local_top_level}"
+    )
+
     required_governance = [
         local_root / "governance" / "entrypoints" / "map_audit_to_canonical.py",
         local_root / "governance" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json",
@@ -649,8 +665,8 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     )
 
     required_runtime = [
-        local_root / "governance" / "engine" / "orchestrator.py",
-        local_root / "governance" / "engine" / "response_contract.py",
+        local_root / "governance_runtime" / "engine" / "orchestrator.py",
+        local_root / "governance_runtime" / "engine" / "response_contract.py",
         local_root / "governance" / "render" / "render_contract.py",
     ]
     missing_runtime = [str(p) for p in required_runtime if not p.exists()]
@@ -663,8 +679,8 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     assert not (commands / "docs").exists(), "commands/docs must not be installed in final layout"
     assert not (commands / "cli").exists(), "commands/cli must not be installed in final layout"
 
-    manifests = sorted((commands / "profiles" / "addons").glob("*.addon.yml"))
-    assert manifests, "No addon manifests found under installed commands/profiles/addons"
+    manifests = sorted((local_root / "governance_content" / "profiles" / "addons").glob("*.addon.yml"))
+    assert manifests, "No addon manifests found under installed local governance_content/profiles/addons"
 
     missing_rulebooks: list[str] = []
     for manifest in manifests:
@@ -672,7 +688,11 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
         m = re.search(r"^rulebook:\s*([^\s#]+)\s*$", text, flags=re.MULTILINE)
         assert m, f"Missing 'rulebook' in addon manifest: {manifest.name}"
         rb = m.group(1).strip()
-        rb_path = (commands / "profiles" / rb) if not rb.startswith("profiles/") else (commands / rb)
+        rb_path = (
+            (local_root / "governance_content" / "profiles" / rb)
+            if not rb.startswith("profiles/")
+            else (local_root / "governance_content" / rb)
+        )
         if not rb_path.exists():
             missing_rulebooks.append(f"{manifest.name} -> {rb}")
 
@@ -809,7 +829,7 @@ class TestSymlinkGuards:
                     "paths": {
                         "configRoot": str(config_root),
                         "commandsHome": str(plan.commands_dir),
-                        "profilesHome": str(plan.commands_dir / "profiles"),
+                        "profilesHome": str(_local_dir(config_root) / "governance_content" / "profiles"),
                         "governanceHome": str(_local_dir(config_root) / "governance"),
                         "workspacesHome": str(config_root / "workspaces"),
                         "globalErrorLogsHome": str(config_root / "workspaces" / "_global" / "logs"),

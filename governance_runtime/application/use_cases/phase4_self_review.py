@@ -269,7 +269,7 @@ def load_self_review_config(*, force_reload: bool = False) -> SelfReviewConfig:
     if not config_path.exists():
         raise PolicyConfigError(
             f"Policy-bound config missing: {config_path}. "
-            "Expected pack-locked config under ${COMMANDS_HOME}/governance/assets/config/. "
+            "Expected pack-locked config under ${LOCAL_ROOT}/governance/assets/config/. "
             "Reason: BLOCKED-ENGINE-SELFCHECK"
         )
     

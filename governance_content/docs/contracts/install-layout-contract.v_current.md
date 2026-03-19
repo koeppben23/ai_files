@@ -21,7 +21,7 @@ conformance_suite: tests/conformance/test_layout_conformance.py
 | `${CONFIG_ROOT}` | OpenCode config root, runtime-resolved (e.g. `~/.config/opencode`) | `governance/paths/layout.py:ConfigLayout` |
 | `${LOCAL_ROOT}` | OpenCode local payload root (e.g. `~/.local/opencode`) | installer (`OPENCODE_LOCAL_ROOT` override or default) |
 | `${COMMANDS_HOME}` | `${CONFIG_ROOT}/commands` (default from installer binding evidence) | `governance/infrastructure/binding_paths.py` |
-| `${PROFILES_HOME}` | `${COMMANDS_HOME}/profiles` | `docs/install-layout.md` |
+| `${PROFILES_HOME}` | `${LOCAL_ROOT}/governance_content/profiles` | `commands/governance.paths.json` |
 | `${PLUGINS_HOME}` | `${CONFIG_ROOT}/plugins` | installer (`install.py`) |
 | `${WORKSPACES_HOME}` | `${CONFIG_ROOT}/workspaces` (default from installer binding evidence) | `governance/infrastructure/binding_paths.py` |
 | `${SESSION_STATE_POINTER_FILE}` | `${CONFIG_ROOT}/SESSION_STATE.json` (global pointer) | `governance/infrastructure/workspace_paths.py:global_pointer_path` |
@@ -37,8 +37,6 @@ Both must be explicit and auditable.
 
 ```text
 ${CONFIG_ROOT}/
-  SESSION_STATE.json              # Global active-session pointer (NOT state)
-  governance.activation_intent.json  # Bootstrap activation intent
   bin/
     opencode-governance-bootstrap      # Local launcher (POSIX)
     opencode-governance-bootstrap.cmd  # Local launcher (Windows)
@@ -46,30 +44,19 @@ ${CONFIG_ROOT}/
     audit-new-session.mjs         # OpenCode Desktop plugin
   opencode.json                   # OpenCode Desktop bridge config (user-owned)
   commands/                       # = ${COMMANDS_HOME}
-    master.md
-    rules.md
-    BOOTSTRAP.md
+    audit-readout.md
     continue.md
-    review.md
-    review-decision.md
+    implement.md
+    implementation-decision.md
     plan.md
+    review-decision.md
+    review.md
     ticket.md
-    docs/resume.md               # Legacy compatibility alias for /continue guidance
-    docs/resume_prompt.md        # Legacy template alias (deprecated; use /continue)
-    README.md
-    README-RULES.md
-    README-OPENCODE.md
-    SESSION_STATE_SCHEMA.md
-    STABILITY_SLA.md
-    CONFLICT_RESOLUTION.md
     governance.paths.json         # Installer binding evidence
     INSTALL_MANIFEST.json         # Installer manifest (SHA256, paths)
-    INSTALL_HEALTH.json           # Installer health status
-    profiles/
-      rules.<stack>.md
-      addons/*.addon.yml
   workspaces/                     # = ${WORKSPACES_HOME}
     <repo_fingerprint>/           # Per-repo workspace (see section 3)
+  INSTALL_HEALTH.json             # Installer health status
 
 ${LOCAL_ROOT}/
   governance_runtime/             # Canonical runtime authority
@@ -141,8 +128,8 @@ ${WORKSPACES_HOME}/<fingerprint>/
 | `runs/` contents | kernel | append-only (archived runs) | governance kernel |
 | `bin/*` launchers | installer | write-on-install | `install.py` |
 | `opencode-plugins/*` | installer | write-on-install | `install.py` |
-| `commands/*` tree | installer | write-on-install | `install.py` |
-| `profiles/*` tree | installer | write-on-install | `install.py` |
+| `commands/*` tree (strict allowlist) | installer | write-on-install | `install.py` |
+| `governance_content/profiles/*` tree | installer | write-on-install | `install.py` |
 
 ## 5. Uninstall and Retention Behavior
 

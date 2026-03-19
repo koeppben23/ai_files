@@ -61,13 +61,13 @@ phases:
 
 
 def test_load_phase_api_requires_binding_when_commands_home_omitted(monkeypatch: pytest.MonkeyPatch) -> None:
-    from governance.kernel import phase_api_spec as module
+    import governance_runtime.kernel.phase_api_spec as runtime_module
 
     class _Resolver:
         def resolve(self, *, mode: str = "kernel"):
             _ = mode
             return SimpleNamespace(binding_ok=False, commands_home=None, issues=["binding.file.missing"])
 
-    monkeypatch.setattr(module, "BindingEvidenceResolver", _Resolver)
+    monkeypatch.setattr(runtime_module, "BindingEvidenceResolver", _Resolver)
     with pytest.raises(PhaseApiSpecError):
         load_phase_api()

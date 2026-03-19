@@ -1,14 +1,14 @@
 # Install Layout
 
 This document centralizes install and path layout details moved out of `README.md`.
-Runtime authority is `governance_runtime/` + `${COMMANDS_HOME}/phase_api.yaml`; this file is layout guidance.
+Runtime authority is `governance_runtime/` + `${LOCAL_ROOT}/governance_spec/phase_api.yaml`; this file is layout guidance.
 
 ## Canonical Path Variables
 
 - `${CONFIG_ROOT}`: OpenCode config root (runtime-resolved; do not hard-code OS paths)
 - `${LOCAL_ROOT}`: OpenCode local payload root (runtime/content/spec/compatibility payloads)
 - `${COMMANDS_HOME}`: default `${CONFIG_ROOT}/commands` from installer binding evidence
-- `${PROFILES_HOME}`: `${COMMANDS_HOME}/profiles`
+- `${PROFILES_HOME}`: `${LOCAL_ROOT}/governance_content/profiles`
 - `${WORKSPACES_HOME}`: default `${CONFIG_ROOT}/workspaces` from installer binding evidence
 
 Supported exception sources (must be explicit and auditable):
@@ -21,7 +21,7 @@ A common example install root is `~/.config/opencode` (platform-specific variant
 
 - Config root (`${CONFIG_ROOT}`): `commands/`, `plugins/`, `workspaces/`, `bin/`.
 - Local root (`${LOCAL_ROOT}`): `governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, `VERSION`.
-- Global rulebooks/rails are installed under `${COMMANDS_HOME}`.
+- The command rail surface is installed under `${COMMANDS_HOME}` as a strict allowlist.
 - Profile rulebooks and addon manifests are installed under `${PROFILES_HOME}`.
 - Repo-scoped persistent artifacts are stored under `${WORKSPACES_HOME}/<repo_fingerprint>/...`.
 - Active session pointer remains global at `${SESSION_STATE_POINTER_FILE}`.
@@ -39,30 +39,23 @@ ${CONFIG_ROOT}/
   plugins/
     audit-new-session.mjs
   commands/
-  master.md
-  rules.md
-  BOOTSTRAP.md
+  audit-readout.md
   continue.md
+  implement.md
+  implementation-decision.md
+  plan.md
+  review-decision.md
   review.md
-  docs/resume.md                 # legacy compatibility alias for /continue guidance
-  docs/resume_prompt.md          # deprecated template alias (use /continue)
-  README.md
-  README-RULES.md
-  README-OPENCODE.md
-  SESSION_STATE_SCHEMA.md
-  STABILITY_SLA.md
-  CONFLICT_RESOLUTION.md
+  ticket.md
   governance.paths.json
   INSTALL_MANIFEST.json
-  INSTALL_HEALTH.json
-  profiles/
-    rules.<stack>.md
-    addons/*.addon.yml
   workspaces/
     <repo_fingerprint>/
       logs/
     _global/
       logs/
+  opencode.json
+  INSTALL_HEALTH.json
 
 ${LOCAL_ROOT}/
   governance_runtime/
@@ -76,7 +69,7 @@ ${LOCAL_ROOT}/
 
 After bundle install, operator-usable assets are available under config/local split:
 
-- `<config_root>/commands/`: rails, normative docs, profiles
+- `<config_root>/commands/`: exactly 8 rail markdown files + `governance.paths.json` + `INSTALL_MANIFEST.json`
 - `<config_root>/plugins/`: desktop plugin artifact
 - `<config_root>/workspaces/`: repo-scoped and global logs/state
 - `<local_root>/governance_runtime/`: canonical runtime authority

@@ -81,6 +81,15 @@ class TestR16FinalClaimConformance:
         for token in forbidden_active_targets:
             assert token not in installer, f"forbidden commands payload target still active in installer: {token}"
 
+        strict_allowlist_tokens = [
+            "CANONICAL_RAIL_FILENAMES",
+            'GOVERNANCE_PATHS_NAME',
+            'MANIFEST_NAME',
+            'allowed_names = set(CANONICAL_RAIL_FILENAMES) | {GOVERNANCE_PATHS_NAME, MANIFEST_NAME}',
+        ]
+        for token in strict_allowlist_tokens:
+            assert token in installer, f"installer missing strict commands allowlist token: {token}"
+
     def test_logs_are_workspace_only_and_not_commands_logs(self) -> None:
         global_handler = _read(REPO_ROOT / "governance_runtime" / "infrastructure" / "logging" / "global_error_handler.py")
         kernel = _read(REPO_ROOT / "governance_runtime" / "kernel" / "phase_kernel.py")

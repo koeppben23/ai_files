@@ -50,7 +50,9 @@ class PhaseApiSpec:
     entries: dict[str, PhaseSpecEntry]
 
 
-def _resolve_phase_api_path(commands_home: Path) -> Path:
+def _resolve_phase_api_path(commands_home: Path, spec_home: Path | None = None) -> Path:
+    if spec_home is not None:
+        return spec_home / "phase_api.yaml"
     return commands_home / "phase_api.yaml"
 
 
@@ -173,9 +175,9 @@ def _validate_links(entries: Mapping[str, PhaseSpecEntry]) -> None:
                 )
 
 
-def _resolve_commands_home(explicit_commands_home: Path | None) -> Path:
+def _resolve_binding_homes(explicit_commands_home: Path | None) -> tuple[Path, Path | None]:
     if explicit_commands_home is not None:
-        return explicit_commands_home
+        return explicit_commands_home, None
     resolver = BindingEvidenceResolver()
     evidence = getattr(resolver, "resolve")(mode="kernel")
     if not evidence.binding_ok:
@@ -185,15 +187,15 @@ def _resolve_commands_home(explicit_commands_home: Path | None) -> Path:
         )
     if evidence.commands_home is None:
         raise PhaseApiSpecError("binding evidence did not provide commands home")
-    return evidence.commands_home
+    return evidence.commands_home, evidence.spec_home
 
 
 def load_phase_api(commands_home: Path | None = None) -> PhaseApiSpec:
     if yaml is None:
         raise PhaseApiSpecError("phase_api.yaml cannot be loaded: yaml parser unavailable")
 
-    resolved_commands_home = _resolve_commands_home(commands_home)
-    phase_api_path = _resolve_phase_api_path(resolved_commands_home)
+    resolved_commands_home, resolved_spec_home = _resolve_binding_homes(commands_home)
+    phase_api_path = _resolve_phase_api_path(resolved_commands_home, resolved_spec_home)
     if not phase_api_path.exists():
         raise PhaseApiSpecError(f"phase_api.yaml missing at {phase_api_path}")
 
