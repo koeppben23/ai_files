@@ -4,6 +4,9 @@ version: v1
 status: active
 scope: Canonical operator command surfaces and legacy alias policy
 owner: governance policy
+effective_version: 0.1.0
+supersedes: null
+conformance_suite: tests/test_rail_conformance_sweep.py
 ---
 
 # Command Surface Contract — v1

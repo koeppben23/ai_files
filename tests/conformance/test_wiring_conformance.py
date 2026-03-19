@@ -24,24 +24,27 @@ from tests.util import REPO_ROOT, get_docs_path, get_master_path, get_rules_path
 INSTALLER_SOURCE_PATH = REPO_ROOT / "governance_runtime" / "install" / "install.py"
 
 # ---------------------------------------------------------------------------
-# Contract documents — all 5 contracts must be validated
+# Contract documents — active + archived contract metadata validation
 # ---------------------------------------------------------------------------
 
 CONTRACT_DIR = get_docs_path() / "contracts"
 
-ALL_CONTRACTS = {
+ACTIVE_CONTRACTS_WITH_SUITES = {
+    "command-surface-contract.v1.md": "tests/test_rail_conformance_sweep.py",
+    "cross-agent-rail-spec.v1.md": "tests/test_rail_conformance_sweep.py",
     "install-layout-contract.v_current.md": "tests/conformance/test_layout_conformance.py",
-    "install-layout-contract.v_next.md": None,       # v_next has no conformance suite yet
-    "install-layout-migration.v1.md": None,           # planned, conformance_suite: TBD
     "opencode-integration-contract.v1.md": "tests/conformance/test_opencode_integration_conformance.py",
-    "runtime-state-contract.v1.md": "tests/conformance/test_runtime_state_conformance.py",
     "python-binding-contract.v1.md": "tests/conformance/test_binding_conformance.py",
+    "rail-style-spec.v1.md": "tests/test_rail_conformance_sweep.py",
+    "runtime-state-contract.v1.md": "tests/conformance/test_runtime_state_conformance.py",
 }
 
-# Contracts with active conformance suites
-CONTRACTS_WITH_SUITES = {
-    k: v for k, v in ALL_CONTRACTS.items() if v is not None
+ARCHIVED_CONTRACTS = {
+    "install-layout-contract.v_next.md",
+    "install-layout-migration.v1.md",
 }
+
+ALL_CONTRACTS = set(ACTIVE_CONTRACTS_WITH_SUITES.keys()) | ARCHIVED_CONTRACTS
 
 
 # ---------------------------------------------------------------------------
@@ -70,21 +73,21 @@ class TestAllContractRefsExist:
     """Validate that every contract document exists and has valid frontmatter."""
 
     def test_happy_all_contract_files_exist(self):
-        """Happy: All 5 contract documents exist on disk."""
+        """Happy: All expected contract documents exist on disk."""
         missing = [
             name for name in ALL_CONTRACTS
             if not (CONTRACT_DIR / name).is_file()
         ]
         assert not missing, f"Missing contract documents: {missing}"
 
-    @pytest.mark.parametrize("contract_name", list(ALL_CONTRACTS.keys()))
+    @pytest.mark.parametrize("contract_name", sorted(ALL_CONTRACTS))
     def test_happy_frontmatter_parseable(self, contract_name: str):
         """Happy: YAML frontmatter can be parsed without errors."""
         path = CONTRACT_DIR / contract_name
         fm = _parse_frontmatter(path)
         assert isinstance(fm, dict)
 
-    @pytest.mark.parametrize("contract_name", list(ALL_CONTRACTS.keys()))
+    @pytest.mark.parametrize("contract_name", sorted(ALL_CONTRACTS))
     def test_happy_frontmatter_has_required_keys(self, contract_name: str):
         """Happy: Frontmatter contains all standardised keys."""
         path = CONTRACT_DIR / contract_name
@@ -94,26 +97,30 @@ class TestAllContractRefsExist:
         missing = required - set(fm.keys())
         assert not missing, f"{contract_name}: missing frontmatter keys: {missing}"
 
-    @pytest.mark.parametrize(
-        "contract_name,expected_suite",
-        list(CONTRACTS_WITH_SUITES.items()),
-    )
+    @pytest.mark.parametrize("contract_name", sorted(ARCHIVED_CONTRACTS))
+    def test_happy_archived_contracts_marked_archived(self, contract_name: str):
+        path = CONTRACT_DIR / contract_name
+        fm = _parse_frontmatter(path)
+        assert str(fm.get("status", "")).lower() == "archived"
+        assert str(fm.get("effective_version", "")).lower() == "archived"
+        assert str(fm.get("conformance_suite", "")).lower() == "archived"
+
+    @pytest.mark.parametrize("contract_name,expected_suite", sorted(ACTIVE_CONTRACTS_WITH_SUITES.items()))
     def test_happy_conformance_suite_points_to_correct_file(
         self, contract_name: str, expected_suite: str
     ):
         """Happy: conformance_suite field references the correct test file."""
         path = CONTRACT_DIR / contract_name
         fm = _parse_frontmatter(path)
+        assert str(fm.get("status", "")).lower() == "active"
+        assert str(fm.get("effective_version", "")).lower() != "archived"
         actual = fm.get("conformance_suite", "")
         assert actual == expected_suite, (
             f"{contract_name}: conformance_suite mismatch: "
             f"expected {expected_suite!r}, got {actual!r}"
         )
 
-    @pytest.mark.parametrize(
-        "contract_name,expected_suite",
-        list(CONTRACTS_WITH_SUITES.items()),
-    )
+    @pytest.mark.parametrize("contract_name,expected_suite", sorted(ACTIVE_CONTRACTS_WITH_SUITES.items()))
     def test_happy_conformance_suite_file_exists(
         self, contract_name: str, expected_suite: str
     ):
