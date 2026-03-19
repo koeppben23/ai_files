@@ -356,14 +356,19 @@ jobs:
 
           def smoke(extracted: Path):
             cfg = extracted / "_cfg"
+            local = extracted / "_local"
+            env = dict(os.environ)
+            env["OPENCODE_LOCAL_ROOT"] = str(local)
             r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--dry-run", "--config-root", str(cfg)],
+                               env=env,
                                cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert r.returncode == 0, f"dry-run failed:\n{r.stderr}\n{r.stdout}"
             r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--force", "--no-backup", "--config-root", str(cfg)],
+                               env=env,
                                cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
 
-            governance = cfg / "commands" / "governance"
+            governance = local / "governance"
             entrypoints = governance / "entrypoints"
             required_helpers = [
               entrypoints / "persist_workspace_artifacts.py",
@@ -396,6 +401,7 @@ jobs:
             assert r.returncode == 0, f"persist helper failed:\n{r.stderr}\n{r.stdout}"
 
             r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--uninstall", "--force", "--config-root", str(cfg)],
+                               env=env,
                                cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
 
