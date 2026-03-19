@@ -214,7 +214,7 @@ def write_governance_paths(
             "configRoot": str(root),
             "localRoot": str(local),
             "commandsHome": str(commands),
-            "profilesHome": str(commands / "profiles"),
+            "profilesHome": str(local / "governance_content" / "profiles"),
             "governanceHome": str(governance),
             "runtimeHome": str(local / "governance_runtime"),
             "contentHome": str(local / "governance_content"),
