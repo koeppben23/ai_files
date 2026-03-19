@@ -718,7 +718,9 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any],
         try:
             commands_home = normalize_absolute_path(env_commands_home, purpose="COMMANDS_HOME env")
             root = commands_home.parent
-            candidate = commands_home / "governance.paths.json"
+            candidate = root / "governance.paths.json"
+            if not candidate.exists():
+                candidate = commands_home / "governance.paths.json"
             if candidate.exists():
                 config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
                 return config_root, paths, candidate
@@ -727,19 +729,25 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any],
 
     if explicit is not None:
         root = normalize_absolute_path(str(explicit), purpose="explicit_config_root")
-        candidate = root / "commands" / "governance.paths.json"
+        candidate = root / "governance.paths.json"
+        if not candidate.exists():
+            candidate = root / "commands" / "governance.paths.json"
         config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
         return config_root, paths, candidate
 
     env_value = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_value:
         root = normalize_absolute_path(env_value, purpose="env:OPENCODE_CONFIG_ROOT")
-        candidate = root / "commands" / "governance.paths.json"
+        candidate = root / "governance.paths.json"
+        if not candidate.exists():
+            candidate = root / "commands" / "governance.paths.json"
         config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
         return config_root, paths, candidate
 
     fallback = default_config_root()
-    candidate = fallback / "commands" / "governance.paths.json"
+    candidate = fallback / "governance.paths.json"
+    if not candidate.exists():
+        candidate = fallback / "commands" / "governance.paths.json"
     config_root, paths = _load_binding_paths(candidate, expected_config_root=fallback)
     return config_root, paths, candidate
 
@@ -1523,7 +1531,7 @@ def main() -> int:
             gate="PERSISTENCE",
             code="MISSING_BINDING_FILE",
             message=str(exc),
-            expected="installer-owned commands/governance.paths.json exists",
+            expected="installer-owned governance.paths.json exists at config root",
             observed={"config_root_arg": str(args.config_root) if args.config_root else ""},
             remediation="Restore governance.paths.json via installer or provide valid --config-root.",
         )
@@ -1531,10 +1539,10 @@ def main() -> int:
             "status": "blocked",
             "reason": str(exc),
             "reason_code": "BLOCKED-MISSING-BINDING-FILE",
-            "missing_evidence": ["${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"],
+            "missing_evidence": ["${OPENCODE_CONFIG_ROOT}/governance.paths.json (installer-owned binding evidence)"],
             "recovery_steps": [
-                "run installer to create commands/governance.paths.json",
-                "or provide --config-root that contains commands/governance.paths.json",
+                "run installer to create governance.paths.json",
+                "or provide --config-root that contains governance.paths.json",
             ],
             "required_operator_action": "restore installer-owned path binding evidence before persistence",
             "feedback_required": "reply with governance.paths.json location used for rerun",

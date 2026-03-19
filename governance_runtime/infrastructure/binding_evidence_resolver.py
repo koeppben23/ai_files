@@ -80,7 +80,10 @@ class BindingEvidenceResolver:
             try:
                 commands_home = normalize_absolute_path(env_commands_home, purpose="COMMANDS_HOME env")
                 root = commands_home.parent
-                binding_file = commands_home / "governance.paths.json"
+                binding_file = root / "governance.paths.json"
+                legacy_binding_file = commands_home / "governance.paths.json"
+                if not binding_file.exists() and legacy_binding_file.exists():
+                    binding_file = legacy_binding_file
                 if not binding_file.exists():
                     return BindingEvidence(
                         python_command="",
@@ -127,13 +130,18 @@ class BindingEvidenceResolver:
                 )
         else:
             root = self._config_root
-            binding_file = root / "commands" / "governance.paths.json"
+            binding_file = root / "governance.paths.json"
+            if not binding_file.exists():
+                binding_file = root / "commands" / "governance.paths.json"
         
         # Fallback search for common locations if binding file not found
         if not binding_file.exists():
             search_paths = [
+                Path.cwd() / "governance.paths.json",
                 Path.cwd() / "commands" / "governance.paths.json",
+                Path.cwd() / ".opencode" / "governance.paths.json",
                 Path.cwd() / ".opencode" / "commands" / "governance.paths.json",
+                Path.home() / ".opencode" / "governance.paths.json",
                 Path.home() / ".opencode" / "commands" / "governance.paths.json",
             ]
             for search_path in search_paths:

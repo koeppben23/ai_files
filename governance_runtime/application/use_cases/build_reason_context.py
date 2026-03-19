@@ -184,7 +184,7 @@ def build_orchestrator_reason_payload(
         if parity_status == "blocked":
             blocked_missing_evidence = missing_evidence
             if parity_reason_code == BLOCKED_MISSING_BINDING_FILE:
-                blocked_missing_evidence = ("${USER_HOME}/.config/opencode/commands/governance.paths.json",)
+                blocked_missing_evidence = ("${USER_HOME}/.config/opencode/governance.paths.json",)
             reason_payload = build_reason_payload(
                 status="BLOCKED",
                 reason_code=parity_reason_code,

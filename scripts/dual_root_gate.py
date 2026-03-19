@@ -20,7 +20,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from governance_runtime.engine.command_surface import CANONICAL_COMMANDS
-from governance_runtime.install.install import GOVERNANCE_PATHS_NAME, MANIFEST_NAME, build_governance_paths_payload
+from governance_runtime.install.install import build_governance_paths_payload
 
 
 EXPECTED_RAILS: set[str] = {
@@ -100,10 +100,10 @@ def _check_paths_payload(config_root: Path, local_root: Path) -> tuple[list[str]
 
 
 def _check_config_allowlist_contract() -> list[str]:
-    allowed = set(EXPECTED_RAILS) | {GOVERNANCE_PATHS_NAME, MANIFEST_NAME}
+    allowed = set(EXPECTED_RAILS)
     errors: list[str] = []
-    if len(allowed) != 10:
-        errors.append(f"commands allowlist cardinality mismatch: expected 10, got {len(allowed)}")
+    if len(allowed) != 8:
+        errors.append(f"commands allowlist cardinality mismatch: expected 8, got {len(allowed)}")
     if any("/" in name or "\\" in name for name in allowed):
         errors.append("commands allowlist must contain only command-root filenames (no subpaths)")
     return errors

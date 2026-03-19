@@ -235,7 +235,9 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
         try:
             commands_home = normalize_absolute_path(env_commands_home, purpose="COMMANDS_HOME env")
             root = commands_home.parent
-            candidate = commands_home / "governance.paths.json"
+            candidate = root / "governance.paths.json"
+            if not candidate.exists():
+                candidate = commands_home / "governance.paths.json"
             if candidate.exists():
                 config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
                 return config_root, paths, candidate
@@ -244,26 +246,34 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
 
     if explicit is not None:
         root = normalize_absolute_path(str(explicit), purpose="explicit_config_root")
-        candidate = root / "commands" / "governance.paths.json"
+        candidate = root / "governance.paths.json"
+        if not candidate.exists():
+            candidate = root / "commands" / "governance.paths.json"
         config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
         return config_root, paths, candidate
 
     internal_root = os.environ.get("OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT")
     if internal_root:
         root = normalize_absolute_path(internal_root, purpose="env:OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT")
-        candidate = root / "commands" / "governance.paths.json"
+        candidate = root / "governance.paths.json"
+        if not candidate.exists():
+            candidate = root / "commands" / "governance.paths.json"
         config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
         return config_root, paths, candidate
 
     env_value = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_value:
         root = normalize_absolute_path(env_value, purpose="env:OPENCODE_CONFIG_ROOT")
-        candidate = root / "commands" / "governance.paths.json"
+        candidate = root / "governance.paths.json"
+        if not candidate.exists():
+            candidate = root / "commands" / "governance.paths.json"
         config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
         return config_root, paths, candidate
 
     fallback = default_config_root()
-    candidate = fallback / "commands" / "governance.paths.json"
+    candidate = fallback / "governance.paths.json"
+    if not candidate.exists():
+        candidate = fallback / "commands" / "governance.paths.json"
     config_root, paths = _load_binding_paths(candidate, expected_config_root=fallback)
     return config_root, paths, candidate
 
@@ -423,12 +433,12 @@ def main() -> int:
             gate="BOOTSTRAP",
             code="MISSING_BINDING_FILE",
             message=str(exc),
-            expected="installer-owned commands/governance.paths.json exists",
+            expected="installer-owned governance.paths.json exists at config root",
             observed={"config_root_arg": str(args.config_root) if args.config_root else ""},
             remediation="Restore governance.paths.json via installer or provide valid --config-root.",
         )
         print(f"ERROR: {exc}")
-        print("Restore installer-owned commands/governance.paths.json and rerun.")
+        print("Restore installer-owned governance.paths.json at config root and rerun.")
         return 2
 
     workspaces_home = normalize_absolute_path(

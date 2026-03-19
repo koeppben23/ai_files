@@ -72,6 +72,6 @@ def binding_evidence_location(
 
     return BindingEvidenceLocation(
         commands_home=None,
-        governance_paths_json=canonical_config_root() / "commands" / "governance.paths.json",
+        governance_paths_json=canonical_config_root() / "governance.paths.json",
         source="canonical",
     )

@@ -30,7 +30,7 @@ def main() -> int:
             "reason_code": "BLOCKED-MISSING-BINDING-FILE",
             "message": "Installer-owned governance.paths.json could not be loaded via resolver.",
             "missing_evidence": [
-                "${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"
+                "${OPENCODE_CONFIG_ROOT}/governance.paths.json (installer-owned binding evidence)"
             ],
             "next_command": "opencode-governance-bootstrap",
             "nonEvidence": "debug-only",
@@ -69,7 +69,7 @@ def main() -> int:
                 "message": "Installer-owned governance.paths.json exists but could not be read.",
                 "bindingFile": str(binding_file),
                 "missing_evidence": [
-                    "${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"
+                    "${OPENCODE_CONFIG_ROOT}/governance.paths.json (installer-owned binding evidence)"
                 ],
                 "error": str(ex)[:240],
                 "next_command": "opencode-governance-bootstrap",
@@ -85,7 +85,7 @@ def main() -> int:
         "status": "blocked",
         "reason_code": "BLOCKED-MISSING-BINDING-FILE",
         "missing_evidence": [
-            "${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"
+            "${OPENCODE_CONFIG_ROOT}/governance.paths.json (installer-owned binding evidence)"
         ],
         "next_command": "opencode-governance-bootstrap",
         "nonEvidence": "debug-only",

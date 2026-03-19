@@ -13,7 +13,7 @@ Features:
 NOTE:
 - This installer creates/merges opencode.json instructions for Desktop guidance,
   but uninstall intentionally preserves opencode.json.
-- It generates installer-owned sidecar bindings at commands/governance.paths.json for bootstrap.
+- It generates installer-owned sidecar bindings at <config_root>/governance.paths.json for bootstrap.
 - Installer governance use `ERR-*` reason keys as installer-internal keys; they are not canonical
   governance `reason_code` values (`BLOCKED-*|WARN-*|NOT_VERIFIED-*`).
 """
@@ -368,7 +368,7 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
 
     # Write INSTALL_HEALTH.json
     health_path = plan.config_root / "INSTALL_HEALTH.json"
-    binding_path = plan.commands_dir / "governance.paths.json"
+    binding_path = plan.governance_paths_path
 
     binding_ok = False
     # NOTE: governance.paths.json is now written exclusively by
@@ -583,7 +583,7 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path, local_root
             "set \"OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%\"",
             "set \"PYTHONPATH=%COMMANDS_HOME%;%OPENCODE_LOCAL_ROOT%;!PYTHONPATH!\"",
             "set \"OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
-            "set \"OPENCODE_BOOTSTRAP_BINDING_PATH=%COMMANDS_HOME%\\governance.paths.json\"",
+            "set \"OPENCODE_BOOTSTRAP_BINDING_PATH=%OPENCODE_CONFIG_ROOT%\\governance.paths.json\"",
             "if defined OPENCODE_REPO_ROOT (",
             "    set \"PYTHONPATH=%OPENCODE_REPO_ROOT%;%PYTHONPATH%\"",
             ")",
@@ -680,7 +680,7 @@ def _write_launcher_wrappers(
     dest_win: Path,
 ) -> list[dict]:
     created: list[dict] = []
-    binding_path = plan.commands_dir / "governance.paths.json"
+    binding_path = plan.governance_paths_path
     try:
         python_exec = _resolve_python_executable(binding_path, fallback=python_exe, strict=True)
     except RuntimeError as exc:
@@ -783,8 +783,8 @@ def build_plan(
         local_root = get_local_root()
     commands_dir = config_root / "commands"
     profiles_dst_dir = local_root / "governance_content" / "profiles"
-    manifest_path = commands_dir / MANIFEST_NAME
-    governance_paths_path = commands_dir / GOVERNANCE_PATHS_NAME
+    manifest_path = config_root / MANIFEST_NAME
+    governance_paths_path = config_root / GOVERNANCE_PATHS_NAME
     return InstallPlan(
         source_dir=source_dir,
         config_root=config_root,
@@ -957,15 +957,13 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
 
     Allowed files under commands/:
     - 8 canonical rail markdown files
-    - governance.paths.json
-    - INSTALL_MANIFEST.json
     """
 
     if not commands_dir.exists() or not commands_dir.is_dir():
         return ([], [])
 
     removed: list[str] = []
-    allowed_names = set(CANONICAL_RAIL_FILENAMES) | {GOVERNANCE_PATHS_NAME, MANIFEST_NAME}
+    allowed_names = set(CANONICAL_RAIL_FILENAMES)
 
     for path in sorted(commands_dir.iterdir(), key=lambda p: p.name):
         rel = path.relative_to(commands_dir).as_posix()
@@ -1453,7 +1451,7 @@ def install_governance_paths_file(
     backup_root: Path,
 ) -> dict:
     """
-    Create/update <config_root>/commands/governance.paths.json.
+    Create/update <config_root>/governance.paths.json.
 
     Semantics:
     - create if missing
@@ -3088,7 +3086,7 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
         return 1
 
     # Read manifest if present
-    manifest_path = commands_home / MANIFEST_NAME
+    manifest_path = config_root / MANIFEST_NAME
     manifest = load_manifest(manifest_path)
 
     if manifest:
@@ -3113,7 +3111,7 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
                 print("⚠️  Source version differs from installed version.")
 
     # Check for binding file
-    paths_file = commands_home / GOVERNANCE_PATHS_NAME
+    paths_file = config_root / GOVERNANCE_PATHS_NAME
     if paths_file.exists():
         print(f"\n✅ Governance paths file: {paths_file.name}")
     else:
@@ -3198,7 +3196,7 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
     # Probe 6: Installation health (if exists)
     commands_home = config_root / "commands"
     if commands_home.exists():
-        manifest_path = commands_home / MANIFEST_NAME
+        manifest_path = config_root / MANIFEST_NAME
         manifest_exists = manifest_path.exists()
         manifest_icon = "✅" if manifest_exists else "⚠️"
         print(f"\n{manifest_icon} Manifest: {'present' if manifest_exists else 'missing (fallback mode)'}")
@@ -3220,20 +3218,20 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
             print("   ⚠️  Core governance files missing")
 
         # Check governance.paths.json
-        paths_file = commands_home / GOVERNANCE_PATHS_NAME
+        paths_file = config_root / GOVERNANCE_PATHS_NAME
         paths_exists = paths_file.exists()
         paths_icon = "✅" if paths_exists else "⚠️"
         print(f"   {paths_icon} governance.paths.json: {'present' if paths_exists else 'missing'}")
         if not paths_exists:
             issues_found.append("paths-json-missing")
 
-        manifest_exists = (commands_home / MANIFEST_NAME).exists()
+        manifest_exists = (config_root / MANIFEST_NAME).exists()
         manifest_icon = "✅" if manifest_exists else "❌"
         print(f"   {manifest_icon} {MANIFEST_NAME}: {'present' if manifest_exists else 'missing'}")
         if not manifest_exists:
             issues_found.append("manifest-file-missing")
 
-        allowed = set(CANONICAL_RAIL_FILENAMES) | {GOVERNANCE_PATHS_NAME, MANIFEST_NAME}
+        allowed = set(CANONICAL_RAIL_FILENAMES)
         extras = sorted(
             p.name for p in commands_home.glob("*") if p.is_file() and p.name not in allowed
         )
@@ -3332,14 +3330,14 @@ def run_smoketest(config_root: Path) -> int:
         print("✅ Local bootstrap launcher present")
 
     # Check governance.paths.json
-    paths_json = config_root / "commands" / "governance.paths.json"
+    paths_json = config_root / GOVERNANCE_PATHS_NAME
     if not paths_json.exists():
         print("❌ governance.paths.json missing")
         issues.append("paths-json-missing")
     else:
         print("✅ governance.paths.json present")
 
-    manifest_json = config_root / "commands" / MANIFEST_NAME
+    manifest_json = config_root / MANIFEST_NAME
     if not manifest_json.exists():
         print(f"❌ {MANIFEST_NAME} missing")
         issues.append("manifest-missing")
@@ -3347,7 +3345,7 @@ def run_smoketest(config_root: Path) -> int:
         print(f"✅ {MANIFEST_NAME} present")
 
     commands_home = config_root / "commands"
-    allowed = set(CANONICAL_RAIL_FILENAMES) | {GOVERNANCE_PATHS_NAME, MANIFEST_NAME}
+    allowed = set(CANONICAL_RAIL_FILENAMES)
     extras = sorted(p.name for p in commands_home.glob("*") if p.is_file() and p.name not in allowed)
     rails = sorted(p.name for p in commands_home.glob("*.md") if p.is_file())
     if extras:
@@ -3420,13 +3418,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--force", action="store_true", help="Overwrite without prompting / uninstall without prompt.")
     p.add_argument("--no-backup", action="store_true", help="Disable backup on overwrite (install only).")
     p.add_argument("--uninstall", action="store_true", help="Uninstall previously installed governance files (manifest-based).")
-    p.add_argument("--skip-paths-file", action="store_true", help="Do not create/overwrite commands/governance.paths.json.")
+    p.add_argument("--skip-paths-file", action="store_true", help="Do not create/overwrite governance.paths.json in config root.")
     p.add_argument(
         "--deterministic-paths-file",
         action="store_true",
         help="Write deterministic governance.paths.json payload (omit generatedAt timestamp).",
     )
-    p.add_argument("--purge-paths-file", action="store_true", help="On uninstall: also remove commands/governance.paths.json even if it pre-existed or the manifest is missing.")
+    p.add_argument("--purge-paths-file", action="store_true", help="On uninstall: also remove config-root governance.paths.json even if it pre-existed or the manifest is missing.")
     p.add_argument(
         "--keep-error-logs",
         action="store_true",
