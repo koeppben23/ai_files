@@ -14,6 +14,7 @@ This record defines the hard completion gate for F100 final-state closure.
 - Contract liveness: no live contract metadata may use `planned`/`TBD`; archived contracts must be explicitly archived.
 - Legacy compatibility surface: frozen and controlled by `governance_spec/migrations/R10_Final_State_Proof.md`.
 - Workspace-only log write targets: no `commands/logs` write fallback in runtime logging paths.
+- README and quickstart UX completion: governance-content user docs must be substantive and canonical-command aligned.
 
 ## Canonical Gate Suites
 
@@ -23,6 +24,7 @@ This record defines the hard completion gate for F100 final-state closure.
 - `tests/conformance/test_installer_ssot_conformance.py`
 - `tests/conformance/test_r10_final_state_proof.py`
 - `tests/conformance/test_r10_final_readiness_gate.py`
+- `tests/conformance/test_readme_ux_completion.py`
 
 ## Completion Condition
 
