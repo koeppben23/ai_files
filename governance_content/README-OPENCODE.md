@@ -5,6 +5,7 @@ Back to bundle/install overview: `README.md`.
 ### Purpose
 
 Launcher-first operator/model flow for starting and continuing governed OpenCode sessions.
+Runtime authority is `governance_runtime/`; `governance/` remains compatibility surface only.
 
 ### Lifecycle
 

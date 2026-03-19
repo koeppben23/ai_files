@@ -1,9 +1,11 @@
 ## What this bundle provides
 
 - Deterministic governance workflow (Phases 1-6) with explicit gate outcomes.
-- Installer-managed runtime and policy assets under `governance/`.
+- Canonical runtime authority under `governance_runtime/`.
+- Canonical docs and operator rails under `governance_content/`.
+- Canonical policy/spec artifacts under `governance_spec/`.
 - OpenCode launcher and command surfaces for governed session execution.
-- Profile and addon support under `profiles/`.
+- Legacy `governance/` remains an explicit frozen compatibility surface only.
 
 ## Install
 
@@ -32,6 +34,34 @@ cd customer-install-bundle-v1
 ```
 
 `governance.paths.json` under `<config_root>/commands/` is required for canonical bootstrap behavior.
+
+## Architecture snapshot (final state)
+
+Source-repo canonical surfaces:
+
+```text
+governance_runtime/  # runtime authority (kernel, application, infrastructure)
+governance_content/  # operator docs and command rails
+governance_spec/     # policy/spec source of truth
+governance/          # frozen compatibility surface (non-authoritative)
+```
+
+Post-install directory layout (`<config_root>`):
+
+```text
+<config_root>/
+  commands/
+    governance.paths.json
+  workspaces/
+    <repo_fingerprint>/
+      SESSION_STATE.json
+      logs/
+        error.log.jsonl
+        flow.log.jsonl
+        boot.log.jsonl
+    _global/
+      logs/
+```
 
 ## Start a governed session
 
@@ -112,8 +142,8 @@ opencode-governance-bootstrap --set-operating-mode solo --repo-root /path/to/rep
 
 ## Docs and troubleshooting
 
-- OpenCode lifecycle: `README-OPENCODE.md`
-- Quickstart: `QUICKSTART.md`
+- Quickstarts: `QUICKSTART.md`, `README-OPENCODE.md`
+- OpenCode lifecycle details: `README-OPENCODE.md`
 - Rules overview: `README-RULES.md`
 - Install path binding details: `docs/install-layout.md`
 
