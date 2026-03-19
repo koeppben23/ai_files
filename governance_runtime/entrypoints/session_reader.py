@@ -44,21 +44,14 @@ POINTER_SCHEMA = CANONICAL_POINTER_SCHEMA
 
 
 def _derive_commands_home() -> Path:
-    """Resolve commands_home in a runtime-safe order.
+    """Resolve commands_home in strict dual-root order.
 
     Priority:
-    1) COMMANDS_HOME environment variable
-    2) Binding evidence resolver (governance.paths.json)
+    1) Binding evidence resolver (governance.paths.json)
+    2) Explicit COMMANDS_HOME override
     3) OPENCODE_CONFIG_ROOT + /commands
-    4) Legacy script-layout fallback for older installs
+    4) Canonical OS default ~/.config/opencode/commands
     """
-    env_commands = os.environ.get("COMMANDS_HOME", "").strip()
-    if env_commands:
-        try:
-            return Path(env_commands).expanduser().resolve()
-        except Exception:
-            pass
-
     try:
         from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
@@ -68,19 +61,19 @@ def _derive_commands_home() -> Path:
     except Exception:
         pass
 
+    env_commands = os.environ.get("COMMANDS_HOME", "").strip()
+    if env_commands:
+        try:
+            return Path(env_commands).expanduser().resolve()
+        except Exception:
+            pass
+
     env_config = os.environ.get("OPENCODE_CONFIG_ROOT", "").strip()
     if env_config:
         try:
             return (Path(env_config).expanduser().resolve() / "commands").resolve()
         except Exception:
             pass
-
-    script_root = Path(__file__).resolve().parents[2]
-    if script_root.name == "commands":
-        return script_root
-    legacy_candidate = script_root / "commands"
-    if legacy_candidate.exists():
-        return legacy_candidate
 
     return (Path.home() / ".config" / "opencode" / "commands").resolve()
 
