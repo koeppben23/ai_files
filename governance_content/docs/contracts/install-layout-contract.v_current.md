@@ -3,7 +3,7 @@ contract: install-layout
 version: v_current
 status: active
 scope: Canonical install layout, workspace artifacts, ownership and retention rules
-owner: governance_runtime/install/install.py + governance/infrastructure/workspace_paths.py
+owner: governance_runtime/install/install.py + governance_runtime/infrastructure/workspace_paths.py
 effective_version: 0.1.0
 supersedes: null
 conformance_suite: tests/conformance/test_layout_conformance.py
@@ -52,11 +52,11 @@ ${CONFIG_ROOT}/
     review-decision.md
     review.md
     ticket.md
-    governance.paths.json         # Installer binding evidence
     INSTALL_MANIFEST.json         # Installer manifest (SHA256, paths)
   workspaces/                     # = ${WORKSPACES_HOME}
     <repo_fingerprint>/           # Per-repo workspace (see section 3)
   INSTALL_HEALTH.json             # Installer health status
+  governance.paths.json          # Installer binding evidence
 
 ${LOCAL_ROOT}/
   governance_runtime/             # Canonical runtime authority
@@ -74,7 +74,7 @@ The `repo_fingerprint` is a canonical 24-hex hash:
 - Git remote: `SHA256("repo:" + canonical_remote)[:24]`
 - Local path: `SHA256("repo:local:" + normalized_path)[:24]`
 
-**Source of truth:** `governance/infrastructure/workspace_paths.py`
+**Source of truth:** `governance_runtime/infrastructure/workspace_paths.py`
 
 ```text
 ${WORKSPACES_HOME}/<fingerprint>/

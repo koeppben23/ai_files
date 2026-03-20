@@ -19,13 +19,13 @@ These sources are under kernel control and can affect behavior:
 
 | Source | Location | Validation | Mutable During Run |
 |--------|----------|------------|-------------------|
-| Kernel Code | `governance/*.py` | Installer hash | NO |
-| Master Prompt | `${COMMANDS_HOME}/master.md` | Installer hash | NO |
-| Core Rules | `${COMMANDS_HOME}/rules.md` | Installer hash | NO |
-| Binding File | `${COMMANDS_HOME}/governance.paths.json` | Installer-owned | NO |
+| Kernel Code | `governance_runtime/*.py` | Installer hash | NO |
+| Master Prompt | `${PROFILES_HOME}/master.md` | Installer hash | NO |
+| Core Rules | `${PROFILES_HOME}/rules.md` | Installer hash | NO |
+| Binding File | `${CONFIG_ROOT}/governance.paths.json` | Installer-owned | NO |
 | Pack Lock | `${WORKSPACE}/pack-lock.json` | Kernel-computed | NO |
 | Activation Hash | `SESSION_STATE.ActivationHash` | Kernel-computed | NO |
-| Schema Registry | `governance/*.json` | Version-locked | NO |
+| Schema Registry | `governance_runtime/**/*.json` | Version-locked | NO |
 | Host Capabilities | Preflight validated | Runtime probed | NO |
 
 **Security Properties:**
@@ -419,7 +419,7 @@ def process_untrusted_input(source: str, data: Any) -> ValidationResult:
 
 **Added:** Phase A.2, Cluster 3
 **Module:** `governance_runtime/infrastructure/artifact_integrity.py`
-**Integration:** `governance/engine/lifecycle.py:stage_engine_activation()`
+**Integration:** `governance_runtime/engine/lifecycle.py:stage_engine_activation()`
 
 ### What It Protects Against
 

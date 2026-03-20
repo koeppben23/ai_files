@@ -49,7 +49,7 @@ Two artifacts persist the binding. Both are installer-owned and installer-writte
 
 ### 2.1 Semantic SSOT — `governance.paths.json`
 
-**Location:** `${COMMANDS_HOME}/governance.paths.json`
+**Location:** `${CONFIG_ROOT}/governance.paths.json`
 
 The `paths.pythonCommand` field holds the bound interpreter as a POSIX-normalized
 absolute path string. This is the authoritative semantic record of the binding.
