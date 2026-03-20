@@ -52,6 +52,16 @@ class PhaseApiSpec:
 
 
 def _resolve_phase_api_path(commands_home: Path, spec_home: Path | None = None) -> Path:
+    """Resolve the authoritative phase_api.yaml path.
+
+    Contract:
+      - specHome/phase_api.yaml is the canonical authority (governance_spec).
+      - When specHome IS configured (even if empty), commands/phase_api.yaml
+        is NOT consulted.  This prevents commands/ from acting as authority.
+      - commands/phase_api.yaml is a legacy fallback ONLY when specHome is
+        completely absent from binding evidence.
+    """
+    has_spec_home = spec_home is not None
     candidates: list[Path] = []
     if spec_home is not None:
         candidates.append(spec_home / "phase_api.yaml")
@@ -63,16 +73,28 @@ def _resolve_phase_api_path(commands_home: Path, spec_home: Path | None = None) 
             paths = payload.get("paths", payload)
             manifest_spec_home = str(paths.get("specHome", "")).strip()
             if manifest_spec_home:
+                has_spec_home = True
                 candidates.append(Path(manifest_spec_home) / "phase_api.yaml")
         except Exception:
             pass
 
-    candidates.append(commands_home / "phase_api.yaml")
-
     for candidate in candidates:
         if candidate.exists():
             return candidate
-    return candidates[0]
+
+    # Legacy fallback: commands/phase_api.yaml — ONLY when specHome is absent
+    if not has_spec_home:
+        legacy = commands_home / "phase_api.yaml"
+        if legacy.exists():
+            return legacy
+
+    if candidates:
+        return candidates[0]
+    if not has_spec_home:
+        return commands_home / "phase_api.yaml"
+    raise PhaseApiSpecError(
+        "phase_api.yaml not found at any authoritative location"
+    )
 
 
 def _phase_rank(token: str) -> tuple[int, str]:
@@ -195,10 +217,17 @@ def _validate_links(entries: Mapping[str, PhaseSpecEntry]) -> None:
 
 
 def _resolve_binding_homes(explicit_commands_home: Path | None) -> tuple[Path, Path | None]:
+    """Resolve (commands_home, spec_home) for phase API loading.
+
+    Contract:
+      - commands/ contains only rails (no phase_api.yaml).
+      - Phase API authority lives at specHome / phase_api.yaml (governance_spec).
+      - Local governance.paths.json adjacent to commands_home has priority over
+        the global binding evidence resolver. This is intentional: explicit
+        runtime overrides and test isolation must take precedence.
+    """
     if explicit_commands_home is not None:
-        # Prefer local governance.paths.json adjacent to commands_home first.
-        # This ensures test isolation and explicit runtime overrides take precedence
-        # over the global binding evidence resolver.
+        # 1) Local governance.paths.json (adjacent to commands_home) — highest priority
         gp = explicit_commands_home.parent / "governance.paths.json"
         if gp.exists():
             try:
@@ -209,7 +238,7 @@ def _resolve_binding_homes(explicit_commands_home: Path | None) -> tuple[Path, P
                     return explicit_commands_home, Path(raw_spec_home)
             except Exception:
                 pass
-        # Fall back to global binding evidence resolver
+        # 2) Global binding evidence resolver — fallback
         try:
             evidence = getattr(BindingEvidenceResolver(), "resolve")(mode="kernel")
             if evidence.binding_ok and evidence.spec_home is not None:

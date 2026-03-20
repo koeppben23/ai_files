@@ -23,20 +23,23 @@ def _kernel_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     cfg = home / ".config" / "opencode"
     commands_home = cfg / "commands"
     workspaces_home = cfg / "workspaces"
+    spec_home = cfg / "governance_spec"
     commands_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
+    spec_home.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
+            "specHome": str(spec_home),
             "pythonCommand": sys.executable,
         },
     }
     (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
 
-    (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
+    (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
 
