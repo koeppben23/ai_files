@@ -35,8 +35,8 @@ Legend:
 
 | Group | Category | Rationale | Action |
 | --- | --- | --- | --- |
-| `governance_content/docs/archived/**` | K3 | Historical docs in live content tree | Move to non-productive archive area or remove |
-| `governance_spec/migrations/archived/**` | K3 | Historical migration docs in live spec tree | Move to non-productive archive area or remove |
+| `historical/governance_content_docs/**` | K3 | Historical docs retained outside live trees | Keep in non-productive historical area only |
+| `historical/governance_spec_migrations/**` | K3 | Historical migration records retained outside live trees | Keep in non-productive historical area only |
 
 ## Marker / Pseudo Structure
 

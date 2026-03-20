@@ -26,7 +26,7 @@ ALLOWED_ARCHIVE_PREFIXES = (
     "migration_notes/",
     "governance_spec/migrations/",
     "tests/fixtures/legacy_examples/",
-    "governance_content/docs/archived/",
+    "historical/",
 )
 
 CANONICAL_DOCS = {

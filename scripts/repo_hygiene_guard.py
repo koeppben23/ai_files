@@ -17,14 +17,7 @@ PRODUCTIVE_ROOTS = (
     "opencode",
 )
 
-ARCHIVE_BASELINE = {
-    "governance_content/docs/archived/README.md",
-    "governance_content/docs/archived/governance-layer-separation-decisions.md",
-    "governance_spec/migrations/archived/README.md",
-    "governance_spec/migrations/archived/R2_Import_Inventory.md",
-    "governance_spec/migrations/archived/R2_Migration_Units.md",
-    "governance_spec/migrations/archived/WAVE_22_MIGRATION_INVENTORY.md",
-}
+ARCHIVE_BASELINE: set[str] = set()
 
 README_BASELINE = {
     "README-OPENCODE.md",
@@ -67,6 +60,11 @@ MARKER_FILE_NAMES = {
     ".keep",
     ".DS_Store",
 }
+
+ARCHIVE_REFERENCE_PATTERNS = (
+    "governance_content/docs/archived/",
+    "governance_spec/migrations/archived/",
+)
 
 DUPLICATE_BASELINE_GROUPS: set[frozenset[str]] = set()
 
@@ -142,6 +140,30 @@ def _scan_archives(repo_root: Path) -> set[str]:
             if "archived" in path.parts and path.is_file():
                 found.add(path.relative_to(repo_root).as_posix())
     return found
+
+
+def _scan_archive_references(repo_root: Path) -> list[str]:
+    offenders: list[str] = []
+    allowed_reference_files = {
+        "scripts/repo_hygiene_guard.py",
+    }
+    for root_name in PRODUCTIVE_ROOTS:
+        root = repo_root / root_name
+        if not root.exists() or not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in {".md", ".py", ".yml", ".yaml", ".json"}:
+                continue
+            rel = path.relative_to(repo_root).as_posix()
+            if rel in allowed_reference_files:
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for pattern in ARCHIVE_REFERENCE_PATTERNS:
+                if pattern in text:
+                    offenders.append(f"{rel} -> {pattern}")
+    return sorted(offenders)
 
 
 def _scan_readme_duplicates(repo_root: Path) -> set[str]:
@@ -223,6 +245,10 @@ def main(argv: list[str]) -> int:
     if missing_archive_baseline:
         for rel in missing_archive_baseline:
             issues.append(f"archive baseline changed (update after eviction): {rel}")
+
+    archive_refs = _scan_archive_references(repo_root)
+    for offender in archive_refs:
+        issues.append(f"archive reference violation: {offender}")
 
     readme_files = _scan_readme_duplicates(repo_root)
     unknown_readmes = sorted(readme_files - README_BASELINE)

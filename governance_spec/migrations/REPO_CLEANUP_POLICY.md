@@ -18,7 +18,7 @@ Keep artifacts with at least one active purpose:
 
 Archive artifacts that keep historical traceability but are no longer operational.
 
-- Archived migration records belong under `governance_spec/migrations/archived/`
+- Archived migration records belong under `historical/governance_spec_migrations/`
 - Archived records must not be used as active policy inputs
 
 ### Delete
@@ -32,10 +32,10 @@ Delete artifacts that have no active value and no archive value:
 ## Active vs Archived Migration Scope
 
 Active migration records remain in `governance_spec/migrations/`.
-Historical migration records move to `governance_spec/migrations/archived/`.
+Historical migration records move to `historical/governance_spec_migrations/`.
 
 Active governance docs remain in `governance_content/docs/`.
-Historical governance docs move to `governance_content/docs/archived/`.
+Historical governance docs move to `historical/governance_content_docs/`.
 
 ## Cleanup Invariants
 
