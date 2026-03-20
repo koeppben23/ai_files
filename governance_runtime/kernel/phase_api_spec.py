@@ -56,11 +56,25 @@ def _resolve_phase_api_path(commands_home: Path, spec_home: Path | None = None) 
     if spec_home is not None:
         candidates.append(spec_home / "phase_api.yaml")
 
+    governance_paths = commands_home.parent / "governance.paths.json"
+    if governance_paths.exists():
+        try:
+            payload = json.loads(governance_paths.read_text(encoding="utf-8"))
+            manifest_spec_home = str(payload.get("specHome", "")).strip()
+            if manifest_spec_home:
+                candidates.append(Path(manifest_spec_home) / "phase_api.yaml")
+        except Exception:
+            pass
+
     repo_root_raw = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
     if repo_root_raw:
         repo_root = Path(repo_root_raw)
         candidates.append(repo_root / "governance_spec" / "phase_api.yaml")
         candidates.append(repo_root / "phase_api.yaml")
+
+    cwd = Path.cwd()
+    candidates.append(cwd / "governance_spec" / "phase_api.yaml")
+    candidates.append(cwd / "phase_api.yaml")
 
     candidates.append(commands_home / "phase_api.yaml")
 
