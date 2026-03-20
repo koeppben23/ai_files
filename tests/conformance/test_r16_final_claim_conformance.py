@@ -119,7 +119,6 @@ class TestR16FinalClaimConformance:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "BOOTSTRAP.md",
             REPO_ROOT / "governance_content" / "README.md",
-            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
             REPO_ROOT / "governance_content" / "QUICKSTART.md",
         ]
 

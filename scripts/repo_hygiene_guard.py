@@ -28,9 +28,7 @@ ARCHIVE_BASELINE = {
 
 README_BASELINE = {
     "README-OPENCODE.md",
-    "governance_content/README-OPENCODE.md",
     "README-RULES.md",
-    "governance_content/README-RULES.md",
 }
 
 INIT_MARKER_BASELINE = {

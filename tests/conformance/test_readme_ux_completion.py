@@ -18,7 +18,6 @@ class TestReadmeUxCompletion:
     def test_governance_content_docs_are_not_shims(self) -> None:
         for rel in [
             "README.md",
-            "governance_content/README-OPENCODE.md",
             "QUICKSTART.md",
         ]:
             content = _read(REPO_ROOT / rel)
@@ -62,7 +61,7 @@ class TestReadmeUxCompletion:
         assert "governance_spec/" in readme
 
     def test_opencode_readme_covers_launcher_and_gates(self) -> None:
-        opencode = _read(REPO_ROOT / "governance_content" / "README-OPENCODE.md")
+        opencode = _read(REPO_ROOT / "README-OPENCODE.md")
         assert "opencode-governance-bootstrap" in opencode
         assert "/continue" in opencode
         assert "/review" in opencode
@@ -86,7 +85,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
         ]
         for path in docs:
             content = _read(path)
@@ -98,7 +96,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
         ]
         for path in docs:
             content = _read(path)
@@ -112,7 +109,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
         ]
         for path in docs:
             content = _read(path)
@@ -125,7 +121,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
         ]
         for path in docs:
             content = _read(path)
@@ -138,7 +133,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
         ]
         contents = {path: _read(path) for path in docs}
         for path, content in contents.items():
@@ -184,7 +178,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README-OPENCODE.md",
             REPO_ROOT / "governance_content" / "docs" / "operator-runbook.md",
         ]
         for path in docs:

@@ -27,8 +27,8 @@ Legend:
 
 | Group | Category | Rationale | Action |
 | --- | --- | --- | --- |
-| `README-OPENCODE.md` + `governance_content/README-OPENCODE.md` | K5 | Competing lifecycle docs | Keep one canonical source and remove/redirect the mirror |
-| `README-RULES.md` + `governance_content/README-RULES.md` | K5 | Root file is stale, content file is shim | Keep exactly one real rules overview |
+| `README-OPENCODE.md` + `governance_content/README-OPENCODE.md` | K5 | Competing lifecycle docs | Canonical: `README-OPENCODE.md`; remove content mirror |
+| `README-RULES.md` + `governance_content/README-RULES.md` | K5 | Root file is canonical summary, content file is shim | Canonical: `README-RULES.md`; remove content mirror |
 | Additional `README*.md` and `QUICKSTART*.md` mirrors | K1/K4 by file | Only one truth per surface | Keep canonical files, delete mirrors |
 
 ## Archive Surfaces
