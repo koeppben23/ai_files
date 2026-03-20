@@ -21,10 +21,10 @@ discovery:
   # Canonical Roots (search order)
   canonical_roots:
     - name: "binding_env"
-      description: "From governance.paths.json binding file via COMMANDS_HOME"
+      description: "From governance.paths.json binding file at CONFIG_ROOT"
       enabled: true
       precedence: 1
-      env_variable: "COMMANDS_HOME"
+      env_variable: "OPENCODE_CONFIG_ROOT"
       required_file: "governance.paths.json"
       fail_closed: true
 

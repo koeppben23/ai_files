@@ -7,14 +7,14 @@
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
       "description": "commands_home is missing, empty, or invalid.",
-      "remediation_hint": "Ensure COMMANDS_HOME is set or binding evidence is valid."
+      "remediation_hint": "Ensure OPENCODE_CONFIG_ROOT is set or binding evidence is valid."
     },
     {
       "code": "BLOCKED-MISSING-BINDING-FILE",
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
       "description": "Installer-owned binding evidence file is missing.",
-      "remediation_hint": "Restore governance.paths.json at canonical commands root and rerun."
+      "remediation_hint": "Restore governance.paths.json at ${CONFIG_ROOT} and rerun."
     },
     {
       "code": "BLOCKED-VARIABLE-RESOLUTION",
@@ -566,21 +566,21 @@
       "code": "BLOCKED-CONTRACT-LAYOUT-DRIFT",
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
-      "description": "Installed file tree does not match install-layout-contract.v_current \u2014 missing artifacts, unexpected files, or wrong ownership.",
+      "description": "Installed file tree does not match install-layout-contract.v_current — missing artifacts, unexpected files, or wrong ownership.",
       "remediation_hint": "Re-run installer to regenerate missing artifacts and restore layout conformance."
     },
     {
       "code": "BLOCKED-CONTRACT-RUNTIME-DRIFT",
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
-      "description": "Runtime state invariants from runtime-state-contract.v1 are violated \u2014 pointer semantics, artifact classification, or backup/purge rules breached.",
+      "description": "Runtime state invariants from runtime-state-contract.v1 are violated — pointer semantics, artifact classification, or backup/purge rules breached.",
       "remediation_hint": "Verify SESSION_STATE.json pointer and workspace integrity, then re-run installer if needed."
     },
     {
       "code": "BLOCKED-CONTRACT-OPENCODE-DRIFT",
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
-      "description": "opencode.json integration invariants from opencode-integration-contract.v1 are violated \u2014 merge ownership, plugin lifecycle, or uninstall guarantees breached.",
+      "description": "opencode.json integration invariants from opencode-integration-contract.v1 are violated — merge ownership, plugin lifecycle, or uninstall guarantees breached.",
       "remediation_hint": "Re-run installer to regenerate opencode.json with correct merge ownership and plugin paths."
     },
     {

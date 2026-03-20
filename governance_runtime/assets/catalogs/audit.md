@@ -186,7 +186,7 @@ Rules:
 If Mode=repo-aware, evaluate configuration validity using existing `master.md` rules:
 
 - Is CONFIG_ROOT set?
-- Are derived paths consistent (COMMANDS_HOME, PROFILES_HOME, WORKSPACES_HOME)?
+- Are derived paths consistent (CONFIG_ROOT, RUNTIME_HOME, PROFILES_HOME, WORKSPACES_HOME)?
 - Any degenerate path detected? (e.g., "C", "C:", "rules.md", "business-rules.md")
 - Any repo-local write attempts recorded?
 

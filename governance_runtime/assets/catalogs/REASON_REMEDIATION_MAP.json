@@ -5,13 +5,13 @@
   "mappings": {
     "BLOCKED-MISSING-COMMANDS-HOME": {
       "summary": "commands_home is missing or invalid",
-      "how_to_fix": "Set COMMANDS_HOME environment variable or repair binding evidence in governance.paths.json.",
-      "copy_paste_command": "export COMMANDS_HOME=/path/to/commands  # Unix; Windows cmd: set COMMANDS_HOME=C:\\path\\to\\commands",
+      "how_to_fix": "Set OPENCODE_CONFIG_ROOT environment variable or repair binding evidence in governance.paths.json.",
+      "copy_paste_command": "export OPENCODE_CONFIG_ROOT=/path/to/config  # Unix; Windows cmd: set OPENCODE_CONFIG_ROOT=C:\\path\\to\\config",
       "docs_link": "docs/installation.md#commands-home"
     },
     "BLOCKED-MISSING-BINDING-FILE": {
       "summary": "Governance binding file not found",
-      "how_to_fix": "Run the governance installer to create ${COMMANDS_HOME}/governance.paths.json. Expected schema: {\"user_home\": \"...\", \"commands_home\": \"...\", \"profiles_home\": \"...\"}",
+      "how_to_fix": "Run the governance installer to create governance.paths.json at ${CONFIG_ROOT}. Expected schema: {\"configRoot\": \"...\", \"specHome\": \"...\", \"commandsHome\": \"...\", \"profilesHome\": \"...\"}.",
       "copy_paste_command": "python install.py",
       "docs_link": "docs/installation.md#binding-file"
     },
@@ -29,7 +29,7 @@
     },
     "BLOCKED-RULEBOOK-EVIDENCE-MISSING": {
       "summary": "Rulebook load evidence missing",
-      "how_to_fix": "Ensure rulebooks are loaded from trusted paths (${COMMANDS_HOME}, ${PROFILES_HOME}) before marking them as loaded in SESSION_STATE.",
+      "how_to_fix": "Ensure rulebooks are loaded from trusted paths (${RUNTIME_HOME}, ${PROFILES_HOME}) before marking them as loaded in SESSION_STATE.",
       "copy_paste_command": null,
       "docs_link": "master.md#rulebook-load-evidence"
     },
@@ -41,7 +41,7 @@
     },
     "BLOCKED-VARIABLE-RESOLUTION": {
       "summary": "Path variable resolution failed",
-      "how_to_fix": "Check that ${USER_HOME}, ${CONFIG_ROOT}, ${COMMANDS_HOME} are correctly resolved. Verify governance.paths.json exists and is valid.",
+      "how_to_fix": "Check that ${USER_HOME}, ${CONFIG_ROOT}, ${RUNTIME_HOME} are correctly resolved. Verify governance.paths.json exists at ${CONFIG_ROOT} and is valid.",
       "copy_paste_command": "opencode-governance-bootstrap",
       "docs_link": "master.md#path-variables"
     },
@@ -77,7 +77,7 @@
     },
     "BLOCKED-MISSING-RULEBOOK": {
       "summary": "Required rulebook not found",
-      "how_to_fix": "Install missing rulebook at ${COMMANDS_HOME}/ or ${PROFILES_HOME}/. Check SESSION_STATE.RulebookLoadEvidence for which file is missing.",
+      "how_to_fix": "Install missing rulebook at ${RUNTIME_HOME} or ${PROFILES_HOME}/. Check SESSION_STATE.RulebookLoadEvidence for which file is missing.",
       "copy_paste_command": null,
       "docs_link": "master.md#rulebook-discovery"
     },

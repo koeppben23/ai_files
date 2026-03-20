@@ -15,7 +15,7 @@
     "BLOCKED-MISSING-COMMANDS-HOME": {
       "primary_command": "opencode-governance-bootstrap",
       "confidence": "review-first",
-      "summary": "Repair commands_home binding or set COMMANDS_HOME environment variable."
+      "summary": "Repair governance.paths.json binding or set OPENCODE_CONFIG_ROOT environment variable."
     },
     "BLOCKED-MISSING-BINDING-FILE": {
       "primary_command": "opencode-governance-bootstrap",

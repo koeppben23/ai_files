@@ -62,7 +62,7 @@ blocked_reasons:
     next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Run install.py to generate binding file"
-      - "Verify governance.paths.json exists in ${COMMANDS_HOME}"
+      - "Verify governance.paths.json exists at ${CONFIG_ROOT}"
     message_template: "Binding file missing. Run install.py."
 
   # Rulebook Errors
@@ -285,7 +285,7 @@ blocked_reasons:
     next_command_pointer: "/continue"
     recovery_steps:
       - "Run installer to restore rulebooks"
-      - "Verify rules.md exists under ${COMMANDS_HOME}"
+      - "Verify rules.md exists under ${RUNTIME_HOME}"
     message_template: "Core rules missing. Run installer repair."
 
   BLOCKED-MISSING-DECISION:
@@ -421,7 +421,7 @@ blocked_reasons:
     reason_code: "BLOCKED-VARIABLE-RESOLUTION"
     surface: "state"
     category: "bootstrap"
-    trigger_description: "Runtime cannot resolve path variables (COMMANDS_HOME, CONFIG_ROOT)"
+    trigger_description: "Runtime cannot resolve path variables (CONFIG_ROOT, RUNTIME_HOME)"
     required_inputs:
       - "Installer repair"
     quick_fix_commands:
@@ -429,7 +429,7 @@ blocked_reasons:
     next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Determine OS-specific config root"
-      - "Verify COMMANDS_HOME exists"
+      - "Verify ${CONFIG_ROOT} and ${RUNTIME_HOME} exist"
       - "Verify master.md and rules.md present"
       - "Rerun installer and the local bootstrap launcher"
     message_template: "Variable resolution failed. Run installer."
