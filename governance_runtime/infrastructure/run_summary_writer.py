@@ -45,10 +45,14 @@ def _default_reason_remediation(reason_code: str) -> dict[str, Any]:
 def _resolve_governance_root(mode: str) -> Path | None:
     resolver = BindingEvidenceResolver()
     evidence = resolver.resolve(mode=mode)
-    if evidence.binding_ok and evidence.commands_home:
-        governance_root = evidence.commands_home.parent / "governance"
+    if evidence.binding_ok and evidence.runtime_home:
+        governance_root = evidence.runtime_home
         if governance_root.exists():
             return governance_root
+    if evidence.binding_ok and evidence.local_root:
+        alt = evidence.local_root / "governance_runtime"
+        if alt.exists():
+            return alt
     return None
 
 

@@ -108,7 +108,7 @@ If no Python interpreter is found, the plugin logs a warning and skips governanc
 
 | Placeholder | Replaced With |
 |-------------|--------------|
-| `{{SESSION_READER_PATH}}` | Absolute path to `${COMMANDS_HOME}/governance_runtime/entrypoints/session_reader.py` |
+| `{{SESSION_READER_PATH}}` | Absolute path to `${LOCAL_ROOT}/governance_runtime/entrypoints/session_reader.py` |
 | `{{PYTHON_COMMAND}}` | Detected Python command (auto-quoted if single-token path with spaces) |
 
 ### 4.2 Injection Targets

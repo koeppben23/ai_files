@@ -22,9 +22,7 @@ import sys
 import tempfile
 from typing import Any, Mapping, cast
 
-_COMMANDS_HOME = str(Path(__file__).parent.parent)
-if _COMMANDS_HOME not in sys.path:
-    sys.path.insert(0, _COMMANDS_HOME)
+
 
 from governance_runtime.entrypoints.command_profiles import render_command_profiles
 from governance_runtime.entrypoints.write_policy import writes_allowed, EFFECTIVE_MODE

@@ -12,9 +12,7 @@ import json
 import sys
 from pathlib import Path
 
-_COMMANDS_HOME = str(Path(__file__).parent.parent)
-if _COMMANDS_HOME not in sys.path:
-    sys.path.insert(0, _COMMANDS_HOME)
+
 
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 

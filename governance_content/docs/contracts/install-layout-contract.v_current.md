@@ -18,13 +18,13 @@ conformance_suite: tests/conformance/test_layout_conformance.py
 
 | Variable | Resolution | Source |
 |----------|-----------|--------|
-| `${CONFIG_ROOT}` | OpenCode config root, runtime-resolved (e.g. `~/.config/opencode`) | `governance/paths/layout.py:ConfigLayout` |
+| `${CONFIG_ROOT}` | OpenCode config root, runtime-resolved (e.g. `~/.config/opencode`) | `governance_runtime/paths/layout.py:ConfigLayout` |
 | `${LOCAL_ROOT}` | OpenCode local payload root (e.g. `~/.local/opencode`) | installer (`OPENCODE_LOCAL_ROOT` override or default) |
-| `${COMMANDS_HOME}` | `${CONFIG_ROOT}/commands` (default from installer binding evidence) | `governance/infrastructure/binding_paths.py` |
+| `${COMMANDS_HOME}` | `${CONFIG_ROOT}/commands` (default from installer binding evidence) | `governance_runtime/infrastructure/binding_paths.py` |
 | `${PROFILES_HOME}` | `${LOCAL_ROOT}/governance_content/profiles` | `governance.paths.json` |
 | `${PLUGINS_HOME}` | `${CONFIG_ROOT}/plugins` | installer (`install.py`) |
-| `${WORKSPACES_HOME}` | `${CONFIG_ROOT}/workspaces` (default from installer binding evidence) | `governance/infrastructure/binding_paths.py` |
-| `${SESSION_STATE_POINTER_FILE}` | `${CONFIG_ROOT}/SESSION_STATE.json` (global pointer) | `governance/infrastructure/workspace_paths.py:global_pointer_path` |
+| `${WORKSPACES_HOME}` | `${CONFIG_ROOT}/workspaces` (default from installer binding evidence) | `governance_runtime/infrastructure/binding_paths.py` |
+| `${SESSION_STATE_POINTER_FILE}` | `${CONFIG_ROOT}/SESSION_STATE.json` (global pointer) | `governance_runtime/infrastructure/workspace_paths.py:global_pointer_path` | |
 
 ### Supported Exception Sources
 

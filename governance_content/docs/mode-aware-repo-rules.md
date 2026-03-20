@@ -60,5 +60,5 @@ Runs emit deterministic artifacts:
 
 Mode-aware reason codes and payload schemas are defined in:
 
-- `governance/reason_codes.registry.json`
-- `governance/schemas/reason_payload_*.v1.json`
+- `governance_runtime/reason_codes.registry.json`
+- `governance_runtime/schemas/reason_payload_*.v1.json`

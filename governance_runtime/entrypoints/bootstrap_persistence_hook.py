@@ -43,7 +43,7 @@ def _writes_allowed() -> bool:
     return writes_allowed()
 
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
-_FALLBACK_COMMANDS_HOME = SCRIPT_DIR.parent.parent  # grandparent = commands root (parent of governance)
+_FALLBACK_COMMANDS_HOME = Path.home() / ".config" / "opencode" / "commands"
 
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
