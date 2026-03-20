@@ -17,9 +17,9 @@ def test_with_kernel_result_writes_session_state_kernel_block() -> None:
         next_gate_condition="Proceed",
         status="OK",
         spec_hash="deadbeef",
-        spec_path="/mock/commands/phase_api.yaml",
+        spec_path="/mock/specHome/phase_api.yaml",
         spec_loaded_at="2026-02-24T19:00:00+00:00",
-        log_paths={"phase_flow": "/mock/commands/logs/flow.log.jsonl"},
+        log_paths={"phase_flow": "/mock/logs/flow.log.jsonl"},
         event_id="evt-1",
     )
     state = updated["SESSION_STATE"]
@@ -28,7 +28,7 @@ def test_with_kernel_result_writes_session_state_kernel_block() -> None:
     assert state["Next"] == "3B-1"
     assert state["next"] == "3B-1"
     assert state["status"] == "OK"
-    assert state["log_paths"] == {"phase_flow": "/mock/commands/logs/flow.log.jsonl"}
+    assert state["log_paths"] == {"phase_flow": "/mock/logs/flow.log.jsonl"}
     kernel = state["Kernel"]
     assert isinstance(kernel, dict)
     assert kernel["PhaseApiSha256"] == "deadbeef"
@@ -52,7 +52,7 @@ def test_with_kernel_result_clamps_phase5_iteration_to_max() -> None:
         next_gate_condition="Continue",
         status="OK",
         spec_hash="deadbeef",
-        spec_path="/mock/commands/phase_api.yaml",
+        spec_path="/mock/specHome/phase_api.yaml",
         spec_loaded_at="2026-02-24T19:00:00+00:00",
         log_paths={},
         event_id="evt-2",
@@ -81,7 +81,7 @@ def test_with_kernel_result_clamps_implementation_iteration_to_max() -> None:
         next_gate_condition="Continue",
         status="OK",
         spec_hash="deadbeef",
-        spec_path="/mock/commands/phase_api.yaml",
+        spec_path="/mock/specHome/phase_api.yaml",
         spec_loaded_at="2026-02-24T19:00:00+00:00",
         log_paths={},
         event_id="evt-3",
@@ -103,7 +103,7 @@ def test_with_kernel_result_writes_plan_record_gate_materialization_fields() -> 
         next_gate_condition="Continue self-review loop",
         status="OK",
         spec_hash="deadbeef",
-        spec_path="/mock/commands/phase_api.yaml",
+        spec_path="/mock/specHome/phase_api.yaml",
         spec_loaded_at="2026-02-24T19:00:00+00:00",
         log_paths={},
         event_id="evt-4",
@@ -127,7 +127,7 @@ def test_with_kernel_result_writes_operating_mode_and_verify_policy_fields() -> 
         next_gate_condition="Continue self-review loop",
         status="OK",
         spec_hash="deadbeef",
-        spec_path="/mock/commands/phase_api.yaml",
+        spec_path="/mock/specHome/phase_api.yaml",
         spec_loaded_at="2026-02-24T19:00:00+00:00",
         log_paths={},
         event_id="evt-5",
