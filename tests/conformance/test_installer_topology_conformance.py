@@ -48,9 +48,9 @@ class TestInstallerTopologyConformance:
         md_files = list(commands_dir.glob("*.md"))
         assert len(md_files) == 8, f"Expected 8 Rails, found {len(md_files)}"
 
-    def test_opencode_plugins_surface_exists(self):
-        """Happy: opencode/plugins/ exists."""
-        assert (REPO_ROOT / "opencode" / "plugins").is_dir(), "opencode/plugins/ must exist"
+    def test_opencode_plugins_surface_not_present(self):
+        """Happy: opencode/plugins/ pseudo-structure does not exist."""
+        assert not (REPO_ROOT / "opencode" / "plugins").exists(), "opencode/plugins/ must not exist"
 
     def test_governance_content_structure_complete(self):
         """Happy: governance_content/ contains docs/, profiles/, templates/."""

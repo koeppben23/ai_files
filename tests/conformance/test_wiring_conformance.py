@@ -144,7 +144,6 @@ class TestInstallerToFiles:
     COMMAND_SOURCES = [
         "governance_content/reference/master.md",  # was: governance_content/master.md
         "governance_content/reference/rules.md",    # was: governance_content/rules.md
-        "governance_content/docs/review.md",         # was: review.md (command content)
         "opencode/commands/continue.md",             # was: continue.md
         "opencode/commands/plan.md",                # was: plan.md
         "opencode/commands/ticket.md",              # was: ticket.md
@@ -644,9 +643,10 @@ class TestNoRoguePaths:
         "governance_content",
         "governance_runtime",
         "governance_spec",
-        "governance",
+        "historical",
         "logs",
         "opencode",
+        "dist",
         "schemas",
         "docs",
         "rulesets",
@@ -787,15 +787,15 @@ class TestBindingPathWiring:
 
     def test_happy_binding_paths_module_exists(self):
         """Happy: binding_paths.py module exists."""
-        assert (REPO_ROOT / "governance" / "infrastructure" / "binding_paths.py").is_file()
+        assert (REPO_ROOT / "governance_runtime" / "infrastructure" / "binding_paths.py").is_file()
 
     def test_happy_path_contract_module_exists(self):
         """Happy: path_contract.py module exists (canonical_config_root SSOT)."""
-        assert (REPO_ROOT / "governance" / "infrastructure" / "path_contract.py").is_file()
+        assert (REPO_ROOT / "governance_runtime" / "infrastructure" / "path_contract.py").is_file()
 
     def test_happy_binding_evidence_resolver_exists(self):
         """Happy: binding_evidence_resolver.py exists."""
-        assert (REPO_ROOT / "governance" / "infrastructure" / "binding_evidence_resolver.py").is_file()
+        assert (REPO_ROOT / "governance_runtime" / "infrastructure" / "binding_evidence_resolver.py").is_file()
 
     def test_happy_supported_binding_schemas(self):
         """Happy: binding_paths supports the expected schema versions."""

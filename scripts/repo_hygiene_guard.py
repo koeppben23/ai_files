@@ -25,34 +25,12 @@ README_BASELINE = {
 }
 
 INIT_MARKER_BASELINE = {
-    "governance_content/reference/__init__.py",
-    "governance_runtime/assets/__init__.py",
-    "governance_runtime/assets/catalogs/__init__.py",
-    "governance_runtime/assets/config/__init__.py",
-    "governance_runtime/assets/reasons/__init__.py",
-    "governance_runtime/assets/schemas/__init__.py",
-    "governance_runtime/bin/__init__.py",
     "governance_runtime/entrypoints/__init__.py",
-    "governance_runtime/entrypoints/errors/__init__.py",
-    "governance_runtime/entrypoints/io/__init__.py",
-    "governance_runtime/install/__init__.py",
-    "governance_runtime/scripts/__init__.py",
-    "governance_runtime/session_state/__init__.py",
-    "governance_spec/config/__init__.py",
-    "governance_spec/contracts/__init__.py",
-    "governance_spec/schemas/__init__.py",
-    "opencode/__init__.py",
-    "opencode/commands/__init__.py",
-    "opencode/config/__init__.py",
-    "opencode/plugins/__init__.py",
     "tests/__init__.py",
     "tests/conformance/__init__.py",
 }
 
-PSEUDO_EMPTY_DIR_BASELINE = {
-    "opencode/config",
-    "opencode/plugins",
-}
+PSEUDO_EMPTY_DIR_BASELINE: set[str] = set()
 
 MARKER_FILE_NAMES = {
     "__init__.py",

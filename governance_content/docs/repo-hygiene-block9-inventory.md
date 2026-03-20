@@ -42,35 +42,20 @@ Legend:
 
 | Group | Category | Rationale | Action |
 | --- | --- | --- | --- |
-| `opencode/config/` (marker-only) | K4 | Pseudo-structure without implementation | Remove directory and references |
-| `opencode/plugins/` (marker-only) | K4 | Pseudo-structure without implementation | Remove directory and references |
+| `opencode/config/` (marker-only) | K4 | Pseudo-structure without implementation | Removed |
+| `opencode/plugins/` (marker-only) | K4 | Pseudo-structure without implementation | Removed |
 
-## __init__.py Policy Baseline (to be reduced)
+## __init__.py Policy Baseline
 
-Files below are marker-only today and must be justified or removed in Block 9F:
+Remaining marker-only `__init__.py` files are intentionally retained and justified:
 
-- `governance_content/reference/__init__.py`
-- `governance_runtime/assets/__init__.py`
-- `governance_runtime/assets/catalogs/__init__.py`
-- `governance_runtime/assets/config/__init__.py`
-- `governance_runtime/assets/reasons/__init__.py`
-- `governance_runtime/assets/schemas/__init__.py`
-- `governance_runtime/bin/__init__.py`
 - `governance_runtime/entrypoints/__init__.py`
-- `governance_runtime/entrypoints/errors/__init__.py`
-- `governance_runtime/entrypoints/io/__init__.py`
-- `governance_runtime/install/__init__.py`
-- `governance_runtime/scripts/__init__.py`
-- `governance_runtime/session_state/__init__.py`
-- `governance_spec/config/__init__.py`
-- `governance_spec/contracts/__init__.py`
-- `governance_spec/schemas/__init__.py`
-- `opencode/__init__.py`
-- `opencode/commands/__init__.py`
-- `opencode/config/__init__.py`
-- `opencode/plugins/__init__.py`
 - `tests/__init__.py`
 - `tests/conformance/__init__.py`
+
+Justification:
+- `governance_runtime/entrypoints/__init__.py`: explicit package anchor for runtime entrypoint import stability and conformance checks.
+- `tests/__init__.py` and `tests/conformance/__init__.py`: explicit test-package anchors used by the test runner/import layout.
 
 ## Guard Scope Introduced in Commit 1
 

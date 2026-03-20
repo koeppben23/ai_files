@@ -89,7 +89,6 @@ class TestInstalledTreeShape:
     EXPECTED_SOURCE_FILES = [
         "governance_content/reference/master.md",  # was: master.md
         "governance_content/reference/rules.md",    # was: rules.md
-        "governance_content/docs/review.md",       # was: review.md
         "governance_spec/phase_api.yaml",         # was: phase_api.yaml
         "opencode/commands/continue.md",         # was: continue.md at root
         "opencode/commands/review-decision.md",   # was: review-decision.md at root
@@ -430,13 +429,13 @@ class TestGovernanceLayerSeparation:
         """Happy: opencode/commands/ directory exists."""
         assert (REPO_ROOT / "opencode" / "commands").is_dir()
 
-    def test_opencode_plugins_directory_exists(self):
-        """Happy: opencode/plugins/ directory exists."""
-        assert (REPO_ROOT / "opencode" / "plugins").is_dir()
+    def test_opencode_plugins_directory_not_present(self):
+        """Happy: opencode/plugins/ pseudo-structure is removed."""
+        assert not (REPO_ROOT / "opencode" / "plugins").exists()
 
-    def test_opencode_config_directory_exists(self):
-        """Happy: opencode/config/ directory exists."""
-        assert (REPO_ROOT / "opencode" / "config").is_dir()
+    def test_opencode_config_directory_not_present(self):
+        """Happy: opencode/config/ pseudo-structure is removed."""
+        assert not (REPO_ROOT / "opencode" / "config").exists()
 
     def test_governance_runtime_directory_exists(self):
         """Happy: governance_runtime/ directory exists."""
