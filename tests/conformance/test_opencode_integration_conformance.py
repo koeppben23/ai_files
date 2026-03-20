@@ -88,9 +88,9 @@ class TestMergeOwnership:
             "ensure_opencode_json function not found in install.py"
 
     def test_happy_canonical_instructions_defined(self):
-        """Happy: OPENCODE_COMMAND_FILES constant is defined in install.py."""
+        """Happy: OPENCODE_INSTRUCTIONS constant is defined in install.py."""
         install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
-        assert "OPENCODE_COMMAND_FILES" in install_src
+        assert "OPENCODE_INSTRUCTIONS" in install_src
 
     def test_happy_canonical_instructions_content(self):
         """Happy: All 8 canonical command paths are present in source."""
@@ -107,14 +107,14 @@ class TestMergeOwnership:
         ]
         missing = [i for i in expected_rails if i not in install_src]
         assert not missing, f"Missing canonical rails in installer source: {missing}"
-        assert "OPENCODE_COMMAND_FILES = [f\"commands/{name}\" for name in CANONICAL_RAIL_FILENAMES]" in install_src
+        assert "OPENCODE_INSTRUCTIONS = [f\"commands/{name}\" for name in CANONICAL_RAIL_FILENAMES]" in install_src
 
     def test_happy_merge_preserves_user_keys(self):
-        """Happy: Source code only modifies 'command_files' and 'plugin' keys."""
+        """Happy: Source code modifies 'instructions' and 'plugin' keys, removes legacy 'command_files'."""
         install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
-        # The merge logic should reference specific keys, not do wholesale replacement
-        assert '"command_files"' in install_src or "'command_files'" in install_src
+        assert '"instructions"' in install_src or "'instructions'" in install_src
         assert '"plugin"' in install_src or "'plugin'" in install_src
+        assert "pop(\"command_files\"" in install_src
 
     def test_corner_corrupt_json_handling_documented(self):
         """Corner: install.py handles corrupt/non-dict JSON gracefully."""

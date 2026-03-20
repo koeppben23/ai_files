@@ -385,16 +385,16 @@ class TestCrossRailConsistency:
 
 
 # ---------------------------------------------------------------------------
-# Install.py integration: OPENCODE_COMMAND_FILES contains canonical commands
+# Install.py integration: OPENCODE_INSTRUCTIONS contains canonical commands
 # ---------------------------------------------------------------------------
 
 
-class TestInstallCommandFilesIntegration:
-    """Verify install.py OPENCODE_COMMAND_FILES array is complete."""
+class TestInstallInstructionsIntegration:
+    """Verify install.py OPENCODE_INSTRUCTIONS array is complete."""
 
     def test_all_canonical_commands_in_install(self) -> None:
-        """OPENCODE_COMMAND_FILES must include all 8 canonical commands."""
-        from install import OPENCODE_COMMAND_FILES
+        """OPENCODE_INSTRUCTIONS must include all 8 canonical commands."""
+        from install import OPENCODE_INSTRUCTIONS
 
         canonical = {
             "commands/continue.md",
@@ -407,25 +407,25 @@ class TestInstallCommandFilesIntegration:
             "commands/audit-readout.md",
         }
         for cmd in canonical:
-            assert cmd in OPENCODE_COMMAND_FILES, (
-                f"OPENCODE_COMMAND_FILES must include {cmd}"
+            assert cmd in OPENCODE_INSTRUCTIONS, (
+                f"OPENCODE_INSTRUCTIONS must include {cmd}"
             )
 
-    def test_command_files_no_duplicates(self) -> None:
-        """OPENCODE_COMMAND_FILES must not contain duplicate entries."""
-        from install import OPENCODE_COMMAND_FILES
+    def test_instructions_no_duplicates(self) -> None:
+        """OPENCODE_INSTRUCTIONS must not contain duplicate entries."""
+        from install import OPENCODE_INSTRUCTIONS
 
-        assert len(OPENCODE_COMMAND_FILES) == len(set(OPENCODE_COMMAND_FILES)), (
-            "OPENCODE_COMMAND_FILES contains duplicate entries"
+        assert len(OPENCODE_INSTRUCTIONS) == len(set(OPENCODE_INSTRUCTIONS)), (
+            "OPENCODE_INSTRUCTIONS contains duplicate entries"
         )
 
-    def test_command_files_all_start_with_commands(self) -> None:
-        """All command paths must start with 'commands/'."""
-        from install import OPENCODE_COMMAND_FILES
+    def test_instructions_all_start_with_commands(self) -> None:
+        """All instruction paths must start with 'commands/'."""
+        from install import OPENCODE_INSTRUCTIONS
 
-        for entry in OPENCODE_COMMAND_FILES:
+        for entry in OPENCODE_INSTRUCTIONS:
             assert entry.startswith("commands/"), (
-                f"Command path '{entry}' must start with 'commands/'"
+                f"Instruction path '{entry}' must start with 'commands/'"
             )
 
 

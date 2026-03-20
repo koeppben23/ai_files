@@ -1744,7 +1744,7 @@ OPENCODE_JSON_NAME = "opencode.json"
 
 # Canonical command markdown files - ONLY these are true slash commands
 # Note: NON-command content (master.md, rules.md, etc.) is NOT installed as command surface
-OPENCODE_COMMAND_FILES = [f"commands/{name}" for name in CANONICAL_RAIL_FILENAMES]
+OPENCODE_INSTRUCTIONS = [f"commands/{name}" for name in CANONICAL_RAIL_FILENAMES]
 OPENCODE_PLUGIN_KEY = "plugin"
 OPENCODE_PLUGIN_RELATIVE = f"{OPENCODE_PLUGINS_DIR_NAME}/audit-new-session.mjs"
 
@@ -1794,7 +1794,7 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
         if not isinstance(current, list):
             current = []
         merged = list(current)
-        for entry in OPENCODE_COMMAND_FILES:
+        for entry in OPENCODE_INSTRUCTIONS:
             if entry not in merged:
                 merged.append(entry)
         existing["instructions"] = merged
@@ -1818,7 +1818,7 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
         return {"status": "merged", "dst": str(target)}
 
     payload = {
-        "instructions": list(OPENCODE_COMMAND_FILES),
+        "instructions": list(OPENCODE_INSTRUCTIONS),
         OPENCODE_PLUGIN_KEY: [plugin_uri],
     }
     if dry_run:
