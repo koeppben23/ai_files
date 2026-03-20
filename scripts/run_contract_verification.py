@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -20,29 +19,24 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo_root = Path(args.repo_root).resolve()
-    run = subprocess.run(
-        [sys.executable, "-m", "governance_runtime.entrypoints.verify_contracts", "--quiet"],
-        cwd=str(repo_root),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    payload: dict[str, object] = {}
-    try:
-        payload = json.loads((run.stdout or "{}").strip() or "{}")
-    except Exception:
-        payload = {}
-    status = str(payload.get("status") or "error").lower()
-    result = {
-        "status": "PASS" if status == "ok" else "FAIL",
-        "merge_allowed": status == "ok",
-        "merge_reason": str(payload.get("merge_reason") or payload.get("message") or "verification failed"),
-        "matrix": {
-            "overall_status": str(payload.get("overall_status") or ("PASS" if status == "ok" else "FAIL")),
+    from governance_runtime.verification.runner import run_contract_verification
+
+    payload = run_contract_verification(repo_root=repo_root, python_bin=sys.executable)
+    status = str(payload.get("status") or "FAIL").strip().lower()
+    is_pass = status in {"ok", "pass"}
+    matrix = payload.get("matrix")
+    if not isinstance(matrix, dict):
+        matrix = {
+            "overall_status": "FAIL",
             "completion_matrix": [],
             "release_blocking_requirements_failed": [],
             "release_blocking_requirements_unverified": [],
-        },
+        }
+    result = {
+        "status": "PASS" if is_pass else "FAIL",
+        "merge_allowed": is_pass,
+        "merge_reason": str(payload.get("merge_reason") or payload.get("message") or "verification failed"),
+        "matrix": matrix,
     }
 
     out_path = Path(args.out)
