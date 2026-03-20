@@ -43,7 +43,22 @@ FORBIDDEN_DIST_TOKENS = (
     "historical/",
     "governance_content/governance/assets/catalogs/audit.md",
     "governance_runtime/assets/reasons/blocked_reason_catalog.yaml",
+    "governance_runtime/bin/opencode-governance-bootstrap",
+    "governance_runtime/bin/opencode-governance-bootstrap.cmd",
 )
+
+
+def _is_marker_init_text(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return True
+    if stripped in {"__all__ = []", "__all__=[]"}:
+        return True
+    if stripped.startswith("#") and "\n" not in stripped:
+        return True
+    if stripped in {'"""Package marker."""', '"""Namespace package marker."""'}:
+        return True
+    return False
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -107,6 +122,10 @@ def _check_install_surface(repo_root: Path, *, python_cmd: str) -> list[str]:
 
         for file_path in _iter_files(config_root) + _iter_files(local_root):
             rel = file_path.relative_to(tmp_root).as_posix()
+            if file_path.name == "__init__.py":
+                text = file_path.read_text(encoding="utf-8", errors="replace")
+                if _is_marker_init_text(text):
+                    issues.append(f"install surface contains marker-only __init__.py: {rel}")
             for token in FORBIDDEN_INSTALL_TOKENS:
                 if token in rel:
                     issues.append(f"install surface contains forbidden path token '{token}': {rel}")
@@ -135,11 +154,38 @@ def _scan_zip(path: Path) -> list[str]:
     return names
 
 
+def _scan_zip_marker_inits(path: Path) -> list[str]:
+    offenders: list[str] = []
+    with zipfile.ZipFile(path, "r") as zf:
+        for name in zf.namelist():
+            if not name.endswith("/__init__.py"):
+                continue
+            text = zf.read(name).decode("utf-8", errors="replace")
+            if _is_marker_init_text(text):
+                offenders.append(name)
+    return offenders
+
+
 def _scan_tgz(path: Path) -> list[str]:
     names: list[str] = []
     with tarfile.open(path, "r:gz") as tf:
         names = [member.name for member in tf.getmembers() if member.isfile()]
     return names
+
+
+def _scan_tgz_marker_inits(path: Path) -> list[str]:
+    offenders: list[str] = []
+    with tarfile.open(path, "r:gz") as tf:
+        for member in tf.getmembers():
+            if not member.isfile() or not member.name.endswith("/__init__.py"):
+                continue
+            extracted = tf.extractfile(member)
+            if extracted is None:
+                continue
+            text = extracted.read().decode("utf-8", errors="replace")
+            if _is_marker_init_text(text):
+                offenders.append(member.name)
+    return offenders
 
 
 def _check_dist_surface(repo_root: Path, *, python_cmd: str) -> list[str]:
@@ -159,12 +205,16 @@ def _check_dist_surface(repo_root: Path, *, python_cmd: str) -> list[str]:
         for archive in archives:
             if archive.suffix == ".zip":
                 names = _scan_zip(archive)
+                marker_inits = _scan_zip_marker_inits(archive)
             else:
                 names = _scan_tgz(archive)
+                marker_inits = _scan_tgz_marker_inits(archive)
             for name in names:
                 for token in FORBIDDEN_DIST_TOKENS:
                     if token in name:
                         issues.append(f"artifact {archive.name} contains forbidden path '{name}'")
+            for name in marker_inits:
+                issues.append(f"artifact {archive.name} contains marker-only __init__.py: {name}")
     finally:
         if tmp_out.exists():
             shutil.rmtree(tmp_out)

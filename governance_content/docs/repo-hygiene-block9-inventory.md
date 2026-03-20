@@ -49,12 +49,10 @@ Legend:
 
 Remaining marker-only `__init__.py` files are intentionally retained and justified:
 
-- `governance_runtime/entrypoints/__init__.py`
 - `tests/__init__.py`
 - `tests/conformance/__init__.py`
 
 Justification:
-- `governance_runtime/entrypoints/__init__.py`: explicit package anchor for runtime entrypoint import stability and conformance checks.
 - `tests/__init__.py` and `tests/conformance/__init__.py`: explicit test-package anchors used by the test runner/import layout.
 
 ## Guard Scope Introduced in Commit 1

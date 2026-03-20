@@ -25,7 +25,6 @@ README_BASELINE = {
 }
 
 INIT_MARKER_BASELINE = {
-    "governance_runtime/entrypoints/__init__.py",
     "tests/__init__.py",
     "tests/conformance/__init__.py",
 }
