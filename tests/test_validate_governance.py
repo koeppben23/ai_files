@@ -263,7 +263,7 @@ def test_lint_passes_valid_rulebook(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 @pytest.mark.governance
 def test_blocked_consistency_schema_vs_catalog():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
-    catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
+    catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "config" / "blocked_reason_catalog.yaml")
 
     s = set(re.findall(r"BLOCKED-[A-Z0-9-]+", schema))
     c = set(re.findall(r"BLOCKED-[A-Z0-9-]+", catalog))
@@ -288,24 +288,15 @@ def _blocked_entry_block(catalog_text: str, code: str) -> str:
 
 
 @pytest.mark.governance
-def test_blocked_catalogs_have_exact_same_blocked_code_set():
-    reasons_catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
+def test_blocked_catalog_contains_codes():
     config_catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "config" / "blocked_reason_catalog.yaml")
-
-    reasons_codes = _blocked_codes_from_catalog_text(reasons_catalog)
     config_codes = _blocked_codes_from_catalog_text(config_catalog)
-    assert reasons_codes == config_codes, (
-        "blocked catalog code sets diverge: "
-        f"missing_in_reasons={sorted(config_codes - reasons_codes)}, "
-        f"missing_in_config={sorted(reasons_codes - config_codes)}"
-    )
+    assert config_codes, "blocked_reason_catalog.yaml must contain BLOCKED-* codes"
 
 
 @pytest.mark.governance
-def test_both_blocked_catalogs_cover_catalog_governed_domain_and_registry_blocked_codes():
-    reasons_catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
+def test_blocked_catalog_covers_catalog_governed_domain_and_registry_blocked_codes():
     config_catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "config" / "blocked_reason_catalog.yaml")
-    reasons_codes = _blocked_codes_from_catalog_text(reasons_catalog)
     config_codes = _blocked_codes_from_catalog_text(config_catalog)
 
     schema_text = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
@@ -327,26 +318,20 @@ def test_both_blocked_catalogs_cover_catalog_governed_domain_and_registry_blocke
     assert not missing_in_domain, f"catalog-governed BLOCKED codes missing in domain reason codes: {missing_in_domain}"
     assert not missing_in_registry, f"catalog-governed BLOCKED codes missing in registry: {missing_in_registry}"
 
-    missing_in_reasons = sorted(catalog_governed_expected - reasons_codes)
     missing_in_config = sorted(catalog_governed_expected - config_codes)
-    assert not missing_in_reasons, f"catalog-governed BLOCKED codes missing in assets/reasons catalog: {missing_in_reasons}"
     assert not missing_in_config, f"catalog-governed BLOCKED codes missing in assets/config catalog: {missing_in_config}"
 
 
 @pytest.mark.governance
-def test_blocked_catalog_entries_match_semantic_fields_between_catalogs():
-    reasons_catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
+def test_blocked_catalog_entries_have_required_semantic_fields():
     config_catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "config" / "blocked_reason_catalog.yaml")
-    shared_codes = _blocked_codes_from_catalog_text(reasons_catalog) & _blocked_codes_from_catalog_text(config_catalog)
-
-    mismatches: list[str] = []
-    for code in sorted(shared_codes):
-        reasons_block = _blocked_entry_block(reasons_catalog, code).replace("\r\n", "\n")
-        config_block = _blocked_entry_block(config_catalog, code).replace("\r\n", "\n")
-        if reasons_block != config_block:
-            mismatches.append(code)
-
-    assert not mismatches, f"blocked catalog semantic drift detected for codes: {mismatches}"
+    codes = _blocked_codes_from_catalog_text(config_catalog)
+    missing_fields: list[str] = []
+    for code in sorted(codes):
+        block = _blocked_entry_block(config_catalog, code)
+        if "description:" not in block:
+            missing_fields.append(code)
+    assert not missing_fields, f"blocked catalog entries missing required semantic fields: {missing_fields}"
 
 
 @pytest.mark.governance

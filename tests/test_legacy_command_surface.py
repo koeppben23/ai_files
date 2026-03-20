@@ -20,7 +20,6 @@ class TestLegacyCommandSurfaceMigration:
     """Guard active surfaces against /resume and /audit legacy drift."""
 
     _ACTIVE_SURFACES = [
-        "governance_runtime/assets/reasons/blocked_reason_catalog.yaml",
         "governance_runtime/assets/config/blocked_reason_catalog.yaml",
         "governance_runtime/assets/catalogs/reason_codes.registry.json",
         "SESSION_STATE_SCHEMA.md",
@@ -34,7 +33,6 @@ class TestLegacyCommandSurfaceMigration:
 
     def test_happy_reason_catalogs_use_continue(self) -> None:
         files = [
-            "governance_runtime/assets/reasons/blocked_reason_catalog.yaml",
             "governance_runtime/assets/config/blocked_reason_catalog.yaml",
             "governance_runtime/assets/catalogs/reason_codes.registry.json",
         ]
@@ -96,7 +94,6 @@ class TestLegacyCommandSurfaceMigration:
 
     def test_bad_blocked_catalogs_must_not_use_raw_entrypoint_quick_fixes(self) -> None:
         for relpath in [
-            "governance_runtime/assets/reasons/blocked_reason_catalog.yaml",
             "governance_runtime/assets/config/blocked_reason_catalog.yaml",
         ]:
             content = _read(relpath)
@@ -105,7 +102,6 @@ class TestLegacyCommandSurfaceMigration:
 
     def test_bad_blocked_catalogs_must_not_use_resume_pointer_key(self) -> None:
         for relpath in [
-            "governance_runtime/assets/reasons/blocked_reason_catalog.yaml",
             "governance_runtime/assets/config/blocked_reason_catalog.yaml",
         ]:
             content = _read(relpath)

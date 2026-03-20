@@ -308,7 +308,6 @@ class TestO3ActiveCatalogGuards:
     """Ensure active governance catalogs do not regress to legacy command wording."""
 
     _ACTIVE_CATALOGS = [
-        "governance_runtime/assets/reasons/blocked_reason_catalog.yaml",
         "governance_runtime/assets/config/blocked_reason_catalog.yaml",
         "governance_runtime/assets/catalogs/reason_codes.registry.json",
         "SESSION_STATE_SCHEMA.md",

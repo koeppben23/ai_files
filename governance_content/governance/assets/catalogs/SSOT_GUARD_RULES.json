@@ -33,7 +33,7 @@
     },
     {
       "id": "blocked_reason_catalog",
-      "source": "governance_runtime/assets/reasons/blocked_reason_catalog.yaml",
+      "source": "governance_runtime/assets/config/blocked_reason_catalog.yaml",
       "owner": "kernel",
       "md_references": ["master.md"],
       "severity": "high",

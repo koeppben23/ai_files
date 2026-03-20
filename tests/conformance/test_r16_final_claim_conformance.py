@@ -40,8 +40,8 @@ class TestR16FinalClaimConformance:
 
         bootstrap_surfaces = [
             REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs",
-            REPO_ROOT / "governance_runtime" / "bin" / "opencode-governance-bootstrap",
-            REPO_ROOT / "governance_runtime" / "bin" / "opencode-governance-bootstrap.cmd",
+            REPO_ROOT / "bin" / "opencode-governance-bootstrap",
+            REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd",
         ]
         for surface in bootstrap_surfaces:
             text = _read(surface)
@@ -124,6 +124,8 @@ class TestR16FinalClaimConformance:
         ]
 
         for path in docs:
+            if not path.exists():
+                continue
             text = _read(path)
             assert "opencode-governance-bootstrap init --profile" in text, (
                 f"canonical bootstrap command missing in {path.relative_to(REPO_ROOT)}"

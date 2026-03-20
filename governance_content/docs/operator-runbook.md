@@ -153,7 +153,7 @@ Python SSOT (`governance_runtime/domain/reason_codes.py`).
 Data sources merged below:
 - **Registry:** `governance_runtime/assets/catalogs/reason_codes.registry.json` (59 entries)
 - **Remediation map:** `governance_runtime/assets/catalogs/REASON_REMEDIATION_MAP.json` (21 entries)
-- **YAML catalog:** `governance_runtime/assets/reasons/blocked_reason_catalog.yaml` (25 entries)
+- **YAML catalog:** `governance_runtime/assets/config/blocked_reason_catalog.yaml` (25 entries)
 
 ### 4.1 Bootstrap and Session State
 
@@ -323,7 +323,7 @@ is a product decision, not a defect.
 | Reason code constants | `governance_runtime/domain/reason_codes.py` |
 | Reason code registry | `governance_runtime/assets/catalogs/reason_codes.registry.json` |
 | Remediation map | `governance_runtime/assets/catalogs/REASON_REMEDIATION_MAP.json` |
-| Blocked reason catalog | `governance_runtime/assets/reasons/blocked_reason_catalog.yaml` |
+| Blocked reason catalog | `governance_runtime/assets/config/blocked_reason_catalog.yaml` |
 | Embedded reason registry | `governance_runtime/engine/_embedded_reason_registry.py` |
 
 ### Operator Scripts

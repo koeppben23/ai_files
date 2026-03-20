@@ -32,8 +32,6 @@ _POLICY_FILES = (
 
 
 def _policy_relpath(filename: str) -> Path:
-    if filename == "blocked_reason_catalog.yaml":
-        return Path("governance_runtime/assets/reasons") / filename
     return Path("governance_runtime/assets/config") / filename
 
 

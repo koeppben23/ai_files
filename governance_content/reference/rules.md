@@ -12,7 +12,7 @@ Routing semantics are in `master.md`; runtime behavior is kernel/schema-owned.
 | Routing / validation / transitions | `${COMMANDS_HOME}/phase_api.yaml` and `governance_runtime/kernel/*` |
 | Session-state shape and invariants | `SESSION_STATE_SCHEMA.md` and `governance_runtime/assets/schemas/*` |
 | Response envelope and presentation | `governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` |
-| Blocked reason catalog | `governance_runtime/assets/reasons/blocked_reason_catalog.yaml` |
+| Blocked reason catalog | `governance_runtime/assets/config/blocked_reason_catalog.yaml` |
 | Persistence artifact contracts | `governance_runtime/assets/config/persistence_artifacts.yaml` |
 
 </authority>

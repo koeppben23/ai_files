@@ -70,16 +70,7 @@ MARKER_FILE_NAMES = {
     ".DS_Store",
 }
 
-DUPLICATE_BASELINE_GROUPS = {
-    frozenset({"bin/opencode-governance-bootstrap", "governance_runtime/bin/opencode-governance-bootstrap"}),
-    frozenset({"bin/opencode-governance-bootstrap.cmd", "governance_runtime/bin/opencode-governance-bootstrap.cmd"}),
-    frozenset({"cli/deps.py", "governance_runtime/cli/deps.py"}),
-    frozenset({"session_state/schema.py", "governance_runtime/session_state/schema.py"}),
-    frozenset({"session_state/serde.py", "governance_runtime/session_state/serde.py"}),
-    frozenset({"session_state/transitions.py", "governance_runtime/session_state/transitions.py"}),
-    frozenset({"governance_content/governance/assets/catalogs/audit.md", "governance_runtime/assets/catalogs/audit.md"}),
-    frozenset({"governance_runtime/assets/config/blocked_reason_catalog.yaml", "governance_runtime/assets/reasons/blocked_reason_catalog.yaml"}),
-}
+DUPLICATE_BASELINE_GROUPS: set[frozenset[str]] = set()
 
 SKIP_DIRS = {
     ".git",

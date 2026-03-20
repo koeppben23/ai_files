@@ -15,7 +15,7 @@ authority_index:
   - area: Response envelope and presentation shape
     source: governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json
   - area: Blocked reason catalog
-    source: governance_runtime/assets/reasons/blocked_reason_catalog.yaml
+    source: governance_runtime/assets/config/blocked_reason_catalog.yaml
   - area: Persistence artifacts and targets
     source: governance_runtime/assets/config/persistence_artifacts.yaml
   - area: Build verification and evidence rules

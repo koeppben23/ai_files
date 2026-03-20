@@ -21,7 +21,7 @@ Phase `1.3` is mandatory before every phase `>=2`.
 | Routing, transitions, validation | `${COMMANDS_HOME}/phase_api.yaml`, `governance_runtime/kernel/*` |
 | Session-state shape and invariants | `SESSION_STATE_SCHEMA.md`, `governance_runtime/assets/schemas/*` |
 | Response envelope and renderer behavior | `governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` |
-| Blocked reason catalog | `governance_runtime/assets/reasons/blocked_reason_catalog.yaml` |
+| Blocked reason catalog | `governance_runtime/assets/config/blocked_reason_catalog.yaml` |
 | Path and persistence invariants | `governance_runtime/engine/session_state_invariants.py` |
 
 </authority>

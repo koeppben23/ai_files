@@ -13,14 +13,14 @@ Legend:
 
 | Group | Category | Rationale | Action |
 | --- | --- | --- | --- |
-| `bin/opencode-governance-bootstrap` + `governance_runtime/bin/opencode-governance-bootstrap` | K5 | Byte-identical launcher duplicates | Keep one canonical implementation, convert/remove the other |
-| `bin/opencode-governance-bootstrap.cmd` + `governance_runtime/bin/opencode-governance-bootstrap.cmd` | K5 | Byte-identical launcher duplicates | Keep one canonical implementation, convert/remove the other |
-| `cli/deps.py` + `governance_runtime/cli/deps.py` | K5 | Duplicate implementation | Canonicalize runtime implementation; root becomes thin wrapper or is removed |
-| `session_state/schema.py` + `governance_runtime/session_state/schema.py` | K5 | Duplicate implementation | Canonicalize runtime implementation; root alias/shim removed |
-| `session_state/serde.py` + `governance_runtime/session_state/serde.py` | K5 | Duplicate implementation | Canonicalize runtime implementation; root alias/shim removed |
-| `session_state/transitions.py` + `governance_runtime/session_state/transitions.py` | K5 | Duplicate implementation | Canonicalize runtime implementation; root alias/shim removed |
-| `governance_content/governance/assets/catalogs/audit.md` + `governance_runtime/assets/catalogs/audit.md` | K5 | Duplicate payload authority | Keep one canonical catalog location and repoint all loaders/tests |
-| `governance_runtime/assets/config/blocked_reason_catalog.yaml` + `governance_runtime/assets/reasons/blocked_reason_catalog.yaml` | K5 | Duplicate reason catalog authority | Keep one canonical reason catalog location and repoint all loaders/tests |
+| `bin/opencode-governance-bootstrap` + `governance_runtime/bin/opencode-governance-bootstrap` | K5 | Byte-identical launcher duplicates | Canonical: `bin/*`; remove runtime duplicate |
+| `bin/opencode-governance-bootstrap.cmd` + `governance_runtime/bin/opencode-governance-bootstrap.cmd` | K5 | Byte-identical launcher duplicates | Canonical: `bin/*`; remove runtime duplicate |
+| `cli/deps.py` + `governance_runtime/cli/deps.py` | K5 | Duplicate implementation | Canonical: `governance_runtime/cli/deps.py`; remove root duplicate |
+| `session_state/schema.py` + `governance_runtime/session_state/schema.py` | K5 | Duplicate implementation | Canonical: `governance_runtime/session_state/schema.py`; remove root duplicate |
+| `session_state/serde.py` + `governance_runtime/session_state/serde.py` | K5 | Duplicate implementation | Canonical: `governance_runtime/session_state/serde.py`; remove root duplicate |
+| `session_state/transitions.py` + `governance_runtime/session_state/transitions.py` | K5 | Duplicate implementation | Canonical: `governance_runtime/session_state/transitions.py`; remove root duplicate |
+| `governance_content/governance/assets/catalogs/audit.md` + `governance_runtime/assets/catalogs/audit.md` | K5 | Duplicate payload authority | Canonical: `governance_runtime/assets/catalogs/audit.md`; remove content duplicate |
+| `governance_runtime/assets/config/blocked_reason_catalog.yaml` + `governance_runtime/assets/reasons/blocked_reason_catalog.yaml` | K5 | Duplicate reason catalog authority | Canonical: `governance_runtime/assets/config/blocked_reason_catalog.yaml`; remove reasons duplicate |
 | `governance_content/governance/assets/catalogs/SSOT_GUARD_RULES.json` | K5 | Residual nested legacy subtree path in active guard wiring | Move to canonical catalog location and repoint `scripts/ssot_guard.py` |
 
 ## README / Rule Docs
