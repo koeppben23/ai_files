@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 import tempfile
@@ -16,23 +15,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _run(cmd: list[str], cwd: Path, env: dict[str, str] | None = None) -> tuple[int, str, str]:
-    result = subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True, env=env)
+def _run(cmd: list[str], cwd: Path) -> tuple[int, str, str]:
+    result = subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True)
     return result.returncode, result.stdout, result.stderr
-
-
-def _ensure_phase_api_projection(*, repo_root: Path, config_root: Path) -> None:
-    """Project phase_api.yaml into commands home for bootstrap compatibility."""
-    candidates = [
-        repo_root / "governance_spec" / "phase_api.yaml",
-        repo_root / "phase_api.yaml",
-    ]
-    src = next((path for path in candidates if path.exists()), None)
-    dst = config_root / "commands" / "phase_api.yaml"
-    if dst.exists() or src is None:
-        return
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def run_bootstrap_smoke(repo_root: Path, python_cmd: str) -> list[str]:
@@ -59,8 +44,6 @@ def run_bootstrap_smoke(repo_root: Path, python_cmd: str) -> list[str]:
             issues.append(f"install phase failed (code={code})\nstdout:\n{out}\nstderr:\n{err}")
             return issues
 
-        _ensure_phase_api_projection(repo_root=repo_root, config_root=config_root)
-
         bootstrap_cmd = [
             python_cmd,
             "-X",
@@ -74,9 +57,7 @@ def run_bootstrap_smoke(repo_root: Path, python_cmd: str) -> list[str]:
             "--config-root",
             str(config_root),
         ]
-        env = dict(os.environ)
-        env["COMMANDS_HOME"] = str(config_root / "commands")
-        code, out, err = _run(bootstrap_cmd, repo_root, env=env)
+        code, out, err = _run(bootstrap_cmd, repo_root)
         if code != 0:
             issues.append(f"bootstrap phase failed (code={code})\nstdout:\n{out}\nstderr:\n{err}")
 

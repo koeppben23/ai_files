@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -51,9 +52,22 @@ class PhaseApiSpec:
 
 
 def _resolve_phase_api_path(commands_home: Path, spec_home: Path | None = None) -> Path:
+    candidates: list[Path] = []
     if spec_home is not None:
-        return spec_home / "phase_api.yaml"
-    return commands_home / "phase_api.yaml"
+        candidates.append(spec_home / "phase_api.yaml")
+
+    repo_root_raw = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
+    if repo_root_raw:
+        repo_root = Path(repo_root_raw)
+        candidates.append(repo_root / "governance_spec" / "phase_api.yaml")
+        candidates.append(repo_root / "phase_api.yaml")
+
+    candidates.append(commands_home / "phase_api.yaml")
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 def _phase_rank(token: str) -> tuple[int, str]:
@@ -177,6 +191,15 @@ def _validate_links(entries: Mapping[str, PhaseSpecEntry]) -> None:
 
 def _resolve_binding_homes(explicit_commands_home: Path | None) -> tuple[Path, Path | None]:
     if explicit_commands_home is not None:
+        # Keep explicit commands_home for test/runtime override support, but still
+        # prefer specHome from binding evidence when available so phase authority
+        # does not depend on commands/ payload placement.
+        try:
+            evidence = getattr(BindingEvidenceResolver(), "resolve")(mode="kernel")
+            if evidence.binding_ok and evidence.spec_home is not None:
+                return explicit_commands_home, evidence.spec_home
+        except Exception:
+            pass
         return explicit_commands_home, None
     resolver = BindingEvidenceResolver()
     evidence = getattr(resolver, "resolve")(mode="kernel")

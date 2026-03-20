@@ -1189,11 +1189,7 @@ def execute(
         )
 
     try:
-        candidate_phase_api = (commands_home / "phase_api.yaml") if commands_home is not None else None
-        if candidate_phase_api is not None and candidate_phase_api.exists():
-            spec = load_phase_api(commands_home)
-        else:
-            spec = load_phase_api()
+        spec = load_phase_api(commands_home)
     except PhaseApiSpecError as exc:
         log_paths = _resolve_flow_paths(commands_home, workspaces_home, repo_fingerprint)
         phase_api_path = str((commands_home / "phase_api.yaml") if commands_home is not None else "")
@@ -1229,7 +1225,7 @@ def execute(
             phase="1.1-Bootstrap",
             next_token="1.1",
             active_gate="Workspace Ready Gate",
-            next_gate_condition="BLOCKED_PHASE_API_MISSING: phase_api.yaml is required in commands home.",
+            next_gate_condition="BLOCKED_PHASE_API_MISSING: authoritative phase_api.yaml is required in governance_spec.",
             workspace_ready=False,
             source="phase-api-missing",
             status="BLOCKED",
