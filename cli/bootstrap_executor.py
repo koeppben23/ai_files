@@ -8,10 +8,15 @@ import sys
 from datetime import datetime, timezone
 from typing import Optional
 
-from governance.application.use_cases.repo_policy_setup import write_repo_operating_mode_policy
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from governance_runtime.application.use_cases.repo_policy_setup import write_repo_operating_mode_policy
 
 try:
-    from governance.infrastructure.path_contract import normalize_absolute_path
+    from governance_runtime.infrastructure.path_contract import normalize_absolute_path
 except Exception:  # pragma: no cover
     normalize_absolute_path = None  # type: ignore
 
@@ -148,7 +153,7 @@ def main() -> int:
         env["OPENCODE_BOOTSTRAP_OUTPUT"] = "full"
 
     ret = subprocess.run(
-        [sys.executable, "-m", "governance.entrypoints.bootstrap_preflight_readonly"],
+        [sys.executable, "-m", "governance_runtime.entrypoints.bootstrap_preflight_readonly"],
         env=env,
         cwd=str(repo_root),
         text=True,

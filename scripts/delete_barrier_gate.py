@@ -40,6 +40,12 @@ def run_delete_barrier(repo_root: Path, python_cmd: str) -> list[str]:
         local_root = tmp_root / "local"
         _copy_repo(repo_root, cloned)
 
+        git_dir = cloned / ".git"
+        if not git_dir.exists():
+            init = subprocess.run(["git", "init", "-q"], cwd=str(cloned), text=True, capture_output=True)
+            if init.returncode != 0:
+                git_dir.mkdir(parents=True, exist_ok=True)
+
         legacy_dir = cloned / "governance"
         if legacy_dir.exists():
             shutil.rmtree(legacy_dir)

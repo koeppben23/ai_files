@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from governance.addon_catalog import (  # noqa: E402
+from governance_runtime.addon_catalog import (  # noqa: E402
     ALLOWED_CAPABILITIES,
     ALLOWED_CLASSES,
     ALLOWED_SIGNAL_KEYS,

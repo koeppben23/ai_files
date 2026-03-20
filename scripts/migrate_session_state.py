@@ -18,8 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from governance.engine.reason_codes import BLOCKED_STATE_OUTDATED, REASON_CODE_NONE
-from governance.engine.session_state_repository import SessionStateRepository, _canonicalize_for_write
+from governance_runtime.engine.reason_codes import BLOCKED_STATE_OUTDATED, REASON_CODE_NONE
+from governance_runtime.engine.session_state_repository import SessionStateRepository, _canonicalize_for_write
 
 EXIT_OK = 0
 EXIT_BLOCKED = 2

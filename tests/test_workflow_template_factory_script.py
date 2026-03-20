@@ -24,7 +24,7 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
 
 def _write_catalog(repo_root: Path, templates: list[dict[str, str]]) -> None:
     catalog = {
-        "schema": "governance.workflow-template-catalog.v1",
+        "schema": "opencode.workflow-template-catalog.v1",
         "version": "1.0.0",
         "templates": templates,
     }

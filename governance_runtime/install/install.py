@@ -41,28 +41,63 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import Iterable
 
-# Governance API - single source of truth for file classification
-# Installer classification is derived exclusively from governance installer/layer APIs
-from governance import (
-    collect_content,
-    collect_specs,
-    # Dual-read resolvers (Wave 15.2)
-    get_governance_docs_root,
-    get_profiles_root,
-    get_templates_root,
-    get_rulesets_root,
-)
+def get_governance_docs_root(base: Path) -> Path:
+    new_path = base / "governance_content" / "docs"
+    if new_path.exists():
+        return new_path
+    return base / "docs"
+
+
+def get_profiles_root(base: Path) -> Path:
+    new_path = base / "governance_content" / "profiles"
+    if new_path.exists():
+        return new_path
+    return base / "profiles"
+
+
+def get_templates_root(base: Path) -> Path:
+    new_path = base / "governance_content" / "templates"
+    if new_path.exists():
+        return new_path
+    return base / "templates"
+
+
+def get_rulesets_root(base: Path) -> Path:
+    new_path = base / "governance_spec" / "rulesets"
+    if new_path.exists():
+        return new_path
+    return base / "rulesets"
+
+
+def collect_content(base: Path, *, relative: bool) -> list[Path]:
+    root = base / "governance_content"
+    if not root.exists() or not root.is_dir():
+        return []
+    files = sorted(p for p in root.rglob("*") if p.is_file())
+    if relative:
+        return [p.relative_to(base) for p in files]
+    return files
+
+
+def collect_specs(base: Path, *, relative: bool) -> list[Path]:
+    root = base / "governance_spec"
+    if not root.exists() or not root.is_dir():
+        return []
+    files = sorted(p for p in root.rglob("*") if p.is_file())
+    if relative:
+        return [p.relative_to(base) for p in files]
+    return files
 
 
 def _source_master_md(source_dir: Path) -> Path:
-    new_path = source_dir / "governance_content" / "master.md"
+    new_path = source_dir / "governance_content" / "reference" / "master.md"
     if new_path.exists():
         return new_path
     return source_dir / "master.md"
 
 
 def _source_rules_md(source_dir: Path) -> Path:
-    new_path = source_dir / "governance_content" / "rules.md"
+    new_path = source_dir / "governance_content" / "reference" / "rules.md"
     if new_path.exists():
         return new_path
     return source_dir / "rules.md"
@@ -146,7 +181,7 @@ def _ensure_utf8_stdio() -> None:
 _ensure_utf8_stdio()
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-GOVERNANCE_SOURCE_DIR = SCRIPT_DIR / "governance"
+GOVERNANCE_SOURCE_DIR = SCRIPT_DIR.parent
 
 
 def _path_for_json(p: Path) -> str:
@@ -216,7 +251,7 @@ CANONICAL_RAIL_FILENAMES = (
 # Files copied into <config_root>/commands
 # Strategy: copy governance artifacts that are relevant at runtime.
 # Classification now uses Governance API as single source of truth.
-# - Include/Exclude logic moved to governance/installer.py
+# - Include/Exclude logic is local to installer module
 # - Legacy constants kept for uninstall safety net only
 
 # Profiles copied into <local_root>/governance_content/profiles/**
@@ -228,21 +263,21 @@ SCRIPTS_DIR_NAME = "scripts"
 # Workflow templates copied into <config_root>/commands/templates/**
 TEMPLATES_DIR_NAME = "templates"
 TEMPLATE_CATALOG_REL = Path("templates/github-actions/template_catalog.json")
-TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
+TEMPLATE_CATALOG_SCHEMA = "opencode.workflow-template-catalog.v1"
 
 # Optional OpenCode plugins copied into <config_root>/plugins/**
-OPENCODE_PLUGIN_SOURCE_DIR = Path("governance/artifacts/opencode-plugins")
+OPENCODE_PLUGIN_SOURCE_DIR = Path("governance_runtime/artifacts/opencode-plugins")
 OPENCODE_PLUGINS_DIR_NAME = "plugins"
 
 # Customer script catalog controlling which scripts are shipped for customers
-CUSTOMER_SCRIPT_CATALOG_REL = Path("governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
-CUSTOMER_SCRIPT_CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
+CUSTOMER_SCRIPT_CATALOG_REL = Path("governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
+CUSTOMER_SCRIPT_CATALOG_SCHEMA = "opencode.customer-script-catalog.v1"
 
-# Governance compatibility assets copied into <local_root>/governance/assets/**
-GOVERNANCE_ASSETS_DIR_NAME = "governance/assets"
+# Runtime assets copied into <local_root>/governance_runtime/assets/**
+GOVERNANCE_ASSETS_DIR_NAME = "governance_runtime/assets"
 
-# Legacy compatibility package copied into <local_root>/governance/**
-GOVERNANCE_RUNTIME_DIR_NAME = "governance"
+# Runtime package copied into <local_root>/governance_runtime/**
+GOVERNANCE_RUNTIME_DIR_NAME = "governance_runtime"
 
 FORBIDDEN_METADATA_SEGMENTS = {"__MACOSX", "__pycache__", "_backup"}
 FORBIDDEN_METADATA_FILENAMES = {".DS_Store", "Icon\r"}
@@ -337,7 +372,6 @@ def ensure_dirs(config_root: Path, local_root: Path | None = None, dry_run: bool
         local_root / "governance_content" / "profiles",
         local_root / "governance_content" / "profiles" / "addons",
         local_root / "governance_spec",
-        local_root / "governance",
     ]
     for d in dirs:
         if dry_run:
@@ -801,8 +835,8 @@ def build_plan(
 def required_source_files(source_dir: Path) -> list[str]:
     # YAML rulebooks are authoritative; VERSION is required, YAML rulebooks preferred
     # MD files are guidance-only and optional
-    # NOTE: Some downstream/governance test bundles place files under alternative
-    # locations (eg governance/VERSION or governance/rulesets/core/rules.yml).
+    # NOTE: Some downstream test bundles place files under alternative
+    # locations (for example root VERSION and governance_spec/rulesets/core/rules.yml).
     # We keep the explicit list for compatibility, but augment precheck logic to
     # tolerate alternative layouts in case the expected paths are missing in a
     # given bundle. The actual existence checks are performed in precheck_source.
@@ -828,9 +862,9 @@ def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
     """
     missing: list[str] = []
 
-    # Version: allow VERSION at root or governance/VERSION
+    # Version: allow VERSION at root or governance_runtime/VERSION
     version_root = source_dir / "VERSION"
-    version_governance = source_dir / "governance" / "VERSION"
+    version_governance = source_dir / "governance_runtime" / "VERSION"
     has_version = version_root.exists() or version_governance.exists()
     if not has_version:
         missing.append("VERSION")
@@ -839,8 +873,8 @@ def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
     rules_candidates = [
         _source_core_rules_yml(source_dir),
         _source_rules_yml(source_dir),
-        source_dir / "governance" / "rulesets" / "core" / "rules.yml",
-        source_dir / "governance" / "rules.yml",
+        source_dir / "governance_runtime" / "rulesets" / "core" / "rules.yml",
+        source_dir / "governance_runtime" / "rules.yml",
     ]
     has_rules = any(p.exists() for p in rules_candidates)
     if not has_rules:
@@ -944,7 +978,7 @@ def _is_forbidden_installed_path(path: Path, commands_dir: Path) -> bool:
         return True
     if rel.name in FORBIDDEN_METADATA_FILENAMES:
         return True
-    # Logs must never be inside commands/governance/ compatibility leftovers.
+    # Logs must never be inside deprecated command-tree leftovers.
     # The only valid runtime logs location is workspace-scoped:
     #   <config_root>/workspaces/<repo_fingerprint>/logs/
     if len(rel.parts) >= 2 and rel.parts[0] == "governance" and rel.parts[1] == ERROR_LOGS_DIR_NAME:
@@ -1040,7 +1074,7 @@ def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[l
                 except Exception:
                     pass
 
-    governance_logs = local_root / "governance" / ERROR_LOGS_DIR_NAME
+    governance_logs = local_root / "governance_runtime" / ERROR_LOGS_DIR_NAME
     if governance_logs.exists() and governance_logs.is_dir():
         rel = governance_logs.relative_to(local_root).as_posix()
         removed.append(rel)
@@ -1087,7 +1121,7 @@ def collect_content_files(source_dir: Path) -> list[Path]:
     """
     files: list[Path] = []
     
-    # Get content from governance API
+    # Get content from canonical content tree
     for content in collect_content(source_dir, relative=False):
         files.append(content)
     
@@ -1145,7 +1179,7 @@ def collect_spec_files(source_dir: Path) -> list[Path]:
     version_root = source_dir / "VERSION"
     if version_root.exists():
         files.append(version_root)
-    version_gov = source_dir / "governance" / "VERSION"
+    version_gov = source_dir / "governance_runtime" / "VERSION"
     if version_gov.exists():
         files.append(version_gov)
     
@@ -1161,12 +1195,9 @@ def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
     """
     Collect governance runtime files for packaged state-machine execution.
     
-    This function now uses the Governance API as the single source of truth.
-    It includes both governance/ legacy compatibility shims and
-    governance_runtime/ canonical runtime modules.
+    This function collects canonical runtime modules.
     
     Includes:
-    - Files from governance/
     - Files from governance_runtime/
     
     Returns absolute paths (for compatibility with caller).
@@ -1204,7 +1235,7 @@ def collect_customer_docs_files(source_dir: Path) -> list[Path]:
     """
     Collect customer-relevant documentation from docs/ directory.
     
-    This function uses the Governance API as single source of truth.
+    This function uses the canonical content tree as single source of truth.
     It filters GOVERNANCE_CONTENT files from docs/ directory.
     """
     docs_dir = get_governance_docs_root(source_dir)
@@ -1229,7 +1260,8 @@ def collect_customer_docs_files(source_dir: Path) -> list[Path]:
             # Legacy mode: only include docs/
             if not f_str.startswith("docs/"):
                 continue
-        if "/governance/" in f_str.replace("\\", "/"):
+        parts = Path(f_str.replace("\\", "/")).parts
+        if len(parts) >= 3 and parts[0] in {"docs", "governance_content"} and parts[1] == "docs" and parts[2] == "governance":
             continue
         abs_path = source_dir / f
         if abs_path.is_file() and abs_path.suffix.lower() == ".md":
@@ -1239,11 +1271,11 @@ def collect_customer_docs_files(source_dir: Path) -> list[Path]:
     return sorted(result, key=lambda p: str(p))
 
 
-GOVERNANCE_DOCS_DIR_NAME = "docs/governance"
+GOVERNANCE_DOCS_DIR_NAME = str(Path("docs") / "governance")
 
 
 def collect_governance_docs_files(source_dir: Path) -> list[Path]:
-    """Collect governance documentation from docs/governance/ directory.
+    """Collect control documentation from docs governance directory.
 
     These files (e.g. governance_schemas.md, doc_lint.md) are heavily
     referenced by master.md and rules.md but were previously not installed.
@@ -1266,7 +1298,7 @@ def collect_governance_docs_files(source_dir: Path) -> list[Path]:
 
 
 def collect_customer_script_files(source_dir: Path, *, strict: bool) -> list[Path]:
-    """Collect customer-relevant scripts listed in governance/CUSTOMER_SCRIPT_CATALOG.json."""
+    """Collect customer-relevant scripts listed in runtime customer script catalog."""
 
     catalog_path = source_dir / CUSTOMER_SCRIPT_CATALOG_REL
     payload = _load_json(catalog_path)
@@ -1989,7 +2021,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
                 command="install.py",
                 component="installer-precheck",
                 observed_value=observed,
-                expected_constraint="Required source files present: governance/VERSION, rulesets/core/rules.yml",
+                expected_constraint="Required source files present: VERSION, governance_spec/rulesets/core/rules.yml",
                 remediation="Restore missing governance source files and rerun install.",
                 action="abort",
                 result="failed",
@@ -2045,10 +2077,10 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     launcher_entries = create_launcher(plan, dry_run=dry_run, force=force)
 
     # determine governance version from kernel-owned metadata
-    # governance version may live in root VERSION or governance/VERSION
+    # Version may live in root VERSION or governance_runtime/VERSION
     gov_ver = read_governance_version_metadata(plan.source_dir / "VERSION")
     if not gov_ver:
-        gov_ver = read_governance_version_metadata(plan.source_dir / "governance" / "VERSION")
+        gov_ver = read_governance_version_metadata(plan.source_dir / "governance_runtime" / "VERSION")
 
     if not gov_ver:
         safe_log_error(
@@ -2198,7 +2230,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             else:
                 print(f"  ⚠️  {rel} missing (skipping)")
     else:
-        print("\nℹ️  No OpenCode plugins found under governance/artifacts/opencode-plugins/ (skipping).")
+        print("\nℹ️  No OpenCode plugins found under governance_runtime/artifacts/opencode-plugins/ (skipping).")
 
     # validation (critical installed files)
     print("\n🔍 Validating installation...")
@@ -3166,7 +3198,7 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
         print("Run '${PYTHON_COMMAND} install.py --force' to restore manifest.")
 
     # Check governance version metadata from source if available
-    source_version = source_dir / "governance" / "VERSION"
+    source_version = source_dir / "governance_runtime" / "VERSION"
     if source_version.exists():
         src_ver = read_governance_version_metadata(source_version)
         if src_ver:
@@ -3521,7 +3553,7 @@ def main(argv: list[str]) -> int:
     if args.version:
         print(f"Installer Version: {VERSION}")
         # Try to read governance version metadata from source
-        source_version = args.source_dir / "governance" / "VERSION"
+        source_version = args.source_dir / "governance_runtime" / "VERSION"
         if source_version.exists():
             gov_ver = read_governance_version_metadata(source_version)
             if gov_ver:

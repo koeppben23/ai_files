@@ -12,10 +12,10 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from governance.render.response_formatter import render_response
+from governance_runtime.render.response_formatter import render_response
 
 try:
-    from governance.infrastructure.logging.global_error_handler import emit_gate_failure, resolve_log_path
+    from governance_runtime.infrastructure.logging.global_error_handler import emit_gate_failure, resolve_log_path
 except Exception:
     def emit_gate_failure(**kwargs: Any) -> bool:  # type: ignore[no-redef]
         return False
@@ -95,7 +95,7 @@ def main(argv: list[str]) -> int:
             commands_home = None
             workspaces_home = None
             try:
-                from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+                from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
                 evidence = BindingEvidenceResolver().resolve(mode="kernel")
                 commands_home = evidence.commands_home

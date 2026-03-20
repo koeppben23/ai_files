@@ -10,7 +10,7 @@ from governance_runtime.application.use_cases.artifact_backfill import (
     ArtifactSpec,
 )
 
-from cli.deps import LocalFS
+from governance_runtime.cli.deps import LocalFS
 
 
 def _parser() -> argparse.ArgumentParser:

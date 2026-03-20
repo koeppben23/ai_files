@@ -4,9 +4,9 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from governance.application.ports.process_runner import ProcessResult, ProcessRunnerPort
-from governance.domain.errors.events import ErrorEvent
-from governance.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.application.ports.process_runner import ProcessResult, ProcessRunnerPort
+from governance_runtime.domain.errors.events import ErrorEvent
+from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 
 
 class LocalFS:
@@ -19,6 +19,9 @@ class LocalFS:
     def exists(self, path: Path) -> bool:
         return path.exists()
 
+    def mkdir_p(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+
 
 class LocalProcessRunner(ProcessRunnerPort):
     def run(self, argv: list[str], env: Optional[dict[str, str]] = None) -> ProcessResult:
@@ -29,7 +32,7 @@ class LocalProcessRunner(ProcessRunnerPort):
 class GlobalErrorLogger:
     def write(self, event: ErrorEvent) -> None:
         try:
-            from governance.infrastructure.logging.global_error_handler import emit_error_event
+            from governance_runtime.infrastructure.logging.global_error_handler import emit_error_event
 
             emit_error_event(
                 severity=event.severity,

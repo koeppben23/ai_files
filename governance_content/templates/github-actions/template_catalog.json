@@ -1,5 +1,5 @@
 {
-  "schema": "governance.workflow-template-catalog.v1",
+  "schema": "opencode.workflow-template-catalog.v1",
   "version": "1.0.0",
   "templates": [
     {

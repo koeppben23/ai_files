@@ -1,1 +1,0 @@
-"""Application DTO contracts."""

@@ -1,1 +1,0 @@
-"""Governance infrastructure adapters."""

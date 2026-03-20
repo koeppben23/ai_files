@@ -42,14 +42,14 @@ FORBIDDEN_METADATA_FILENAMES = {".DS_Store", "Icon\r"}
 
 BASELINE_REQUIRED_PATHS = (
     "scripts/migrate_session_state.py",
-    "governance/render/intent_router.py",
-    "governance/render/delta_renderer.py",
-    "governance/render/token_guard.py",
-    "governance/render/render_contract.py",
-    "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
-    "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
-    "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
-    "governance/assets/catalogs/tool_requirements.json",
+    "governance_runtime/entrypoints/bootstrap_executor.py",
+    "governance_runtime/entrypoints/session_reader.py",
+    "governance_runtime/kernel/phase_kernel.py",
+    "governance_runtime/infrastructure/binding_paths.py",
+    "governance_runtime/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
+    "governance_runtime/assets/catalogs/QUICKFIX_TEMPLATES.json",
+    "governance_runtime/assets/catalogs/UX_INTENT_GOLDENS.json",
+    "governance_runtime/assets/catalogs/tool_requirements.json",
 )
 
 BASELINE_REQUIRED_REASON_CODES = (
@@ -57,15 +57,15 @@ BASELINE_REQUIRED_REASON_CODES = (
     "NOT_VERIFIED_EVIDENCE_STALE",
 )
 
-CUSTOMER_SCRIPT_CATALOG_PATH = Path("governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
-CUSTOMER_SCRIPT_CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
+CUSTOMER_SCRIPT_CATALOG_PATH = Path("governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
+CUSTOMER_SCRIPT_CATALOG_SCHEMA = "opencode.customer-script-catalog.v1"
 WORKFLOW_TEMPLATE_CATALOG_PATHS = (
     Path("governance_content/templates/github-actions/template_catalog.json"),
     Path("templates/github-actions/template_catalog.json"),
 )
-WORKFLOW_TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
-MARKDOWN_EXCLUDE_POLICY_PATH = Path("governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json")
-MARKDOWN_EXCLUDE_POLICY_SCHEMA = "governance.customer-markdown-exclude.v1"
+WORKFLOW_TEMPLATE_CATALOG_SCHEMA = "opencode.workflow-template-catalog.v1"
+MARKDOWN_EXCLUDE_POLICY_PATH = Path("governance_runtime/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json")
+MARKDOWN_EXCLUDE_POLICY_SCHEMA = "opencode.customer-markdown-exclude.v1"
 
 CUSTOMER_DOCS_ALLOWLIST = {
     "docs/phases.md",
@@ -81,11 +81,11 @@ CUSTOMER_DOCS_ALLOWLIST = {
     "rules.md",
     "BOOTSTRAP.md",
     "CHANGELOG.md",
-    "governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
-    "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
-    "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
-    "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
-    "governance/assets/catalogs/tool_requirements.json",
+    "governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+    "governance_runtime/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
+    "governance_runtime/assets/catalogs/QUICKFIX_TEMPLATES.json",
+    "governance_runtime/assets/catalogs/UX_INTENT_GOLDENS.json",
+    "governance_runtime/assets/catalogs/tool_requirements.json",
     "templates/github-actions/template_catalog.json",
 }
 
@@ -205,7 +205,6 @@ def _enforce_readme_baseline_claims(repo_root: Path) -> None:
 
     reason_code_candidates = (
         repo_root / "governance_runtime" / "domain" / "reason_codes.py",
-        repo_root / "governance" / "domain" / "reason_codes.py",
     )
     reason_codes_path = next((p for p in reason_code_candidates if p.exists()), None)
     if reason_codes_path is None:
@@ -397,13 +396,13 @@ class BuildPaths:
 
 
 def _read_governance_version(repo_root: Path) -> str:
-    version_file = repo_root / "governance" / "VERSION"
+    version_file = repo_root / "VERSION"
     if not version_file.exists():
-        raise SystemExit("governance/VERSION not found (required for build)")
+        raise SystemExit("VERSION not found (required for build)")
 
     version = version_file.read_text(encoding="utf-8").strip()
     if not version:
-        raise SystemExit("governance/VERSION is empty (expected semver)")
+        raise SystemExit("VERSION is empty (expected semver)")
 
     if not re.match(r"^[0-9]+\.[0-9]+\.[0-9]+", version):
         raise SystemExit(f"Invalid governance version in VERSION: {version} (expected semver)")
@@ -439,7 +438,7 @@ def _should_include_file(
     rel_legacy = _legacy_rel_alias(rel)
 
     def _is_governance_runtime_excluded(rel_path: str) -> bool:
-        if not (rel_path.startswith("governance/") or rel_path.startswith("governance_runtime/")):
+        if not rel_path.startswith("governance_runtime/"):
             return False
         parts = rel_path.split("/")
         if any(part in GOVERNANCE_EXCLUDE_DIRS for part in parts):
@@ -471,8 +470,6 @@ def _should_include_file(
     if (rel.startswith("profiles/addons/") or rel.startswith("governance_content/profiles/addons/") or rel_legacy.startswith("profiles/addons/")) and name.endswith(".addon.yml"):
         return True
     # Governance runtime should ship as a coherent tree, excluding only non-runtime artifacts.
-    if rel.startswith("governance/"):
-        return not _is_governance_runtime_excluded(rel)
     if rel.startswith("governance_runtime/"):
         if _is_governance_runtime_excluded(rel):
             return False
@@ -485,9 +482,7 @@ def _should_include_file(
     # Local bootstrap runtime package.
     if rel.startswith("cli/") and p.suffix.lower() == ".py":
         return True
-    if rel.startswith("governance/artifacts/opencode-plugins/") and p.suffix.lower() in {".mjs", ".js"}:
-        return True
-    if rel == "governance/VERSION":
+    if rel.startswith("governance_runtime/artifacts/opencode-plugins/") and p.suffix.lower() in {".mjs", ".js"}:
         return True
     if rel.startswith("docs/") or rel.startswith("governance_content/docs/") or rel_legacy.startswith("docs/"):
         return rel in CUSTOMER_DOCS_ALLOWLIST or rel_legacy in CUSTOMER_DOCS_ALLOWLIST
@@ -517,9 +512,9 @@ def collect_release_files(
     """
     Allowlist strategy:
       - include: install.py, LICENSE*, LICENCE*, *.md, *.json,
-        profiles/addons/*.addon.yml, governance/** (runtime),
-        governance/artifacts/opencode-plugins/*.{mjs,js},
-        scripts listed in governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release=true,
+        profiles/addons/*.addon.yml, governance_runtime/** (runtime),
+        governance_runtime/artifacts/opencode-plugins/*.{mjs,js},
+        scripts listed in governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release=true,
         workflow template .yml files listed in templates/github-actions/template_catalog.json
       - exclude: .git, .github, dist, tests, caches
     Deterministic ordering (sorted by posix relpath).
@@ -558,13 +553,12 @@ def _enforce_runtime_imports(files: Iterable[Path], repo_root: Path) -> None:
 
     relset = {p.relative_to(repo_root).as_posix() for p in files}
     stdlib_modules = set(getattr(sys, "stdlib_module_names", set()))
-    entrypoints_root = repo_root / "governance" / "entrypoints"
+    entrypoints_root = repo_root / "governance_runtime" / "entrypoints"
     if not entrypoints_root.exists():
-        raise SystemExit("Release build failed: governance/entrypoints missing")
+        raise SystemExit("Release build failed: governance_runtime/entrypoints missing")
 
     import_re = re.compile(r"^\s*(?:from\s+([\w\.]+)|import\s+([\w\.]+))")
     allow_prefixes = (
-        "governance.",
         "governance_runtime.",
         "bootstrap.",
         "cli.",

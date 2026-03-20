@@ -63,7 +63,7 @@ def test_customer_install_bundle_build_outputs_expected_files():
         assert "& py -3 $installPy @InstallArgs" in install_ps1
 
         manifest = json.loads((bundle_dir / "BUNDLE_MANIFEST.json").read_text(encoding="utf-8"))
-        assert manifest["schema"] == "governance.customer-install-bundle.v1"
+        assert manifest["schema"] == "opencode.customer-install-bundle.v1"
         assert manifest["governance_version"] == version
         assert f"{release_prefix}.zip" in manifest["release_artifacts"]
         assert f"{release_prefix}.tar.gz" in manifest["release_artifacts"]

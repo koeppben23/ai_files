@@ -2,6 +2,10 @@
 import os
 import sys
 import subprocess
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     # Delegate to the bootstrap preflight readonly path
@@ -10,7 +14,11 @@ def main():
         env["OPENCODE_CONFIG_ROOT"] = env["OPENCODE_CONFIG_ROOT"]
     if "OPENCODE_REPO_ROOT" in env:
         env["OPENCODE_REPO_ROOT"] = env["OPENCODE_REPO_ROOT"]
-    code = subprocess.call([sys.executable, "-m", "governance.entrypoints.bootstrap_preflight_readonly"], env=env)
+    code = subprocess.call(
+        [sys.executable, "-m", "governance_runtime.entrypoints.bootstrap_preflight_readonly"],
+        env=env,
+        cwd=str(REPO_ROOT),
+    )
     return code
 
 if __name__ == "__main__":

@@ -19,6 +19,9 @@ class LocalFS:
     def exists(self, path: Path) -> bool:
         return path.exists()
 
+    def mkdir_p(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+
 
 class LocalProcessRunner(ProcessRunnerPort):
     def run(self, argv: list[str], env: Optional[dict[str, str]] = None) -> ProcessResult:

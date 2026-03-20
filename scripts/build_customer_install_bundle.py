@@ -14,17 +14,17 @@ from pathlib import Path
 
 
 FIXED_ZIP_DT = (1980, 1, 1, 0, 0, 0)
-BUNDLE_SCHEMA = "governance.customer-install-bundle.v1"
+BUNDLE_SCHEMA = "opencode.customer-install-bundle.v1"
 
 
 def _read_version(repo_root: Path) -> str:
-    version_file = repo_root / "governance" / "VERSION"
+    version_file = repo_root / "VERSION"
     if not version_file.exists():
-        raise SystemExit("governance/VERSION not found")
+        raise SystemExit("VERSION not found")
 
     version = version_file.read_text(encoding="utf-8").strip()
     if not version:
-        raise SystemExit("governance/VERSION is empty (expected semver)")
+        raise SystemExit("VERSION is empty (expected semver)")
 
     if not re.match(r"^[0-9]+\.[0-9]+\.[0-9]+", version):
         raise SystemExit(f"Invalid governance version in VERSION: {version} (expected semver)")

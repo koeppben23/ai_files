@@ -10,7 +10,7 @@ import re
 import sys
 
 
-CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
+CATALOG_SCHEMA = "opencode.workflow-template-catalog.v1"
 CATALOG_PATH_NEW = Path("governance_content/templates/github-actions/template_catalog.json")
 CATALOG_PATH_LEGACY = Path("templates/github-actions/template_catalog.json")
 WORKFLOW_DIR_NEW = Path("governance_content/templates/github-actions")
