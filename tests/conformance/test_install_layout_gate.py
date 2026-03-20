@@ -37,7 +37,7 @@ def test_install_layout_gate_bad_extra_legacy_dir(tmp_path: Path) -> None:
     config_root = tmp_path / "cfg"
     local_root = tmp_path / "local"
     _seed_happy(config_root, local_root)
-    (local_root / "governance").mkdir(parents=True, exist_ok=True)
+    (local_root / "governance_runtime").mkdir(parents=True, exist_ok=True)
     issues = verify_install_layout(config_root, local_root)
     assert any("must not contain governance/" in item for item in issues)
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 
-from governance.engine.spec_classifier import (
+from governance_runtime.engine.spec_classifier import (
     is_spec_file,
     is_spec_directory,
     get_spec_paths,
@@ -41,7 +41,7 @@ class TestSpecClassificationHappyPath:
 
     def test_yaml_in_schemas_dir_is_spec(self) -> None:
         """YAML files in schemas directory are spec."""
-        path = Path("governance/assets/schemas/some_schema.yaml")
+        path = Path("governance_runtime/assets/schemas/some_schema.yaml")
         assert is_spec_file(path) is True
 
     def test_json_in_contracts_dir_is_spec(self) -> None:
@@ -90,7 +90,7 @@ class TestSpecDirectoryClassification:
     def test_schemas_dir_is_spec_directory(self) -> None:
         """schemas is a spec directory."""
         assert is_spec_directory(Path("schemas")) is True
-        assert is_spec_directory(Path("governance/assets/schemas")) is True
+        assert is_spec_directory(Path("governance_runtime/assets/schemas")) is True
 
     def test_contracts_dir_is_spec_directory(self) -> None:
         """contracts is a spec directory."""
@@ -115,11 +115,11 @@ class TestSpecDirectoryClassificationPrecision:
 
     def test_config_dir_is_spec_directory(self) -> None:
         """config is a spec directory."""
-        assert is_spec_directory(Path("governance/assets/config")) is True
+        assert is_spec_directory(Path("governance_runtime/assets/config")) is True
 
     def test_configs_dir_is_spec_directory(self) -> None:
         """configs is a spec directory."""
-        assert is_spec_directory(Path("governance/assets/configs")) is True
+        assert is_spec_directory(Path("governance_runtime/assets/configs")) is True
 
     def test_rulesets_is_spec_directory(self) -> None:
         """rulesets is a spec directory."""

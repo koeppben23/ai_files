@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.layers import (
+from governance_runtime.layers import (
     GovernanceLayer,
     classify_layer,
     get_layer_name,

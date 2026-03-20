@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.business_rules_validation import (
+from governance_runtime.engine.business_rules_validation import (
     render_business_rules_scaffold,
     render_inventory_rules,
     validate_inventory_markdown,
@@ -175,7 +175,7 @@ class TestScaffoldRendererEdge:
     def test_edge_orchestrator_wrapper_uses_scaffold(self) -> None:
         """The orchestrator's _render_business_rules_inventory delegates to
         render_business_rules_scaffold (not the old artifacts import)."""
-        from governance.entrypoints.persist_workspace_artifacts_orchestrator import (
+        from governance_runtime.entrypoints.persist_workspace_artifacts_orchestrator import (
             _render_business_rules_inventory,
         )
 

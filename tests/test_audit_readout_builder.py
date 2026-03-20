@@ -6,10 +6,10 @@ from typing import Mapping
 
 import pytest
 
-from governance.application.use_cases.audit_readout_builder import build_audit_readout
-from governance.domain.canonical_json import canonical_json_hash
-from governance.infrastructure.workspace_paths import run_dir
-from governance.infrastructure.work_run_archive import archive_active_run
+from governance_runtime.application.use_cases.audit_readout_builder import build_audit_readout
+from governance_runtime.domain.canonical_json import canonical_json_hash
+from governance_runtime.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.work_run_archive import archive_active_run
 
 
 _FP = "abc123def456abc123def456"

@@ -21,7 +21,7 @@ from unittest.mock import patch
 
 import pytest
 
-from governance.entrypoints.session_reader import (
+from governance_runtime.entrypoints.session_reader import (
     POINTER_SCHEMA,
     SNAPSHOT_SCHEMA,
     format_snapshot,
@@ -524,7 +524,7 @@ class TestPlanRecordLabel:
             "plan_record_versions": 0,
         })
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         kernel_with_plan = KernelResult(
             phase="5-ArchitectureReview",
@@ -615,7 +615,7 @@ class TestReadonlyKernelEvalEnrichment:
             "next_gate_condition": "stale-condition",
         })
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         fake_result = KernelResult(
             phase="5",
@@ -709,7 +709,7 @@ class TestReadonlyKernelEvalEnrichment:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -741,7 +741,7 @@ class TestReadonlyKernelEvalEnrichment:
             "active_gate": "stale-gate",
         })
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         blocked_result = KernelResult(
             phase="1.1-Bootstrap",
@@ -777,7 +777,7 @@ class TestReadonlyKernelEvalEnrichment:
         _write_workspace_state(ws_state, {"Phase": "4", "status": "OK"})
         original_content = ws_state.read_text(encoding="utf-8")
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         fake_result = KernelResult(
             phase="5",
@@ -993,7 +993,7 @@ class TestMain:
         snapshot_path.parent.mkdir(parents=True, exist_ok=True)
         snapshot_path.write_text(json.dumps(snapshot_doc), encoding="utf-8")
 
-        from governance.engine.canonical_json import canonical_json_hash
+        from governance_runtime.engine.canonical_json import canonical_json_hash
 
         digest = canonical_json_hash(snapshot_doc)
         (ws_state.parent.parent / "governance-records" / ws_state.parent.name / "runs" / "work-1" / "metadata.json").write_text(
@@ -1108,7 +1108,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1194,7 +1194,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1275,7 +1275,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1344,7 +1344,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1417,7 +1417,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1501,7 +1501,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1592,7 +1592,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1673,7 +1673,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1705,7 +1705,7 @@ class TestMain:
 class TestSelfBootstrap:
     def test_derive_commands_home_from_file(self) -> None:
         """_derive_commands_home returns the correct ancestor of __file__."""
-        reader_path = Path(__file__).resolve().parent.parent / "governance" / "entrypoints" / "session_reader.py"
+        reader_path = Path(__file__).resolve().parent.parent / "governance_runtime" / "entrypoints" / "session_reader.py"
         if reader_path.exists():
             # The actual file exists — verify parent chain
             expected = reader_path.parents[2]
@@ -1758,7 +1758,7 @@ class TestTransitionEvidenceVisibility:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         fake_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -1792,7 +1792,7 @@ class TestTransitionEvidenceVisibility:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         fake_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -1827,7 +1827,7 @@ class TestTransitionEvidenceVisibility:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         blocked_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -2017,7 +2017,7 @@ class TestTransitionEvidenceAutoGrant:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -2097,7 +2097,7 @@ class TestTransitionEvidenceAutoGrant:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -2110,7 +2110,7 @@ class TestTransitionEvidenceAutoGrant:
             encoding="utf-8",
         )
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         stay_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -2189,7 +2189,7 @@ class TestTransitionEvidenceStayStrategyRegressions:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (config_root / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -2211,7 +2211,7 @@ class TestTransitionEvidenceStayStrategyRegressions:
             next_token="5.3",
         )
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         stay_forward = KernelResult(
             phase="5-ArchitectureReview",
@@ -2247,7 +2247,7 @@ class TestTransitionEvidenceStayStrategyRegressions:
             next_token="6",
         )
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         stay_self_loop = KernelResult(
             phase="6-PostFlight",
@@ -2489,7 +2489,7 @@ class TestMissingTransitionEvidenceDiagnosed:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         blocked_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -2862,7 +2862,7 @@ class TestRouteTargetExplanation:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         next_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -2902,7 +2902,7 @@ class TestRouteTargetExplanation:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         stay_result = KernelResult(
             phase="5-ArchitectureReview",

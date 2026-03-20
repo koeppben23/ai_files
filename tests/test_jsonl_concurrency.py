@@ -4,7 +4,7 @@ import json
 import threading
 from pathlib import Path
 
-from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
+from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event
 
 
 def test_jsonl_append_is_lock_safe_under_parallel_writers(tmp_path: Path) -> None:

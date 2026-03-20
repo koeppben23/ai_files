@@ -1,7 +1,7 @@
 """Tests for business domain filtering in discovery."""
 
 import pytest
-from governance.engine.business_rules_code_extraction import (
+from governance_runtime.engine.business_rules_code_extraction import (
     extract_code_rule_candidates,
     SURFACE_KIND_BUSINESS_DOMAIN_CODE,
     SURFACE_KIND_META_GOVERNANCE,
@@ -199,7 +199,7 @@ def test_retention_rule_is_accepted(tmp_path):
 
 def test_schema_only_dropped_with_proper_count(tmp_path):
     """Schema-only surfaces without business context should be dropped with proper count."""
-    from governance.engine.business_rules_code_extraction import extract_code_rule_candidates_with_diagnostics
+    from governance_runtime.engine.business_rules_code_extraction import extract_code_rule_candidates_with_diagnostics
     
     # Create a YAML config file (schema-only) without business context
     config_dir = tmp_path / "schema"

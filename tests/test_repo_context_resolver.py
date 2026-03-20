@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from governance.context.repo_context_resolver import resolve_repo_root
-from governance.engine.adapters import ExecResult, HostCapabilities
+from governance_runtime.context.repo_context_resolver import resolve_repo_root
+from governance_runtime.engine.adapters import ExecResult, HostCapabilities
 
 
 @dataclass(frozen=True)

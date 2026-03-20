@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.infrastructure.io_verify import verify_run_archive
-from governance.infrastructure.work_run_archive import archive_active_run, invalidate_archived_run
-from governance.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.io_verify import verify_run_archive
+from governance_runtime.infrastructure.work_run_archive import archive_active_run, invalidate_archived_run
+from governance_runtime.infrastructure.workspace_paths import run_dir
 
 
 def test_invalidate_archived_run_marks_manifest_and_metadata(tmp_path: Path) -> None:

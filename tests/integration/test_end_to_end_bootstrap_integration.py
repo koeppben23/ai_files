@@ -6,12 +6,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 import pytest
 
-from governance.application.use_cases.bootstrap_persistence import BootstrapInput
-from governance.domain.models.binding import Binding
-from governance.domain.models.layouts import WorkspaceLayout
-from governance.domain.models.repo_identity import RepoIdentity
-from governance.application.ports.process_runner import ProcessResult, ProcessRunnerPort
-from governance.infrastructure.adapters.filesystem.in_memory import InMemoryFS
+from governance_runtime.application.use_cases.bootstrap_persistence import BootstrapInput
+from governance_runtime.domain.models.binding import Binding
+from governance_runtime.domain.models.layouts import WorkspaceLayout
+from governance_runtime.domain.models.repo_identity import RepoIdentity
+from governance_runtime.application.ports.process_runner import ProcessResult, ProcessRunnerPort
+from governance_runtime.infrastructure.adapters.filesystem.in_memory import InMemoryFS
 
 class DummyRunner(ProcessRunnerPort):
     def run(self, argv: list[str], env: dict[str, str] | None = None) -> ProcessResult:
@@ -84,7 +84,7 @@ def test_end_to_end_bootstrap_integration(tmp_path):
         no_commit=False,
     )
 
-    from governance.application.use_cases.bootstrap_persistence import BootstrapPersistenceService
+    from governance_runtime.application.use_cases.bootstrap_persistence import BootstrapPersistenceService
     service = BootstrapPersistenceService(fs=fs, runner=DummyRunner(), logger=logger)
     created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     result = service.run(payload, created_at)

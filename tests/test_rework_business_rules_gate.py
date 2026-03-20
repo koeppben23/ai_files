@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.entrypoints.session_reader import _normalize_phase6_p5_state
+from governance_runtime.entrypoints.session_reader import _normalize_phase6_p5_state
 
 
 def test_rework_e2e_changes_requested_still_blocks_on_invalid_business_rules() -> None:

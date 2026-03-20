@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.entrypoints.session_reader import format_guided_snapshot, main
+from governance_runtime.entrypoints.session_reader import format_guided_snapshot, main
 from tests.util import get_phase_api_path
 
 
@@ -130,7 +130,7 @@ def test_guided_edge_materialize_normal_mode_has_no_yaml_dump(tmp_path: Path, ca
         get_phase_api_path().read_text(encoding="utf-8"),
         encoding="utf-8",
     )
-    (commands_home / "governance.paths.json").write_text(
+    (config_root / "governance.paths.json").write_text(
         json.dumps(
             {
                 "schema": "opencode-governance.paths.v1",

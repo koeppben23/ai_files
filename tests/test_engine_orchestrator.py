@@ -7,14 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.adapters import ExecResult, HostCapabilities, OperatingMode
-from governance.application.use_cases.phase_router import RoutedPhase
-from governance.application.repo_identity_service import derive_repo_identity
-from governance.domain.strict_exit_evaluator import CriterionResult, StrictExitResult
-from governance.engine.orchestrator import run_engine_orchestrator
-from governance.application.use_cases.resolve_output_intent import ResolvedOutputIntent
-from governance.infrastructure.persist_confirmation_store import record_persist_confirmation
-from governance.engine.reason_codes import (
+from governance_runtime.engine.adapters import ExecResult, HostCapabilities, OperatingMode
+from governance_runtime.application.use_cases.phase_router import RoutedPhase
+from governance_runtime.application.repo_identity_service import derive_repo_identity
+from governance_runtime.domain.strict_exit_evaluator import CriterionResult, StrictExitResult
+from governance_runtime.engine.orchestrator import run_engine_orchestrator
+from governance_runtime.application.use_cases.resolve_output_intent import ResolvedOutputIntent
+from governance_runtime.infrastructure.persist_confirmation_store import record_persist_confirmation
+from governance_runtime.engine.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
     NOT_VERIFIED_EVIDENCE_STALE,
     REASON_CODE_NONE,

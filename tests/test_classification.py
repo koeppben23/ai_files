@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.domain.classification import (
+from governance_runtime.domain.classification import (
     CONTRACT_VERSION,
     ClassificationLevel,
     RedactionStrategy,

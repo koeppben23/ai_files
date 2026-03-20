@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.lifecycle_repository import EngineLifecycleRepository
+from governance_runtime.infrastructure.lifecycle_repository import EngineLifecycleRepository
 
 
 @pytest.mark.governance

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from governance.engine.lifecycle import rollback_engine_activation, stage_engine_activation
+from governance_runtime.engine.lifecycle import rollback_engine_activation, stage_engine_activation
 
 
 def _load(path: Path) -> dict[str, object]:
@@ -142,7 +142,7 @@ def test_rollback_depth_three_push_three_pop_three(tmp_path: Path):
 def test_rollback_depth_overflow_drops_oldest(tmp_path: Path):
     """Stack beyond MAX_ROLLBACK_DEPTH drops oldest entry."""
 
-    from governance.engine.lifecycle import MAX_ROLLBACK_DEPTH
+    from governance_runtime.engine.lifecycle import MAX_ROLLBACK_DEPTH
 
     paths_file = tmp_path / "commands" / "governance.paths.json"
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.path_contract import (
+from governance_runtime.infrastructure.path_contract import (
     NotAbsoluteError,
     PathTraversalError,
     binding_evidence_location,

@@ -147,7 +147,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             f"{prefix}/{_resolve_existing_rel('rules.md')}",
             f"{prefix}/BOOTSTRAP.md",
             f"{prefix}/CHANGELOG.md",
-            f"{prefix}/governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+            f"{prefix}/governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
         }
         required.update(f"{prefix}/{rel}" for rel in _shipped_customer_scripts())
         required.update(f"{prefix}/{rel}" for rel in _shipped_workflow_templates())
@@ -195,7 +195,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             f"{prefix}/{_resolve_existing_rel('rules.md')}",
             f"{prefix}/BOOTSTRAP.md",
             f"{prefix}/CHANGELOG.md",
-            f"{prefix}/governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+            f"{prefix}/governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
         }
         required.update(f"{prefix}/{rel}" for rel in _shipped_customer_scripts())
         required.update(f"{prefix}/{rel}" for rel in _shipped_workflow_templates())

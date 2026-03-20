@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from governance.application.use_cases.phase_router import route_phase
+from governance_runtime.application.use_cases.phase_router import route_phase
 
 
 def _write_binding(tmp_path: Path, *, write_phase_api: bool, phase_api_text: str = "") -> tuple[Path, Path, Path]:
@@ -23,7 +23,7 @@ def _write_binding(tmp_path: Path, *, write_phase_api: bool, phase_api_text: str
             "pythonCommand": sys.executable,
         },
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    (config_root / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
     if write_phase_api:
         (commands_home / "phase_api.yaml").write_text(phase_api_text, encoding="utf-8")
     return home, commands_home, workspaces_home

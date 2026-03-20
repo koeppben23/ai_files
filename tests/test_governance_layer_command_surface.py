@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 
-from governance.engine.command_surface import (
+from governance_runtime.engine.command_surface import (
     CANONICAL_COMMANDS,
     NON_COMMAND_FILES,
     DEPRECATED_COMMANDS,

@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.schema_validator import validate_against_schema
-from governance.engine._embedded_session_state_schema import (
+from governance_runtime.engine.schema_validator import validate_against_schema
+from governance_runtime.engine._embedded_session_state_schema import (
     SESSION_STATE_CORE_SCHEMA,
     _HARDCODED_FALLBACK_SCHEMA,
 )
-from governance.engine.session_state_invariants import (
+from governance_runtime.engine.session_state_invariants import (
     validate_blocked_next_invariant,
     validate_confidence_mode_invariant,
     validate_profile_source_blocked_invariant,

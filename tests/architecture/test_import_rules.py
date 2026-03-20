@@ -17,10 +17,10 @@ _IO_MODULE_PREFIXES = {
 }
 
 _PATH_RESOLVE_ALLOWLIST: set[str] = {
-    "governance/infrastructure/binding_evidence_resolver.py",
-    "governance/infrastructure/run_summary_writer.py",
-    "governance/infrastructure/session_pointer.py",
-    "governance/entrypoints/session_reader.py",
+    "governance_runtime/infrastructure/binding_evidence_resolver.py",
+    "governance_runtime/infrastructure/run_summary_writer.py",
+    "governance_runtime/infrastructure/session_pointer.py",
+    "governance_runtime/entrypoints/session_reader.py",
 }
 
 
@@ -110,7 +110,7 @@ def _path_resolve_calls(path: Path) -> list[str]:
 
 @pytest.mark.governance
 def test_domain_layer_has_no_direct_io_imports():
-    domain_root = REPO_ROOT / "governance" / "domain"
+    domain_root = REPO_ROOT / "governance_runtime" / "domain"
     for file in _iter_python_files(domain_root):
         imports = _imports(file)
         bad = sorted(
@@ -123,12 +123,12 @@ def test_domain_layer_has_no_direct_io_imports():
 
 @pytest.mark.governance
 def test_presentation_layer_does_not_import_infrastructure():
-    presentation_root = REPO_ROOT / "governance" / "presentation"
+    presentation_root = REPO_ROOT / "governance_runtime" / "presentation"
     forbidden_prefixes = (
-        "governance.infrastructure",
-        "governance.render",
-        "governance.engine",
-        "governance.context",
+        "governance_runtime.infrastructure",
+        "governance_runtime.render",
+        "governance_runtime.engine",
+        "governance_runtime.context",
     )
     for file in _iter_python_files(presentation_root):
         imports = _imports(file)
@@ -138,23 +138,23 @@ def test_presentation_layer_does_not_import_infrastructure():
 
 @pytest.mark.governance
 def test_application_layer_does_not_import_infrastructure():
-    application_root = REPO_ROOT / "governance" / "application"
+    application_root = REPO_ROOT / "governance_runtime" / "application"
     for file in _iter_python_files(application_root):
         imports = _imports(file)
-        bad = sorted(i for i in imports if i.startswith("governance.infrastructure"))
+        bad = sorted(i for i in imports if i.startswith("governance_runtime.infrastructure"))
         assert not bad, f"application imports infrastructure directly: {file}: {bad}"
 
 
 @pytest.mark.governance
 def test_application_layer_does_not_import_legacy_engine_context_layers():
-    application_root = REPO_ROOT / "governance" / "application"
+    application_root = REPO_ROOT / "governance_runtime" / "application"
     forbidden_prefixes = (
-        "governance.engine",
-        "governance.context",
-        "governance.persistence",
-        "governance.packs",
-        "governance.render",
-        "governance.presentation",
+        "governance_runtime.engine",
+        "governance_runtime.context",
+        "governance_runtime.persistence",
+        "governance_runtime.packs",
+        "governance_runtime.render",
+        "governance_runtime.presentation",
     )
     for file in _iter_python_files(application_root):
         imports = _imports(file)
@@ -164,8 +164,12 @@ def test_application_layer_does_not_import_legacy_engine_context_layers():
 
 @pytest.mark.governance
 def test_render_and_presentation_do_not_import_engine_context_or_infrastructure():
-    roots = [REPO_ROOT / "governance" / "render", REPO_ROOT / "governance" / "presentation"]
-    forbidden_prefixes = ("governance.engine", "governance.context", "governance.infrastructure")
+    roots = [REPO_ROOT / "governance_runtime" / "render", REPO_ROOT / "governance_runtime" / "presentation"]
+    forbidden_prefixes = (
+        "governance_runtime.engine",
+        "governance_runtime.context",
+        "governance_runtime.infrastructure",
+    )
     for root in roots:
         for file in _iter_python_files(root):
             imports = _imports(file)
@@ -175,7 +179,7 @@ def test_render_and_presentation_do_not_import_engine_context_or_infrastructure(
 
 @pytest.mark.governance
 def test_domain_and_application_layers_forbid_side_effect_calls():
-    roots = [REPO_ROOT / "governance" / "domain", REPO_ROOT / "governance" / "application"]
+    roots = [REPO_ROOT / "governance_runtime" / "domain", REPO_ROOT / "governance_runtime" / "application"]
     violations: list[str] = []
     for root in roots:
         for file in _iter_python_files(root):
@@ -188,7 +192,7 @@ def test_domain_and_application_layers_forbid_side_effect_calls():
 
 @pytest.mark.governance
 def test_governance_path_resolve_calls_are_allowlisted():
-    governance_root = REPO_ROOT / "governance"
+    governance_root = REPO_ROOT / "governance_runtime"
     violations: list[str] = []
     for file in _iter_python_files(governance_root):
         rel = file.relative_to(REPO_ROOT).as_posix()
@@ -205,5 +209,5 @@ def test_governance_path_resolve_calls_are_allowlisted():
 def test_bootstrap_persistence_does_not_import_entrypoints():
     module = REPO_ROOT / "bootstrap" / "persistence.py"
     imports = _imports(module)
-    bad = sorted(imp for imp in imports if imp.startswith("governance.entrypoints"))
+    bad = sorted(imp for imp in imports if imp.startswith("governance_runtime.entrypoints"))
     assert not bad, f"bootstrap persistence must not import entrypoint modules: {bad}"

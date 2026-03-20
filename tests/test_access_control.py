@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.domain.access_control import (
+from governance_runtime.domain.access_control import (
     CONTRACT_VERSION,
     Role,
     Action,

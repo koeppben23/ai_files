@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from governance.infrastructure.governance_config_loader import (
+from governance_runtime.infrastructure.governance_config_loader import (
     clear_caches,
     config_dir,
     load_all_governance_configs,

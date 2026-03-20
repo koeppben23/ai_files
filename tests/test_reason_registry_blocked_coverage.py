@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.domain import reason_codes
+from governance_runtime.domain import reason_codes
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

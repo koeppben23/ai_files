@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from governance.contracts.enforcement import FAIL_CLOSED_MISSING_CONTRACT, EnforcementResult
-from governance.entrypoints import implement_start as entrypoint
-from governance.engine.implementation_validation import (
+from governance_runtime.contracts.enforcement import FAIL_CLOSED_MISSING_CONTRACT, EnforcementResult
+from governance_runtime.entrypoints import implement_start as entrypoint
+from governance_runtime.engine.implementation_validation import (
     RC_GOVERNANCE_ONLY_CHANGES,
     RC_NO_REPO_CHANGES,
     RC_TARGETED_CHECKS_FAILED,

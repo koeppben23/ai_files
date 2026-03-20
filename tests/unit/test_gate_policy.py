@@ -1,4 +1,4 @@
-from governance.domain.policies.gate_policy import persistence_gate, rulebook_gate
+from governance_runtime.domain.policies.gate_policy import persistence_gate, rulebook_gate
 
 
 def test_persistence_gate_fail_closed_missing_flags() -> None:

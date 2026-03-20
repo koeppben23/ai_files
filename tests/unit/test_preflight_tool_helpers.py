@@ -40,7 +40,7 @@ def _load_module() -> types.ModuleType:
     if mod_name in sys.modules:
         return sys.modules[mod_name]
     # Fallback: import normally (triggers side effects but avoids spec hacks)
-    import governance.entrypoints.bootstrap_preflight_readonly as mod
+    import governance_runtime.entrypoints.bootstrap_preflight_readonly as mod
     return mod
 
 

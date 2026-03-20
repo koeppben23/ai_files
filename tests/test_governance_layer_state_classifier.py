@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 
-from governance.engine.state_classifier import (
+from governance_runtime.engine.state_classifier import (
     STATE_PATTERNS,
     STATE_DIR_PATTERNS,
     LOG_PATTERNS,

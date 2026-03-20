@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.application.use_cases.phase4_self_review import (
+from governance_runtime.application.use_cases.phase4_self_review import (
     RigorLevel,
     ReviewFinding,
     SelfReviewRound,

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.entrypoints.reason_registry_selfcheck import check_reason_registry_parity
+from governance_runtime.entrypoints.reason_registry_selfcheck import check_reason_registry_parity
 
 
 @pytest.mark.governance
@@ -17,12 +17,12 @@ class TestPipelineReasonCodesParity:
 
     def test_pipeline_interactive_in_domain(self):
         """BLOCKED-PIPELINE-INTERACTIVE is in domain constants."""
-        from governance.domain.reason_codes import BLOCKED_PIPELINE_INTERACTIVE
+        from governance_runtime.domain.reason_codes import BLOCKED_PIPELINE_INTERACTIVE
         assert BLOCKED_PIPELINE_INTERACTIVE == "BLOCKED-PIPELINE-INTERACTIVE"
 
     def test_pipeline_human_assist_in_domain(self):
         """BLOCKED-PIPELINE-HUMAN-ASSIST is in domain constants."""
-        from governance.domain.reason_codes import BLOCKED_PIPELINE_HUMAN_ASSIST
+        from governance_runtime.domain.reason_codes import BLOCKED_PIPELINE_HUMAN_ASSIST
         assert BLOCKED_PIPELINE_HUMAN_ASSIST == "BLOCKED-PIPELINE-HUMAN-ASSIST"
 
     def test_pipeline_interactive_in_registry(self):
@@ -53,12 +53,12 @@ class TestPipelineReasonCodesParity:
 
     def test_pipeline_interactive_in_embedded_registry(self):
         """BLOCKED-PIPELINE-INTERACTIVE is in embedded registry."""
-        from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
+        from governance_runtime.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
         assert "BLOCKED-PIPELINE-INTERACTIVE" in EMBEDDED_REASON_CODE_TO_SCHEMA_REF
 
     def test_pipeline_human_assist_in_embedded_registry(self):
         """BLOCKED-PIPELINE-HUMAN-ASSIST is in embedded registry."""
-        from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
+        from governance_runtime.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
         assert "BLOCKED-PIPELINE-HUMAN-ASSIST" in EMBEDDED_REASON_CODE_TO_SCHEMA_REF
 
 

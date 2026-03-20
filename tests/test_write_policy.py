@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.persistence.write_policy import (
+from governance_runtime.persistence.write_policy import (
     BLOCKED_PERSISTENCE_PATH_VIOLATION,
     BLOCKED_PERSISTENCE_TARGET_DEGENERATE,
     DETAIL_KEY_PARENT_TRAVERSAL,

@@ -1,4 +1,4 @@
-from governance.application.use_cases.route_phase import RoutePhaseInput, RoutePhaseService
+from governance_runtime.application.use_cases.route_phase import RoutePhaseInput, RoutePhaseService
 
 
 _FULL_PERSISTENCE = {

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
 
 def _write_paths(commands: Path, *, schema: str, paths: dict[str, str], command_profiles: dict[str, object] | None = None) -> None:

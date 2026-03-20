@@ -152,15 +152,15 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         _resolve_existing_rel("rules.md"),
         "BOOTSTRAP.md",
         _resolve_existing_rel("profiles/addons/docsGovernance.addon.yml"),
-        "governance/entrypoints/persist_workspace_artifacts.py",
-        "governance/entrypoints/bootstrap_session_state.py",
-        "governance/entrypoints/error_logs.py",
-        "governance/entrypoints/map_audit_to_canonical.py",
-        "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
-        "governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
-        "governance/assets/catalogs/tool_requirements.json",
-        "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
-        "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
+        "governance_runtime/entrypoints/persist_workspace_artifacts.py",
+        "governance_runtime/entrypoints/bootstrap_session_state.py",
+        "governance_runtime/entrypoints/error_logs.py",
+        "governance_runtime/entrypoints/map_audit_to_canonical.py",
+        "governance_runtime/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
+        "governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+        "governance_runtime/assets/catalogs/tool_requirements.json",
+        "governance_runtime/assets/catalogs/QUICKFIX_TEMPLATES.json",
+        "governance_runtime/assets/catalogs/UX_INTENT_GOLDENS.json",
     }
     required_rel.update(_shipped_customer_scripts())
     required_rel.update(_shipped_workflow_templates())
@@ -204,7 +204,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         # - LICENSE*
         # - *.md + *.json
         # - profiles/addons/*.addon.yml
-        # - governance/entrypoints/*.py runtime helpers
+        # - governance_runtime/entrypoints/*.py runtime helpers
         # - cli/*.py local bootstrap runtime package
         # - governance/artifacts/opencode-plugins/*.{mjs,js} desktop session hooks
         # - scripts/*.py listed in CUSTOMER_SCRIPT_CATALOG ship_in_release
@@ -218,7 +218,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
                 continue
             if (rel.startswith("profiles/addons/") or rel.startswith("governance_content/profiles/addons/")) and name.endswith(".addon.yml"):
                 continue
-            if rel.startswith("governance/entrypoints/") and Path(name).suffix.lower() == ".py":
+            if rel.startswith("governance_runtime/entrypoints/") and Path(name).suffix.lower() == ".py":
                 continue
             if rel.startswith("governance/") and Path(name).suffix.lower() == ".py":
                 continue

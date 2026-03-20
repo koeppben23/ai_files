@@ -20,8 +20,8 @@ from pathlib import Path
 
 import pytest
 
-import governance.infrastructure.logging.global_error_handler as geh
-from governance.infrastructure.logging.global_error_handler import (
+import governance_runtime.infrastructure.logging.global_error_handler as geh
+from governance_runtime.infrastructure.logging.global_error_handler import (
     ErrorContext,
     _candidate_log_paths,
     emit_error_event,

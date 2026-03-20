@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.enforce import (
+from governance_runtime.enforce import (
     ViolationType,
     LayerViolation,
     EnforcementResult,
@@ -22,7 +22,7 @@ from governance.enforce import (
     get_layer_distribution,
     generate_layer_report,
 )
-from governance.layers import GovernanceLayer
+from governance_runtime.layers import GovernanceLayer
 
 
 class TestCheckLayerAssignment:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.application.policies.persistence_policy import (
+from governance_runtime.application.policies.persistence_policy import (
     ARTIFACT_DECISION_PACK,
     ARTIFACT_REPO_CACHE,
     ARTIFACT_REPO_DIGEST,

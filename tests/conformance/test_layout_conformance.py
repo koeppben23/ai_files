@@ -148,7 +148,7 @@ class TestWorkspaceArtifactLayout:
 
     def test_happy_all_contract_artifacts_have_path_functions(self):
         """Happy: Every artifact in the contract has a path function in workspace_paths.py."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         # Artifact names from contract section 3 → expected function names
         expected_functions = {
@@ -172,7 +172,7 @@ class TestWorkspaceArtifactLayout:
 
     def test_happy_path_functions_return_under_workspace_or_audit_root(self, tmp_path):
         """Happy: Runtime paths resolve under workspace, audit paths under governance-records."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "workspaces"
         fp = "a" * 24
@@ -208,7 +208,7 @@ class TestWorkspaceArtifactLayout:
 
     def test_happy_global_pointer_at_config_root(self, tmp_path):
         """Happy: global_pointer_path resolves directly under config root."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         config_root = tmp_path / "opencode-home"
         ptr = wp.global_pointer_path(config_root)
@@ -217,7 +217,7 @@ class TestWorkspaceArtifactLayout:
 
     def test_corner_fingerprint_24_hex_boundary(self, tmp_path):
         """Corner: Fingerprint at exactly 24 hex chars is accepted."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         fp_min = "0" * 24
         fp_max = "f" * 24
@@ -228,7 +228,7 @@ class TestWorkspaceArtifactLayout:
 
     def test_edge_workspace_root_path_segments(self, tmp_path):
         """Edge: workspace_root produces exactly workspaces_home / fingerprint."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "workspaces"
         fp = "ab" * 12
@@ -237,7 +237,7 @@ class TestWorkspaceArtifactLayout:
 
     def test_bad_artifact_names_match_contract(self, tmp_path):
         """Bad path detection: artifact filename constants match contract specification."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "ws"
         fp = "c" * 24
@@ -282,12 +282,12 @@ class TestPointerArchitecture:
 
     def test_happy_canonical_pointer_schema(self):
         """Happy: CANONICAL_POINTER_SCHEMA matches contract."""
-        from governance.infrastructure.session_pointer import CANONICAL_POINTER_SCHEMA
+        from governance_runtime.infrastructure.session_pointer import CANONICAL_POINTER_SCHEMA
         assert CANONICAL_POINTER_SCHEMA == "opencode-session-pointer.v1"
 
     def test_happy_pointer_payload_has_required_keys(self, tmp_path):
         """Happy: build_pointer_payload produces the three canonical keys."""
-        from governance.infrastructure.session_pointer import build_pointer_payload
+        from governance_runtime.infrastructure.session_pointer import build_pointer_payload
 
         fp = "a" * 24
         config_root = tmp_path / "config"
@@ -299,18 +299,18 @@ class TestPointerArchitecture:
 
     def test_happy_pointer_is_not_state(self, tmp_path):
         """Happy: Global pointer is named SESSION_STATE.json but is a routing pointer."""
-        from governance.infrastructure.workspace_paths import global_pointer_path
+        from governance_runtime.infrastructure.workspace_paths import global_pointer_path
         ptr = global_pointer_path(tmp_path / "cfg")
         assert ptr.name == "SESSION_STATE.json", "Global pointer filename changed"
 
     def test_corner_legacy_pointer_schema_recognized(self):
         """Corner: Legacy schema 'active-session-pointer.v1' is in LEGACY set."""
-        from governance.infrastructure.session_pointer import LEGACY_POINTER_SCHEMAS
+        from governance_runtime.infrastructure.session_pointer import LEGACY_POINTER_SCHEMAS
         assert "active-session-pointer.v1" in LEGACY_POINTER_SCHEMAS
 
     def test_bad_invalid_fingerprint_rejected(self):
         """Bad: Non-24-hex fingerprint is rejected by validate_fingerprint."""
-        from governance.infrastructure.session_pointer import validate_fingerprint
+        from governance_runtime.infrastructure.session_pointer import validate_fingerprint
 
         for bad_fp in ["", "abc", "g" * 24, "a" * 23, "a" * 25, "zzzz" * 6]:
             with pytest.raises(ValueError):
@@ -318,12 +318,12 @@ class TestPointerArchitecture:
 
     def test_bad_pointer_without_schema_is_invalid(self):
         """Bad: Pointer payload without schema field is rejected."""
-        from governance.infrastructure.session_pointer import is_valid_pointer
+        from governance_runtime.infrastructure.session_pointer import is_valid_pointer
         assert not is_valid_pointer({"activeRepoFingerprint": "a" * 24})
 
     def test_bad_pointer_with_wrong_rel_path_is_invalid(self, tmp_path):
         """Bad: Pointer with incorrect relative path is rejected."""
-        from governance.infrastructure.session_pointer import is_valid_pointer
+        from governance_runtime.infrastructure.session_pointer import is_valid_pointer
 
         fp = "a" * 24
         payload = {
@@ -385,7 +385,7 @@ class TestUninstallRetention:
     def test_bad_opencode_json_not_in_workspace_artifact_names(self, tmp_path):
         """Bad: opencode.json must NEVER appear in workspace artifact purge targets."""
         # This mirrors the runtime assertion in install.py
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "ws"
         fp = "a" * 24

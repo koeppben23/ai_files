@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.application.use_cases.rework_clarification import (
+from governance_runtime.application.use_cases.rework_clarification import (
     classify_rework_clarification,
     derive_next_rail,
 )

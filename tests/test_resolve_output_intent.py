@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 import pytest
 
-from governance.application.use_cases.resolve_output_intent import (
+from governance_runtime.application.use_cases.resolve_output_intent import (
     IntentResolutionSource,
     PrimaryIntent,
     ResolvedOutputIntent,
@@ -29,14 +29,14 @@ from governance.application.use_cases.resolve_output_intent import (
     _infer_primary_intent,
     resolve_output_intent,
 )
-from governance.domain.phase_state_machine import (
+from governance_runtime.domain.phase_state_machine import (
     PhaseOutputPolicy,
     PlanDiscipline,
     clear_phase_output_policy_cache,
     resolve_phase_output_policy,
     set_phase_api_loader,
 )
-from governance.engine.response_contract import (
+from governance_runtime.engine.response_contract import (
     NextAction,
     Snapshot,
     _apply_resolved_intent_policy,
@@ -389,19 +389,19 @@ class TestResolverIntegration:
 
     def test_resolved_intent_on_orchestrator_output_accessible(self) -> None:
         """Happy: EngineOrchestratorOutput has resolved_output_intent field."""
-        from governance.application.use_cases.orchestrate_run import EngineOrchestratorOutput
+        from governance_runtime.application.use_cases.orchestrate_run import EngineOrchestratorOutput
         assert hasattr(EngineOrchestratorOutput, "resolved_output_intent")
 
     def test_kernel_result_has_route_strategy(self) -> None:
         """Happy: KernelResult dataclass includes route_strategy field."""
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
         import dataclasses
         field_names = {f.name for f in dataclasses.fields(KernelResult)}
         assert "route_strategy" in field_names
 
     def test_routed_phase_has_route_strategy(self) -> None:
         """Happy: RoutedPhase dataclass includes route_strategy field."""
-        from governance.application.use_cases.phase_router import RoutedPhase
+        from governance_runtime.application.use_cases.phase_router import RoutedPhase
         import dataclasses
         field_names = {f.name for f in dataclasses.fields(RoutedPhase)}
         assert "route_strategy" in field_names

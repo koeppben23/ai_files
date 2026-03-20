@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.workspace_memory_repository import WorkspaceMemoryRepository
+from governance_runtime.infrastructure.workspace_memory_repository import WorkspaceMemoryRepository
 
 
 @pytest.mark.governance

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.verification import runner
+from governance_runtime.verification import runner
 
 
 def test_runner_happy_with_stubbed_pytest(monkeypatch) -> None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.kernel.phase_kernel import RuntimeContext, execute
+from governance_runtime.kernel.phase_kernel import RuntimeContext, execute
 from tests.util import get_phase_api_path
 
 

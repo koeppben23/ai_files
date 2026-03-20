@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.verification.pipeline import run_verifier_pipeline
+from governance_runtime.verification.pipeline import run_verifier_pipeline
 
 
 def test_verifier_pipeline_happy_all_pass() -> None:

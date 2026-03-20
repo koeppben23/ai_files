@@ -62,6 +62,10 @@ def _map_legacy_relpath(rel: str) -> str:
         return "governance_content/" + rel
     if rel.startswith("rulesets/"):
         return "governance_spec/" + rel
+    if rel.startswith("governance/docs/"):
+        return "governance_content/docs/governance/" + rel.removeprefix("governance/docs/")
+    if rel.startswith("governance/"):
+        return "governance_runtime/" + rel.removeprefix("governance/")
     return rel
 
 
@@ -120,10 +124,10 @@ def _validate_matrix_alignment(issues: list[str], guards: list[dict[str, object]
     matrix_sources = set()
     for row in matrix_rows[1:] if matrix_rows and matrix_rows[0][0] == "ssot_source" else matrix_rows:
         if row:
-            matrix_sources.add(row[0])
+            matrix_sources.add(_map_legacy_relpath(row[0]))
 
     guard_sources = {
-        source
+        _map_legacy_relpath(source)
         for guard in guards
         for source in [guard.get("source")]
         if isinstance(source, str)

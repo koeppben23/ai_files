@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.contracts.registry import load_and_validate_contracts
+from governance_runtime.contracts.registry import load_and_validate_contracts
 
 
 def test_seed_requirements_validate_happy_path() -> None:

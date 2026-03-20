@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from governance.engine.adapters import HostCapabilities
-from governance.engine.surface_policy import (
+from governance_runtime.engine.adapters import HostCapabilities
+from governance_runtime.engine.surface_policy import (
     capability_satisfies_requirement,
     mode_satisfies_requirement,
     resolve_surface_policy,

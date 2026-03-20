@@ -16,7 +16,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch
 
-from governance.paths import layer_adapter
+from governance_runtime.paths import layer_adapter
 
 
 def _posix(path: Path) -> str:

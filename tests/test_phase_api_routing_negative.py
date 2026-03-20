@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.kernel.phase_api_spec import PhaseApiSpecError, load_phase_api
+from governance_runtime.kernel.phase_api_spec import PhaseApiSpecError, load_phase_api
 
 
 def _write_spec(tmp_path: Path, text: str) -> Path:

@@ -1,4 +1,4 @@
-from governance.application.use_cases.artifact_backfill import BackfillSummary
+from governance_runtime.application.use_cases.artifact_backfill import BackfillSummary
 
 
 def test_fail_closed_missing_artifacts_placeholder() -> None:

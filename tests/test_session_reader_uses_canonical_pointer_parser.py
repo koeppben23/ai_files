@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from governance.entrypoints import session_reader
-from governance.infrastructure import session_pointer as pointer_module
+from governance_runtime.entrypoints import session_reader
+from governance_runtime.infrastructure import session_pointer as pointer_module
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

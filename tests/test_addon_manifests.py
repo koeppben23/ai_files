@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.addon_catalog import ALLOWED_CAPABILITIES, ALLOWED_SURFACES
+from governance_runtime.addon_catalog import ALLOWED_CAPABILITIES, ALLOWED_SURFACES
 from .util import REPO_ROOT, git_ls_files, read_text, run, get_profiles_path, get_master_path
 
 

@@ -387,7 +387,7 @@ def test_e2e_activation_delta_blocks_when_hashes_unchanged_but_outcome_drifts(tm
 @pytest.mark.e2e_governance
 def test_e2e_short_intent_goldens_are_stable():
     fixture = REPO_ROOT / "governance" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json"
-    assert fixture.exists(), "Missing governance/assets/catalogs/UX_INTENT_GOLDENS.json"
+    assert fixture.exists(), "Missing governance_runtime/assets/catalogs/UX_INTENT_GOLDENS.json"
     payload = json.loads(read_text(fixture))
 
     assert payload.get("$schema") == "opencode.ux-intent-goldens.v1"

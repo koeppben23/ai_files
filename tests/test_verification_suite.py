@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from governance.application.use_cases.phase_router import route_phase
-from governance.infrastructure.workspace_ready_gate import ensure_workspace_ready
+from governance_runtime.application.use_cases.phase_router import route_phase
+from governance_runtime.infrastructure.workspace_ready_gate import ensure_workspace_ready
 from tests.util import get_phase_api_path
 
 
@@ -48,7 +48,7 @@ def _kernel_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
             "pythonCommand": sys.executable,
         },
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    (config_root / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
     (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 

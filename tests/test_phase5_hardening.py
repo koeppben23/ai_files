@@ -39,7 +39,7 @@ def _binding_with_phase_api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     commands_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
     (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
-    (commands_home / "governance.paths.json").write_text(
+    (config_root / "governance.paths.json").write_text(
         json.dumps(
             {
                 "schema": "opencode-governance.paths.v1",

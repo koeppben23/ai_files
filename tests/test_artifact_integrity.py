@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.artifact_integrity import (
+from governance_runtime.infrastructure.artifact_integrity import (
     VerificationResult,
     verify_all_releases,
     verify_ruleset_integrity,
@@ -152,7 +152,7 @@ def test_verification_fails_with_non_object_hashes_json(tmp_path: Path) -> None:
 
 # ── Lifecycle integration tests ─────────────────────────────────────────
 
-from governance.engine.lifecycle import stage_engine_activation
+from governance_runtime.engine.lifecycle import stage_engine_activation
 
 
 def test_engine_refuses_activation_on_integrity_failure(tmp_path: Path) -> None:

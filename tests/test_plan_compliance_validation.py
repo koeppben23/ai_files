@@ -8,15 +8,15 @@ from __future__ import annotations
 
 import pytest
 
-from governance.application.use_cases.validate_plan_compliance import (
+from governance_runtime.application.use_cases.validate_plan_compliance import (
     PlanComplianceReport,
     validate_plan_compliance,
 )
-from governance.engine.gate_evaluator import (
+from governance_runtime.engine.gate_evaluator import (
     P6PlanComplianceEvaluation,
     evaluate_p6_plan_compliance,
 )
-from governance.domain.reason_codes import (
+from governance_runtime.domain.reason_codes import (
     BLOCKED_P6_PLAN_COMPLIANCE_MAJOR,
     REASON_CODE_NONE,
     WARN_P6_PLAN_COMPLIANCE_DRIFT,
@@ -333,7 +333,7 @@ class TestEvaluateP6PlanCompliance:
         assert isinstance(result.report, PlanComplianceReport)
 
     def test_reason_codes_are_registered(self) -> None:
-        from governance.domain.reason_codes import is_registered_reason_code
+        from governance_runtime.domain.reason_codes import is_registered_reason_code
 
         assert is_registered_reason_code(BLOCKED_P6_PLAN_COMPLIANCE_MAJOR, allow_none=False)
         assert is_registered_reason_code(WARN_P6_PLAN_COMPLIANCE_DRIFT, allow_none=False)

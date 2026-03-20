@@ -201,7 +201,7 @@ class TestInstallerToFiles:
 class TestLauncherToEntrypoints:
     """Validate that launcher references resolve to real entrypoint modules."""
 
-    ENTRYPOINTS_DIR = REPO_ROOT / "governance" / "entrypoints"
+    ENTRYPOINTS_DIR = REPO_ROOT / "governance_runtime" / "entrypoints"
 
     # The key entrypoint modules that launchers/plugin invoke
     REQUIRED_ENTRYPOINTS = [
@@ -215,7 +215,7 @@ class TestLauncherToEntrypoints:
     ]
 
     def test_happy_entrypoints_dir_exists(self):
-        """Happy: governance/entrypoints/ directory exists."""
+        """Happy: governance_runtime/entrypoints/ directory exists."""
         assert self.ENTRYPOINTS_DIR.is_dir()
 
     def test_happy_all_required_entrypoints_exist(self):
@@ -340,7 +340,7 @@ class TestRailsToPaths:
     def test_happy_referenced_modules_exist(self):
         """Happy: All -m module references in rail files resolve to real files."""
         opencode_commands = self.OPENCODE_COMMANDS
-        entrypoints = REPO_ROOT / "governance" / "entrypoints"
+        entrypoints = REPO_ROOT / "governance_runtime" / "entrypoints"
         modules_referenced = set()
         for fname in self.ALL_RAIL_FILES:
             content = _read_source(REPO_ROOT / opencode_commands / fname)
@@ -468,7 +468,7 @@ class TestRuntimeToWorkspace:
 
     def test_happy_all_artifact_paths_under_workspace_or_audit_root(self, tmp_path):
         """Happy: Runtime paths resolve under workspace, audit paths under governance-records."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "workspaces"
         fp = "a" * 24
@@ -496,7 +496,7 @@ class TestRuntimeToWorkspace:
 
     def test_happy_workspace_root_deterministic(self, tmp_path):
         """Happy: workspace_root returns same result for same inputs."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "workspaces"
         fp = "b" * 24
@@ -506,7 +506,7 @@ class TestRuntimeToWorkspace:
 
     def test_happy_global_pointer_at_config_root(self, tmp_path):
         """Happy: global_pointer_path is at config root level."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         config_root = tmp_path / "opencode"
         ptr = wp.global_pointer_path(config_root)
@@ -515,7 +515,7 @@ class TestRuntimeToWorkspace:
 
     def test_happy_phase_artifact_lists_match_functions(self, tmp_path):
         """Happy: PHASE*_ARTIFACTS constants reference real artifact filenames."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "ws"
         fp = "c" * 24
@@ -542,7 +542,7 @@ class TestRuntimeToWorkspace:
 
     def test_corner_run_artifacts_under_runs_dir(self, tmp_path):
         """Corner: Run-scoped artifacts are all under runs/<run_id>/."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "ws"
         fp = "d" * 24
@@ -563,7 +563,7 @@ class TestRuntimeToWorkspace:
 
     def test_bad_no_artifact_named_opencode_json(self, tmp_path):
         """Bad: opencode.json must never be a workspace artifact."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "ws"
         fp = "e" * 24
@@ -719,7 +719,7 @@ class TestNoRoguePaths:
         - {{SESSION_READER_PATH}} / {{PYTHON_COMMAND}} placeholders
         - Relative references within installed tree
         """
-        entrypoints_dir = REPO_ROOT / "governance" / "entrypoints"
+        entrypoints_dir = REPO_ROOT / "governance_runtime" / "entrypoints"
         rail_files = ["continue.md", "review.md", "plan.md", "ticket.md", "review-decision.md", "implement.md"]
         opencode_commands = "opencode/commands"
 
@@ -755,7 +755,7 @@ class TestNoRoguePaths:
         assert "-m" in plugin_src, (
             "Plugin should use -m module invocation for governance entrypoints"
         )
-        # Should NOT hardcode paths like /path/to/governance/entrypoints/
+        # Should NOT hardcode paths like /path/to/governance_runtime/entrypoints/
         hardcoded_ep = re.search(
             r'["\'][A-Za-z]:\\.*?governance[/\\]entrypoints|'
             r'["\']/.*?governance/entrypoints',
@@ -799,12 +799,12 @@ class TestBindingPathWiring:
 
     def test_happy_supported_binding_schemas(self):
         """Happy: binding_paths supports the expected schema versions."""
-        from governance.infrastructure.binding_paths import SUPPORTED_BINDING_SCHEMAS
+        from governance_runtime.infrastructure.binding_paths import SUPPORTED_BINDING_SCHEMAS
         assert "opencode-governance.paths.v1" in SUPPORTED_BINDING_SCHEMAS
 
     def test_happy_canonical_config_root_importable(self):
         """Happy: canonical_config_root function is importable from path_contract."""
-        from governance.infrastructure.path_contract import canonical_config_root
+        from governance_runtime.infrastructure.path_contract import canonical_config_root
         result = canonical_config_root()
         assert isinstance(result, Path)
         assert "opencode" in str(result).lower()
@@ -814,7 +814,7 @@ class TestBindingPathWiring:
         import json
         import tempfile
 
-        from governance.infrastructure.binding_paths import (
+        from governance_runtime.infrastructure.binding_paths import (
             BindingLoadError,
             load_binding_paths_strict,
         )
@@ -834,7 +834,7 @@ class TestBindingPathWiring:
 
     def test_bad_binding_load_rejects_missing_file(self):
         """Bad: load_binding_paths_strict raises on missing file."""
-        from governance.infrastructure.binding_paths import (
+        from governance_runtime.infrastructure.binding_paths import (
             BindingLoadError,
             load_binding_paths_strict,
         )

@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from governance.application.use_cases.bootstrap_persistence import decide_bootstrap_persistence
+from governance_runtime.application.use_cases.bootstrap_persistence import decide_bootstrap_persistence
 from typing import cast
-from governance.application.ports.gateways import HostAdapter
-from governance.engine.adapters import ExecResult
+from governance_runtime.application.ports.gateways import HostAdapter
+from governance_runtime.engine.adapters import ExecResult
 from tests.test_engine_orchestrator import HostCapabilities
-from governance.infrastructure.wiring import configure_gateway_registry
+from governance_runtime.infrastructure.wiring import configure_gateway_registry
 
 
 @pytest.fixture(autouse=True)

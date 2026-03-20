@@ -22,8 +22,8 @@ from unittest.mock import patch
 
 import pytest
 
-from governance.kernel.phase_kernel import RuntimeContext, execute
-from governance.engine.gate_evaluator import (
+from governance_runtime.kernel.phase_kernel import RuntimeContext, execute
+from governance_runtime.engine.gate_evaluator import (
     evaluate_p54_business_rules_gate,
     evaluate_p55_technical_debt_gate,
     evaluate_p6_prerequisites,
@@ -31,11 +31,11 @@ from governance.engine.gate_evaluator import (
     P55GateEvaluation,
     P6PrerequisiteEvaluation,
 )
-from governance.entrypoints.review_decision_persist import (
+from governance_runtime.entrypoints.review_decision_persist import (
     apply_review_decision,
     VALID_DECISIONS,
 )
-from governance.entrypoints.session_reader import (
+from governance_runtime.entrypoints.session_reader import (
     _canonicalize_legacy_p5x_surface,
     _sync_conditional_p5_gate_states,
     _normalize_phase6_p5_state,

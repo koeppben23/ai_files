@@ -102,7 +102,7 @@ def test_readme_consistency_no_obsolete_opencode_refs():
 
 @pytest.mark.spec
 def test_bootstrap_binding_payload_contains_required_keys():
-    helper = REPO_ROOT / "governance" / "entrypoints" / "bootstrap_binding_evidence.py"
+    helper = REPO_ROOT / "governance_runtime" / "entrypoints" / "bootstrap_binding_evidence.py"
     text_parts = []
     if helper.exists():
         text_parts.append(read_text(helper))

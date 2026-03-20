@@ -4,8 +4,8 @@ from pathlib import Path
 
 import yaml
 
-from governance.kernel.phase_api_spec import load_phase_api
-from governance.kernel.phase_kernel import _select_transition
+from governance_runtime.kernel.phase_api_spec import load_phase_api
+from governance_runtime.kernel.phase_kernel import _select_transition
 from tests.util import get_phase_api_path
 
 

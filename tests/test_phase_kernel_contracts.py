@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from governance.kernel.phase_kernel import RuntimeContext, execute, _deduplicate_criteria
+from governance_runtime.kernel.phase_kernel import RuntimeContext, execute, _deduplicate_criteria
 from tests.util import get_phase_api_path
 
 

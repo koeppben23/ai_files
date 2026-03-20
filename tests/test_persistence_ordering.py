@@ -33,13 +33,13 @@ def _binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
             "pythonCommand": sys.executable,
         },
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    (config_root / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
     (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
 
 def test_phase_router_blocks_phase_2_1_without_persistence_committed() -> None:
-    from governance.application.use_cases.phase_router import route_phase
+    from governance_runtime.application.use_cases.phase_router import route_phase
 
     session_state_document = {
         "SESSION_STATE": {
@@ -59,7 +59,7 @@ def test_phase_router_blocks_phase_2_1_without_persistence_committed() -> None:
 
 
 def test_phase_router_allows_phase_2_1_with_persistence_committed() -> None:
-    from governance.application.use_cases.phase_router import route_phase
+    from governance_runtime.application.use_cases.phase_router import route_phase
 
     session_state_document = {
         "SESSION_STATE": {
@@ -98,7 +98,7 @@ def test_phase_router_allows_phase_2_1_with_persistence_committed() -> None:
 
 
 def test_session_state_template_includes_persistence_fields() -> None:
-    from governance.entrypoints.bootstrap_session_state import session_state_template
+    from governance_runtime.entrypoints.bootstrap_session_state import session_state_template
 
     template = session_state_template("a1b2c3d4e5f6a1b2c3d4e5f6", "test-repo")
     session = template.get("SESSION_STATE", {})

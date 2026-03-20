@@ -169,7 +169,7 @@ def test_release_zip_invalid_python_command_fails(tmp_path: Path, _release_extra
     proc = _run([_python_executable(), str(install_py), "--no-backup"], cwd=extracted_root, env=env)
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
-    binding_path = config_root / "commands" / "governance.paths.json"
+    binding_path = config_root / "governance.paths.json"
     binding_path.parent.mkdir(parents=True, exist_ok=True)
     binding_path.write_text(
         "{\n  \"schema\": \"opencode-governance.paths.v1\",\n  \"paths\": {\n    \"configRoot\": \""

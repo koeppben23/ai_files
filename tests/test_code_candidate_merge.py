@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.engine.business_rules_validation import (
+from governance_runtime.engine.business_rules_validation import (
     ORIGIN_CODE,
     ORIGIN_DOC,
     REASON_CODE_CANDIDATE_REJECTED,

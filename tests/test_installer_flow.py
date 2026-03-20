@@ -169,9 +169,9 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     # Verify critical files
     critical = [
         *(commands / name for name in CANONICAL_RAILS),
-        local_root / "governance" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json",
-        local_root / "governance" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json",
-        local_root / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
+        local_root / "governance_runtime" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json",
+        local_root / "governance_runtime" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json",
+        local_root / "governance_runtime" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
         config_root / "plugins" / "audit-new-session.mjs",
         manifest,
         paths_file,
@@ -337,15 +337,15 @@ def test_install_keeps_backup_and_metadata_artifacts_outside_commands_payload(tm
     target.write_text("modified\n", encoding="utf-8")
     (commands_dir / ".DS_Store").write_text("meta", encoding="utf-8")
     local_root = _local_dir(config_root)
-    (local_root / "governance" / "logs").mkdir(parents=True, exist_ok=True)
-    (local_root / "governance" / "logs" / "error.log.jsonl").write_text("{}\n", encoding="utf-8")
+    (local_root / "governance_runtime" / "logs").mkdir(parents=True, exist_ok=True)
+    (local_root / "governance_runtime" / "logs" / "error.log.jsonl").write_text("{}\n", encoding="utf-8")
 
     second = run_install(["--force", "--config-root", str(config_root)])
     assert second.returncode == 0, f"reinstall failed:\n{second.stderr}\n{second.stdout}"
 
     assert not (commands_dir / "_backup").exists(), "commands/_backup must not exist after install"
     assert not (commands_dir / ".DS_Store").exists(), "commands/.DS_Store must be removed by hygiene guard"
-    assert not (local_root / "governance" / "logs").exists(), "local/governance/logs must never exist after install"
+    assert not (local_root / "governance_runtime" / "logs").exists(), "local/governance/logs must never exist after install"
 
     backup_root = config_root / ".installer-backups"
     assert backup_root.exists(), "backup root should exist outside commands/"
@@ -450,7 +450,7 @@ def test_uninstall_removes_docs_and_governance_even_with_manifest_drift(tmp_path
 
     doc_leftovers = [p.as_posix() for p in (commands / "docs").rglob("*") if p.is_file()] if (commands / "docs").exists() else []
     local_root = _local_dir(config_root)
-    gov_leftovers = [p.as_posix() for p in (local_root / "governance").rglob("*") if p.is_file()] if (local_root / "governance").exists() else []
+    gov_leftovers = [p.as_posix() for p in (local_root / "governance_runtime").rglob("*") if p.is_file()] if (local_root / "governance_runtime").exists() else []
     assert not doc_leftovers, f"docs files left behind after uninstall: {doc_leftovers[:20]}"
     assert not gov_leftovers, f"governance files left behind after uninstall: {gov_leftovers[:20]}"
 
@@ -465,7 +465,7 @@ def test_uninstall_purges_legacy_governnce_and_docs_leftovers(tmp_path: Path):
     legacy = commands / "governnce" / "nested"
     docs_extra = commands / "docs" / "legacy"
     local_root = _local_dir(config_root)
-    gov_extra = local_root / "governance" / "legacy"
+    gov_extra = local_root / "governance_runtime" / "legacy"
     legacy.mkdir(parents=True, exist_ok=True)
     docs_extra.mkdir(parents=True, exist_ok=True)
     gov_extra.mkdir(parents=True, exist_ok=True)
@@ -481,7 +481,7 @@ def test_uninstall_purges_legacy_governnce_and_docs_leftovers(tmp_path: Path):
 
     docs_leftovers = [p.as_posix() for p in (commands / "docs").rglob("*") if p.is_file()] if (commands / "docs").exists() else []
     local_root = _local_dir(config_root)
-    gov_leftovers = [p.as_posix() for p in (local_root / "governance").rglob("*") if p.is_file()] if (local_root / "governance").exists() else []
+    gov_leftovers = [p.as_posix() for p in (local_root / "governance_runtime").rglob("*") if p.is_file()] if (local_root / "governance_runtime").exists() else []
     assert not docs_leftovers, f"docs files left behind after uninstall: {docs_leftovers[:20]}"
     assert not gov_leftovers, f"governance files left behind after uninstall: {gov_leftovers[:20]}"
 
@@ -658,10 +658,10 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     )
 
     required_governance = [
-        local_root / "governance" / "entrypoints" / "map_audit_to_canonical.py",
-        local_root / "governance" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json",
-        local_root / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
-        local_root / "governance" / "assets" / "catalogs" / "tool_requirements.json",
+        local_root / "governance_runtime" / "entrypoints" / "map_audit_to_canonical.py",
+        local_root / "governance_runtime" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json",
+        local_root / "governance_runtime" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
+        local_root / "governance_runtime" / "assets" / "catalogs" / "tool_requirements.json",
     ]
     missing_governance = [str(p) for p in required_governance if not p.exists()]
     assert not missing_governance, "Missing required governance bridge files after install:\n" + "\n".join(
@@ -671,7 +671,7 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     required_runtime = [
         local_root / "governance_runtime" / "engine" / "orchestrator.py",
         local_root / "governance_runtime" / "engine" / "response_contract.py",
-        local_root / "governance" / "render" / "render_contract.py",
+        local_root / "governance_runtime" / "render" / "render_contract.py",
     ]
     missing_runtime = [str(p) for p in required_runtime if not p.exists()]
     assert not missing_runtime, "Missing governance runtime package files after install:\n" + "\n".join(
@@ -1106,7 +1106,7 @@ class TestPosixPathSerialization:
 
     def test_edge_session_pointer_uses_posix(self) -> None:
         """Edge: session_pointer emits POSIX paths in payload."""
-        from governance.infrastructure.session_pointer import build_pointer_payload
+        from governance_runtime.infrastructure.session_pointer import build_pointer_payload
         payload = build_pointer_payload(
             repo_fingerprint="abc123def456abc123def456",
             session_state_file=Path("/fake/config/workspaces/abc123def456abc123def456/SESSION_STATE.json"),
@@ -1359,7 +1359,7 @@ class TestInstallLogsDirectory:
         assert (local_root / "governance_runtime").is_dir()
         assert (local_root / "governance_content").is_dir()
         assert (local_root / "governance_spec").is_dir()
-        assert (local_root / "governance").is_dir()
+        assert (local_root / "governance_runtime").is_dir()
 
     @pytest.mark.installer
     def test_happy_full_install_does_not_create_commands_logs_directory(self, tmp_path: Path) -> None:

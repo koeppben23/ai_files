@@ -74,7 +74,7 @@ def _write_governance_paths(*, config_root: Path, commands_home: Path, workspace
             "localRoot": str(local_root),
             "commandsHome": str(commands_home),
             "profilesHome": str(local_root / "governance_content" / "profiles"),
-            "governanceHome": str(local_root / "governance"),
+            "governanceHome": str(local_root / "governance_runtime"),
             "runtimeHome": str(local_root / "governance_runtime"),
             "contentHome": str(local_root / "governance_content"),
             "specHome": str(local_root / "governance_spec"),
@@ -85,7 +85,7 @@ def _write_governance_paths(*, config_root: Path, commands_home: Path, workspace
         },
         "generatedAt": "1970-01-01T00:00:00Z",
     }
-    (commands_home / "governance.paths.json").write_text(
+    (config_root / "governance.paths.json").write_text(
         json.dumps(payload, indent=2),
         encoding="utf-8",
     )

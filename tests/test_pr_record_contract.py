@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.run_audit_artifacts import build_pr_record
-from governance.infrastructure.workspace_paths import run_dir
-from governance.infrastructure.work_run_archive import archive_active_run
+from governance_runtime.infrastructure.run_audit_artifacts import build_pr_record
+from governance_runtime.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.work_run_archive import archive_active_run
 
 
 def test_pr_record_required_only_for_pr_runs(tmp_path: Path) -> None:

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.installer import (
+from governance_runtime.installer import (
     collect_by_layer,
     collect_installable,
     collect_static_payload,
@@ -30,7 +30,7 @@ from governance.installer import (
     install_spec_target,
     install_runtime_target,
 )
-from governance import GovernanceLayer
+from governance_runtime import GovernanceLayer
 
 
 class TestIterFilesRecursive:

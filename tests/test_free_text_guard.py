@@ -27,7 +27,7 @@ from unittest.mock import patch
 
 import pytest
 
-from governance.entrypoints.session_reader import (
+from governance_runtime.entrypoints.session_reader import (
     POINTER_SCHEMA,
     read_session_snapshot,
 )
@@ -478,7 +478,7 @@ class TestEvaluateReadonlyNoSideEffects:
         files_before = set(os.listdir(workspace_dir))
         content_before = ws_state.read_text(encoding="utf-8")
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         fake_result = KernelResult(
             phase="5-ArchitectureReview",

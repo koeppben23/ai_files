@@ -49,7 +49,7 @@ class TestR4aLegacySunsetReadiness:
     def test_runtime_has_zero_legacy_imports(self) -> None:
         edges = _runtime_legacy_import_edges()
         assert not edges, (
-            "R4a hard verification failed: governance_runtime/** must not import governance.*. "
+            "R4a hard verification failed: governance_runtime/** must not import governance_runtime.*. "
             f"Found {len(edges)} edges: {edges[:20]}"
         )
 

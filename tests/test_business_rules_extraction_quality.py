@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.engine.business_rules_validation import (
+from governance_runtime.engine.business_rules_validation import (
     RuleCandidate,
     extract_validated_business_rules_from_repo,
     validate_candidates,

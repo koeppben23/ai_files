@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.adapters import LocalHostAdapter, OpenCodeDesktopAdapter
+from governance_runtime.engine.adapters import LocalHostAdapter, OpenCodeDesktopAdapter
 
 
 @pytest.mark.governance

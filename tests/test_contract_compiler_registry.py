@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.contracts.compiler import compile_plan_to_requirements
-from governance.contracts.registry import discover_requirement_contract_files, load_and_validate_contracts
+from governance_runtime.contracts.compiler import compile_plan_to_requirements
+from governance_runtime.contracts.registry import discover_requirement_contract_files, load_and_validate_contracts
 
 
 def test_compiler_happy_generates_atomic_requirements() -> None:

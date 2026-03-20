@@ -440,7 +440,7 @@ class TestInjectSessionReaderPath:
         cmd = tmp_path / "commands"
         cmd.mkdir()
         # Also create the governance/entrypoints directory for path construction
-        (cmd / "governance" / "entrypoints").mkdir(parents=True)
+        (cmd / "governance_runtime" / "entrypoints").mkdir(parents=True)
         return cmd
 
     def _write_template(self, commands_dir: Path) -> Path:
@@ -567,7 +567,7 @@ class TestPythonCommandQuoting:
     def commands_dir(self, tmp_path: Path) -> Path:
         cmd = tmp_path / "commands"
         cmd.mkdir()
-        (cmd / "governance" / "entrypoints").mkdir(parents=True)
+        (cmd / "governance_runtime" / "entrypoints").mkdir(parents=True)
         return cmd
 
     def _write_template(self, commands_dir: Path, name: str = "continue.md") -> Path:

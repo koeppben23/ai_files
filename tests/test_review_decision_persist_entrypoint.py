@@ -4,8 +4,8 @@ import json
 import hashlib
 from pathlib import Path
 
-from governance.entrypoints import review_decision_persist as entrypoint
-from governance.contracts.enforcement import EnforcementResult, FAIL_CLOSED_MISSING_CONTRACT
+from governance_runtime.entrypoints import review_decision_persist as entrypoint
+from governance_runtime.contracts.enforcement import EnforcementResult, FAIL_CLOSED_MISSING_CONTRACT
 
 
 def _write_session(path: Path, *, phase: str = "6-PostFlight") -> None:

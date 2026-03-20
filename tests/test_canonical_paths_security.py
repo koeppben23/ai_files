@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.paths.canonical import ensure_absolute_no_traversal, validate_no_traversal
+from governance_runtime.paths.canonical import ensure_absolute_no_traversal, validate_no_traversal
 
 
 @pytest.mark.governance

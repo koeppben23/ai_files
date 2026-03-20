@@ -1,5 +1,5 @@
 from typing import Any, cast
-from governance.application.use_cases.bootstrap_persistence import _is_valid_pointer_payload, _session_state_payload
+from governance_runtime.application.use_cases.bootstrap_persistence import _is_valid_pointer_payload, _session_state_payload
 
 
 def test_bootstrap_payload_pointer_verified_true_golden():

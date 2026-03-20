@@ -11,7 +11,7 @@ Test categories:
 from __future__ import annotations
 
 import pytest
-from governance.engine.business_rules_validation import (
+from governance_runtime.engine.business_rules_validation import (
     _validate_rule_text,
     REASON_GOVERNANCE_META_RULE,
     REASON_NON_BUSINESS_SUBJECT,

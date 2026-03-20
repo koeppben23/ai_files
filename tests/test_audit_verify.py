@@ -5,9 +5,9 @@ import json
 import os
 from pathlib import Path
 
-from governance.infrastructure.workspace_paths import run_dir
-from governance.infrastructure.io_verify import verify_repository_manifest, verify_run_archive
-from governance.infrastructure.work_run_archive import archive_active_run
+from governance_runtime.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.io_verify import verify_repository_manifest, verify_run_archive
+from governance_runtime.infrastructure.work_run_archive import archive_active_run
 
 
 def _platform_path(path: Path) -> str:

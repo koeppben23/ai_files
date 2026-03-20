@@ -131,10 +131,10 @@ class TestLayerClassificationRules:
             "phase_api.yaml",
             "rules.yml",
             "schemas/",
-            "governance/assets/schemas/",
-            "governance/assets/config/",
-            "governance/contracts/",
-            "governance/receipts/",
+            "governance_runtime/assets/schemas/",
+            "governance_runtime/assets/config/",
+            "governance_runtime/contracts/",
+            "governance_runtime/receipts/",
             "rulesets/",
             "profiles/addons/",
         ]
@@ -144,7 +144,7 @@ class TestLayerClassificationRules:
     def test_governance_runtime_patterns_defined(self) -> None:
         """Verify governance_runtime patterns are present."""
         runtime_patterns = [
-            "governance/**/*.py",
+            "governance_runtime/**/*.py",
             "cli/",
             "scripts/",
             "bin/",

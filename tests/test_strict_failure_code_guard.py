@@ -11,7 +11,7 @@ import re
 
 import pytest
 
-from governance.domain.reason_codes import CANONICAL_REASON_CODES
+from governance_runtime.domain.reason_codes import CANONICAL_REASON_CODES
 from tests.util import get_ruleset_profiles_path
 
 SHARED_YAMLS = sorted(

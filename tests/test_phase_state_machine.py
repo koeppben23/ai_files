@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.domain.phase_state_machine import (
+from governance_runtime.domain.phase_state_machine import (
     PHASE_RANK,
     build_phase_state,
     normalize_phase_token,

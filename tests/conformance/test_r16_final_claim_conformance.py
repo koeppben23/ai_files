@@ -65,7 +65,7 @@ class TestR16FinalClaimConformance:
             'local_root / "governance_runtime"',
             'local_root / "governance_content"',
             'local_root / "governance_spec"',
-            'local_root / "governance"',
+            'local_root / "governance_runtime"',
             'plan.local_root / "VERSION"',
         ]
         for token in required_tokens:

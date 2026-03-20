@@ -156,7 +156,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
             "localRoot": str(local_root),
             "commandsHome": str(commands_home),
             "profilesHome": str(local_root / "governance_content" / "profiles"),
-            "governanceHome": str(local_root / "governance"),
+            "governanceHome": str(local_root / "governance_runtime"),
             "runtimeHome": str(local_root / "governance_runtime"),
             "contentHome": str(local_root / "governance_content"),
             "specHome": str(local_root / "governance_spec"),
@@ -167,7 +167,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
         },
         "generatedAt": "1970-01-01T00:00:00Z",
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (config_root / "governance.paths.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_home: Path) -> None:

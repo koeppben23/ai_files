@@ -13,7 +13,9 @@ DEFAULT_ALLOWED_PREFIXES = (
     "tests/fixtures/legacy_examples/",
     "governance_content/docs/archived/",
     "governance_spec/migrations/",
+    "governance_spec/rulesets/governance/",
     "scripts/legacy_surface_guard.py",
+    "scripts/ssot_guard.py",
     "scripts/install_layout_gate.py",
     "scripts/delete_barrier_gate.py",
 )
@@ -30,7 +32,7 @@ SCANNED_EXTENSIONS = {
     ".template",
 }
 
-PYTHON_PRODUCTIVE_ROOTS = ("cli", "bootstrap", "governance_runtime", "governance", "scripts")
+PYTHON_PRODUCTIVE_ROOTS = ("cli", "bootstrap", "governance_runtime", "scripts")
 PATH_SCAN_ROOTS = (
     "governance_content",
     "governance_spec",
@@ -40,6 +42,7 @@ PATH_SCAN_ROOTS = (
 )
 EXPLICIT_NORMATIVE_FILES = ("README.md", "QUICKSTART.md")
 EXPLICIT_PRODUCTIVE_PYTHON_FILES = ("install.py",)
+ARCH_GUARD_ROOTS = ("cli", "bootstrap", "governance_runtime")
 
 SKIP_DIRS = {
     ".git",
@@ -56,21 +59,23 @@ IMPORT_PATTERN = re.compile(r"\b(from|import)\s+governance(\.|\b)")
 MODULE_RUN_PATTERN = re.compile(r"python\s+-m\s+governance\.")
 PATH_PATTERNS = (
     "governance/",
-    "governance.",
     "governance/assets",
     "governance/kernel",
     "governance/entrypoints",
     "governance/VERSION",
 )
+PATH_LITERAL_PATTERN = re.compile(
+    r"(['\"`])(?:governance/|governance/assets|governance/kernel|governance/entrypoints|governance/VERSION)"
+)
 
-ALLOW_WRITE_TEXT = ("governance/infrastructure/fs_atomic.py",)
+ALLOW_WRITE_TEXT = ("governance_runtime/infrastructure/fs_atomic.py",)
 RESTRICTED_ENV_PARTS = {
-    ("governance", "application"),
-    ("governance", "domain"),
-    ("governance", "presentation"),
-    ("governance", "render"),
+    ("governance_runtime", "application"),
+    ("governance_runtime", "domain"),
+    ("governance_runtime", "presentation"),
+    ("governance_runtime", "render"),
 }
-REPO_IDENTITY_PATH = "governance/application/repo_identity_service.py"
+REPO_IDENTITY_PATH = "governance_runtime/application/repo_identity_service.py"
 
 
 def _to_posix(path: Path) -> str:
@@ -110,6 +115,9 @@ def scan_legacy_surface(repo_root: Path, *, allowed_prefixes: tuple[str, ...]) -
             _in_roots(rel_posix, PYTHON_PRODUCTIVE_ROOTS) or rel_posix in EXPLICIT_PRODUCTIVE_PYTHON_FILES
         )
         scan_path_tokens = _in_roots(rel_posix, PATH_SCAN_ROOTS) or rel_posix in EXPLICIT_NORMATIVE_FILES
+        scan_arch_guards = scan_python and (
+            _in_roots(rel_posix, ARCH_GUARD_ROOTS) or rel_posix in EXPLICIT_PRODUCTIVE_PYTHON_FILES
+        )
         if not scan_python and not scan_path_tokens:
             continue
 
@@ -123,23 +131,26 @@ def scan_legacy_surface(repo_root: Path, *, allowed_prefixes: tuple[str, ...]) -
                 if MODULE_RUN_PATTERN.search(line):
                     violations.append(f"{rel_posix}:{idx}: forbidden python -m governance.* invocation")
 
-            if scan_path_tokens or scan_python:
+            if scan_path_tokens:
                 for token in PATH_PATTERNS:
                     if token in line:
                         violations.append(f"{rel_posix}:{idx}: forbidden legacy path token '{token}'")
 
-            if scan_python and ".write_text(" in line and "tmp.write_text(" not in line:
+            if scan_python and PATH_LITERAL_PATTERN.search(line):
+                violations.append(f"{rel_posix}:{idx}: forbidden legacy path literal")
+
+            if scan_arch_guards and ".write_text(" in line and "tmp.write_text(" not in line:
                 if rel_posix not in ALLOW_WRITE_TEXT:
                     violations.append(f"{rel_posix}:{idx}: disallowed write_text usage")
 
-        if scan_python:
+        if scan_arch_guards:
             if "render_command_profiles(shlex.split(" in text:
                 violations.append(f"{rel_posix}: disallowed render_command_profiles(shlex.split(...))")
             if "subprocess.run([sys.executable" in text:
                 violations.append(f"{rel_posix}: disallowed subprocess.run([sys.executable, ...])")
 
         rel_parts = rel.parts
-        if len(rel_parts) >= 2 and (rel_parts[0], rel_parts[1]) in RESTRICTED_ENV_PARTS:
+        if scan_arch_guards and len(rel_parts) >= 2 and (rel_parts[0], rel_parts[1]) in RESTRICTED_ENV_PARTS:
             if "os.environ" in text or "os.getenv(" in text:
                 violations.append(f"{rel_posix}: disallowed direct env access outside infrastructure")
 

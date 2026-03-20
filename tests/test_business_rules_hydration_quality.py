@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
+from governance_runtime.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
 
 
 def _write(path: Path, text: str) -> None:

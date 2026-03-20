@@ -308,9 +308,9 @@ class TestO3ActiveCatalogGuards:
     """Ensure active governance catalogs do not regress to legacy command wording."""
 
     _ACTIVE_CATALOGS = [
-        "governance/assets/reasons/blocked_reason_catalog.yaml",
-        "governance/assets/config/blocked_reason_catalog.yaml",
-        "governance/assets/catalogs/reason_codes.registry.json",
+        "governance_runtime/assets/reasons/blocked_reason_catalog.yaml",
+        "governance_runtime/assets/config/blocked_reason_catalog.yaml",
+        "governance_runtime/assets/catalogs/reason_codes.registry.json",
         "SESSION_STATE_SCHEMA.md",
         "phase_api.yaml",
     ]
@@ -350,7 +350,7 @@ class TestLauncherSurfaceBad:
         "docs/operator-runbook.md",
         "SESSION_STATE_SCHEMA.md",
         "phase_api.yaml",
-        "governance/assets/catalogs/REASON_REMEDIATION_MAP.json",
+        "governance_runtime/assets/catalogs/REASON_REMEDIATION_MAP.json",
     ]
 
     @pytest.mark.parametrize("relpath", _ACTIVE_PATHS)
@@ -366,7 +366,7 @@ class TestLauncherSurfaceCorner:
     """Corner: secondary support catalogs still use launcher subcommands."""
 
     def test_reason_remediation_map_uses_launcher_subcommands(self) -> None:
-        content = _read("governance/assets/catalogs/REASON_REMEDIATION_MAP.json")
+        content = _read("governance_runtime/assets/catalogs/REASON_REMEDIATION_MAP.json")
         assert "opencode-governance-bootstrap --ticket-persist" in content
         assert "opencode-governance-bootstrap --plan-persist" in content
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.application.use_cases.session_state_helpers import (
+from governance_runtime.application.use_cases.session_state_helpers import (
     _auto_propagate_gates,
     with_kernel_result,
 )

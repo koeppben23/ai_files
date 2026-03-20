@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.engine.business_rules_hydration import build_business_rules_state_snapshot
+from governance_runtime.engine.business_rules_hydration import build_business_rules_state_snapshot
 
 
 def test_failed_validation_never_resolves_to_extracted() -> None:

@@ -1,7 +1,7 @@
 """
 Tests for Governance Consolidated API - Wave 9
 
-Validates the complete governance public API from governance import.
+Validates the complete governance public API from governance_runtime import.
 
 Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from governance import (
+from governance_runtime import (
     GovernanceLayer,
     classify_layer,
     get_layer_name,

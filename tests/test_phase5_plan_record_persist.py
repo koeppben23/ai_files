@@ -10,7 +10,7 @@ from .util import REPO_ROOT, get_phase_api_path, get_master_path, get_rules_path
 
 
 def _load_module():
-    script = REPO_ROOT / "governance" / "entrypoints" / "phase5_plan_record_persist.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "phase5_plan_record_persist.py"
     spec = importlib.util.spec_from_file_location("phase5_plan_record_persist", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load phase5_plan_record_persist module")
@@ -49,7 +49,7 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
             "pythonCommand": "python3",
         },
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(paths, indent=2), encoding="utf-8")
+    (config_root / "governance.paths.json").write_text(json.dumps(paths, indent=2), encoding="utf-8")
 
     session_path = workspace / "SESSION_STATE.json"
     session = {

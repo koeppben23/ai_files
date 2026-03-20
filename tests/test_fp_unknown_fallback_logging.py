@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.infrastructure.logging.global_error_handler import emit_error_event
+from governance_runtime.infrastructure.logging.global_error_handler import emit_error_event
 
 
 def test_fp_unknown_logs_to_commands_home(tmp_path: Path) -> None:

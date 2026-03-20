@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.application.use_cases.phase5_review_config import (
+from governance_runtime.application.use_cases.phase5_review_config import (
     get_max_iterations,
     is_human_escalation_enabled,
     is_fail_fast_enabled,

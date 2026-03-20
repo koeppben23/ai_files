@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.business_rules_validation import (
+from governance_runtime.engine.business_rules_validation import (
     RuleCandidate,
     _has_section_signal,
     _is_heading_line,

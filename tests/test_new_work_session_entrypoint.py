@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from governance.entrypoints import new_work_session
-from governance.domain.canonical_json import canonical_json_hash
-from governance.infrastructure.workspace_paths import run_dir
+from governance_runtime.entrypoints import new_work_session
+from governance_runtime.domain.canonical_json import canonical_json_hash
+from governance_runtime.infrastructure.workspace_paths import run_dir
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -31,7 +31,7 @@ def _setup_workspace(tmp_path: Path, *, phase: str = "5-ArchitectureReview") -> 
     session_path = workspaces_home / fingerprint / "SESSION_STATE.json"
 
     _write_json(
-        commands_home / "governance.paths.json",
+        config_root / "governance.paths.json",
         {
             "schema": "opencode-governance.paths.v1",
             "paths": {
@@ -181,7 +181,7 @@ class TestNewWorkSessionEntrypoint:
         config_root = short_tmp / "config"
         commands_home = config_root / "commands"
         _write_json(
-            commands_home / "governance.paths.json",
+            config_root / "governance.paths.json",
             {
                 "schema": "opencode-governance.paths.v1",
                 "paths": {

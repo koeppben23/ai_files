@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.contracts.compiler import compile_plan_to_requirements
+from governance_runtime.contracts.compiler import compile_plan_to_requirements
 
 
 def test_compiler_groups_lines_into_semantic_segments() -> None:

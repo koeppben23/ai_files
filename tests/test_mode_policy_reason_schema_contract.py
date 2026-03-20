@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from governance.engine.adapters import HostCapabilities
-from governance.engine.orchestrator import run_engine_orchestrator
+from governance_runtime.engine.adapters import HostCapabilities
+from governance_runtime.engine.orchestrator import run_engine_orchestrator
 from tests.test_engine_orchestrator import StubAdapter, _make_git_root
 
 

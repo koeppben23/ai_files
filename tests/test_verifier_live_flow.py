@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.verification.live_flow_verifier import run_live_flow_verification
+from governance_runtime.verification.live_flow_verifier import run_live_flow_verification
 
 
 def test_live_flow_verifier_fails_when_live_test_fails(tmp_path: Path) -> None:

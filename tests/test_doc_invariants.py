@@ -276,7 +276,7 @@ class TestPhase5SemanticsCorner:
 # ===================================================================
 # 3. Catalog path invariant
 #    - Benchmark packs and policy JSON live under
-#      governance/assets/catalogs/, NOT governance/
+#      governance_runtime/assets/catalogs/, NOT governance/
 #    - governance/security-evidence/ is a runtime output dir (allowed)
 # ===================================================================
 
@@ -288,7 +288,7 @@ _CATALOG_REF_FILES = [
     "docs/benchmarks.md",
 ]
 
-# Pattern: governance/<FILENAME>.json but NOT governance/assets/...
+# Pattern: governance/<FILENAME>.json but NOT governance_runtime/assets/...
 # Also excludes governance/security-evidence/ (runtime output dir)
 # and governance/benchmark-results/ (runtime output dir)
 _STALE_CATALOG_RE = re.compile(
@@ -305,7 +305,7 @@ _STALE_GOVERNANCE_JSON_RE = re.compile(
 
 
 class TestCatalogPathsHappy:
-    """All catalog JSON refs must point to governance/assets/catalogs/."""
+    """All catalog JSON refs must point to governance_runtime/assets/catalogs/."""
 
     @pytest.mark.parametrize("relpath", _CATALOG_REF_FILES)
     def test_no_stale_governance_json_paths(self, relpath: str) -> None:
@@ -314,20 +314,20 @@ class TestCatalogPathsHappy:
         matches = _STALE_GOVERNANCE_JSON_RE.findall(content)
         assert not matches, (
             f"{relpath} has stale governance/*.json path(s): {matches} — "
-            "these should be governance/assets/catalogs/*.json"
+            "these should be governance_runtime/assets/catalogs/*.json"
         )
 
     def test_security_gates_uses_catalogs_path(self) -> None:
         """security-gates.md must reference the catalogs path for policy."""
         content = _read("docs/security-gates.md")
-        assert "governance/assets/catalogs/SECURITY_GATE_POLICY.json" in content
+        assert "governance_runtime/assets/catalogs/SECURITY_GATE_POLICY.json" in content
 
     def test_benchmark_matrix_uses_catalogs_paths(self) -> None:
         """quality-benchmark-pack-matrix.md must use catalogs paths."""
         content = _read("docs/quality-benchmark-pack-matrix.md")
-        assert "governance/assets/catalogs/BACKEND_JAVA_QUALITY_BENCHMARK_PACK.json" in content
-        assert "governance/assets/catalogs/PYTHON_QUALITY_BENCHMARK_PACK.json" in content
-        assert "governance/assets/catalogs/FALLBACK_MINIMUM_QUALITY_BENCHMARK_PACK.json" in content
+        assert "governance_runtime/assets/catalogs/BACKEND_JAVA_QUALITY_BENCHMARK_PACK.json" in content
+        assert "governance_runtime/assets/catalogs/PYTHON_QUALITY_BENCHMARK_PACK.json" in content
+        assert "governance_runtime/assets/catalogs/FALLBACK_MINIMUM_QUALITY_BENCHMARK_PACK.json" in content
 
 
 class TestCatalogPathsBad:
@@ -360,7 +360,7 @@ class TestCatalogPathsEdge:
     def test_benchmarks_landing_page_uses_catalogs_glob(self) -> None:
         """benchmarks.md landing page must use catalogs glob path."""
         content = _read("docs/benchmarks.md")
-        assert "governance/assets/catalogs/*_QUALITY_BENCHMARK_PACK.json" in content
+        assert "governance_runtime/assets/catalogs/*_QUALITY_BENCHMARK_PACK.json" in content
 
 
 class TestCatalogPathsCorner:
@@ -601,7 +601,7 @@ class TestCrossFileReviewConsistency:
 class TestP2AuditMdBindingLabel:
     """Guard: audit.md must not use bare 'binding' labels."""
 
-    AUDIT_PATH = "governance/assets/catalogs/audit.md"
+    AUDIT_PATH = "governance_runtime/assets/catalogs/audit.md"
 
     def _audit_content(self) -> str:
         return _read(self.AUDIT_PATH)
@@ -664,7 +664,7 @@ class TestP2GovernanceSchemasCleanup:
 
     def test_response_envelope_path_corrected(self) -> None:
         content = self._content()
-        assert "governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json" in content
+        assert "governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json" in content
 
     # -- Bad --
     def test_no_draft_in_heading(self) -> None:
@@ -675,7 +675,7 @@ class TestP2GovernanceSchemasCleanup:
     def test_no_stale_root_path(self) -> None:
         """Must not reference the old root-level path."""
         content = self._content()
-        # Check that `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` without
+        # Check that `governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` without
         # `assets/catalogs/` prefix does NOT appear.
         lines = content.split("\n")
         for line in lines:

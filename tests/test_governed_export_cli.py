@@ -1,4 +1,4 @@
-"""WI-26 — Tests for governance/entrypoints/governed_export_cli.py
+"""WI-26 — Tests for governance_runtime/entrypoints/governed_export_cli.py
 
 Tests covering the governance-gated export CLI entrypoint.
 Happy / Edge / Corner / Bad coverage.
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.entrypoints.governed_export_cli import main
+from governance_runtime.entrypoints.governed_export_cli import main
 
 
 # ---------------------------------------------------------------------------

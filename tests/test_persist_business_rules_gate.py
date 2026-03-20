@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
+from governance_runtime.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
 
 from .util import REPO_ROOT
 
 
 def _load_module():
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     spec = importlib.util.spec_from_file_location("persist_workspace_artifacts", script)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -21,7 +21,7 @@ def _load_module():
 
 
 def _load_orchestrator_module():
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts_orchestrator.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts_orchestrator.py"
     spec = importlib.util.spec_from_file_location("persist_workspace_artifacts_orchestrator", script)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

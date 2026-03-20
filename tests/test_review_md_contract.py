@@ -160,7 +160,7 @@ def test_review_injection_replaces_bin_dir(tmp_path: Path) -> None:
 def test_review_injection_legacy_replaces_placeholders(tmp_path: Path) -> None:
     """Legacy path: PYTHON_COMMAND/SESSION_READER_PATH placeholders still work."""
     commands_dir = tmp_path / "commands"
-    (commands_dir / "governance" / "entrypoints").mkdir(parents=True)
+    (commands_dir / "governance_runtime" / "entrypoints").mkdir(parents=True)
     review_md = commands_dir / "review.md"
     review_md.write_text(
         (

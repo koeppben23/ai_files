@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.contract import (
+from governance_runtime.contract import (
     ContractRule,
     PathContractViolation,
     PathContractResult,
@@ -23,7 +23,7 @@ from governance.contract import (
     check_directory_structure,
     validate_directory_structure,
 )
-from governance import GovernanceLayer
+from governance_runtime import GovernanceLayer
 
 
 class TestCheckDirectoryStructure:

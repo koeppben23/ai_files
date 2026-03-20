@@ -12,7 +12,7 @@ GOVERNANCE_RUNTIME = REPO_ROOT / "governance_runtime"
 
 
 def _scan_governance_runtime_legacy_imports() -> list[tuple[str, str]]:
-    """Return all imports from governance.* inside governance_runtime/**."""
+    """Return all imports from governance_runtime.* inside governance_runtime/**."""
     matches: list[tuple[str, str]] = []
     pattern = re.compile(r"^(?:from|import)\s+(governance\.[^\s;]+)", re.MULTILINE)
 

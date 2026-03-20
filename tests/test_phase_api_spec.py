@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from governance.kernel.phase_api_spec import PhaseApiSpecError, load_phase_api
+from governance_runtime.kernel.phase_api_spec import PhaseApiSpecError, load_phase_api
 
 
 def test_load_phase_api_reads_commands_home_spec(tmp_path: Path) -> None:

@@ -86,7 +86,7 @@ def test_session_state_version_is_integer_exception() -> None:
     document-level counter, not a compatibility marker.
     Changing it would break the Wave B migration stub.
     """
-    from governance.engine.session_state_repository import (
+    from governance_runtime.engine.session_state_repository import (
         CURRENT_SESSION_STATE_VERSION,
     )
 

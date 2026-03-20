@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.engine.gate_evaluator import evaluate_p54_business_rules_gate
+from governance_runtime.engine.gate_evaluator import evaluate_p54_business_rules_gate
 
 
 def _state_with_validation_report(**overrides: object) -> dict[str, object]:

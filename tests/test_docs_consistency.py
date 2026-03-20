@@ -7,7 +7,7 @@ import re
 
 DOC_FILES = [
     "master.md",
-    "governance/assets/catalogs/audit.md",
+    "governance_runtime/assets/catalogs/audit.md",
     "docs/phases.md",
     "docs/governance_invariants.md",
     "QUICKSTART.md",

@@ -26,9 +26,9 @@ from typing import Mapping
 
 import pytest
 
-from governance.kernel.phase_kernel import KernelResult, RuntimeContext, execute
-from governance.entrypoints import new_work_session
-from governance.infrastructure.workspace_paths import run_dir
+from governance_runtime.kernel.phase_kernel import KernelResult, RuntimeContext, execute
+from governance_runtime.entrypoints import new_work_session
+from governance_runtime.infrastructure.workspace_paths import run_dir
 from tests.util import get_phase_api_path
 
 # ────────────────────────────────────────────────────────────────────
@@ -1268,7 +1268,7 @@ class TestCLILifecycleEntrypoint:
         config_root = short_tmp / "config"
         commands_home = config_root / "commands"
         _write_json(
-            commands_home / "governance.paths.json",
+            config_root / "governance.paths.json",
             {
                 "schema": "opencode-governance.paths.v1",
                 "paths": {

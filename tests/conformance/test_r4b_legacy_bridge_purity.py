@@ -44,7 +44,7 @@ class TestR4bLegacyBridgePurity:
     def test_runtime_has_zero_legacy_imports(self) -> None:
         edges = _runtime_legacy_import_edges()
         assert not edges, (
-            "R4b requires governance_runtime/** to stay fully decoupled from governance.*. "
+            "R4b requires governance_runtime/** to stay fully decoupled from governance_runtime.*. "
             f"Found {len(edges)} edges: {edges[:20]}"
         )
 

@@ -13,14 +13,14 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 
-from governance.engine.content_classifier import (
+from governance_runtime.engine.content_classifier import (
     is_content_file,
     is_content_directory,
     is_runtime_file,
     get_content_paths,
     CONTENT_PATTERNS,
 )
-from governance.engine.spec_classifier import is_spec_file as is_spec
+from governance_runtime.engine.spec_classifier import is_spec_file as is_spec
 
 
 class TestContentClassificationHappyPath:

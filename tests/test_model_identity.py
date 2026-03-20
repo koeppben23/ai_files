@@ -5,13 +5,13 @@ from __future__ import annotations
 import os
 import pytest
 
-from governance.domain.model_identity import (
+from governance_runtime.domain.model_identity import (
     ModelIdentity,
     infer_context_limit,
     is_known_model_id,
     validate_model_identity,
 )
-from governance.infrastructure.model_identity_resolver import resolve_from_environment
+from governance_runtime.infrastructure.model_identity_resolver import resolve_from_environment
 
 
 @pytest.mark.governance
