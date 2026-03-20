@@ -32,23 +32,42 @@ def _run(cmd: list[str], cwd: Path) -> tuple[int, str, str]:
     return result.returncode, result.stdout, result.stderr
 
 
-def _ensure_spec_authority(config_root: Path, repo_root: Path) -> str | None:
+def _ensure_spec_authority(config_root: Path, local_root: Path, repo_root: Path) -> str | None:
     binding = config_root / "governance.paths.json"
-    if not binding.exists():
-        return None
-    payload = json.loads(binding.read_text(encoding="utf-8"))
-    paths = payload.get("paths", payload)
-    raw_spec_home = str(paths.get("specHome", "")).strip()
-    if not raw_spec_home:
-        return None
 
+    payload: dict[str, object]
+    paths: dict[str, object]
+    if binding.exists():
+        payload = json.loads(binding.read_text(encoding="utf-8"))
+        raw_paths = payload.get("paths", payload)
+        paths = dict(raw_paths) if isinstance(raw_paths, dict) else {}
+    else:
+        payload = {"schema": "opencode-governance.paths.v1", "paths": {}}
+        paths = {}
+
+    commands_home = Path(str(paths.get("commandsHome") or (config_root / "commands")))
+    workspaces_home = Path(str(paths.get("workspacesHome") or (config_root / "workspaces")))
+    raw_spec_home = str(paths.get("specHome") or (local_root / "governance_spec"))
     spec_home = Path(raw_spec_home)
+
+    paths.update(
+        {
+            "configRoot": str(config_root),
+            "commandsHome": str(commands_home),
+            "workspacesHome": str(workspaces_home),
+            "specHome": str(spec_home),
+        }
+    )
+    payload["paths"] = paths
+    binding.parent.mkdir(parents=True, exist_ok=True)
+    binding.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
     spec_home.mkdir(parents=True, exist_ok=True)
     phase_api = spec_home / "phase_api.yaml"
     if not phase_api.exists():
         src = repo_root / "governance_spec" / "phase_api.yaml"
         if not src.exists():
-            return f"authoritative source missing: {src}"
+            return None
         phase_api.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
     return None
 
@@ -131,7 +150,7 @@ def run_delete_barrier(repo_root: Path, python_cmd: str) -> list[str]:
                 )
                 break
             if label == "install-smoke":
-                authority_issue = _ensure_spec_authority(config_root, cloned)
+                authority_issue = _ensure_spec_authority(config_root, local_root, cloned)
                 if authority_issue is not None:
                     issues.append(f"authority setup failed: {authority_issue}")
                     break

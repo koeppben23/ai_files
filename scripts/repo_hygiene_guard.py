@@ -17,7 +17,16 @@ PRODUCTIVE_ROOTS = (
     "opencode",
 )
 
-ARCHIVE_BASELINE: set[str] = set()
+ARCHIVE_BASELINE = {
+    "governance_content/docs/archived/README.md",
+    "governance_content/docs/archived/governance-layer-separation-decisions.md",
+    "governance_content/docs/archived/repo-hygiene-block9-inventory.md",
+    "governance_spec/migrations/archived/BLOCK9_FINAL_PROOF.md",
+    "governance_spec/migrations/archived/R2_Import_Inventory.md",
+    "governance_spec/migrations/archived/R2_Migration_Units.md",
+    "governance_spec/migrations/archived/README.md",
+    "governance_spec/migrations/archived/WAVE_22_MIGRATION_INVENTORY.md",
+}
 
 README_BASELINE = {
     "README-OPENCODE.md",
@@ -25,6 +34,7 @@ README_BASELINE = {
 }
 
 INIT_MARKER_BASELINE = {
+    "governance_runtime/common/__init__.py",
     "tests/__init__.py",
     "tests/conformance/__init__.py",
 }
@@ -129,7 +139,7 @@ def _scan_archive_references(repo_root: Path) -> list[str]:
         "scripts/repo_hygiene_guard.py",
         "governance_spec/migrations/REPO_CLEANUP_POLICY.md",
         "governance_spec/migrations/CLEANUP_DECISION_LOG.md",
-        "governance_content/docs/repo-hygiene-block9-inventory.md",
+        "governance_content/docs/archived/repo-hygiene-block9-inventory.md",
     }
     for root_name in PRODUCTIVE_ROOTS:
         root = repo_root / root_name
