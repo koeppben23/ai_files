@@ -2172,6 +2172,8 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         for lf in sorted(p for p in src_root.rglob("*") if p.is_file()):
             if _is_forbidden_metadata_path(lf, plan.source_dir):
                 continue
+            if "archived" in lf.parts:
+                continue
             rel = lf.relative_to(plan.source_dir)
             dst = plan.local_root / rel
             entry = copy_with_optional_backup(
