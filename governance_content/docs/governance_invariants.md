@@ -11,12 +11,12 @@ Phase `1.3` is mandatory before every phase `>=2`.
 ## Control Plane / Bootstrap
 
 - [ ] Bootstrap must call only read-only governance helpers.
-- [ ] `governance/bootstrap_preflight_persistence.py` must not exist.
+- [ ] `governance_runtime/bootstrap_preflight_persistence.py` must not exist.
 - [ ] Diagnostics must not write workspace/index/session artifacts.
 
 Evidence:
 - `BOOTSTRAP.md`
-- `governance/bootstrap_preflight_readonly.py`
+- `governance_runtime/entrypoints/bootstrap_preflight_readonly.py`
 - `tests/test_bootstrap_entrypoint_contract.py`
 - `tests/test_bootstrap_preflight_persistence.py`
 - `tests/architecture/test_governance_control_plane_guards.py`
@@ -28,8 +28,8 @@ Evidence:
 - [ ] Unresolved / fingerprint-missing state must not expose `repo_root`.
 
 Evidence:
-- `governance/context/repo_context_resolver.py`
-- `governance/application/use_cases/bootstrap_persistence.py`
+- `governance_runtime/context/repo_context_resolver.py`
+- `governance_runtime/application/use_cases/bootstrap_persistence.py`
 - `tests/architecture/test_repo_identity_guards.py`
 - `tests/test_bootstrap_persistence_use_case.py`
 
@@ -41,8 +41,8 @@ Evidence:
 - [ ] Session pointer is updated atomically.
 
 Evidence:
-- `governance/infrastructure/workspace_ready_gate.py`
-- `governance/application/use_cases/orchestrate_run.py`
+- `governance_runtime/infrastructure/workspace_ready_gate.py`
+- `governance_runtime/application/use_cases/orchestrate_run.py`
 - `tests/test_engine_orchestrator.py`
 - `tests/test_verification_suite.py`
 
@@ -54,9 +54,9 @@ Evidence:
 - [ ] Phase 4 remains planning-only (code-output requests blocked).
 
 Evidence:
-- `governance/kernel/phase_kernel.py`
+- `governance_runtime/kernel/phase_kernel.py`
 - `${COMMANDS_HOME}/phase_api.yaml`
-- `governance/application/use_cases/orchestrate_run.py`
+- `governance_runtime/application/use_cases/orchestrate_run.py`
 - `tests/test_verification_suite.py`
 - `tests/test_engine_orchestrator.py`
 
@@ -68,9 +68,9 @@ Evidence:
 - [ ] Repository writer guards enforce policy even on direct calls.
 
 Evidence:
-- `governance/application/policies/persistence_policy.py`
-- `governance/infrastructure/persist_confirmation_store.py`
-- `governance/infrastructure/workspace_memory_repository.py`
+- `governance_runtime/application/policies/persistence_policy.py`
+- `governance_runtime/infrastructure/persist_confirmation_store.py`
+- `governance_runtime/infrastructure/workspace_memory_repository.py`
 - `tests/test_persistence_policy.py`
 - `tests/test_persist_confirmation_store.py`
 - `tests/test_workspace_memory_repository.py`
@@ -79,7 +79,7 @@ Evidence:
 ## Forbidden Regression Patterns
 
 - [ ] No `_unresolved` workspace write paths.
-- [ ] No direct `open(..., 'w')` / `Path.write_text(...)` in protected governance/control-plane files.
+- [ ] No direct `open(..., 'w')` / `Path.write_text(...)` in protected runtime/control-plane files.
 - [ ] No `shlex.split(...)` command re-splitting for governance command profiles.
 - [ ] `Path.resolve()` usage remains allowlisted by architecture guards.
 
@@ -91,9 +91,9 @@ Evidence:
 ## Canonical Reason Codes (must remain registered)
 
 Persistence and gating reasons must stay present in:
-- `governance/domain/reason_codes.py`
-- `governance/reason_codes.registry.json`
-- `governance/engine/_embedded_reason_registry.py`
+- `governance_runtime/domain/reason_codes.py`
+- `governance_runtime/reason_codes.registry.json`
+- `governance_runtime/engine/_embedded_reason_registry.py`
 
 Critical codes:
 - `BLOCKED-REPO-IDENTITY-RESOLUTION`
@@ -123,7 +123,7 @@ Expected: full suite green (except explicitly skipped tests).
 
 ## SESSION_STATE Invariants
 
-Cross-field validators in `governance/engine/session_state_invariants.py` enforce:
+Cross-field validators in `governance_runtime/engine/session_state_invariants.py` enforce:
 
 - [ ] When the session is in a blocked state, `Next` starts with `BLOCKED-`.
 - [ ] `ConfidenceLevel < 70` requires `Mode` to be `DRAFT` or `BLOCKED`.
@@ -139,5 +139,5 @@ Cross-field validators in `governance/engine/session_state_invariants.py` enforc
 - [ ] Gate approval is blocked when `GateArtifacts.Provided` has `missing` items.
 
 Evidence:
-- `governance/engine/session_state_invariants.py`
+- `governance_runtime/engine/session_state_invariants.py`
 - `tests/test_session_state_schema.py`

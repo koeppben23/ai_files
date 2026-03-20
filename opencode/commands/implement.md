@@ -9,7 +9,7 @@ The command is mutating. It orchestrates the resolved implementation executor (d
 
 `/implement` follows a controller/executor split (default executor: active OpenCode Desktop LLM binding):
 - load approved plan, hotspots, constraints, and required checks
-- write executor input context (`.governance/implementation/llm_edit_context.json`)
+- write executor input context (`.runtime_state/implementation/llm_edit_context.json`)
 - resolve executor in priority order: explicit override first, otherwise active OpenCode Desktop LLM binding
 - invoke the resolved implementation executor (the only actor allowed to change domain files)
 - run internal implementation self-review (validation-only; no local domain edits)
@@ -36,7 +36,7 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 - Valid only after final review decision `approve` (Workflow Complete).
 - `/implement` is a controller + validator; it must not locally edit domain/source files.
-- Local writes are restricted to governance diagnostics/state (for example `.governance/implementation/*`, session state, and audit events).
+- Local writes are restricted to runtime diagnostics/state (for example `.runtime_state/implementation/*`, session state, and audit events).
 - Domain/source edits must come exclusively from the resolved authorized executor.
 - A separate executor configuration is optional override only; default executor is the active OpenCode Desktop LLM binding.
 - `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED` applies only when neither override nor active Desktop LLM binding is available.

@@ -6,7 +6,7 @@ Runtime authority is `governance_runtime/` + `${LOCAL_ROOT}/governance_spec/phas
 ## Canonical Path Variables
 
 - `${CONFIG_ROOT}`: OpenCode config root (runtime-resolved; do not hard-code OS paths)
-- `${LOCAL_ROOT}`: OpenCode local payload root (runtime/content/spec/compatibility payloads)
+- `${LOCAL_ROOT}`: OpenCode local payload root (runtime/content/spec payloads)
 - `${COMMANDS_HOME}`: default `${CONFIG_ROOT}/commands` from installer binding evidence
 - `${PROFILES_HOME}`: `${LOCAL_ROOT}/governance_content/profiles`
 - `${WORKSPACES_HOME}`: default `${CONFIG_ROOT}/workspaces` from installer binding evidence
@@ -20,7 +20,7 @@ A common example install root is `~/.config/opencode` (platform-specific variant
 ## Where Files Live
 
 - Config root (`${CONFIG_ROOT}`): `commands/`, `plugins/`, `workspaces/`, `bin/`.
-- Local root (`${LOCAL_ROOT}`): `governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, `VERSION`.
+- Local root (`${LOCAL_ROOT}`): `governance_runtime/`, `governance_content/`, `governance_spec/`, `VERSION`.
 - The command rail surface is installed under `${COMMANDS_HOME}` as a strict allowlist.
 - Profile rulebooks and addon manifests are installed under `${PROFILES_HOME}`.
 - Repo-scoped persistent artifacts are stored under `${WORKSPACES_HOME}/<repo_fingerprint>/...`.
@@ -39,16 +39,14 @@ ${CONFIG_ROOT}/
   plugins/
     audit-new-session.mjs
   commands/
-  audit-readout.md
-  continue.md
-  implement.md
-  implementation-decision.md
-  plan.md
-  review-decision.md
-  review.md
-  ticket.md
-  governance.paths.json
-  INSTALL_MANIFEST.json
+    audit-readout.md
+    continue.md
+    implement.md
+    implementation-decision.md
+    plan.md
+    review-decision.md
+    review.md
+    ticket.md
   workspaces/
     <repo_fingerprint>/
       logs/
@@ -56,12 +54,15 @@ ${CONFIG_ROOT}/
       logs/
   opencode.json
   INSTALL_HEALTH.json
+  INSTALL_MANIFEST.json
+  governance.paths.json
+  SESSION_STATE.json
+  governance.activation_intent.json
 
 ${LOCAL_ROOT}/
   governance_runtime/
   governance_content/
   governance_spec/
-  governance/
   VERSION
 ```
 
@@ -69,12 +70,12 @@ ${LOCAL_ROOT}/
 
 After bundle install, operator-usable assets are available under config/local split:
 
-- `<config_root>/commands/`: exactly 8 rail markdown files + `governance.paths.json` + `INSTALL_MANIFEST.json`
+- `<config_root>/commands/`: exactly 8 canonical rail markdown files
 - `<config_root>/plugins/`: desktop plugin artifact
 - `<config_root>/workspaces/`: repo-scoped and global logs/state
+- `<config_root>/`: `opencode.json`, `INSTALL_HEALTH.json`, `INSTALL_MANIFEST.json`, `governance.paths.json`, `SESSION_STATE.json`, `governance.activation_intent.json`
 - `<local_root>/governance_runtime/`: canonical runtime authority
 - `<local_root>/governance_content/`: content payload
 - `<local_root>/governance_spec/`: spec payload
-- `<local_root>/governance/`: compatibility-only payload
 
-Markdown shipping exclusions are controlled by `governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json`.
+Markdown shipping exclusions are controlled by `governance_runtime/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json`.

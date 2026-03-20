@@ -104,7 +104,7 @@ governance-records/<fingerprint>/runs/<run-id>/
   "trigger": "session_created",
   "policy_fingerprint": "sha256:...",
   "binding": "opencode",
-  "launcher": "governance.entrypoints.session_reader",
+  "launcher": "governance_runtime.entrypoints.session_reader",
   "timestamps": {
     "materialized_at": "2026-03-10T14:30:00Z"
   }

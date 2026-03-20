@@ -15,9 +15,9 @@ This document maps the governance system's implemented controls to typical regul
 
 | Control | Implementation | Source |
 |---|---|---|
-| Provenance records | Every run archives a provenance record documenting trigger, binding, launcher, policy fingerprint, and timestamps | `governance/infrastructure/run_audit_artifacts.py:133-154` |
-| Run manifests | Every run has a manifest documenting lifecycle status, run type, and artifact completeness | `governance/infrastructure/run_audit_artifacts.py:37-71` |
-| Deterministic timestamps | All timestamps are RFC3339 UTC Z format, cross-checked across documents | `governance/infrastructure/io_verify.py:155-290` |
+| Provenance records | Every run archives a provenance record documenting trigger, binding, launcher, policy fingerprint, and timestamps | `governance_runtime/infrastructure/run_audit_artifacts.py:133-154` |
+| Run manifests | Every run has a manifest documenting lifecycle status, run type, and artifact completeness | `governance_runtime/infrastructure/run_audit_artifacts.py:37-71` |
+| Deterministic timestamps | All timestamps are RFC3339 UTC Z format, cross-checked across documents | `governance_runtime/infrastructure/io_verify.py:155-290` |
 
 **Schema:** `governance.provenance-record.v1`
 
@@ -27,11 +27,11 @@ This document maps the governance system's implemented controls to typical regul
 
 | Control | Implementation | Source |
 |---|---|---|
-| SHA-256 checksums | Every archive file has a SHA-256 checksum in `checksums.json` | `governance/infrastructure/run_audit_artifacts.py:169-177` |
-| Checksum recomputation | Verification re-reads files and recomputes hashes | `governance/infrastructure/io_verify.py:69-402` |
-| Double verification | Verification runs before and after finalization | `governance/infrastructure/work_run_archive.py:172-194` |
-| Duplicate prevention | Non-failed archive slots cannot be overwritten | `governance/infrastructure/work_run_archive.py:64-77` |
-| Fail-closed verification | Any checksum mismatch causes immediate failure | `governance/domain/audit_contract.py:50-52` |
+| SHA-256 checksums | Every archive file has a SHA-256 checksum in `checksums.json` | `governance_runtime/infrastructure/run_audit_artifacts.py:169-177` |
+| Checksum recomputation | Verification re-reads files and recomputes hashes | `governance_runtime/infrastructure/io_verify.py:69-402` |
+| Double verification | Verification runs before and after finalization | `governance_runtime/infrastructure/work_run_archive.py:172-194` |
+| Duplicate prevention | Non-failed archive slots cannot be overwritten | `governance_runtime/infrastructure/work_run_archive.py:64-77` |
+| Fail-closed verification | Any checksum mismatch causes immediate failure | `governance_runtime/domain/audit_contract.py:50-52` |
 
 **Schema:** `governance.run-checksums.v1`
 
@@ -41,10 +41,10 @@ This document maps the governance system's implemented controls to typical regul
 
 | Control | Implementation | Source |
 |---|---|---|
-| Required file enforcement | 5 mandatory files verified on every archive | `governance/domain/audit_contract.py:55-61` |
-| Run-type artifact rules | Plan runs require plan-record, PR runs require pr-record | `governance/domain/audit_contract.py:173-177` |
-| Archived files declaration | Metadata declares which files are present; verified against reality | `governance/infrastructure/io_verify.py:318-369` |
-| Cross-document consistency | Run ID, fingerprint, timestamps verified across all documents | `governance/domain/audit_contract.py:340-398` |
+| Required file enforcement | 5 mandatory files verified on every archive | `governance_runtime/domain/audit_contract.py:55-61` |
+| Run-type artifact rules | Plan runs require plan-record, PR runs require pr-record | `governance_runtime/domain/audit_contract.py:173-177` |
+| Archived files declaration | Metadata declares which files are present; verified against reality | `governance_runtime/infrastructure/io_verify.py:318-369` |
+| Cross-document consistency | Run ID, fingerprint, timestamps verified across all documents | `governance_runtime/domain/audit_contract.py:340-398` |
 
 **Schema:** `governance.audit-contract.v1`
 
@@ -54,11 +54,11 @@ This document maps the governance system's implemented controls to typical regul
 
 | Control | Implementation | Source |
 |---|---|---|
-| Role-based access control | 5 roles with explicit permission matrix | `governance/domain/access_control.py` |
-| Default deny | Unrecognized actions are denied (fail-closed) | `governance/assets/config/access_control_policy.yaml:72-76` |
-| Regulated mode blocks | Operator purge blocked in regulated mode | `governance/domain/access_control.py` — `REGULATED_MODE_BLOCKED` |
-| Compliance officer exclusives | Retention and redaction changes require CO role | `governance/domain/access_control.py` — `REGULATED_MODE_REQUIRED` |
-| Runtime/audit separation | Purge operates on allowlisted runtime files only | `governance/infrastructure/run_audit_artifacts.py:10-18, 180-189` |
+| Role-based access control | 5 roles with explicit permission matrix | `governance_runtime/domain/access_control.py` |
+| Default deny | Unrecognized actions are denied (fail-closed) | `governance_runtime/assets/config/access_control_policy.yaml:72-76` |
+| Regulated mode blocks | Operator purge blocked in regulated mode | `governance_runtime/domain/access_control.py` — `REGULATED_MODE_BLOCKED` |
+| Compliance officer exclusives | Retention and redaction changes require CO role | `governance_runtime/domain/access_control.py` — `REGULATED_MODE_REQUIRED` |
+| Runtime/audit separation | Purge operates on allowlisted runtime files only | `governance_runtime/infrastructure/run_audit_artifacts.py:10-18, 180-189` |
 
 **Schema:** `governance.access-control.v1`
 
@@ -68,10 +68,10 @@ This document maps the governance system's implemented controls to typical regul
 
 | Control | Implementation | Source |
 |---|---|---|
-| Field-level classification | Every audit field classified as public/internal/confidential/restricted | `governance/domain/classification.py` — `FIELD_CLASSIFICATIONS` |
-| Default classification | Unclassified fields default to INTERNAL with hash redaction | `governance/domain/classification.py:171-177` |
-| Redaction strategies | Hash, mask, remove, truncate — applied per field on export | `governance/infrastructure/redaction.py` |
-| Export profiles | Public audit, internal audit, full audit — control what is visible | `governance/assets/config/classification_policy.yaml:58-67` |
+| Field-level classification | Every audit field classified as public/internal/confidential/restricted | `governance_runtime/domain/classification.py` — `FIELD_CLASSIFICATIONS` |
+| Default classification | Unclassified fields default to INTERNAL with hash redaction | `governance_runtime/domain/classification.py:171-177` |
+| Redaction strategies | Hash, mask, remove, truncate — applied per field on export | `governance_runtime/infrastructure/redaction.py` |
+| Export profiles | Public audit, internal audit, full audit — control what is visible | `governance_runtime/assets/config/classification_policy.yaml:58-67` |
 
 **Schema:** `governance.classification.v1`
 
@@ -81,11 +81,11 @@ This document maps the governance system's implemented controls to typical regul
 
 | Control | Implementation | Source |
 |---|---|---|
-| Classification-based retention | 1-10 year retention per classification level | `governance/domain/retention.py` — `RETENTION_PERIODS` |
-| Framework overrides | DATEV=10yr, GoBD=10yr, SOX=7yr, BaFin=5yr | `governance/domain/retention.py` — `FRAMEWORK_RETENTION_OVERRIDES` |
-| Legal holds | Suspend deletion for specific runs/repos/all | `governance/domain/retention.py` — `LegalHold` |
-| Deletion guards | Three-guard evaluation: hold → regulated → retention | `governance/domain/retention.py` — `evaluate_deletion()` |
-| Fail-closed default | Unknown classification → 10-year retention | `governance/domain/retention.py:173` |
+| Classification-based retention | 1-10 year retention per classification level | `governance_runtime/domain/retention.py` — `RETENTION_PERIODS` |
+| Framework overrides | DATEV=10yr, GoBD=10yr, SOX=7yr, BaFin=5yr | `governance_runtime/domain/retention.py` — `FRAMEWORK_RETENTION_OVERRIDES` |
+| Legal holds | Suspend deletion for specific runs/repos/all | `governance_runtime/domain/retention.py` — `LegalHold` |
+| Deletion guards | Three-guard evaluation: hold → regulated → retention | `governance_runtime/domain/retention.py` — `evaluate_deletion()` |
+| Fail-closed default | Unknown classification → 10-year retention | `governance_runtime/domain/retention.py:173` |
 
 **Schema:** `governance.retention-policy.v1`
 
@@ -95,10 +95,10 @@ This document maps the governance system's implemented controls to typical regul
 
 | Control | Implementation | Source |
 |---|---|---|
-| Portable bundles | Export produces self-contained directory with all artifacts | `governance/infrastructure/archive_export.py` — `export_finalized_bundle()` |
-| Export manifest | Every export includes machine-readable manifest | `governance/infrastructure/archive_export.py` — `EXPORT_MANIFEST_SCHEMA` |
-| Redacted export | Optional field-level redaction on export | `governance/infrastructure/archive_export.py` (uses `redaction.py`) |
-| Finalization required | Only finalized archives can be exported | `governance/infrastructure/archive_export.py` — `validate_archive_for_export()` |
+| Portable bundles | Export produces self-contained directory with all artifacts | `governance_runtime/infrastructure/archive_export.py` — `export_finalized_bundle()` |
+| Export manifest | Every export includes machine-readable manifest | `governance_runtime/infrastructure/archive_export.py` — `EXPORT_MANIFEST_SCHEMA` |
+| Redacted export | Optional field-level redaction on export | `governance_runtime/infrastructure/archive_export.py` (uses `redaction.py`) |
+| Finalization required | Only finalized archives can be exported | `governance_runtime/infrastructure/archive_export.py` — `validate_archive_for_export()` |
 
 ### 8. Recoverability
 
@@ -106,10 +106,10 @@ This document maps the governance system's implemented controls to typical regul
 
 | Control | Implementation | Source |
 |---|---|---|
-| Bundle restore | Exported bundles can be restored and validated | `governance/infrastructure/archive_export.py` — `restore_from_bundle()` |
-| Restore validation | Restored bundles are checked for completeness | `governance/infrastructure/archive_export.py` — `validate_restored_bundle()` |
-| Integrity re-verification | Restored archives can be verified with `verify_run_archive()` | `governance/infrastructure/io_verify.py:69-402` |
-| Atomic writes | All file operations use atomic write with retry | `governance/infrastructure/fs_atomic.py` |
+| Bundle restore | Exported bundles can be restored and validated | `governance_runtime/infrastructure/archive_export.py` — `restore_from_bundle()` |
+| Restore validation | Restored bundles are checked for completeness | `governance_runtime/infrastructure/archive_export.py` — `validate_restored_bundle()` |
+| Integrity re-verification | Restored archives can be verified with `verify_run_archive()` | `governance_runtime/infrastructure/io_verify.py:69-402` |
+| Atomic writes | All file operations use atomic write with retry | `governance_runtime/infrastructure/fs_atomic.py` |
 
 ### 9. Failure Transparency
 
@@ -117,10 +117,10 @@ This document maps the governance system's implemented controls to typical regul
 
 | Control | Implementation | Source |
 |---|---|---|
-| Failure records | Failed archives write explicit failure metadata and manifest | `governance/infrastructure/work_run_archive.py:195-244` |
-| Failure classification | 8 failure categories with severity and recovery strategies | `governance/domain/failure_model.py` |
-| No silent failures | Failure is always recorded and the exception re-raised | `governance/infrastructure/work_run_archive.py:245` |
-| Failed state lifecycle | `run_status=failed`, `record_status=invalidated` — cannot be confused with success | `governance/domain/audit_contract.py:143-151` |
+| Failure records | Failed archives write explicit failure metadata and manifest | `governance_runtime/infrastructure/work_run_archive.py:195-244` |
+| Failure classification | 8 failure categories with severity and recovery strategies | `governance_runtime/domain/failure_model.py` |
+| No silent failures | Failure is always recorded and the exception re-raised | `governance_runtime/infrastructure/work_run_archive.py:245` |
+| Failed state lifecycle | `run_status=failed`, `record_status=invalidated` — cannot be confused with success | `governance_runtime/domain/audit_contract.py:143-151` |
 
 **Schema:** `governance.failure-report.v1`
 

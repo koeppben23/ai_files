@@ -68,7 +68,7 @@ python scripts/validate_rulebook.py --all \
 ### 2.1 Pre-Upgrade Checklist
 
 - [ ] Run full health check (Section 1.4) and confirm all pass
-- [ ] Note current governance version: `cat governance/VERSION`
+- [ ] Note current governance version: `cat VERSION`
 - [ ] Back up profile rulebooks: `cp -r rulesets/ rulesets.bak/`
 - [ ] Back up workspace state if applicable
 
@@ -151,9 +151,9 @@ policy gate cannot be satisfied. There are **67 registered codes** in the
 Python SSOT (`governance/domain/reason_codes.py`).
 
 Data sources merged below:
-- **Registry:** `governance/assets/catalogs/reason_codes.registry.json` (59 entries)
-- **Remediation map:** `governance/assets/catalogs/REASON_REMEDIATION_MAP.json` (21 entries)
-- **YAML catalog:** `governance/assets/reasons/blocked_reason_catalog.yaml` (25 entries)
+- **Registry:** `governance_runtime/assets/catalogs/reason_codes.registry.json` (59 entries)
+- **Remediation map:** `governance_runtime/assets/catalogs/REASON_REMEDIATION_MAP.json` (21 entries)
+- **YAML catalog:** `governance_runtime/assets/reasons/blocked_reason_catalog.yaml` (25 entries)
 
 ### 4.1 Bootstrap and Session State
 
@@ -232,7 +232,7 @@ Data sources merged below:
 | Code | Description | Remediation |
 |------|-------------|-------------|
 | `BLOCKED-INSTALL-PRECHECK-MISSING-SOURCE` | Installer precheck failed because required source artifacts are missing. | Restore installer source files or extract a valid release bundle. |
-| `BLOCKED-INSTALL-VERSION-MISSING` | Installer could not find governance version metadata. | Ensure `governance/VERSION` contains a valid semantic version. |
+| `BLOCKED-INSTALL-VERSION-MISSING` | Installer could not find governance version metadata. | Ensure `VERSION` contains a valid semantic version. |
 | `BLOCKED-INSTALL-CONFIG-ROOT-INVALID` | Installer config root is invalid or unusable. | Provide a writable canonical config root and rerun installer. |
 
 ### 4.7 Migration and Schema
@@ -321,9 +321,9 @@ is a product decision, not a defect.
 | Artifact | Path |
 |----------|------|
 | Reason code constants | `governance/domain/reason_codes.py` |
-| Reason code registry | `governance/assets/catalogs/reason_codes.registry.json` |
-| Remediation map | `governance/assets/catalogs/REASON_REMEDIATION_MAP.json` |
-| Blocked reason catalog | `governance/assets/reasons/blocked_reason_catalog.yaml` |
+| Reason code registry | `governance_runtime/assets/catalogs/reason_codes.registry.json` |
+| Remediation map | `governance_runtime/assets/catalogs/REASON_REMEDIATION_MAP.json` |
+| Blocked reason catalog | `governance_runtime/assets/reasons/blocked_reason_catalog.yaml` |
 | Embedded reason registry | `governance/engine/_embedded_reason_registry.py` |
 
 ### Operator Scripts
@@ -340,11 +340,11 @@ is a product decision, not a defect.
 |----------|------|
 | Security model | `docs/SECURITY_MODEL.md` |
 | Governance invariants | `docs/governance_invariants.md` |
-| Phase API | `governance/assets/phase_api.yaml` |
+| Phase API | `governance_runtime/assets/phase_api.yaml` |
 | Quickstart | `QUICKSTART.md` |
 
 ---
 
 > SSOT: `governance/domain/reason_codes.py` is the only truth for reason code registration.
-> Kernel: `governance/kernel/*` is the only control-plane implementation.
+> Kernel: `governance_runtime/kernel/*` is the only control-plane implementation.
 > MD files are AI rails/guidance only and are never routing-binding.

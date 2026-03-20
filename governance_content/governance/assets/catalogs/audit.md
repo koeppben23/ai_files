@@ -31,7 +31,7 @@ If `[SESSION_STATE]` is missing, the command MUST return `status.state=blocked` 
 ## OUTPUT FORMAT (Mandatory)
 
 Primary output MUST be a single JSON object conforming to:
-- `governance/assets/catalogs/AUDIT_REPORT_SCHEMA.json`
+- `governance_runtime/assets/catalogs/AUDIT_REPORT_SCHEMA.json`
 
 Rules:
 - Output MUST start with the JSON (no text before it).
@@ -48,8 +48,8 @@ Reason key semantics (normative for audit scope):
 - If a bridge to canonical workflow reasons is needed, map audit keys to canonical `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes explicitly.
 
 Deterministic bridge (normative for audit scope):
-- Use `governance/entrypoints/map_audit_to_canonical.py --input <audit-report.json>` for deterministic audit-key to canonical reason-code mapping.
-- Canonical mapping source: `governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json`.
+- Use `governance_runtime/entrypoints/map_audit_to_canonical.py --input <audit-report.json>` for deterministic audit-key to canonical reason-code mapping.
+- Canonical mapping source: `governance_runtime/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json`.
 
 ---
 

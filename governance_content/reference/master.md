@@ -29,9 +29,9 @@ Phase `1.3` is mandatory before every phase `>=2`.
 ## Operator Truth Anchors
 
 - Config root (default): `~/.config/opencode` -> `commands/`, `plugins/`, `workspaces/`, `bin/`
-- Local root (default): `~/.local/opencode` -> `governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, `VERSION`
+- Local root (default): `~/.local/opencode` -> `governance_runtime/`, `governance_content/`, `governance_spec/`, `VERSION`
 - Canonical bootstrap path: `opencode-governance-bootstrap init --profile <solo|team|regulated> --repo-root <repo-root>`
-- `governance/` is compatibility surface only and not a primary runtime authority.
+- Legacy governance package is removed from productive runtime authority.
 
 ---
 

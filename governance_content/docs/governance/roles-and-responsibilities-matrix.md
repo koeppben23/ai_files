@@ -18,7 +18,7 @@ This document defines the role-based access control model for the governance aud
 | `system` | Automated system operations | `internal` |
 | `readonly` | Read-only user with limited metadata access | `public` |
 
-**Source:** `governance/domain/access_control.py` — `Role` enum, `governance/assets/config/access_control_policy.yaml:20-35`
+**Source:** `governance_runtime/domain/access_control.py` — `Role` enum, `governance_runtime/assets/config/access_control_policy.yaml:20-35`
 
 ## Permission Matrix
 
@@ -36,7 +36,7 @@ This document defines the role-based access control model for the governance aud
 | `view_classification` | ALLOW | ALLOW | ALLOW | ALLOW | ALLOW |
 | `override_redaction` | DENY | DENY | ALLOW | DENY | DENY |
 
-**Source:** `governance/domain/access_control.py` — `PERMISSION_TABLE`
+**Source:** `governance_runtime/domain/access_control.py` — `PERMISSION_TABLE`
 
 ### Regulated Mode Modifications
 
@@ -48,7 +48,7 @@ When regulated mode is active, the following overrides apply:
 | `compliance_officer` | `modify_retention` | ALLOW | ALLOW (exclusive) | Only CO can modify retention |
 | `compliance_officer` | `override_redaction` | ALLOW | ALLOW (audit-logged) | Only CO can override redaction |
 
-**Source:** `governance/domain/access_control.py` — `REGULATED_MODE_BLOCKED`, `REGULATED_MODE_REQUIRED`
+**Source:** `governance_runtime/domain/access_control.py` — `REGULATED_MODE_BLOCKED`, `REGULATED_MODE_REQUIRED`
 
 ## Default Deny Policy
 
@@ -60,7 +60,7 @@ Reason: "No explicit permission — fail-closed"
 Audit log required: true
 ```
 
-**Source:** `governance/assets/config/access_control_policy.yaml:72-76`
+**Source:** `governance_runtime/assets/config/access_control_policy.yaml:72-76`
 
 ## Access Evaluation
 
@@ -75,7 +75,7 @@ evaluate_access(role, action, regulated_mode_active) → AccessDecision
 3. Check permission table
 4. If no explicit permission found → DENY (fail-closed)
 
-**Source:** `governance/domain/access_control.py` — `evaluate_access()`
+**Source:** `governance_runtime/domain/access_control.py` — `evaluate_access()`
 
 ## Four-Eyes Principle
 

@@ -94,9 +94,9 @@ def _legacy_rel_alias(rel: str) -> str:
     """Map migrated paths back to legacy relpaths used by allowlists/catalogs."""
 
     norm = rel.replace("\\", "/")
-    if norm == "governance_content/master.md":
+    if norm == "governance_content/reference/master.md":
         return "master.md"
-    if norm == "governance_content/rules.md":
+    if norm == "governance_content/reference/rules.md":
         return "rules.md"
     if norm == "governance_spec/phase_api.yaml":
         return "phase_api.yaml"
@@ -117,9 +117,9 @@ def _resolve_rel_candidates(repo_root: Path, rel: str) -> list[str]:
     rel_norm = rel.replace("\\", "/")
     candidates = [rel_norm]
     if rel_norm == "master.md":
-        candidates.append("governance_content/master.md")
+        candidates.append("governance_content/reference/master.md")
     elif rel_norm == "rules.md":
-        candidates.append("governance_content/rules.md")
+        candidates.append("governance_content/reference/rules.md")
     elif rel_norm == "phase_api.yaml":
         candidates.append("governance_spec/phase_api.yaml")
     elif rel_norm.startswith("docs/"):

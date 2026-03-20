@@ -152,7 +152,7 @@ the runtime truth lives in kernel code, not in this markdown file. It is banned 
 
 **Allowed pattern:**
 ```
-Execution constraints are kernel-owned. See `governance/kernel/*`.
+Execution constraints are kernel-owned. See `governance_runtime/kernel/*`.
 ```
 
 **Test:** Every line containing "kernel-owned" must also contain a backtick-quoted

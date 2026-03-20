@@ -16,7 +16,7 @@
 1. `python scripts/build.py`
 2. `python scripts/build_customer_install_bundle.py --dist-dir dist`
 3. release artifact smoke test:
-   - import check from extracted artifact (e.g. `python -c "import governance.entrypoints.bootstrap_preflight_readonly"`)
+   - import check from extracted artifact (e.g. `python -c "import governance_runtime.entrypoints.bootstrap_preflight_readonly"`)
    - full path check: extract -> run `install.py` from extracted release -> run bootstrap launcher with `--repo-root`
 4. upload `dist/*` as `governance-dist` artifact
 

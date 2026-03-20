@@ -257,10 +257,142 @@ jobs:
           python -m pip install pytest
           pytest -q tests/architecture/test_import_rules.py
 
+  ssot-scan:
+    name: SSOT Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (resilient)
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git init .
+          git config --global --add safe.directory "$PWD"
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+          for i in 1 2 3 4 5; do
+            if git -c protocol.version=2 fetch --no-tags --prune --depth=1 origin "${SHA}"; then
+              git checkout --detach FETCH_HEAD
+              exit 0
+            fi
+            if [ "$i" -eq 5 ]; then
+              echo "checkout failed after ${i} attempts"
+              exit 1
+            fi
+            sleep $((i * 8))
+          done
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+      - name: Run SSOT guard
+        run: |
+          python scripts/ssot_guard.py
+
+  install-smoke:
+    name: Install Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (resilient)
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git init .
+          git config --global --add safe.directory "$PWD"
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+          for i in 1 2 3 4 5; do
+            if git -c protocol.version=2 fetch --no-tags --prune --depth=1 origin "${SHA}"; then
+              git checkout --detach FETCH_HEAD
+              exit 0
+            fi
+            if [ "$i" -eq 5 ]; then
+              echo "checkout failed after ${i} attempts"
+              exit 1
+            fi
+            sleep $((i * 8))
+          done
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+      - name: Run install layout gate
+        run: |
+          python scripts/install_layout_gate.py --repo-root .
+
+  bootstrap-smoke:
+    name: Bootstrap Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (resilient)
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git init .
+          git config --global --add safe.directory "$PWD"
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+          for i in 1 2 3 4 5; do
+            if git -c protocol.version=2 fetch --no-tags --prune --depth=1 origin "${SHA}"; then
+              git checkout --detach FETCH_HEAD
+              exit 0
+            fi
+            if [ "$i" -eq 5 ]; then
+              echo "checkout failed after ${i} attempts"
+              exit 1
+            fi
+            sleep $((i * 8))
+          done
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+      - name: Run bootstrap smoke
+        run: |
+          python scripts/bootstrap_smoke_gate.py --repo-root .
+
+  delete-barrier:
+    name: Delete Barrier
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (resilient)
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git init .
+          git config --global --add safe.directory "$PWD"
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+          for i in 1 2 3 4 5; do
+            if git -c protocol.version=2 fetch --no-tags --prune --depth=1 origin "${SHA}"; then
+              git checkout --detach FETCH_HEAD
+              exit 0
+            fi
+            if [ "$i" -eq 5 ]; then
+              echo "checkout failed after ${i} attempts"
+              exit 1
+            fi
+            sleep $((i * 8))
+          done
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+      - name: Run delete barrier gate
+        run: |
+          python scripts/delete_barrier_gate.py --repo-root .
+
   governance-contract-verifier:
     name: Governance Contract Verifier
     runs-on: ubuntu-latest
-    needs: [governance-lint, spec-guards, architecture-guards]
+    needs: [governance-lint, spec-guards, architecture-guards, ssot-scan, install-smoke, bootstrap-smoke, delete-barrier]
     steps:
       - name: Checkout repository (resilient)
         shell: bash
@@ -302,7 +434,7 @@ jobs:
           if-no-files-found: error
 
   build-artifacts:
-    needs: [governance-lint, spec-guards, architecture-guards, governance-contract-verifier]
+    needs: [governance-lint, spec-guards, architecture-guards, ssot-scan, install-smoke, bootstrap-smoke, delete-barrier, governance-contract-verifier]
     name: Build Release Artifacts (zip + tar.gz)
     runs-on: ubuntu-latest
     steps:
@@ -436,7 +568,7 @@ jobs:
   # Job 1: Installer Tests (Cross-OS)
   # ----------------------------------
   test-installer:
-    needs: [governance-lint, spec-guards, architecture-guards]
+    needs: [governance-lint, spec-guards, architecture-guards, ssot-scan, install-smoke, bootstrap-smoke, delete-barrier]
     name: Test Installer on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
@@ -495,7 +627,7 @@ jobs:
   # ----------------------------------
   validate-governance:
     name: Validate Governance Files (${{ matrix.os }})
-    needs: [governance-lint, spec-guards, architecture-guards]
+    needs: [governance-lint, spec-guards, architecture-guards, ssot-scan, install-smoke, bootstrap-smoke, delete-barrier]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -543,7 +675,7 @@ jobs:
   # ----------------------------------
   governance-e2e:
     name: Governance E2E Flow (${{ matrix.os }})
-    needs: [governance-lint, spec-guards, architecture-guards]
+    needs: [governance-lint, spec-guards, architecture-guards, ssot-scan, install-smoke, bootstrap-smoke, delete-barrier]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -591,7 +723,7 @@ jobs:
   # ----------------------------------
   conformance:
     name: Contract Conformance (${{ matrix.os }})
-    needs: [governance-lint, spec-guards, architecture-guards]
+    needs: [governance-lint, spec-guards, architecture-guards, ssot-scan, install-smoke, bootstrap-smoke, delete-barrier]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -639,7 +771,7 @@ jobs:
   # ----------------------------------
   release-readiness:
     name: Release Readiness
-    needs: [conventional-pr-title, governance-lint, spec-guards, test-installer, validate-governance, governance-e2e, conformance, build-artifacts]
+    needs: [conventional-pr-title, governance-lint, spec-guards, architecture-guards, ssot-scan, install-smoke, bootstrap-smoke, delete-barrier, test-installer, validate-governance, governance-e2e, conformance, build-artifacts]
     if: ${{ always() }}
     runs-on: ubuntu-latest
 

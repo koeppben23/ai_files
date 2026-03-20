@@ -132,7 +132,7 @@ The following patterns are banned as primary command invocations in execution-fa
 | Pattern | Reason |
 |---|---|
 | User-specific absolute home paths (`$HOME/...`, `~/.config/...`, `/home/user/...`, `C:\Users\...`) | Non-portable; ties rails to a specific user's filesystem |
-| Direct Python script calls (`python governance/entrypoints/...`, `python3 ...`, `py -3 ...`) when the stable launcher is available | Bypasses the launcher abstraction; fragile across environments |
+| Direct Python script calls (`python governance_runtime/entrypoints/...`, `python3 ...`, `py -3 ...`) when the stable launcher is available | Bypasses the launcher abstraction; fragile across environments |
 
 ## 6. Banned Language Patterns (Execution-Facing Rails)
 

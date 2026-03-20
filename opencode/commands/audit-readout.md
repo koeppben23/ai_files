@@ -6,7 +6,7 @@
 
 `/audit-readout` is a read-only rail entrypoint.
 The command below prints an `AUDIT_READOUT_SPEC.v1` JSON payload and does not modify any files.
-It reports `active`, `last_snapshot`, `chain`, and `integrity` per `governance/docs/AUDIT_READOUT_SPEC.md`.
+It reports `active`, `last_snapshot`, `chain`, and `integrity` per the `AUDIT_READOUT_SPEC.md` contract.
 
 ## Commands by platform
 

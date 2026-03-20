@@ -6,7 +6,7 @@ This document is the short benchmark landing page moved out of `README.md`.
 
 Benchmark packs provide deterministic scoring for business-code and test-code quality across active profiles.
 
-Pack files live under `governance/assets/catalogs/*_QUALITY_BENCHMARK_PACK.json`.
+Pack files live under `governance_runtime/assets/catalogs/*_QUALITY_BENCHMARK_PACK.json`.
 
 ## Quick Run Flow
 
@@ -18,7 +18,7 @@ Pack files live under `governance/assets/catalogs/*_QUALITY_BENCHMARK_PACK.json`
 Optional helper command:
 
 ```bash
-${PYTHON_COMMAND} scripts/run_quality_benchmark.py --pack governance/assets/catalogs/PYTHON_QUALITY_BENCHMARK_PACK.json
+${PYTHON_COMMAND} scripts/run_quality_benchmark.py --pack governance_runtime/assets/catalogs/PYTHON_QUALITY_BENCHMARK_PACK.json
 ```
 
 Running the helper alone does not imply `PASS`; required evidence artifacts must still be present and valid.

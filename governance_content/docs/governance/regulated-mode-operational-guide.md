@@ -105,7 +105,7 @@ Regulated mode modifies the access control matrix:
 | `compliance_officer` | `modify_retention` | Only CO can change retention |
 | `compliance_officer` | `override_redaction` | Only CO can override redaction (audit-logged) |
 
-**Source:** `governance/assets/config/access_control_policy.yaml:59-70`
+**Source:** `governance_runtime/assets/config/access_control_policy.yaml:59-70`
 
 ## Configuration
 

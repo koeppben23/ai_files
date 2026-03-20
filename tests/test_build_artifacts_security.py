@@ -16,9 +16,9 @@ from .util import REPO_ROOT, get_templates_path, run_build, sha256_file
 def _resolve_existing_rel(rel: str) -> str:
     candidates = [rel]
     if rel == "master.md":
-        candidates.append("governance_content/master.md")
+        candidates.append("governance_content/reference/master.md")
     elif rel == "rules.md":
-        candidates.append("governance_content/rules.md")
+        candidates.append("governance_content/reference/rules.md")
     elif rel.startswith("docs/") or rel.startswith("profiles/") or rel.startswith("templates/"):
         candidates.append("governance_content/" + rel)
     elif rel.startswith("rulesets/"):

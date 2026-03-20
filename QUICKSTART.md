@@ -1,6 +1,6 @@
 SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
 Kernel: `governance_runtime/kernel/*` is the canonical control-plane implementation.
-Legacy bridge note: `governance/kernel/*` is compatibility surface only.
+Control-plane enforcement is runtime-native only.
 MD files are AI rails/guidance only and are never routing-binding.
 Phase `1.3` is mandatory before every phase `>=2`.
 
@@ -92,7 +92,7 @@ Use `--verbose` for step-by-step bootstrap output.
 ### What goes where (operator map)
 
 - `${CONFIG_ROOT}` (default `~/.config/opencode`) contains `commands/`, `plugins/`, `workspaces/`, `bin/`.
-- `${LOCAL_ROOT}` (default `~/.local/opencode`) contains `governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, `VERSION`.
+- `${LOCAL_ROOT}` (default `~/.local/opencode`) contains `governance_runtime/`, `governance_content/`, `governance_spec/`, `VERSION`.
 
 | Error | Fix |
 |-------|-----|

@@ -17,16 +17,16 @@ def _read(path: Path) -> str:
 class TestReadmeUxCompletion:
     def test_governance_content_docs_are_not_shims(self) -> None:
         for rel in [
-            "governance_content/README.md",
+            "README.md",
             "governance_content/README-OPENCODE.md",
-            "governance_content/QUICKSTART.md",
+            "QUICKSTART.md",
         ]:
             content = _read(REPO_ROOT / rel)
             assert "shim" not in content.lower(), f"{rel} must be a completed UX doc, not a shim"
             assert len(content.splitlines()) >= 30, f"{rel} must contain substantive content"
 
     def test_readme_surfaces_include_canonical_rail_progression(self) -> None:
-        readme = _read(REPO_ROOT / "governance_content" / "README.md")
+        readme = _read(REPO_ROOT / "README.md")
         assert "/continue" in readme
         assert "/review" in readme
         assert "read-only rail entrypoint" in readme
@@ -34,7 +34,7 @@ class TestReadmeUxCompletion:
         assert "/implement" in readme
 
     def test_readme_uses_final_state_layer_authority_language(self) -> None:
-        readme = _read(REPO_ROOT / "governance_content" / "README.md")
+        readme = _read(REPO_ROOT / "README.md")
         assert "governance_runtime/" in readme
         assert "governance_content/" in readme
         assert "governance_spec/" in readme
@@ -42,12 +42,12 @@ class TestReadmeUxCompletion:
         assert "Installer-managed runtime and policy assets under `governance/`." not in readme
 
     def test_quickstart_does_not_present_legacy_kernel_as_authority(self) -> None:
-        quickstart = _read(REPO_ROOT / "governance_content" / "QUICKSTART.md")
-        assert "Kernel: `governance/kernel/*` is the only control-plane implementation." not in quickstart
+        quickstart = _read(REPO_ROOT / "QUICKSTART.md")
+        assert "Kernel: `governance_runtime/kernel/*` is the only control-plane implementation." not in quickstart
         assert "governance_runtime/kernel/*" in quickstart
 
     def test_readme_links_to_quickstarts_and_documents_install_layout(self) -> None:
-        readme = _read(REPO_ROOT / "governance_content" / "README.md")
+        readme = _read(REPO_ROOT / "README.md")
         assert "Quickstarts: `QUICKSTART.md`, `README-OPENCODE.md`" in readme
         assert "Post-install directory layout" in readme
         assert "<config_root>/" in readme
@@ -71,7 +71,7 @@ class TestReadmeUxCompletion:
         assert "governance_runtime/" in opencode
 
     def test_quickstart_covers_end_to_end_operator_flow(self) -> None:
-        quickstart = _read(REPO_ROOT / "governance_content" / "QUICKSTART.md")
+        quickstart = _read(REPO_ROOT / "QUICKSTART.md")
         assert "Step 1: Install" in quickstart
         assert "opencode-governance-bootstrap" in quickstart
         assert "/continue" in quickstart
@@ -86,8 +86,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README.md",
-            REPO_ROOT / "governance_content" / "QUICKSTART.md",
             REPO_ROOT / "governance_content" / "README-OPENCODE.md",
         ]
         for path in docs:
@@ -100,8 +98,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README.md",
-            REPO_ROOT / "governance_content" / "QUICKSTART.md",
             REPO_ROOT / "governance_content" / "README-OPENCODE.md",
         ]
         for path in docs:
@@ -116,8 +112,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README.md",
-            REPO_ROOT / "governance_content" / "QUICKSTART.md",
             REPO_ROOT / "governance_content" / "README-OPENCODE.md",
         ]
         for path in docs:
@@ -131,8 +125,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README.md",
-            REPO_ROOT / "governance_content" / "QUICKSTART.md",
             REPO_ROOT / "governance_content" / "README-OPENCODE.md",
         ]
         for path in docs:
@@ -146,8 +138,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README.md",
-            REPO_ROOT / "governance_content" / "QUICKSTART.md",
             REPO_ROOT / "governance_content" / "README-OPENCODE.md",
         ]
         contents = {path: _read(path) for path in docs}
@@ -169,7 +159,6 @@ class TestReadmeUxCompletion:
 
     def test_master_surfaces_include_runtime_authority_and_operator_truth(self) -> None:
         docs = [
-            REPO_ROOT / "governance_content" / "master.md",
             REPO_ROOT / "governance_content" / "reference" / "master.md",
         ]
         for path in docs:
@@ -179,7 +168,7 @@ class TestReadmeUxCompletion:
             assert "opencode-governance-bootstrap init --profile" in content
             assert ".config/opencode" in content
             assert ".local/opencode" in content
-            assert "compatibility surface only" in content
+            assert "removed from productive runtime authority" in content
 
     def test_operator_runbook_contains_canonical_operator_truth(self) -> None:
         runbook = _read(REPO_ROOT / "governance_content" / "docs" / "operator-runbook.md")
@@ -195,8 +184,6 @@ class TestReadmeUxCompletion:
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
-            REPO_ROOT / "governance_content" / "README.md",
-            REPO_ROOT / "governance_content" / "QUICKSTART.md",
             REPO_ROOT / "governance_content" / "README-OPENCODE.md",
             REPO_ROOT / "governance_content" / "docs" / "operator-runbook.md",
         ]

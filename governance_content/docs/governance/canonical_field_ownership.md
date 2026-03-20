@@ -6,7 +6,7 @@ Purpose: prevent SSOT drift by declaring ownership of terms and contracts.
 
 - Phase IDs (from `phase_api.yaml`)
 - Gate enums and statuses (kernel gate evaluators)
-- Reason codes (from `governance/assets/reasons/*.yaml`)
+- Reason codes (from `governance_runtime/assets/reasons/*.yaml`)
 - Transition IDs (kernel trace)
 - SESSION_STATE keys and invariant rules (session schema + invariants)
 - Blocked defaults and recovery triggers (kernel enforcement)
@@ -28,5 +28,5 @@ Default rewrite role:
 ## SSOT guard artifacts
 
 - `docs/governance/kernel_vs_docs_matrix.csv`
-- `governance/assets/catalogs/SSOT_GUARD_RULES.json`
+- `governance_runtime/assets/catalogs/SSOT_GUARD_RULES.json`
 - `docs/governance/business-rules-runtime-semantics.md` (runtime-facing explanation of BR reason-code layers, counter semantics, and pointer/session-state boundaries)

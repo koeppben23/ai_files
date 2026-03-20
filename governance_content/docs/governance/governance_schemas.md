@@ -7,7 +7,7 @@ schema: governance.schemas.v1
 schema: governance.response_envelope.v1
 
 Reference:
-- `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`
+- `governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`
 
 ## Compact Mode (Presentation)
 

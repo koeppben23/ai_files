@@ -127,11 +127,11 @@ Launchers support subcommand routing:
 | Subcommand | Target |
 |------------|--------|
 | `--session-reader [flags]` | `session_reader.py` with passthrough flags |
-| `--ticket-persist [flags]` | `governance.entrypoints.phase4_intake_persist` (canonical public surface) |
-| `--plan-persist [flags]` | `governance.entrypoints.phase5_plan_record_persist` (canonical public surface) |
-| `--review-decision-persist [flags]` | `governance.entrypoints.review_decision_persist` (canonical public surface) |
-| `--implement-start [flags]` | `governance.entrypoints.implement_start` (canonical public surface) |
-| *(default)* | `governance.entrypoints.bootstrap_executor` |
+| `--ticket-persist [flags]` | `governance_runtime.entrypoints.phase4_intake_persist` (canonical public surface) |
+| `--plan-persist [flags]` | `governance_runtime.entrypoints.phase5_plan_record_persist` (canonical public surface) |
+| `--review-decision-persist [flags]` | `governance_runtime.entrypoints.review_decision_persist` (canonical public surface) |
+| `--implement-start [flags]` | `governance_runtime.entrypoints.implement_start` (canonical public surface) |
+| *(default)* | `governance_runtime.entrypoints.bootstrap_executor` |
 
 ### 4.1.1 Final launcher surface
 

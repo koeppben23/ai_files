@@ -120,7 +120,7 @@ Exported bundles can be restored and validated:
 
 ## Policy Configuration
 
-The retention policy is defined in `governance/assets/config/retention_policy.yaml` (POLICY-BOUND, pack-locked). The JSON schema is `governance/assets/schemas/retention_policy.v1.schema.json`.
+The retention policy is defined in `governance_runtime/assets/config/retention_policy.yaml` (POLICY-BOUND, pack-locked). The JSON schema is `governance_runtime/assets/schemas/retention_policy.v1.schema.json`.
 
 ## Related Documentation
 

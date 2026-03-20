@@ -8,14 +8,14 @@ This record defines the hard completion gate for F100 final-state closure.
 
 ## Required Final-State Invariants
 
-- Runtime authority: `governance_runtime/**` must have zero `governance.*` import edges.
+- Runtime authority: `governance_runtime/**` must have zero legacy package import edges.
 - Legacy bridge purity: legacy bridge files must not contain active logic.
 - Installer single source: `governance_runtime/install/install.py` is canonical; root `install.py` is a thin delegator.
 - Contract liveness: no live contract metadata may use `planned`/`TBD`; archived contracts must be explicitly archived.
-- Legacy compatibility surface: frozen and controlled by `governance_spec/migrations/R10_Final_State_Proof.md`.
-- Legacy authority finalization: `governance/` is compatibility-only under local root and not an active command-surface runtime target.
-- Install layout finalization: config root holds `commands/`, `plugins/`, `workspaces/`, `bin/`; local root holds `governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, `VERSION`.
-- Command surface finalization: exactly 8 canonical `*.md` rails in `opencode/commands/`; installed `${CONFIG_ROOT}/commands/` is strict allowlist (`8 rails + governance.paths.json + INSTALL_MANIFEST.json`) and contains no runtime/docs/spec/legacy payload trees.
+- Legacy compatibility surface: removed from productive install/runtime topology.
+- Legacy authority finalization: no legacy package directory exists under local root runtime targets.
+- Install layout finalization: config root holds `commands/`, `plugins/`, `workspaces/`, `bin/` and root metadata files; local root holds `governance_runtime/`, `governance_content/`, `governance_spec/`, `VERSION`.
+- Command surface finalization: exactly 8 canonical `*.md` rails in `opencode/commands/`; installed `${CONFIG_ROOT}/commands/` is strict allowlist of the 8 rails only and contains no runtime/docs/spec/legacy payload trees.
 - Workspace-only log write targets: no `commands/logs` write fallback in runtime logging paths.
 - README and quickstart UX completion: governance-content user docs must be substantive and canonical-command aligned.
 - Repo hygiene: cache/test junk, unclassified backlog notes, and redundant raw proof dumps are excluded from active tree.

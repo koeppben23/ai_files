@@ -101,7 +101,7 @@ Phase 3 is **conditionally executed** based on API presence:
 
 **Key insight:** Phase 3A is executed by default but may immediately exit with `not-applicable` status. Phase 3B-1 and 3B-2 are only executed when APIs are actually present.
 
-**Implementation note:** Phase routing is kernel-enforced by `governance/kernel/*` against `${COMMANDS_HOME}/phase_api.yaml`. The routing includes:
+**Implementation note:** Phase routing is kernel-enforced by `governance_runtime/kernel/*` against `${COMMANDS_HOME}/phase_api.yaml`. The routing includes:
 - Phase 2.1 → Phase 1.5 (Business Rules Discovery decision)
 - Phase 1.5 → Phase 3A (default routing; kernel-enforced)
 - Phase 2.1 → Phase 3A (default routing; 3A may exit with not-applicable; kernel-enforced)
