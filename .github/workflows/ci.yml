@@ -504,10 +504,11 @@ jobs:
           assert zips and tgzs, "Expected both zip and tar.gz in dist/"
 
           def smoke(extracted: Path):
-            cfg = extracted / "_cfg"
-            local = extracted / "_local"
+            cfg = (extracted / "_cfg").resolve()
+            local = (extracted / "_local").resolve()
             env = dict(os.environ)
             env["OPENCODE_LOCAL_ROOT"] = str(local)
+            env["OPENCODE_CONFIG_ROOT"] = str(cfg)
             r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--dry-run", "--config-root", str(cfg)],
                                env=env,
                                cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -517,8 +518,8 @@ jobs:
                                cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
 
-            governance = local / "governance"
-            entrypoints = governance / "entrypoints"
+            runtime_root = local / "governance_runtime"
+            entrypoints = runtime_root / "entrypoints"
             required_helpers = [
               entrypoints / "persist_workspace_artifacts.py",
               entrypoints / "bootstrap_session_state.py",
@@ -542,6 +543,7 @@ jobs:
                 "--no-session-update",
                 "--quiet",
               ],
+              env=env,
               cwd=str(extracted),
               text=True,
               stdout=subprocess.PIPE,
