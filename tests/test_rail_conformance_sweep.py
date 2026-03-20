@@ -131,7 +131,7 @@ def _resolve_entry_path(rel_path: str) -> Path:
     if rel_path.startswith("docs/"):
         return DOCS_ROOT / rel_path[len("docs/"):]
     if rel_path in {"master.md", "rules.md"}:
-        return REPO_ROOT / "governance_content" / rel_path
+        return REPO_ROOT / "governance_content" / "reference" / rel_path
     if "/" not in rel_path and rel_path.endswith(".md"):
         command_path = REPO_ROOT / "opencode" / "commands" / rel_path
         if command_path.exists():

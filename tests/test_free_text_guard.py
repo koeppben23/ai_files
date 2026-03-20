@@ -66,7 +66,7 @@ def _write_workspace_state(ws_state: Path, state: dict) -> None:
 def _mock_readonly_unavailable():
     """Patch evaluate_readonly to raise, triggering graceful degradation."""
     return patch(
-        "governance.kernel.phase_kernel.evaluate_readonly",
+        "governance_runtime.kernel.phase_kernel.evaluate_readonly",
         side_effect=RuntimeError("kernel not available in test"),
     )
 
@@ -500,7 +500,7 @@ class TestEvaluateReadonlyNoSideEffects:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=fake_result,
         ):
             read_session_snapshot(commands_home=fake_config / "commands")

@@ -89,7 +89,7 @@ def _mock_readonly_unavailable():
     without needing a full kernel setup (phase_api.yaml, etc.).
     """
     return patch(
-        "governance.kernel.phase_kernel.evaluate_readonly",
+        "governance_runtime.kernel.phase_kernel.evaluate_readonly",
         side_effect=RuntimeError("kernel not available in test"),
     )
 
@@ -546,7 +546,7 @@ class TestPlanRecordLabel:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=kernel_with_plan,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -635,7 +635,7 @@ class TestReadonlyKernelEvalEnrichment:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=fake_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -709,7 +709,7 @@ class TestReadonlyKernelEvalEnrichment:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -724,7 +724,7 @@ class TestReadonlyKernelEvalEnrichment:
 
         # If evaluate_readonly were called, this mock would raise and fail the test.
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             side_effect=AssertionError("evaluate_readonly must NOT be called in materialize mode"),
         ):
             result = read_session_snapshot(commands_home=commands_home, materialize=True)
@@ -761,7 +761,7 @@ class TestReadonlyKernelEvalEnrichment:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=blocked_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -797,7 +797,7 @@ class TestReadonlyKernelEvalEnrichment:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=fake_result,
         ):
             read_session_snapshot(commands_home=fake_config / "commands")
@@ -1108,7 +1108,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1194,7 +1194,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1275,7 +1275,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1344,7 +1344,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1417,7 +1417,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1501,7 +1501,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1592,7 +1592,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1673,7 +1673,7 @@ class TestMain:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1779,7 +1779,7 @@ class TestTransitionEvidenceVisibility:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=fake_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -1813,7 +1813,7 @@ class TestTransitionEvidenceVisibility:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=fake_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -1848,7 +1848,7 @@ class TestTransitionEvidenceVisibility:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=blocked_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -2017,7 +2017,7 @@ class TestTransitionEvidenceAutoGrant:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -2097,7 +2097,7 @@ class TestTransitionEvidenceAutoGrant:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -2189,7 +2189,7 @@ class TestTransitionEvidenceStayStrategyRegressions:
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (config_root / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -2510,7 +2510,7 @@ class TestMissingTransitionEvidenceDiagnosed:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=blocked_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -2836,7 +2836,7 @@ class TestMaterializeOutputActionLine:
             "next_gate_condition": "Workflow approved.",
         }
         with patch(
-            "governance.entrypoints.session_reader.read_session_snapshot",
+            "governance_runtime.entrypoints.session_reader.read_session_snapshot",
             return_value=snapshot,
         ):
             rc = main(["--materialize"])
@@ -2884,7 +2884,7 @@ class TestRouteTargetExplanation:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=next_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -2924,7 +2924,7 @@ class TestRouteTargetExplanation:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=stay_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")

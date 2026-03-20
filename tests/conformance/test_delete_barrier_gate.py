@@ -70,4 +70,7 @@ def test_delete_barrier_gate_edge_multiple_failures(monkeypatch, tmp_path: Path)
     monkeypatch.setattr(delete_barrier_gate, "_copy_repo", fake_copy)
     monkeypatch.setattr(delete_barrier_gate, "_run", fake_run)
     issues = delete_barrier_gate.run_delete_barrier(repo_root, "python")
-    assert len(issues) == 2
+    # Gate breaks on first failure (break-on-first contract).
+    # fake_run fails on call 1 (import-smoke), so exactly 1 issue is expected.
+    assert len(issues) == 1
+    assert "import-smoke" in issues[0]

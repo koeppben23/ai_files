@@ -56,12 +56,8 @@ def _resolve_phase_api_path(commands_home: Path, spec_home: Path | None = None) 
 
     Contract:
       - specHome/phase_api.yaml is the canonical authority (governance_spec).
-      - When specHome IS configured (even if empty), commands/phase_api.yaml
-        is NOT consulted.  This prevents commands/ from acting as authority.
-      - commands/phase_api.yaml is a legacy fallback ONLY when specHome is
-        completely absent from binding evidence.
+      - commands/phase_api.yaml is NEVER a resolver candidate.
     """
-    has_spec_home = spec_home is not None
     candidates: list[Path] = []
     if spec_home is not None:
         candidates.append(spec_home / "phase_api.yaml")
@@ -73,7 +69,6 @@ def _resolve_phase_api_path(commands_home: Path, spec_home: Path | None = None) 
             paths = payload.get("paths", payload)
             manifest_spec_home = str(paths.get("specHome", "")).strip()
             if manifest_spec_home:
-                has_spec_home = True
                 candidates.append(Path(manifest_spec_home) / "phase_api.yaml")
         except Exception:
             pass
@@ -81,17 +76,8 @@ def _resolve_phase_api_path(commands_home: Path, spec_home: Path | None = None) 
     for candidate in candidates:
         if candidate.exists():
             return candidate
-
-    # Legacy fallback: commands/phase_api.yaml — ONLY when specHome is absent
-    if not has_spec_home:
-        legacy = commands_home / "phase_api.yaml"
-        if legacy.exists():
-            return legacy
-
     if candidates:
         return candidates[0]
-    if not has_spec_home:
-        return commands_home / "phase_api.yaml"
     raise PhaseApiSpecError(
         "phase_api.yaml not found at any authoritative location"
     )

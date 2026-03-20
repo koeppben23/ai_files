@@ -12,3 +12,4 @@ governance/governance_lint_report.json
  !.gitignore
  !husky.sh
 .opencode/
+rulesets/
