@@ -289,6 +289,9 @@ jobs:
       - name: Run SSOT guard
         run: |
           python scripts/ssot_guard.py
+      - name: Run repo hygiene guard
+        run: |
+          python scripts/repo_hygiene_guard.py --repo-root .
 
   install-smoke:
     name: Install Smoke
