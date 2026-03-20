@@ -134,6 +134,7 @@ run_step "Running governance validation tests" "${PYTEST}" -q -m governance
 run_step "Running governance end-to-end tests" "${PYTEST}" -q -m e2e_governance
 run_step "Running release readiness tests" "${PYTEST}" -q -m release
 run_step "Running repo hygiene guard" "${PY}" scripts/repo_hygiene_guard.py --repo-root .
+run_step "Running ship surface guard" "${PY}" scripts/ship_surface_guard.py --repo-root .
 
 run_step "Installer smoke test (dry-run)" "${PY}" install.py --dry-run --force --config-root "${CONFIG_ROOT}"
 run_step "Installer smoke test (install)" "${PY}" install.py --force --no-backup --config-root "${CONFIG_ROOT}"

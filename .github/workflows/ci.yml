@@ -292,6 +292,9 @@ jobs:
       - name: Run repo hygiene guard
         run: |
           python scripts/repo_hygiene_guard.py --repo-root .
+      - name: Run ship surface guard
+        run: |
+          python scripts/ship_surface_guard.py --repo-root .
 
   install-smoke:
     name: Install Smoke

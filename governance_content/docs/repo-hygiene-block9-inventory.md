@@ -64,5 +64,10 @@ Justification:
   - no new `archived/` files in live trees
   - no new README/RULES mirror files
   - no new marker-only `__init__.py`
+- `scripts/ship_surface_guard.py` enforces lean shipped surfaces:
+  - install output contains only expected top-level config/local entries
+  - install output contains no archive/historical legacy payloads
+  - install output contains no marker python package files
+  - dist artifacts (when present) contain no archive/historical or removed duplicate payload paths
 
 Baseline entries are intentionally explicit so each cleanup commit can remove items and tighten the guard until the baseline reaches zero debt.
