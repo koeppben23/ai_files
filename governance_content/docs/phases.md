@@ -3,8 +3,8 @@
 This document is a detailed phase map that was previously embedded in README.md.
 Authority boundary: policy, gate semantics, and routing are owned by kernel code plus kernel-owned configs/schemas; this file is explanatory and does not widen kernel behavior.
 
-**SSOT:** `${SPEC_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
-**Kernel:** `governance_runtime/kernel/*` is the canonical control-plane implementation.
+SSOT: `${SPEC_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.  `governance_content/docs/phases.md` is explanatory only — it does not widen kernel behavior.
+Kernel: `governance_runtime/kernel/*` is the canonical control-plane implementation.
 MD files are AI rails/guidance only and are never routing-binding.
 Phase `1.3` is mandatory before every phase `>=2`.
 
@@ -17,11 +17,11 @@ Phase `1.3` is mandatory before every phase `>=2`.
 - Phase 1.3 (Rulebook Load) loads core/profile/templates/addons rulebooks with evidence before routing to Phase 2.
 - Phase 2 (Repository Discovery) builds repo context and reusable decision artifacts.
 - Phase 2.1 (Decision Pack) creates the Decision Pack and resolves Phase 1.5 routing.
-- Phase 1.5 (Business Rules Discovery, optional) extracts business rules; once executed, Phase 5.4 becomes mandatory.
+- Phase 1.5 (Business Rules Discovery, optional) — phase 1.5 is an optional business-rules routing branch — extracts business rules; once executed, Phase 5.4 becomes mandatory.
 - Phase 3A (API Inventory) inventories external API artifacts — always executed, may record `not-applicable`.
 - Phase 3B-1 / 3B-2 (API Validation) run only when APIs are detected.
-- Phase 4 (Ticket Intake) produces the concrete implementation plan; supports `/review` for read-only feedback.
-- Phase 5 (Architecture Review) requires plan-record evidence and runs internal self-review (min 1, max 3 iterations).
+- Phase 4 (Ticket Intake) produces the concrete implementation plan; `/review` is a read-only rail entrypoint for feedback.
+- Phase 5 - Lead Architect Review requires plan-record evidence and runs internal self-review (min 1, max 3 iterations).
 - Phase 5.3 / 5.4 / 5.5 / 5.6 are conditional gates following Phase 5.
 - Phase 6 (Implementation) runs internal review loop, then presents evidence. Final decision via `/implementation-decision` (approve | changes_requested | reject). `/continue` does NOT advance past the Evidence Presentation Gate.
 
@@ -55,7 +55,7 @@ Phase `1.3` is mandatory before every phase `>=2`.
 | API Inventory | `3A-API-Inventory` | API Inventory | Always executed. Transitions: `no_apis` → 4; `default` → 3B-1. Exit requires: `APIInventory.Status`. |
 | API Logical Validation | `3B-1` | API Logical Validation | **Conditional**: only when APIs detected. Auto-routes to 3B-2. |
 | Contract Validation | `3B-2` | Contract Validation | **Conditional**: only when APIs detected. Auto-routes to 4. |
-| Ticket Intake / Planning | `4` | Ticket Input Gate | Non-gate for routing. Code output blocked until gates pass. `/review` provides read-only feedback without state change. Transitions: `ticket_present` → 5; `default` → stay in 4. |
+| Ticket Intake / Planning | `4` | Ticket Input Gate | Non-gate for routing. Code output blocked until gates pass. `/review` is a read-only rail entrypoint without state change. Transitions: `ticket_present` → 5; `default` → stay in 4. |
 | Architecture Review | `5-ArchitectureReview` | Plan Record Preparation Gate / Architecture Review Gate | Gate review. `output_policy.min_self_review_iterations: 1`, max 3. Transitions: `plan_record_missing` → stay; `self_review_iterations_pending` → stay; `self_review_iterations_met` → 5.3. Output classes: `plan`, `review`, `risk_analysis`, `test_strategy`, `gate_check`, `rollback_plan`, `review_questions`, `consolidated_review_plan`. |
 | Test Quality Review | `5.3-TestQuality` | Test Quality Gate | Unconditional. Transitions: `business_rules_gate_required` → 5.4; `technical_debt_proposed` → 5.5; `rollback_required` → 5.6; `default` → 6. |
 | Business Rules Compliance | `5.4-BusinessRules` | Business Rules Validation | Conditional — only active when Phase 1.5 executed. Transitions: `technical_debt_proposed` → 5.5; `rollback_required` → 5.6; `default` → 6. |
