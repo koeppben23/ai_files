@@ -73,6 +73,10 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`docs/new_profile.md`, `docs/new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- OpenCode Desktop integration now writes `instructions` key in `opencode.json` instead of `command_files`, resolving Desktop startup failure on command_files schema; installer actively removes legacy `command_files` on merge to prevent regression.
+- Rename `OPENCODE_COMMAND_FILES` constant to `OPENCODE_INSTRUCTIONS` in `install.py` to align code nomenclature with Desktop schema.
+- Align all governance docs from `${COMMANDS_HOME}/phase_api.yaml` to `${SPEC_HOME}/phase_api.yaml` as canonical authority (phases.md, governance_invariants.md, master.md, rules.md, responsibility_boundary.md, QUICKSTART.md, SESSION_STATE_SCHEMA.md, README-RULES.md, audit.md).
+- Remove legacy `${COMMANDS_HOME}` binding guidance from runtime catalogs and remediation texts (REASON_REMEDIATION_MAP.json, reason_codes.registry.json, blocked_reason_catalog.yaml, bootstrap_policy.yaml, QUICKFIX_TEMPLATES.json, audit.md).
 - Harden mode-policy orchestration: widening constraints now require explicit approval semantics and emit deterministic precedence events with hash refs.
 - Flatten code-specific reason payload context fields into emitted reason payload dictionaries for schema/audit alignment.
 - Tighten reason payload JSON schemas (`additionalProperties: false`) with optional `extensions` escape hatch.
@@ -250,6 +254,16 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add installer distribution completeness gate coverage for required normative files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`, `STABILITY_SLA.md`, `SESSION_STATE_SCHEMA.md`) and addon-manifest rulebook resolvability after install.
 - Add top-tier load-evidence contract fields for `QUALITY_INDEX.md` / `CONFLICT_RESOLUTION.md` (`RulebookLoadEvidence.top_tier.*`) in master/schema and governance tests.
 - Add a response-contract validator (`scripts/validate_response_contract.py`) with governance checks for blocked-envelope coherence and RulebookLoadEvidence presence when rulebooks are loaded.
+- Stabilize bootstrap and delete barrier smoke gates with robust synthetic binding setup (configRoot, localRoot, specHome, pythonCommand) and symlink-safe path normalization via `.resolve()` to fix specHome.parent alignment failures.
+- Add pyyaml dependency installation to Bootstrap Smoke and Delete Barrier CI jobs to fix BLOCKED_PHASE_API_MISSING from yaml loader failures.
+- Make governance contract verifier bindingless by calling `run_contract_verification()` directly instead of subprocess, removing false-negative failures in CI environment without local binding.
+- Track empty required layout directories with `.gitkeep` files (governance_spec/contracts, governance_spec/schemas, governance_spec/config, governance_runtime/bin, governance_runtime/scripts, session_state) to prevent SSOT scan failures.
+- Fix CI artifact smoke test paths from legacy `governance/entrypoints` to `governance_runtime/entrypoints` and add OPENCODE_CONFIG_ROOT env for persist helper to fix install surface regression.
+- Skip archived files during local payload copy in installer to keep install surface lean and prevent ship_surface_guard failures.
+- Make governance_runtime/common/__init__.py a non-marker module exporting `normalize_for_fingerprint` and remove it from marker-only baseline to fix repo_hygiene_guard violations.
+- Fix verify_setup.py binding path from `commands/governance.paths.json` to `governance.paths.json` at config_root and update install-layout-contract source reference for PROFILES_HOME.
+- Align session_state test mock paths from `/mock/commands/phase_api.yaml` to `/mock/specHome/phase_api.yaml` for specHome authority consistency.
+- Fix legacy_surface_guard to handle whitespace variants of forbidden command surface tokens and fix ssot_guard duplicate detection for non-byte-identical review.md files.
 
 ### Security
 - Tighten principal-grade declaration rules: incomplete or non-comparable scorecard data must emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and remain `not-verified`.
