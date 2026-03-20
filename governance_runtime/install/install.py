@@ -1754,11 +1754,12 @@ BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
 
 def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
-    """Generate or merge ``opencode.json`` with governance command files.
+    """Generate or merge ``opencode.json`` with governance instructions for Desktop.
 
-    - If the file does not exist, create it with the ``command_files`` array.
-    - If it exists, merge: add missing command file entries without removing
-      existing ones or touching other user keys.
+    - If the file does not exist, create it with the ``instructions`` array.
+    - If it exists, merge: add missing instruction entries, ensure plugin is set,
+      and actively remove any legacy ``command_files`` key.
+      Other user keys are preserved.
 
     Returns a status dict for logging.
     """
@@ -1786,14 +1787,17 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
             except Exception:
                 pass  # best-effort backup
 
-        current = existing.get("command_files")
+        # Remove legacy command_files key — Desktop uses instructions instead
+        existing.pop("command_files", None)
+
+        current = existing.get("instructions")
         if not isinstance(current, list):
             current = []
         merged = list(current)
         for entry in OPENCODE_COMMAND_FILES:
             if entry not in merged:
                 merged.append(entry)
-        existing["command_files"] = merged
+        existing["instructions"] = merged
 
         plugins_current = existing.get(OPENCODE_PLUGIN_KEY)
         if not isinstance(plugins_current, list):
@@ -1814,7 +1818,7 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
         return {"status": "merged", "dst": str(target)}
 
     payload = {
-            "command_files": list(OPENCODE_COMMAND_FILES),
+        "instructions": list(OPENCODE_COMMAND_FILES),
         OPENCODE_PLUGIN_KEY: [plugin_uri],
     }
     if dry_run:
