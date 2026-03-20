@@ -633,6 +633,7 @@ class TestNoRoguePaths:
         ".husky",
         ".opencode",
         ".pytest_cache",
+        ".venv",
         "artifacts",
         "bin",
         "bootstrap",
