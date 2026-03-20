@@ -55,6 +55,9 @@ class TestR4aLegacySunsetReadiness:
 
     def test_legacy_has_bridge_only_surface(self) -> None:
         bridges = _legacy_bridge_only_files()
+        if not LEGACY_ROOT.exists():
+            assert bridges == []
+            return
         assert bridges, "Expected at least one bridge-only file under governance/**"
 
     def test_r4a_readiness_report_exists(self) -> None:

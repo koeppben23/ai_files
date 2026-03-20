@@ -264,7 +264,7 @@ class TestBootstrapCommandArgv:
             result = mod.bootstrap_command_argv("abc123")
             assert result == [
                 "python3", "-m",
-                "governance.entrypoints.bootstrap_session_state",
+                "governance_runtime.entrypoints.bootstrap_session_state",
                 "--repo-fingerprint", "abc123",
             ]
 
@@ -292,4 +292,4 @@ class TestBootstrapCommandArgv:
             with patch.object(mod, "PYTHON_COMMAND", py_cmd):
                 result = mod.bootstrap_command_argv("fp123")
                 assert "-m" in result
-                assert "governance.entrypoints.bootstrap_session_state" in result
+                assert "governance_runtime.entrypoints.bootstrap_session_state" in result

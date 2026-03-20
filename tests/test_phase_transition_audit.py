@@ -57,8 +57,23 @@ RULEBOOK_BASE: dict[str, object] = {
 
 def _write_phase_api(commands_home: Path) -> None:
     commands_home.mkdir(parents=True, exist_ok=True)
-    (commands_home / "phase_api.yaml").write_text(
+    spec_home = commands_home.parent / "governance_spec"
+    spec_home.mkdir(parents=True, exist_ok=True)
+    (spec_home / "phase_api.yaml").write_text(
         get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    payload = {
+        "schema": "opencode-governance.paths.v1",
+        "paths": {
+            "configRoot": str(commands_home.parent),
+            "commandsHome": str(commands_home),
+            "specHome": str(spec_home),
+            "workspacesHome": str(commands_home.parent / "workspaces"),
+            "pythonCommand": "python3",
+        },
+    }
+    (commands_home.parent / "governance.paths.json").write_text(
+        json.dumps(payload), encoding="utf-8"
     )
 
 

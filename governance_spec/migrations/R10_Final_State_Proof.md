@@ -5,8 +5,8 @@ Generated: 2026-03-18
 ## Hard End-State Invariants
 
 - governance_runtime/** legacy import edges: **0**
-- governance/** bridge files (legacy -> runtime): **117**
-- governance/** explicit active compatibility surface files: **121**
+- governance/** bridge files (legacy -> runtime): **0**
+- governance/** explicit active compatibility surface files: **0**
 
 ## Legacy Authority Finalization
 

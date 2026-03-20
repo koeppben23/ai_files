@@ -46,12 +46,12 @@ class TestSpecClassificationHappyPath:
 
     def test_json_in_contracts_dir_is_spec(self) -> None:
         """JSON files in contracts directory are spec."""
-        path = Path("governance/contracts/some_contract.json")
+        path = Path("governance_spec/contracts/some_contract.json")
         assert is_spec_file(path) is True
 
     def test_yaml_in_receipts_dir_is_spec(self) -> None:
         """YAML files in receipts directory are spec."""
-        path = Path("governance/receipts/some_receipt.yaml")
+        path = Path("governance_spec/receipts/some_receipt.yaml")
         assert is_spec_file(path) is True
 
     def test_addon_manifest_is_spec(self) -> None:
@@ -75,7 +75,7 @@ class TestSpecClassificationNonSpec:
 
     def test_python_is_not_spec(self) -> None:
         """Python files are not spec."""
-        path = Path("governance/engine/some_module.py")
+        path = Path("governance_runtime/engine/some_module.py")
         assert is_spec_file(path) is False
 
     def test_readme_is_not_spec(self) -> None:
@@ -94,11 +94,11 @@ class TestSpecDirectoryClassification:
 
     def test_contracts_dir_is_spec_directory(self) -> None:
         """contracts is a spec directory."""
-        assert is_spec_directory(Path("governance/contracts")) is True
+        assert is_spec_directory(Path("governance_runtime/contracts")) is True
 
     def test_receipts_dir_is_spec_directory(self) -> None:
         """receipts is a spec directory."""
-        assert is_spec_directory(Path("governance/receipts")) is True
+        assert is_spec_directory(Path("governance_runtime/receipts")) is True
 
     def test_docs_is_not_spec_directory(self) -> None:
         """docs is NOT a spec directory."""

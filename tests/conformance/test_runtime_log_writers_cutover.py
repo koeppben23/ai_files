@@ -52,8 +52,8 @@ class TestRuntimeLogWritersCutover:
         """Happy: paths module provides get_workspace_logs_root."""
         # Check governance.paths
         possible_paths = [
-            REPO_ROOT / "governance" / "paths" / "layer_adapter.py",
-            REPO_ROOT / "governance" / "paths.py",
+            REPO_ROOT / "governance_runtime" / "layer_adapter.py",
+            REPO_ROOT / "governance_runtime" / "paths.py",
             REPO_ROOT / "governance_runtime" / "infrastructure" / "workspace_paths.py",
         ]
         

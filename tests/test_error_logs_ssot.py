@@ -66,7 +66,7 @@ def test_resolve_paths_full_returns_commands_home(tmp_path: Path) -> None:
             "pythonCommand": sys.executable,
         },
     }
-    (config_root / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
 
     resolved_cfg, resolved_ws, resolved_cmd = error_logs.resolve_paths_full(cfg)
 

@@ -352,8 +352,8 @@ class TestCatalogPathsEdge:
     def test_security_evidence_dir_refs_preserved(self) -> None:
         """security-gates.md may still reference governance/security-evidence/."""
         content = _read("docs/security-gates.md")
-        assert "governance/security-evidence/" in content, (
-            "security-gates.md must still reference governance/security-evidence/ "
+        assert "security-evidence/" in content, (
+            "security-gates.md must still reference security-evidence/ "
             "(runtime output directory)"
         )
 
@@ -473,8 +473,8 @@ class TestSecurityModelRefsHappy:
     def test_artifact_integrity_ref_exists(self) -> None:
         """artifact_integrity.py reference must exist."""
         content = _read("docs/SECURITY_MODEL.md")
-        assert "governance/infrastructure/artifact_integrity.py" in content
-        path = REPO_ROOT / "governance" / "infrastructure" / "artifact_integrity.py"
+        assert "governance_runtime/infrastructure/artifact_integrity.py" in content
+        path = REPO_ROOT / "governance_runtime" / "infrastructure" / "artifact_integrity.py"
         assert path.exists()
 
 

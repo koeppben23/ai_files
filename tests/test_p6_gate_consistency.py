@@ -1175,7 +1175,7 @@ class TestConditionalP5GateSync:
             "TestStrategy": "legacy-tests-not-applicable",
         }}
         with patch(
-            "governance.engine.gate_evaluator.evaluate_p53_test_quality_gate",
+            "governance_runtime.engine.gate_evaluator.evaluate_p53_test_quality_gate",
             return_value=type("P53Eval", (), {"status": "not-applicable"})(),
         ):
             _sync_conditional_p5_gate_states(state_doc=state_doc)

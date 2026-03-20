@@ -63,10 +63,10 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
         shutil.copy2(canonical_phase_api, commands_home / "phase_api.yaml")
 
 
-def _write_governance_paths(*, config_root: Path, commands_home: Path, workspaces_home: Path) -> None:
+def _write_governance_paths(*, config_root: Path, commands_home: Path, workspaces_home: Path, checkout_root: Path) -> None:
     commands_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
-    local_root = config_root.parent / f"{config_root.name}-local"
+    local_root = checkout_root
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
@@ -129,7 +129,12 @@ def test_cli_contract_uses_repo_root_and_config_root(tmp_path: Path) -> None:
     commands_home = config_root / "commands"
     workspaces_home = config_root / "workspaces"
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
-    _write_governance_paths(config_root=config_root, commands_home=commands_home, workspaces_home=workspaces_home)
+    _write_governance_paths(
+        config_root=config_root,
+        commands_home=commands_home,
+        workspaces_home=workspaces_home,
+        checkout_root=checkout_root,
+    )
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)
@@ -182,7 +187,12 @@ def test_cli_init_profile_writes_repo_policy(tmp_path: Path) -> None:
     commands_home = config_root / "commands"
     workspaces_home = config_root / "workspaces"
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
-    _write_governance_paths(config_root=config_root, commands_home=commands_home, workspaces_home=workspaces_home)
+    _write_governance_paths(
+        config_root=config_root,
+        commands_home=commands_home,
+        workspaces_home=workspaces_home,
+        checkout_root=checkout_root,
+    )
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)
@@ -222,7 +232,12 @@ def test_cli_alias_set_operating_mode_updates_existing_policy(tmp_path: Path) ->
     commands_home = config_root / "commands"
     workspaces_home = config_root / "workspaces"
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
-    _write_governance_paths(config_root=config_root, commands_home=commands_home, workspaces_home=workspaces_home)
+    _write_governance_paths(
+        config_root=config_root,
+        commands_home=commands_home,
+        workspaces_home=workspaces_home,
+        checkout_root=checkout_root,
+    )
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)

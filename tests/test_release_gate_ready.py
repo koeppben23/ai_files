@@ -86,8 +86,8 @@ def _git_init_repo(repo: Path) -> None:
     )
 
 
-def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_root: Path) -> None:
-    local_root = config_root.parent / f"{config_root.name}-local"
+def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_root: Path, checkout_root: Path) -> None:
+    local_root = checkout_root
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
@@ -178,7 +178,7 @@ def isolated_env(tmp_path: Path):
     workspaces_home.mkdir(parents=True, exist_ok=True)
     
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
-    _write_governance_paths(commands_home, workspaces_home, config_root)
+    _write_governance_paths(commands_home, workspaces_home, config_root, checkout_root)
     
     env = dict(os.environ)
     env["HOME"] = str(home)
@@ -490,7 +490,6 @@ class TestE2ETestMatrix:
         from pathlib import Path
 
         monkeypatch.setattr(Path, "home", staticmethod(lambda: isolated_env["home"]))
-        (isolated_env["commands_home"] / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
         
         ss_with_rulebooks = {
             "Phase": "4",

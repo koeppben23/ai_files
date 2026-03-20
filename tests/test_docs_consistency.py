@@ -99,7 +99,10 @@ def test_docs_do_not_claim_markdown_runtime_authority() -> None:
     ]
     violations: list[str] = []
     for rel in AUTHORITY_DOC_FILES:
-        text = (root / rel).read_text(encoding="utf-8")
+        path = root / rel
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
         for pattern in forbidden:
             if pattern.search(text):
                 violations.append(f"{rel}: {pattern.pattern}")

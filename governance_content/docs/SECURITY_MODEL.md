@@ -413,12 +413,12 @@ def process_untrusted_input(source: str, data: Any) -> ValidationResult:
 
 - `docs/THREAT_MODEL.md` - Attack surfaces and scenarios
 - `docs/MD_PYTHON_POLICY.md` - Schienen vs Leitplanken
-- `governance/infrastructure/artifact_integrity.py` - Runtime hash verification
+- `governance_runtime/infrastructure/artifact_integrity.py` - Runtime hash verification
 
 ## Artifact Integrity Verification
 
 **Added:** Phase A.2, Cluster 3
-**Module:** `governance/infrastructure/artifact_integrity.py`
+**Module:** `governance_runtime/infrastructure/artifact_integrity.py`
 **Integration:** `governance/engine/lifecycle.py:stage_engine_activation()`
 
 ### What It Protects Against

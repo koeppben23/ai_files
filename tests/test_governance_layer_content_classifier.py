@@ -128,7 +128,7 @@ class TestContentVsSpecBoundary:
     def test_docs_md_vs_contracts_json(self) -> None:
         """docs/ is content, contracts/ JSON is spec."""
         assert is_content_file(Path("docs/guide.md")) is True
-        assert is_spec(Path("governance/contracts/some.json")) is True
+        assert is_spec(Path("governance_runtime/contracts/some.json")) is True
 
 
 class TestContentVsRuntimeBoundary:

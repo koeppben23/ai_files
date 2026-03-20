@@ -55,7 +55,7 @@ class TestGovernanceSpecLayer:
     def test_spec_directory_is_spec(self) -> None:
         """Spec directories belong to governance_spec."""
         assert classify_layer("schemas") == GovernanceLayer.GOVERNANCE_SPEC
-        assert classify_layer("governance/contracts") == GovernanceLayer.GOVERNANCE_SPEC
+        assert classify_layer("governance_runtime/contracts") == GovernanceLayer.GOVERNANCE_SPEC
 
 
 class TestGovernanceContentLayer:

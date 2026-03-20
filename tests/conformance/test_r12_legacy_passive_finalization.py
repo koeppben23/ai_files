@@ -13,7 +13,7 @@ class TestR12LegacyPassiveFinalization:
     def test_plugin_uses_runtime_entrypoint_not_legacy_entrypoint(self) -> None:
         plugin = (
             REPO_ROOT
-            / "governance"
+            / "governance_runtime"
             / "artifacts"
             / "opencode-plugins"
             / "audit-new-session.mjs"

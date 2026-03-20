@@ -22,13 +22,15 @@ def _load_module():
 def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     config_root = tmp_path / "cfg"
     commands_home = config_root / "commands"
+    spec_home = config_root / "governance_spec"
     workspaces_home = config_root / "workspaces"
     repo_fp = "abc123def456abc123def456"
     workspace = workspaces_home / repo_fp
     workspace.mkdir(parents=True, exist_ok=True)
     commands_home.mkdir(parents=True, exist_ok=True)
+    spec_home.mkdir(parents=True, exist_ok=True)
 
-    (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
+    (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     # Mirror SSOT content into commands_home for tests
     try:
         master_src = get_master_path()
@@ -44,6 +46,7 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "commandsHome": str(commands_home),
+            "specHome": str(spec_home),
             "workspacesHome": str(workspaces_home),
             "configRoot": str(config_root),
             "pythonCommand": "python3",

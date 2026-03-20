@@ -15,7 +15,7 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
 
 def _mock_readonly_unavailable():
     return patch(
-        "governance.kernel.phase_kernel.evaluate_readonly",
+        "governance_runtime.kernel.phase_kernel.evaluate_readonly",
         side_effect=RuntimeError("kernel not available in test"),
     )
 

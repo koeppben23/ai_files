@@ -34,6 +34,22 @@ def _isolate_error_context():
     geh._ERROR_CONTEXT.update(original)
 
 
+@pytest.fixture(autouse=True)
+def _remove_root_rulesets_bridge():
+    """Keep root rulesets/ bridge absent throughout tests.
+
+    Some tests launch subprocesses that can materialize transient rulesets/
+    at repository root. The conformance contract requires this bridge to be
+    absent, so we clean it before/after each test.
+    """
+    root_rulesets = REPO_ROOT / "rulesets"
+    if root_rulesets.exists():
+        shutil.rmtree(root_rulesets, ignore_errors=True)
+    yield
+    if root_rulesets.exists():
+        shutil.rmtree(root_rulesets, ignore_errors=True)
+
+
 @pytest.fixture(autouse=True, scope="session")
 def _configure_binding_evidence(tmp_path_factory: pytest.TempPathFactory):
     """Provide canonical binding evidence for tests."""

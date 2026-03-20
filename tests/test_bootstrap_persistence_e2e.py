@@ -147,8 +147,8 @@ def _git_init_repo(repo: Path) -> None:
     )
 
 
-def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_root: Path) -> None:
-    local_root = config_root.parent / f"{config_root.name}-local"
+def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_root: Path, checkout_root: Path) -> None:
+    local_root = checkout_root
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
@@ -214,7 +214,7 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     workspaces_home.mkdir(parents=True, exist_ok=True)
 
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
-    _write_governance_paths(commands_home, workspaces_home, config_root)
+    _write_governance_paths(commands_home, workspaces_home, config_root, checkout_root)
     _bin_dir = str(checkout_root / "bin")
     inject_session_reader_path(commands_home, python_command=sys.executable, bin_dir=_bin_dir, dry_run=False)
     inject_session_reader_path_for_command(
@@ -347,7 +347,7 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
     workspaces_home.mkdir(parents=True, exist_ok=True)
 
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
-    _write_governance_paths(commands_home, workspaces_home, config_root)
+    _write_governance_paths(commands_home, workspaces_home, config_root, checkout_root)
     _bin_dir = str(checkout_root / "bin")
     inject_session_reader_path(commands_home, python_command=sys.executable, bin_dir=_bin_dir, dry_run=False)
     inject_session_reader_path_for_command(
@@ -400,7 +400,7 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     workspaces_home.mkdir(parents=True, exist_ok=True)
 
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
-    _write_governance_paths(commands_home, workspaces_home, config_root)
+    _write_governance_paths(commands_home, workspaces_home, config_root, checkout_root)
     _bin_dir = str(checkout_root / "bin")
     inject_session_reader_path(commands_home, python_command=sys.executable, bin_dir=_bin_dir, dry_run=False)
     inject_session_reader_path_for_command(
