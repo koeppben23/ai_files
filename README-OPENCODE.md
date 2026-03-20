@@ -5,7 +5,7 @@ Back to bundle/install overview: `README.md`.
 ### Purpose
 
 Launcher-first operator/model flow for starting and continuing governed OpenCode sessions.
-Runtime authority is `governance_runtime/`; `governance/` remains compatibility surface only.
+Runtime authority is `governance_runtime/`; legacy `governance/` is removed from productive surfaces.
 Primary operator bootstrap path is `opencode-governance-bootstrap init ...`.
 `python -m ...` invocation is internal/debug/compatibility-only and not the primary user path.
 
@@ -29,12 +29,12 @@ Primary operator bootstrap path is `opencode-governance-bootstrap init ...`.
 10. Use `/audit-readout` for a read-only audit snapshot.
 
 Runtime persistence is repo-scoped under `${WORKSPACES_HOME}/<repo_fingerprint>/...` with global pointer `${SESSION_STATE_POINTER_FILE}`.
-Path-binding bootstrap depends on `${CONFIG_ROOT}/commands/governance.paths.json`.
+Path-binding bootstrap depends on `${CONFIG_ROOT}/governance.paths.json`.
 
 Install/layout truth:
 
 - `${CONFIG_ROOT}` (default `~/.config/opencode`) contains `commands/`, `plugins/`, `workspaces/`, and `bin/`.
-- `${LOCAL_ROOT}` (default `~/.local/opencode`) contains `governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, and `VERSION`.
+- `${LOCAL_ROOT}` (default `~/.local/opencode`) contains `governance_runtime/`, `governance_content/`, `governance_spec/`, and `VERSION`.
 - Canonical launcher directory: `${CONFIG_ROOT}/bin` (default `~/.config/opencode/bin`).
 
 ## If execution is unavailable

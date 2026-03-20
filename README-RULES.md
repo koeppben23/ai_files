@@ -1,69 +1,38 @@
 # Rules Overview
 
-This document is a non-normative map of the governance rule structure.
-It does not define independent runtime behavior.
+This document is a non-normative navigation surface for governance rules.
+It does not define runtime behavior.
 
-## Quick Links
+## Canonical Rule Authorities
 
-- Root product overview: `README.md`
-- OpenCode operations: `README-OPENCODE.md`
-- Runtime phase spec: `${COMMANDS_HOME}/phase_api.yaml`
-- Core technical rulebook: `rules.md`
-- Session-state schema: `SESSION_STATE_SCHEMA.md`
-- Responsibility boundary: `docs/governance/RESPONSIBILITY_BOUNDARY.md`
+- Phase routing, transitions, and gate semantics:
+  - `governance_spec/phase_api.yaml`
+  - `governance_runtime/kernel/*`
+- Core technical and quality constraints:
+  - `governance_content/reference/rules.md`
+- Multi-phase interpretation guidance:
+  - `governance_content/reference/master.md`
+- Session-state contract:
+  - `SESSION_STATE_SCHEMA.md`
 
-## Audience
+## Operator References
 
-For reviewers and maintainers who need a compact map of rule authority, layering, and where to apply the binding contracts.
+- Product and install surface: `README.md`
+- OpenCode lifecycle and rails: `README-OPENCODE.md`
+- Quickstart flow: `QUICKSTART.md`
+- Install path bindings: `governance_content/docs/install-layout.md`
 
-## Source of Truth
+## Scope Notes
 
-- Workflow phases/gates and runtime semantics: `${COMMANDS_HOME}/phase_api.yaml` enforced by `governance/kernel/*`
-- Core technical and quality constraints: `rules.md`
-- Release readiness Go/No-Go contract: `STABILITY_SLA.md`
-- Session-state contract: `SESSION_STATE_SCHEMA.md`
+- `README-RULES.md` is descriptive only.
+- Runtime truth is implemented under `governance_runtime/`.
+- Content truth is documented under `governance_content/reference/`.
+- Spec truth is versioned under `governance_spec/`.
 
-## Rule Layers
+## Compatibility and Drift Policy
 
-- Runtime control-plane: `governance/kernel/*` with `${COMMANDS_HOME}/phase_api.yaml`
-- Core stack-agnostic engineering constraints: `rules.md`
-- Stack/domain extensions: `profiles/rules*.md`
-- Optional or required addon policies: manifests in `profiles/addons/*.addon.yml` with rulebooks in `profiles/`
-
-Profiles and addons must not weaken core fail-closed obligations.
-
-## Current System Baseline
-
-- Deterministic engine/runtime behavior is implemented in `governance/engine/` and response projection in `governance/render/`.
-- Claim verification is fail-closed (`NOT_VERIFIED-MISSING-EVIDENCE`, `NOT_VERIFIED-EVIDENCE-STALE`).
-- Session-state rollout is in engine-first posture with canonical schema enforcement.
-- Mode-aware repo-doc constraints, precedence events, and prompt budgets are active and documented in `docs/mode-aware-repo-rules.md`.
-
-## Version and Compatibility
-
-- Runtime contract versioning follows shipped kernel + phase spec bundle.
-- `README-RULES.md` is descriptive only and must remain aligned to current kernel/spec + `rules.md` baseline.
-
-## Rulebook Selection and Discovery
-
-- Explicit profile selection is preferred.
-- If no explicit profile exists, deterministic repo-signal detection is used.
-- If profile ambiguity materially affects tooling or gate decisions, workflow must block until clarified.
-
-See `rules.md` for binding profile selection and ambiguity handling details.
-
-## Operational References
-
-- OpenCode usage and recovery: `README-OPENCODE.md`
-- Conflict handling model: `CONFLICT_RESOLUTION.md`
-- Quality index and cross-references: `QUALITY_INDEX.md`
-- Phases map: `docs/phases.md`
-
-## Troubleshooting Pointers
-
-- Installation/binding issues: `README.md` and `docs/install-layout.md`
-- OpenCode runtime/bootstrap issues: `README-OPENCODE.md`
-- Security and scanner gate issues: `docs/security-gates.md`
+- If this file conflicts with canonical rule authorities, canonical authorities win.
+- Keep this file aligned with current `governance_runtime/`, `governance_content/reference/`, and `governance_spec/` contracts.
 
 ## License
 
