@@ -21,6 +21,7 @@ Legend:
 | `session_state/transitions.py` + `governance_runtime/session_state/transitions.py` | K5 | Duplicate implementation | Canonicalize runtime implementation; root alias/shim removed |
 | `governance_content/governance/assets/catalogs/audit.md` + `governance_runtime/assets/catalogs/audit.md` | K5 | Duplicate payload authority | Keep one canonical catalog location and repoint all loaders/tests |
 | `governance_runtime/assets/config/blocked_reason_catalog.yaml` + `governance_runtime/assets/reasons/blocked_reason_catalog.yaml` | K5 | Duplicate reason catalog authority | Keep one canonical reason catalog location and repoint all loaders/tests |
+| `governance_content/governance/assets/catalogs/SSOT_GUARD_RULES.json` | K5 | Residual nested legacy subtree path in active guard wiring | Move to canonical catalog location and repoint `scripts/ssot_guard.py` |
 
 ## README / Rule Docs
 

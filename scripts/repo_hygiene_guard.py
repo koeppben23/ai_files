@@ -58,6 +58,18 @@ INIT_MARKER_BASELINE = {
     "tests/conformance/__init__.py",
 }
 
+PSEUDO_EMPTY_DIR_BASELINE = {
+    "opencode/config",
+    "opencode/plugins",
+}
+
+MARKER_FILE_NAMES = {
+    "__init__.py",
+    ".gitkeep",
+    ".keep",
+    ".DS_Store",
+}
+
 DUPLICATE_BASELINE_GROUPS = {
     frozenset({"bin/opencode-governance-bootstrap", "governance_runtime/bin/opencode-governance-bootstrap"}),
     frozenset({"bin/opencode-governance-bootstrap.cmd", "governance_runtime/bin/opencode-governance-bootstrap.cmd"}),
@@ -168,6 +180,33 @@ def _scan_marker_inits(repo_root: Path) -> set[str]:
     return found
 
 
+def _is_pseudo_empty_dir(path: Path) -> bool:
+    if not path.exists() or not path.is_dir():
+        return False
+    files = [entry for entry in path.rglob("*") if entry.is_file()]
+    if not files:
+        return True
+    for file_path in files:
+        if file_path.name in MARKER_FILE_NAMES:
+            continue
+        return False
+    return True
+
+
+def _scan_pseudo_empty_dirs(repo_root: Path) -> set[str]:
+    found: set[str] = set()
+    opencode_root = repo_root / "opencode"
+    if not opencode_root.exists() or not opencode_root.is_dir():
+        return found
+    for path in opencode_root.rglob("*"):
+        if not path.is_dir():
+            continue
+        rel = path.relative_to(repo_root).as_posix()
+        if _is_pseudo_empty_dir(path):
+            found.add(rel)
+    return found
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Block 9 hygiene regression guard")
     parser.add_argument("--repo-root", default=".", help="Repository root")
@@ -215,6 +254,16 @@ def main(argv: list[str]) -> int:
     if missing_marker_inits:
         for rel in missing_marker_inits:
             issues.append(f"init baseline changed (update after marker cleanup): {rel}")
+
+    pseudo_empty_dirs = _scan_pseudo_empty_dirs(repo_root)
+    unknown_pseudo_empty_dirs = sorted(pseudo_empty_dirs - PSEUDO_EMPTY_DIR_BASELINE)
+    missing_pseudo_empty_dirs = sorted(PSEUDO_EMPTY_DIR_BASELINE - pseudo_empty_dirs)
+    if unknown_pseudo_empty_dirs:
+        for rel in unknown_pseudo_empty_dirs:
+            issues.append(f"pseudo-empty dir violation: unexpected marker-only directory {rel}")
+    if missing_pseudo_empty_dirs:
+        for rel in missing_pseudo_empty_dirs:
+            issues.append(f"pseudo-empty baseline changed (update after cleanup): {rel}")
 
     if issues:
         print("❌ Repo hygiene guard failed")
