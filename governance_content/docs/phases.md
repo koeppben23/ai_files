@@ -3,172 +3,151 @@
 This document is a detailed phase map that was previously embedded in README.md.
 Authority boundary: policy, gate semantics, and routing are owned by kernel code plus kernel-owned configs/schemas; this file is explanatory and does not widen kernel behavior.
 
-SSOT: `${SPEC_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
-Kernel: `governance_runtime/kernel/*` is the canonical control-plane implementation.
+**SSOT:** `${SPEC_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
+**Kernel:** `governance_runtime/kernel/*` is the canonical control-plane implementation.
 MD files are AI rails/guidance only and are never routing-binding.
 Phase `1.3` is mandatory before every phase `>=2`.
 
 ## Customer View (Short)
 
-- Phase 0/1.1 performs bootstrap validation and preflight probes (including build tool detection). **Note:** Phase 0 is a customer-facing term; in the kernel, bootstrap logic is unified under Phase 1.1-Bootstrap.
-- Phase 1.1 performs preflight and initializes the governance runtime.
-- **Phase 1.2/1.3 are kernel-owned subphases** of the Rule Loading Pipeline (1.x family). They handle lazy rulebook loading and profile resolution and are routed by the kernel via `${SPEC_HOME}/phase_api.yaml`.
-- Phase 1.5 is an optional business-rules routing branch from discovery (2.1), not a parallel executor track.
-- If an external alias is needed, refer to it as customer-facing alias only; kernel semantics and routing remain Phase 1.5.
-- 2.1 creates the Decision Pack; routing then resolves through the Phase 1.5 branch when required.
-- Bootstrap validates install/path/session prerequisites before work proceeds.
-- Discovery builds repo context and reusable decision artifacts.
-- Planning produces an implementation path without bypassing gates.
-- Gate reviews validate architecture, tests, business rules (when enabled), and rollback safety.
-- Final QA issues a deterministic readiness decision (ready-for-pr or fix-required).
-
-## Full Phase Map
-
-| Phase | What it does (one-line) | Gate / blocked behavior |
-| ----- | ------------------------ | ----------------------- |
-| Phase 0 - Bootstrap (conditional) | Validates variable/path bootstrap when required before workflow execution. | If bootstrap evidence or variable resolution is invalid/missing, workflow is `BLOCKED` (fail-closed). |
-| Phase 1.1 - Preflight BuildToolchain | Probes ALL build-related tools on PATH (mvn, gradle, cargo, go, cmake, make, g++, dotnet, npm, etc.) and stores raw availability. | Non-gate phase; records tool availability for later Phase 2 resolution. |
-| Phase 1 - Rules Loading | Loads rulebooks lazily in controlled order (bootstrap now, profile after discovery, core/templates/addons before planning). | Blocks if required rulebooks/evidence cannot be resolved for the current phase. |
-| Phase 2 - Repository Discovery | Builds repo understanding (structure, stack, architecture signals, contract surface), with cache-assisted warm start when valid. | Non-gate phase, but missing required discovery artifacts can trigger `BLOCKED` continuation pointers. |
-| Phase 2 Step 3a - CodebaseContext | Captures deep codebase understanding: ExistingAbstractions, DependencyGraph, PatternFingerprint, TechnicalDebtMarkers. | Non-gate phase; populates SESSION_STATE.CodebaseContext for informed planning. |
-| Phase 2 Step 3b - BuildToolchain Resolution | Cross-references repo build files (pom.xml, Cargo.toml, go.mod, CMakeLists.txt, etc.) with preflight tool availability to resolve compile/test commands. | Non-gate phase; populates SESSION_STATE.BuildToolchain. Emits WARN-BUILD-TOOL-MISSING if tool unavailable. |
-| Phase 2.1 - Routing Decision (no executor) | Routing checkpoint: if Phase 1.5 is unresolved, route to Phase 1.5; otherwise route to Phase 3A (or Phase 4 if API inventory is not applicable). | Decision point only; no phase executor runs here. |
-| Phase 1.5 - Business Rules Discovery (optional) | Extracts business rules from code/ticket artifacts when activated or required. | Optional activation; once executed, Phase 5.4 becomes mandatory for code readiness. |
-| Phase 3A - API Inventory | Inventories external API artifacts and interface landscape. | **Conditional**: Executed for all workflows, but if no APIs are in scope, records `not-applicable` and skips to Phase 4. Never blocks — missing APIs just mean no API validation needed. |
-| Phase 3B-1 - API Logical Validation | Validates API specs for logical consistency at specification level. | **Conditional**: Only executed when Phase 3A detected APIs in scope. Skipped entirely if no APIs present. |
-| Phase 3B-2 - Contract Validation (Spec <-> Code) | Validates contract fidelity between specification and implementation. | **Conditional**: Only executed when Phase 3A detected APIs in scope. Contract mismatches block readiness when contract gates are active/applicable. Skipped entirely if no APIs present. |
-| Phase 4 - Ticket Intake / Planning Gate | Produces the concrete implementation plan and review artifacts; no code output yet. | Planning gate; code-producing output remains blocked until explicit gate progression permits it. Supports a read-only rail entrypoint via `/review` for lead/staff depth feedback. |
-| Phase 4 Step 1a - Feature Complexity Router | Classifies feature complexity (SIMPLE-CRUD, REFACTORING, MODIFICATION, COMPLEX, STANDARD) and determines planning depth. | Non-gate; determines which subsequent Phase 4 steps are required vs. optional. |
-| Phase 5 - Lead Architect Review (gate) | Architecture gatekeeper review with explicit re-entry when changes are required. | Gate review; re-entry is explicit and required when issues remain. |
-| Phase 5.3 - Test Quality Review (critical gate) | Reviews test strategy/coverage quality against gate criteria. | Critical gate; requires a passing outcome (or governed exceptions) before PR readiness. |
-| Phase 5.4 - Business Rules Compliance (conditional gate) | Checks implemented plan/output against extracted business rules. | Mandatory only if Phase 1.5 ran; non-compliance blocks readiness. |
-| Phase 5.5 - Technical Debt Proposal (optional gate) | Reviews and decides technical debt proposals and mitigation posture. | Optional gate; when activated, unresolved debt decisions can block approval. |
-| Phase 5.6 - Rollback Safety | Evaluates rollback/recovery safety for relevant changes (within Phase 5 family). | Required when rollback-sensitive changes exist; failed rollback safety blocks progression. |
-| Phase 6 - Implementation QA (final gate) | Final quality assurance and release-readiness decision (`ready-for-pr` vs `fix-required`). | Final explicit gate; failed QA blocks PR readiness. |
-| Phase 6 - Build Verification Loop | Autonomous compile→fix→test→fix cycle when BuildToolchain is available (max 3 iterations each). | Non-gate phase; compiler output overrides self-critique when tools available. |
-
-## Phase-Coupled Persistence (Outside Repository)
-
-**SSOT Enforcement (Binding):** Persistence is mandatory and enforced by the kernel (not by LLM output).
-The governance helpers (`bootstrap_session_state.py`, `persist_workspace_artifacts.py`) enable writes
-when host permissions allow it in the current operating mode. In pipeline mode, interactivity is disabled; file writes follow host permissions and fail closed if not permitted.
-
-| Phase | Artifact | Target | Write condition |
-| ----- | -------- | ------ | --------------- |
-| Phase 2 | `repo-cache.yaml` | `${REPO_CACHE_FILE}` (`[REPO-CACHE-FILE]`) | Written after successful discovery/cache refresh. |
-| Phase 2 | `repo-map-digest.md` | `${REPO_DIGEST_FILE}` (`[REPO-MAP-DIGEST-FILE]`) | Written after successful digest generation. |
-| Phase 2 | `workspace-memory.yaml` (observations/patterns) | `${WORKSPACE_MEMORY_FILE}` (`[WORKSPACE-MEMORY-FILE]`) | Allowed for observational writeback when discovery evidence is sufficient. |
-| Phase 2.1 | `decision-pack.md` | `${REPO_DECISION_PACK_FILE}` (`[DECISION-PACK-FILE]`) | Written when at least one decision/default is produced. |
-| Phase 1.5+ | `business-rules.md` | `${REPO_BUSINESS_RULES_FILE}` (`[BR-INVENTORY-FILE]`) | Written only when BusinessRules outcome is `extracted` with extractor evidence; otherwise status is tracked in `business-rules-status.md`. |
-| Phase 5 (conditional) | `workspace-memory.yaml` (decisions/defaults) | `${WORKSPACE_MEMORY_FILE}` (`[WORKSPACE-MEMORY-FILE]`) | Only when Phase 5 is approved and user confirms exactly: `Persist to workspace memory: YES`. |
+- Phase 0 triggers bootstrap and initializes the governance runtime workspace.
+- Phase 1.1 (Bootstrap) validates install/path/session prerequisites before work proceeds. It sets the `Workspace Ready Gate`.
+- Phase 1 (Workspace Persistence) persists bootstrap artifacts and verifies workspace state.
+- Phase 1.2 (Activation Intent) captures activation intent with sha256 evidence.
+- Phase 1.3 (Rulebook Load) loads core/profile/templates/addons rulebooks with evidence before routing to Phase 2.
+- Phase 2 (Repository Discovery) builds repo context and reusable decision artifacts.
+- Phase 2.1 (Decision Pack) creates the Decision Pack and resolves Phase 1.5 routing.
+- Phase 1.5 (Business Rules Discovery, optional) extracts business rules; once executed, Phase 5.4 becomes mandatory.
+- Phase 3A (API Inventory) inventories external API artifacts — always executed, may record `not-applicable`.
+- Phase 3B-1 / 3B-2 (API Validation) run only when APIs are detected.
+- Phase 4 (Ticket Intake) produces the concrete implementation plan; supports `/review` for read-only feedback.
+- Phase 5 (Architecture Review) requires plan-record evidence and runs internal self-review (min 1, max 3 iterations).
+- Phase 5.3 / 5.4 / 5.5 / 5.6 are conditional gates following Phase 5.
+- Phase 6 (Implementation) runs internal review loop, then presents evidence. Final decision via `/implementation-decision` (approve | changes_requested | reject). `/continue` does NOT advance past the Evidence Presentation Gate.
 
 ## Canonical Flow
 
 ```
-0 -> 1.1 (Preflight) -> 1 -> 2 -> 2.1
-After 2.1: resolve Phase 1.5 decision (explicit request/explicit skip/A-B decision).
-Once 1.5 is resolved: if APIs are in scope, run 3A -> 3B-1 -> 3B-2; otherwise go to 4.
-Main execution path: 4 -> 5 -> 5.3 -> 6.
-5.4 is mandatory only if 1.5 executed.   (5.3 -> 5.4 -> ... -> 6)
-5.5 is always checked but may be not-applicable.  (5.3/5.4 -> 5.5 -> ... -> 6)
-5.6 is required when rollback safety applies.  (5.3/5.4/5.5 -> 5.6 -> 6)
-Phase 6 internal: Implementation Internal Review (max 3 iterations)
-  -> Evidence Presentation Gate -> /review-decision (approve|changes_requested|reject).
+0 → 1.1 → 1 → 1.2 → 1.3 → 2 → 2.1
+  After 2.1: if business_rules_execute → 1.5 → 3A; else → 3A
+  Phase 3A: if no_apis → 4; else → 3B-1 → 3B-2 → 4
+  Main execution: 4 → 5 → 5.3 → [5.4] → [5.5] → [5.6] → 6
+  Phase 6 internal: Implementation Internal Review (max 3 iterations)
+    → Evidence Presentation Gate
+    → /implementation-decision <approve|changes_requested|reject>
+      approve     → Workflow Complete (terminal)
+      changes_requested → Rework Clarification Gate (Phase 6)
+      reject      → Phase 4 (Ticket Input Gate)
 ```
 
-## Routing Priority Semantics
+## Full Phase Map
 
+| Phase | Token | Active Gate | Gate / blocked behavior |
+|-------|-------|-----------|------------------------|
+| Bootstrap (Phase 0) | `0-None` | Bootstrap Required | Route to 1.1 unconditionally. If bootstrap evidence invalid/missing, workflow BLOCKED. |
+| Bootstrap | `1.1-Bootstrap` | Workspace Ready Gate | Complete workspace persistence and pointer verification. |
+| Workspace Persistence | `1-WorkspacePersistence` | Persistence Gate | Persist bootstrap artifacts and verify workspace state. |
+| Activation Intent | `1.2-ActivationIntent` | Activation Intent | Exit requires: `Intent.Path`, `Intent.Sha256`, `Intent.EffectiveScope`. Auto-routes to 1.3. |
+| Rulebook Load | `1.3-RulebookLoad` | Rulebook Load Gate | Exit requires: `LoadedRulebooks.core`, `LoadedRulebooks.profile`, `RulebookLoadEvidence.core`, `RulebookLoadEvidence.profile`, `ActiveProfile`, `AddonsEvidence`. |
+| Repo Discovery | `2-RepoDiscovery` | Repo Discovery | Non-gate; missing artifacts trigger BLOCKED continuation. Exit requires: `RepoDiscovery.Completed`, `RepoDiscovery.RepoCacheFile`, `RepoDiscovery.RepoMapDigestFile`. |
+| Decision Pack | `2.1-DecisionPack` | Decision Pack | Routing checkpoint only. Transitions: `business_rules_execute` → 1.5; `default` → 3A. |
+| Business Rules Discovery (optional) | `1.5-BusinessRules` | Business Rules Bootstrap | Optional; only entered when `business_rules_execute` transition fires. Exit requires: `BusinessRules.Inventory.sha256`. Once executed, Phase 5.4 is mandatory. |
+| API Inventory | `3A-API-Inventory` | API Inventory | Always executed. Transitions: `no_apis` → 4; `default` → 3B-1. Exit requires: `APIInventory.Status`. |
+| API Logical Validation | `3B-1` | API Logical Validation | **Conditional**: only when APIs detected. Auto-routes to 3B-2. |
+| Contract Validation | `3B-2` | Contract Validation | **Conditional**: only when APIs detected. Auto-routes to 4. |
+| Ticket Intake / Planning | `4` | Ticket Input Gate | Non-gate for routing. Code output blocked until gates pass. `/review` provides read-only feedback without state change. Transitions: `ticket_present` → 5; `default` → stay in 4. |
+| Architecture Review | `5-ArchitectureReview` | Plan Record Preparation Gate / Architecture Review Gate | Gate review. `output_policy.min_self_review_iterations: 1`, max 3. Transitions: `plan_record_missing` → stay; `self_review_iterations_pending` → stay; `self_review_iterations_met` → 5.3. Output classes: `plan`, `review`, `risk_analysis`, `test_strategy`, `gate_check`, `rollback_plan`, `review_questions`, `consolidated_review_plan`. |
+| Test Quality Review | `5.3-TestQuality` | Test Quality Gate | Unconditional. Transitions: `business_rules_gate_required` → 5.4; `technical_debt_proposed` → 5.5; `rollback_required` → 5.6; `default` → 6. |
+| Business Rules Compliance | `5.4-BusinessRules` | Business Rules Validation | Conditional — only active when Phase 1.5 executed. Transitions: `technical_debt_proposed` → 5.5; `rollback_required` → 5.6; `default` → 6. |
+| Technical Debt Review | `5.5-TechnicalDebt` | Technical Debt Review | Always checked (may be `not-applicable`). Transitions: `rollback_required` → 5.6; `default` → 6. |
+| Rollback Safety | `5.6-RollbackSafety` | Rollback Safety Review | Conditional — when rollback-sensitive changes exist. Always routes to 6. |
+| Implementation QA | `6-PostFlight` | Implementation Internal Review → Evidence Presentation Gate | Final gate. Internal review loop (max 3). Transitions: `implementation_review_complete` → Evidence Presentation Gate; `implementation_accepted` → 6; `implementation_blocked` → 6; `workflow_approved` → Workflow Complete; `review_rejected` → 4; `review_changes_requested` → Rework Clarification Gate. |
+
+## Phase Transitions (from phase_api.yaml)
+
+### Routing Priority
 Kernel routing follows one deterministic priority chain:
-
 1. first matching `specific` transition
 2. otherwise `default`
 3. otherwise `next`
 4. otherwise terminal/config error
 
-If multiple `specific` transitions match, the first declared transition wins.
+### Key Transition Table
 
-This is why some paths intentionally differ between `next` and `default` (for example Phase 4 and conditional Phase 5.x behavior). These are deliberate routing outcomes, not contradictions.
+| From | To | When | Source |
+|------|----|------|--------|
+| 0 | 1.1 | always | implicit |
+| 1.1 | 1 | always | implicit |
+| 1 | 1.2 | always | implicit |
+| 1.2 | 1.3 | default | phase-1.2-to-1.3-auto |
+| 1.3 | 2 | always | implicit |
+| 2 | 2.1 | always | implicit |
+| 2.1 | 1.5 | business_rules_execute | phase-1.5-routing-required |
+| 2.1 | 3A | default | phase-2.1-to-3a |
+| 1.5 | 3A | default | phase-1.5-to-3a |
+| 3A | 4 | no_apis | phase-3a-not-applicable-to-phase4 |
+| 3A | 3B-1 | default | phase-3a-to-3b1 |
+| 3B-1 | 3B-2 | default | phase-3b1-to-3b2 |
+| 3B-2 | 4 | default | phase-3b2-to-4 |
+| 4 | 5 | ticket_present | phase-4-to-5-ticket-intake |
+| 4 | 4 | default (stay) | phase-4-awaiting-ticket-intake |
+| 5 | 5 | plan_record_missing | phase-5-plan-record-prep-required |
+| 5 | 5 | self_review_iterations_pending | phase-5-self-review-required |
+| 5 | 5.3 | self_review_iterations_met | phase-5-architecture-review-ready |
+| 5.3 | 5.4 | business_rules_gate_required | phase-5.3-to-5.4 |
+| 5.3 | 5.5 | technical_debt_proposed | phase-5.3-to-5.5 |
+| 5.3 | 5.6 | rollback_required | phase-5.3-to-5.6 |
+| 5.3 | 6 | default | phase-5.3-to-6 |
+| 5.4 | 5.5 | technical_debt_proposed | phase-5.4-to-5.5 |
+| 5.4 | 5.6 | rollback_required | phase-5.4-to-5.6 |
+| 5.4 | 6 | default | phase-5.4-to-6 |
+| 5.5 | 5.6 | rollback_required | phase-5.5-to-5.6 |
+| 5.5 | 6 | default | phase-5.5-to-6 |
+| 5.6 | 6 | default | phase-5.6-to-6 |
+| 6 | 4 | review_rejected | phase-6-rejected-to-phase4 |
+| 6 | 6 | implementation_review_complete | phase-6-ready-for-user-review (Evidence Presentation Gate) |
 
-## Phase 3 Routing (API Detection)
+## Phase-Coupled Persistence (Outside Repository)
 
-Phase 3 is **conditionally executed** based on API presence:
+**SSOT Enforcement (Binding):** Persistence is mandatory and enforced by the kernel (not by LLM output).
 
-| Condition | Phase 3A | Phase 3B-1/3B-2 | Flow |
-|-----------|----------|------------------|------|
-| External API artifacts provided | Executed | Executed | 3A → 3B-1 → 3B-2 → 4 |
-| Repo contains OpenAPI/GraphQL specs | Executed | Executed | 3A → 3B-1 → 3B-2 → 4 |
-| No APIs in scope | Executed (not-applicable) | Skipped | 3A → 4 directly |
+| Phase | Artifact | Key Session State Fields |
+|-------|----------|-------------------------|
+| Phase 1.1 | Bootstrap session | `Preflight.BuildToolchain.DetectedTools`, `ObservedAt` |
+| Phase 1 | Workspace persistence | `PersistenceGatePassed`, `PointerFile` |
+| Phase 1.2 | Activation intent | `Intent.Path`, `Intent.Sha256`, `Intent.EffectiveScope` |
+| Phase 1.3 | Rulebook load | `LoadedRulebooks.core`, `LoadedRulebooks.profile`, `ActiveProfile`, `AddonsEvidence` |
+| Phase 2 | Discovery | `RepoDiscovery.Completed`, `RepoDiscovery.RepoCacheFile`, `RepoDiscovery.RepoMapDigestFile`, `RepoMapDigest`, `DecisionDrivers`, `WorkingSet`, `TouchedSurface` |
+| Phase 2 Step 3a | CodebaseContext | `CodebaseContext.ExistingAbstractions`, `CodebaseContext.DependencyGraph`, `CodebaseContext.PatternFingerprint`, `CodebaseContext.TechnicalDebtMarkers` |
+| Phase 2 Step 3b | BuildToolchain | `BuildToolchain.CompileAvailable`, `BuildToolchain.CompileCmd`, `BuildToolchain.TestAvailable`, `BuildToolchain.TestCmd`, `BuildToolchain.FullVerifyCmd`, `BuildToolchain.BuildSystem`, `BuildToolchain.MissingTool` |
+| Phase 2.1 | Decision Pack | `DecisionPackFile`, routing decision state |
+| Phase 1.5 | Business Rules | `BusinessRules.Inventory.sha256`, `BusinessRules.Status` |
+| Phase 4 | Ticket Intake | `Ticket.Digest`, `FeatureComplexity.Class`, `FeatureComplexity.Reason`, `FeatureComplexity.PlanningDepth` |
+| Phase 5 | Plan Record | `PlanRecordVersion`, `Gates.P5-Architecture`, `Phase5Review.Iteration`, `Phase5Review.PlanVersion`, `Phase5Review.Status`, `Phase5Review.FeedbackHistory` |
+| Phase 5.3 | Test Quality | `Gates.P5.3-TestQuality` |
+| Phase 5.4 | Business Rules Compliance | `Gates.P5.4-BusinessRules` (mandatory only if Phase 1.5 executed) |
+| Phase 5.5 | Technical Debt | `Gates.P5.5-TechnicalDebt` |
+| Phase 5.6 | Rollback Safety | `Gates.P5.6-RollbackSafety` |
+| Phase 6 | Implementation QA | `Gates.P6-ImplementationQA`, `BuildEvidence.status`, `BuildEvidence.CompileResult`, `BuildEvidence.TestResult`, `BuildEvidence.IterationsUsed` |
 
-**Key insight:** Phase 3A is executed by default but may immediately exit with `not-applicable` status. Phase 3B-1 and 3B-2 are only executed when APIs are actually present.
+## Kernel CLI Entrypoints
 
-**Implementation note:** Phase routing is kernel-enforced by `governance_runtime/kernel/*` against `${SPEC_HOME}/phase_api.yaml`. The routing includes:
-- Phase 2.1 → Phase 1.5 (Business Rules Discovery decision)
-- Phase 1.5 → Phase 3A (default routing; kernel-enforced)
-- Phase 2.1 → Phase 3A (default routing; 3A may exit with not-applicable; kernel-enforced)
-- Phase 3A → Phase 3B-1 (if APIs in scope) OR Phase 4 (if no APIs, not-applicable)
-- Phase 3B-1 → Phase 3B-2 (contract validation)
-- Phase 3B-2 → Phase 4
+These are the authoritative CLI commands that drive governance. Every phase transition uses one of these:
 
-## Phase 5 Review Gate
-
-Phase 5 is an explicit gate with **manual re-entry** when changes are required. It does not enforce a fixed number of automatic review rounds; re-entry is triggered by the operator when a revised plan is ready.
-
-### Review Cycle (explicit re-entry)
-
-```
-Phase 4 (Plan) → Phase 5 Review
-                       ↓
-                Feedback: Issues / Suggestions / Questions
-                       ↓
-              Issues remain? → return to Phase 4 (revise plan)
-                       ↓
-              Operator re-enters Phase 5 for another review
-```
-
-### Implementation Notes
-
-Phase 5 review state may be tracked in `SESSION_STATE.Gates.*` and any optional review metadata. The authoritative gate conditions remain:
-
-- `Gates.P5-Architecture = architecture-approved`
-- `Gates.P5.3-TestQuality = pass|pass-with-exceptions`
-- `Gates.P5.4-BusinessRules = compliant|compliant-with-exceptions` (only if Phase 1.5 executed)
-- `Gates.P5.5-TechnicalDebt = approved|not-applicable` (always checked)
-- `Gates.P5.6-RollbackSafety = approved|not-applicable` (when rollback safety applies)
-
-## Phase 6 Review Decision
-
-Phase 6 contains an internal loop and a final review decision mechanism:
-
-### Implementation Internal Review (autonomous)
-
-```
-Phase 6 entry (prerequisites validated)
-  -> Implementation Internal Review (up to 3 iterations)
-     - Each iteration compares prev_impl_digest vs curr_impl_digest
-     - Early-stop when digest is unchanged (no revision delta)
-     - Hard-stop when max iterations reached
-  -> Evidence Presentation Gate (review complete)
-```
-
-### Review Decision (operator-driven)
-
-At the Evidence Presentation Gate, the operator must run `/review-decision` with one of:
-
-| Decision | Effect |
-|----------|--------|
-| `approve` | Workflow Complete — terminal state within Phase 6 (`workflow_complete=true`) |
-| `changes_requested` | Enter `Rework Clarification Gate` in Phase 6 — clarify in chat first, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`) |
-| `reject` | Back to Phase 4 — restart from planning (Ticket Input Gate) |
-
-**Key:** `/continue` does NOT advance past the Evidence Presentation Gate. The operator must explicitly run `/review-decision`.
+| Entrypoint | Module | Purpose |
+|-----------|--------|---------|
+| Bootstrap | `cli.bootstrap init` | Initializes workspace, runs persistence hook |
+| `/continue` | `governance_runtime.entrypoints.session_reader --materialize` | Advances routing, runs Phase 6 internal loop |
+| `/ticket` | `governance_runtime.entrypoints.phase4_intake_persist` | Persists ticket/task intake evidence |
+| `/plan` | `governance_runtime.entrypoints.phase5_plan_record_persist` | Persists plan-record evidence, triggers self-review |
+| `/implement` | `governance_runtime.entrypoints.implement_start` | Starts implementation execution (Phase 6) |
+| `/implementation-decision` | `governance_runtime.entrypoints.review_decision_persist --decision <approve\|changes_requested\|reject>` | Final review decision at Evidence Presentation Gate |
 
 ## Gate Requirements for Code Generation
 
-Phase 3 API validation is **optional** and does NOT block code generation. The gates required before code output:
-
 | Gate | Phase | Required? | Condition |
 |------|-------|-----------|-----------|
-| P5-Architecture | 5 | Unconditional | Requires `approved` status (after iterative review) |
+| P5-Architecture | 5 | Unconditional | Requires `approved` status after self-review iterations met (min 1, max 3) |
 | P5.3-TestQuality | 5.3 | Unconditional | Requires `pass` or `pass-with-exceptions` |
 | P5.4-BusinessRules | 5.4 | Conditional | Only if Phase 1.5 was executed |
 | P5.5-TechnicalDebt | 5.5 | Unconditional | Always checked; `approved` or `not-applicable` required |
@@ -185,14 +164,44 @@ Phase 3 API validation is **optional** and does NOT block code generation. The g
 - `/continue` and `/review` remain read-only rails and do not mutate intake/plan evidence.
 - `FeatureComplexity` can be persisted as supporting metadata but does not unlock Phase 4 on its own.
 
-## Key SESSION_STATE Fields by Phase
+## Phase 5 Self-Review (Internal)
 
-| Phase | Key SESSION_STATE Additions |
-| ----- | --------------------------- |
-| Phase 1.1 | `Preflight.BuildToolchain.DetectedTools`, `ObservedAt` |
-| Phase 2 | `RepoMapDigest`, `DecisionDrivers`, `WorkingSet`, `TouchedSurface` |
-| Phase 2 Step 3a | `CodebaseContext` (ExistingAbstractions, DependencyGraph, PatternFingerprint, TechnicalDebtMarkers) |
-| Phase 2 Step 3b | `BuildToolchain` (CompileAvailable, CompileCmd, TestAvailable, TestCmd, FullVerifyCmd, BuildSystem, MissingTool) |
-| Phase 4 Step 1a | `FeatureComplexity` (Class, Reason, PlanningDepth) |
-| Phase 5 | `Gates.P5-Architecture`, `Phase5Review` (Iteration, PlanVersion, Status, FeedbackHistory), `Gates.P5.3-TestQuality`, `Gates.P5.4-BusinessRules`, `Gates.P5.5-TechnicalDebt`, `Gates.P5.6-RollbackSafety` |
-| Phase 6 | `Gates.P6-ImplementationQA`, `BuildEvidence` (status, CompileResult, TestResult, IterationsUsed, ToolOutput) |
+Phase 5 runs an internal self-review loop with these constraints (from `phase_api.yaml`):
+- `output_policy.min_self_review_iterations: 1`
+- Maximum 3 review iterations
+- Early-stop: only when digest unchanged after minimum iterations
+- Hard-stop: when max iterations reached
+- Output is always `draft_not_review_ready` on first output
+- Forbidden output classes during Phase 5: `implementation`, `patch`, `diff`, `code_delivery`
+
+## Phase 6 Review Decision
+
+At the Evidence Presentation Gate (`implementation_review_complete`), the operator must run `/implementation-decision`:
+
+| Decision | Effect |
+|----------|--------|
+| `approve` | Workflow Complete — terminal state within Phase 6 (`workflow_complete=true`) |
+| `changes_requested` | Enter Rework Clarification Gate in Phase 6 — clarify in chat first, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`) |
+| `reject` | Back to Phase 4 — restart from planning (Ticket Input Gate) |
+
+**Key:** `/continue` does NOT advance past the Evidence Presentation Gate. The operator must explicitly run `/implementation-decision`.
+
+## Phase 3 Routing (API Detection)
+
+Phase 3 is **conditionally executed** based on API presence:
+
+| Condition | Phase 3A | Phase 3B-1/3B-2 | Flow |
+|-----------|----------|------------------|------|
+| No APIs in scope | Executed (not-applicable) | Skipped | 3A → 4 directly |
+| APIs detected | Executed | Executed | 3A → 3B-1 → 3B-2 → 4 |
+
+## Routing Priority Semantics
+
+Kernel routing follows one deterministic priority chain:
+
+1. first matching `specific` transition
+2. otherwise `default`
+3. otherwise `next`
+4. otherwise terminal/config error
+
+If multiple `specific` transitions match, the first declared transition wins.

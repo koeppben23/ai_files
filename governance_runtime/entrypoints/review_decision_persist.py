@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -191,7 +192,7 @@ def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
     """Resolve active workspace session + events path from global pointer."""
-    resolver = BindingEvidenceResolver()
+    resolver = BindingEvidenceResolver(env=os.environ)
     evidence = getattr(resolver, "resolve")(mode="user")
     if evidence.config_root is None or evidence.workspaces_home is None:
         raise RuntimeError("binding unavailable")

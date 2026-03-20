@@ -132,9 +132,14 @@ def main() -> int:
             print(f"invalid --config-root: {exc}", file=sys.stderr)
             return 2
         env["OPENCODE_CONFIG_ROOT"] = str(config_root)
-        env["COMMANDS_HOME"] = str(config_root / "commands")
 
     env["OPENCODE_REPO_ROOT"] = str(repo_root)
+    existing_pythonpath = env.get("PYTHONPATH", "").strip()
+    real_repo_root = str(REPO_ROOT)
+    if existing_pythonpath:
+        env["PYTHONPATH"] = os.pathsep.join((real_repo_root, existing_pythonpath))
+    else:
+        env["PYTHONPATH"] = real_repo_root
     if selected_profile is not None:
         try:
             policy_path = write_repo_operating_mode_policy(

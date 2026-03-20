@@ -65,12 +65,11 @@ def _effective_mode() -> str:
 
 
 def _resolve_bindings() -> tuple[Path | None, Path | None, bool, Path | None, str]:
-    resolver = BindingEvidenceResolver()
+    resolver = BindingEvidenceResolver(env=os.environ)
     effective_mode = _effective_mode()
     evidence = resolver.resolve(mode=effective_mode)
     python_command = evidence.python_command.strip() if evidence.python_command else ""
     if not python_command:
-        # Use sys.executable instead of "python3" for Windows compatibility
         python_command = sys.executable
     return (
         evidence.commands_home,

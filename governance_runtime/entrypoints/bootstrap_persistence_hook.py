@@ -129,7 +129,7 @@ def _resolve_bindings(*, mode: str) -> tuple[Path | None, Path | None, bool, Pat
     Returns:
         Tuple of (commands_home, workspaces_home, binding_ok, paths_file, python_command).
     """
-    resolver = BindingEvidenceResolver()
+    resolver = BindingEvidenceResolver(env=os.environ)
     evidence = resolver.resolve(mode=mode)
     python_command = evidence.python_command.strip() if evidence.python_command else ""
     if not python_command:

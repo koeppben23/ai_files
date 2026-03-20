@@ -71,7 +71,7 @@ def _append_jsonl(path: Path, event: Mapping[str, object]) -> None:
 
 
 def _resolve_active_session_path() -> tuple[Path, str]:
-    resolver = BindingEvidenceResolver()
+    resolver = BindingEvidenceResolver(env=os.environ)
     evidence = getattr(resolver, "resolve")(mode="user")
     if evidence.config_root is None or evidence.workspaces_home is None:
         raise RuntimeError("binding unavailable")

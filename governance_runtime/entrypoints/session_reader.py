@@ -47,20 +47,11 @@ def _derive_commands_home() -> Path:
     """Resolve commands_home in strict dual-root order.
 
     Priority:
-    1) Binding evidence resolver (governance.paths.json)
-    2) Explicit COMMANDS_HOME override
-    3) OPENCODE_CONFIG_ROOT + /commands
+    1) COMMANDS_HOME env override
+    2) OPENCODE_CONFIG_ROOT + /commands
+    3) Binding evidence resolver (governance.paths.json) with env=os.environ
     4) Canonical OS default ~/.config/opencode/commands
     """
-    try:
-        from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
-
-        evidence = BindingEvidenceResolver().resolve(mode="kernel")
-        if evidence.commands_home is not None:
-            return evidence.commands_home
-    except Exception:
-        pass
-
     env_commands = os.environ.get("COMMANDS_HOME", "").strip()
     if env_commands:
         try:
@@ -71,9 +62,20 @@ def _derive_commands_home() -> Path:
     env_config = os.environ.get("OPENCODE_CONFIG_ROOT", "").strip()
     if env_config:
         try:
-            return (Path(env_config).expanduser().resolve() / "commands").resolve()
+            candidate = (Path(env_config).expanduser().resolve() / "commands").resolve()
+            if candidate.exists():
+                return candidate
         except Exception:
             pass
+
+    try:
+        from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+
+        evidence = BindingEvidenceResolver(env=os.environ).resolve(mode="kernel")
+        if evidence.commands_home is not None:
+            return evidence.commands_home
+    except Exception:
+        pass
 
     return (Path.home() / ".config" / "opencode" / "commands").resolve()
 

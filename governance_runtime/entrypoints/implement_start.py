@@ -339,7 +339,7 @@ def _run_targeted_checks(repo_root: Path, requirements: list[dict[str, object]])
 
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
-    resolver = BindingEvidenceResolver()
+    resolver = BindingEvidenceResolver(env=os.environ)
     evidence = getattr(resolver, "resolve")(mode="user")
     if evidence.config_root is None or evidence.workspaces_home is None:
         raise RuntimeError("binding unavailable")

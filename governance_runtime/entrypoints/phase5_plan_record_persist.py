@@ -112,7 +112,7 @@ def _persist_compiled_contracts(
 
 
 def _resolve_active_session_path() -> tuple[Path, str]:
-    resolver = BindingEvidenceResolver()
+    resolver = BindingEvidenceResolver(env=os.environ)
     evidence = getattr(resolver, "resolve")(mode="user")
     if evidence.config_root is None or evidence.workspaces_home is None:
         raise RuntimeError("binding unavailable")
@@ -493,6 +493,8 @@ def main(argv: list[str] | None = None) -> int:
             latest_version = revised_write.version or latest_version
 
         state["phase5_plan_record_digest"] = f"sha256:{review_digest}"
+        state["plan_record_version"] = latest_version
+        state["PlanRecordVersion"] = latest_version
         state["phase5_plan_record_updated_at"] = _now_iso()
         state["phase5_plan_record_source"] = "phase5-plan-record-rail"
         state["phase5_completed"] = bool(review_result.get("phase5_completed"))
