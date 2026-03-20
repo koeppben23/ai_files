@@ -64,6 +64,8 @@ MARKER_FILE_NAMES = {
 ARCHIVE_REFERENCE_PATTERNS = (
     "governance_content/docs/archived/",
     "governance_spec/migrations/archived/",
+    "historical/governance_content_docs/",
+    "historical/governance_spec_migrations/",
 )
 
 DUPLICATE_BASELINE_GROUPS: set[frozenset[str]] = set()
@@ -144,8 +146,13 @@ def _scan_archives(repo_root: Path) -> set[str]:
 
 def _scan_archive_references(repo_root: Path) -> list[str]:
     offenders: list[str] = []
+    # Narrow exception policy: only cleanup/inventory records may reference
+    # historical archive paths as evidence breadcrumbs.
     allowed_reference_files = {
         "scripts/repo_hygiene_guard.py",
+        "governance_spec/migrations/REPO_CLEANUP_POLICY.md",
+        "governance_spec/migrations/CLEANUP_DECISION_LOG.md",
+        "governance_content/docs/repo-hygiene-block9-inventory.md",
     }
     for root_name in PRODUCTIVE_ROOTS:
         root = repo_root / root_name
