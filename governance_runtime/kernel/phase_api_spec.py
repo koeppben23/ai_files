@@ -60,21 +60,12 @@ def _resolve_phase_api_path(commands_home: Path, spec_home: Path | None = None) 
     if governance_paths.exists():
         try:
             payload = json.loads(governance_paths.read_text(encoding="utf-8"))
-            manifest_spec_home = str(payload.get("specHome", "")).strip()
+            paths = payload.get("paths", payload)
+            manifest_spec_home = str(paths.get("specHome", "")).strip()
             if manifest_spec_home:
                 candidates.append(Path(manifest_spec_home) / "phase_api.yaml")
         except Exception:
             pass
-
-    repo_root_raw = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
-    if repo_root_raw:
-        repo_root = Path(repo_root_raw)
-        candidates.append(repo_root / "governance_spec" / "phase_api.yaml")
-        candidates.append(repo_root / "phase_api.yaml")
-
-    cwd = Path.cwd()
-    candidates.append(cwd / "governance_spec" / "phase_api.yaml")
-    candidates.append(cwd / "phase_api.yaml")
 
     candidates.append(commands_home / "phase_api.yaml")
 
@@ -205,9 +196,20 @@ def _validate_links(entries: Mapping[str, PhaseSpecEntry]) -> None:
 
 def _resolve_binding_homes(explicit_commands_home: Path | None) -> tuple[Path, Path | None]:
     if explicit_commands_home is not None:
-        # Keep explicit commands_home for test/runtime override support, but still
-        # prefer specHome from binding evidence when available so phase authority
-        # does not depend on commands/ payload placement.
+        # Prefer local governance.paths.json adjacent to commands_home first.
+        # This ensures test isolation and explicit runtime overrides take precedence
+        # over the global binding evidence resolver.
+        gp = explicit_commands_home.parent / "governance.paths.json"
+        if gp.exists():
+            try:
+                payload = json.loads(gp.read_text(encoding="utf-8"))
+                paths = payload.get("paths", payload)
+                raw_spec_home = str(paths.get("specHome", "")).strip()
+                if raw_spec_home:
+                    return explicit_commands_home, Path(raw_spec_home)
+            except Exception:
+                pass
+        # Fall back to global binding evidence resolver
         try:
             evidence = getattr(BindingEvidenceResolver(), "resolve")(mode="kernel")
             if evidence.binding_ok and evidence.spec_home is not None:

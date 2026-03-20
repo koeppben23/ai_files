@@ -138,7 +138,7 @@ class TestScaffoldRendererEdge:
         """render_business_rules_scaffold is importable directly from
         governance.engine.business_rules_validation -- no artifacts dependency."""
         import importlib
-        mod = importlib.import_module("governance.engine.business_rules_validation")
+        mod = importlib.import_module("governance_runtime.engine.business_rules_validation")
         assert hasattr(mod, "render_business_rules_scaffold")
         assert callable(mod.render_business_rules_scaffold)
 

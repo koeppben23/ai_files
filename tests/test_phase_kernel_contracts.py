@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import sys
 
 import pytest
 
@@ -34,6 +35,33 @@ def _write_phase_api(commands_home: Path) -> None:
     (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
 
 
+def _write_isolated_spec(tmp_path: Path, spec_text: str | None = None) -> tuple[Path, Path]:
+    """Write binding evidence with specHome pointing to an isolated spec dir.
+
+    If spec_text is None, the real phase_api.yaml is copied (canonical setup).
+    If spec_text is provided, it replaces the spec (for negative tests).
+    """
+    cfg = tmp_path / "cfg"
+    commands_home = cfg / "commands"
+    spec_home = tmp_path / "governance_spec"
+    commands_home.mkdir(parents=True, exist_ok=True)
+    spec_home.mkdir(parents=True, exist_ok=True)
+    text = spec_text if spec_text is not None else get_phase_api_path().read_text(encoding="utf-8")
+    (spec_home / "phase_api.yaml").write_text(text, encoding="utf-8")
+    payload = {
+        "schema": "opencode-governance.paths.v1",
+        "paths": {
+            "configRoot": str(cfg),
+            "commandsHome": str(commands_home),
+            "workspacesHome": str(cfg / "workspaces"),
+            "specHome": str(spec_home),
+            "pythonCommand": sys.executable,
+        },
+    }
+    (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    return commands_home, cfg / "workspaces"
+
+
 def _write_plan_record(workspaces_home: Path, repo_fingerprint: str, *, status: str, versions: int) -> None:
     workspace = workspaces_home / repo_fingerprint
     workspace.mkdir(parents=True, exist_ok=True)
@@ -50,6 +78,25 @@ def test_phase_api_start_token_is_bootstrap_entrypoint() -> None:
 
 
 def test_kernel_blocks_when_phase_api_missing(tmp_path: Path) -> None:
+    """When no phase_api.yaml exists at any authority location, kernel blocks."""
+    cfg = tmp_path / "cfg"
+    commands_home = cfg / "commands"
+    commands_home.mkdir(parents=True, exist_ok=True)
+    # Set up binding evidence with a specHome that contains NO phase_api.yaml
+    spec_home = tmp_path / "governance_spec"
+    spec_home.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "opencode-governance.paths.v1",
+        "paths": {
+            "configRoot": str(cfg),
+            "commandsHome": str(commands_home),
+            "workspacesHome": str(cfg / "workspaces"),
+            "specHome": str(spec_home),
+            "pythonCommand": sys.executable,
+        },
+    }
+    (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+
     result = execute(
         current_token="2.1",
         session_state_doc={"SESSION_STATE": {}},
@@ -57,9 +104,9 @@ def test_kernel_blocks_when_phase_api_missing(tmp_path: Path) -> None:
             requested_active_gate="Decision Pack",
             requested_next_gate_condition="Continue",
             repo_is_git_root=True,
-            commands_home=tmp_path / "commands",
+            commands_home=commands_home,
             workspaces_home=tmp_path / "workspaces",
-            config_root=tmp_path / "cfg",
+            config_root=cfg,
         ),
     )
 
@@ -269,10 +316,9 @@ def test_kernel_blocks_phase_1_3_when_exit_evidence_missing(tmp_path: Path) -> N
 
 
 def test_kernel_blocks_with_invalid_spec_and_writes_block_event(tmp_path: Path) -> None:
-    commands_home = tmp_path / "commands"
-    commands_home.mkdir(parents=True, exist_ok=True)
-    (commands_home / "phase_api.yaml").write_text(
-        """
+    commands_home, _workspaces_home = _write_isolated_spec(
+        tmp_path,
+        spec_text="""
 version: 1
 start_token: "1.1"
 phases:
@@ -283,7 +329,6 @@ phases:
     next: "unknown"
 """.strip()
         + "\n",
-        encoding="utf-8",
     )
 
     result = execute(
@@ -1826,6 +1871,22 @@ class TestKernelResultRouteStrategy:
 
     def test_blocked_early_returns_empty_route_strategy(self, tmp_path: Path) -> None:
         """Edge: Blocked result before spec load → route_strategy is empty string."""
+        cfg = tmp_path / "cfg"
+        commands_home = cfg / "commands"
+        commands_home.mkdir(parents=True, exist_ok=True)
+        spec_home = tmp_path / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema": "opencode-governance.paths.v1",
+            "paths": {
+                "configRoot": str(cfg),
+                "commandsHome": str(commands_home),
+                "workspacesHome": str(cfg / "workspaces"),
+                "specHome": str(spec_home),
+                "pythonCommand": sys.executable,
+            },
+        }
+        (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
         result = execute(
             current_token="2.1",
             session_state_doc={"SESSION_STATE": {}},
@@ -1833,9 +1894,9 @@ class TestKernelResultRouteStrategy:
                 requested_active_gate="Decision Pack",
                 requested_next_gate_condition="Continue",
                 repo_is_git_root=True,
-                commands_home=tmp_path / "commands",
+                commands_home=commands_home,
                 workspaces_home=tmp_path / "workspaces",
-                config_root=tmp_path / "cfg",
+                config_root=cfg,
             ),
         )
         assert result.status == "BLOCKED"

@@ -2131,7 +2131,7 @@ class TestTransitionEvidenceAutoGrant:
             transition_evidence_met=False,
         )
 
-        with patch("governance.kernel.phase_kernel.execute", return_value=stay_result):
+        with patch("governance_runtime.kernel.phase_kernel.execute", return_value=stay_result):
             result = read_session_snapshot(commands_home=commands_home, materialize=True)
 
         assert result["status"] != "ERROR", f"Unexpected error: {result.get('error', '')}"
@@ -2232,7 +2232,7 @@ class TestTransitionEvidenceStayStrategyRegressions:
             transition_evidence_met=False,
         )
 
-        with patch("governance.kernel.phase_kernel.execute", return_value=stay_forward):
+        with patch("governance_runtime.kernel.phase_kernel.execute", return_value=stay_forward):
             read_session_snapshot(commands_home=commands_home, materialize=True)
 
         persisted = json.loads(ws_state.read_text(encoding="utf-8"))
@@ -2268,7 +2268,7 @@ class TestTransitionEvidenceStayStrategyRegressions:
             transition_evidence_met=False,
         )
 
-        with patch("governance.kernel.phase_kernel.execute", return_value=stay_self_loop):
+        with patch("governance_runtime.kernel.phase_kernel.execute", return_value=stay_self_loop):
             read_session_snapshot(commands_home=commands_home, materialize=True)
 
         persisted = json.loads(ws_state.read_text(encoding="utf-8"))

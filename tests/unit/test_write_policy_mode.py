@@ -8,7 +8,7 @@ def test_opencode_mode_overrides_ci_pipeline_heuristic(monkeypatch) -> None:
     monkeypatch.setenv("OPENCODE_MODE", "user")
     monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
 
-    mod = importlib.import_module("governance.entrypoints.write_policy")
+    mod = importlib.import_module("governance_runtime.entrypoints.write_policy")
     importlib.reload(mod)
 
     assert mod.EFFECTIVE_MODE == "user"
@@ -18,7 +18,7 @@ def test_opencode_mode_overrides_ci_pipeline_heuristic(monkeypatch) -> None:
 def test_force_read_only_always_blocks(monkeypatch) -> None:
     monkeypatch.setenv("OPENCODE_MODE", "user")
     monkeypatch.setenv("OPENCODE_FORCE_READ_ONLY", "1")
-    mod = importlib.import_module("governance.entrypoints.write_policy")
+    mod = importlib.import_module("governance_runtime.entrypoints.write_policy")
     importlib.reload(mod)
 
     assert mod.writes_allowed() is False
@@ -30,7 +30,7 @@ def test_pipeline_mode_uses_pipeline_semantics(monkeypatch) -> None:
     monkeypatch.setenv("OPENCODE_MODE", "pipeline")
     monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
 
-    mod = importlib.import_module("governance.entrypoints.write_policy")
+    mod = importlib.import_module("governance_runtime.entrypoints.write_policy")
     importlib.reload(mod)
 
     assert mod.EFFECTIVE_MODE == "pipeline"

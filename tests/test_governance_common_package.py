@@ -25,7 +25,7 @@ class TestGovernanceCommonPackageImport:
 
     def test_happy_import_governance_common(self) -> None:
         """The governance.common package itself can be imported."""
-        mod = importlib.import_module("governance.common")
+        mod = importlib.import_module("governance_runtime.common")
         assert mod is not None
 
     def test_happy_import_path_normalization_from_common(self) -> None:
@@ -37,12 +37,12 @@ class TestGovernanceCommonPackageImport:
     def test_bad_import_nonexistent_module_raises(self) -> None:
         """Importing a module that does not exist under governance.common raises ImportError."""
         with pytest.raises(ImportError):
-            importlib.import_module("governance.common.nonexistent_module_xyz")
+            importlib.import_module("governance_runtime.common.nonexistent_module_xyz")
 
     def test_corner_reimport_is_idempotent(self) -> None:
         """Reimporting governance.common returns the same cached module object."""
-        mod1 = importlib.import_module("governance.common")
-        mod2 = importlib.import_module("governance.common")
+        mod1 = importlib.import_module("governance_runtime.common")
+        mod2 = importlib.import_module("governance_runtime.common")
         assert mod1 is mod2
 
     def test_edge_init_file_exists_on_disk(self) -> None:

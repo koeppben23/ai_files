@@ -33,7 +33,7 @@ def _binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
             "pythonCommand": sys.executable,
         },
     }
-    (config_root / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
     (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
@@ -120,7 +120,7 @@ def test_bootstrap_persistence_hook_blocked_when_writes_not_allowed(tmp_path: Pa
     monkeypatch.delenv("CI", raising=False)
 
     import importlib
-    mod = importlib.import_module("governance.entrypoints.bootstrap_persistence_hook")
+    mod = importlib.import_module("governance_runtime.entrypoints.bootstrap_persistence_hook")
     importlib.reload(mod)
 
     result = mod.run_persistence_hook(repo_root=tmp_path)
