@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -26,15 +27,19 @@ def _copy_repo(src: Path, dst: Path) -> None:
     shutil.copytree(src, dst, ignore=_ignore)
 
 
-def _run(cmd: list[str], cwd: Path) -> tuple[int, str, str]:
-    result = subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True)
+def _run(cmd: list[str], cwd: Path, env: dict[str, str] | None = None) -> tuple[int, str, str]:
+    result = subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True, env=env)
     return result.returncode, result.stdout, result.stderr
 
 
 def _ensure_phase_api_projection(*, repo_root: Path, config_root: Path) -> None:
-    src = repo_root / "governance_spec" / "phase_api.yaml"
+    candidates = [
+        repo_root / "governance_spec" / "phase_api.yaml",
+        repo_root / "phase_api.yaml",
+    ]
+    src = next((path for path in candidates if path.exists()), None)
     dst = config_root / "commands" / "phase_api.yaml"
-    if dst.exists() or not src.exists():
+    if dst.exists() or src is None:
         return
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
@@ -111,7 +116,11 @@ def run_delete_barrier(repo_root: Path, python_cmd: str) -> list[str]:
         ]
 
         for cmd, label in commands:
-            code, out, err = _run(cmd, cwd=cloned)
+            env = None
+            if label == "bootstrap-smoke":
+                env = dict(os.environ)
+                env["COMMANDS_HOME"] = str(config_root / "commands")
+            code, out, err = _run(cmd, cwd=cloned, env=env)
             if code != 0:
                 issues.append(
                     f"{label} failed (code={code})\ncmd={' '.join(cmd)}\nstdout:\n{out}\nstderr:\n{err}"
