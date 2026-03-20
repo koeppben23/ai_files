@@ -20,6 +20,16 @@ def _run(cmd: list[str], cwd: Path) -> tuple[int, str, str]:
     return result.returncode, result.stdout, result.stderr
 
 
+def _ensure_phase_api_projection(*, repo_root: Path, config_root: Path) -> None:
+    """Project phase_api.yaml into commands home for bootstrap compatibility."""
+    src = repo_root / "governance_spec" / "phase_api.yaml"
+    dst = config_root / "commands" / "phase_api.yaml"
+    if dst.exists() or not src.exists():
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+
+
 def run_bootstrap_smoke(repo_root: Path, python_cmd: str) -> list[str]:
     issues: list[str] = []
     with tempfile.TemporaryDirectory(prefix="bootstrap-smoke-") as tmp:
@@ -43,6 +53,8 @@ def run_bootstrap_smoke(repo_root: Path, python_cmd: str) -> list[str]:
         if code != 0:
             issues.append(f"install phase failed (code={code})\nstdout:\n{out}\nstderr:\n{err}")
             return issues
+
+        _ensure_phase_api_projection(repo_root=repo_root, config_root=config_root)
 
         bootstrap_cmd = [
             python_cmd,

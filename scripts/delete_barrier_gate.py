@@ -31,6 +31,15 @@ def _run(cmd: list[str], cwd: Path) -> tuple[int, str, str]:
     return result.returncode, result.stdout, result.stderr
 
 
+def _ensure_phase_api_projection(*, repo_root: Path, config_root: Path) -> None:
+    src = repo_root / "governance_spec" / "phase_api.yaml"
+    dst = config_root / "commands" / "phase_api.yaml"
+    if dst.exists() or not src.exists():
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+
+
 def run_delete_barrier(repo_root: Path, python_cmd: str) -> list[str]:
     issues: list[str] = []
     with tempfile.TemporaryDirectory(prefix="delete-barrier-") as tmp:
@@ -107,6 +116,9 @@ def run_delete_barrier(repo_root: Path, python_cmd: str) -> list[str]:
                 issues.append(
                     f"{label} failed (code={code})\ncmd={' '.join(cmd)}\nstdout:\n{out}\nstderr:\n{err}"
                 )
+                break
+            if label == "install-smoke":
+                _ensure_phase_api_projection(repo_root=cloned, config_root=config_root)
     return issues
 
 

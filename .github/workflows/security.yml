@@ -192,7 +192,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-evidence-deps
-          path: governance_runtime/security-evidence/pip-audit*.json
+          path: governance/security-evidence/pip-audit*.json
 
   workflow-hardening:
     name: Workflow Hardening (actionlint + zizmor)
