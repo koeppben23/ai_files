@@ -25,15 +25,15 @@ Key policy controls:
 
 ## Evidence outputs
 
-Each scanner writes a summary JSON file in `governance/security-evidence/`.
+Each scanner writes a summary JSON file in `${WORKSPACES_HOME}/_global/security-evidence/`.
 
 The final policy gate aggregates all scanner summaries with:
 
 ```bash
-${PYTHON_COMMAND} scripts/evaluate_security_evidence.py \
+  ${PYTHON_COMMAND} scripts/evaluate_security_evidence.py \
   --policy governance_runtime/assets/catalogs/SECURITY_GATE_POLICY.json \
-  --input governance/security-evidence/<scanner>.summary.json \
-  --output governance/security-evidence/security_summary.json
+  --input ${WORKSPACES_HOME}/_global/security-evidence/<scanner>.summary.json \
+  --output ${WORKSPACES_HOME}/_global/security-evidence/security_summary.json
 ```
 
 `security_summary.json` is the machine-readable security evidence artifact for governance review.
@@ -46,7 +46,7 @@ Scanner output can be structurally valid while still representing partial covera
 - Treat this as "no dependency manifest evidence available" rather than proof that dependencies are secure.
 - For customer/security reporting, dependency claims should be marked `NOT_VERIFIED` until manifest-backed dependency evidence exists.
 - Deterministic reason-code mapping should use `NOT_VERIFIED-MISSING-EVIDENCE` for dependency-security claims without manifest evidence.
-- See [`governance/engine/reason_codes.py`](../../governance/engine/reason_codes.py) for the canonical reason-code registry.
+- See [`governance_runtime/engine/reason_codes.py`](../../governance_runtime/engine/reason_codes.py) for the canonical reason-code registry.
 
 ## Blocking semantics
 

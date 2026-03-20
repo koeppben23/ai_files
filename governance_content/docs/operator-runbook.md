@@ -14,7 +14,7 @@ proceeding with any upgrade or troubleshooting.
 ### 1.0 Canonical operator path truth
 
 - Config root: `~/.config/opencode` (`commands/`, `plugins/`, `workspaces/`, `bin/`)
-- Local root: `~/.local/opencode` (`governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, `VERSION`)
+- Local root: `~/.local/opencode` (`governance_runtime/`, `governance_content/`, `governance_spec/`, `VERSION`)
 - Primary bootstrap command: `opencode-governance-bootstrap init --profile <solo|team|regulated> --repo-root <repo-root>`
 - `python -m ...` invocation is internal/debug/compatibility only, not primary operator guidance.
 
@@ -102,7 +102,7 @@ python scripts/governance_lint.py
 python scripts/migrate_rulebook_schema.py --check
 
 # 4. Verify artifact integrity
-python -c "from governance.infrastructure.artifact_integrity import verify_all_releases; r = verify_all_releases(); print('OK' if r.passed else r)"
+python -c "from governance_runtime.infrastructure.artifact_integrity import verify_all_releases; r = verify_all_releases(); print('OK' if r.passed else r)"
 ```
 
 All four commands must succeed before marking the upgrade complete.
@@ -148,7 +148,7 @@ intervention beyond a simple rollback.
 
 The governance engine emits `BLOCKED-*` reason codes when a deterministic
 policy gate cannot be satisfied. There are **67 registered codes** in the
-Python SSOT (`governance/domain/reason_codes.py`).
+Python SSOT (`governance_runtime/domain/reason_codes.py`).
 
 Data sources merged below:
 - **Registry:** `governance_runtime/assets/catalogs/reason_codes.registry.json` (59 entries)
@@ -161,7 +161,7 @@ Data sources merged below:
 |------|-------------|-------------|
 | `BLOCKED-BOOTSTRAP-NOT-SATISFIED` | Bootstrap gates are not satisfied; kernel cannot proceed. | Run the local bootstrap launcher to complete bootstrap evidence collection. |
 | `BLOCKED-START-REQUIRED` | Valid bootstrap evidence is required before governance execution. | Run `opencode-governance-bootstrap init --profile <solo\|team\|regulated> --repo-root <repo>`. |
-| `BLOCKED-MISSING-BINDING-FILE` | Installer-owned binding evidence file (`governance.paths.json`) is missing. | Run `python install.py` to create the binding file at `${COMMANDS_HOME}/governance.paths.json`. |
+| `BLOCKED-MISSING-BINDING-FILE` | Installer-owned binding evidence file (`governance.paths.json`) is missing. | Run `python install.py` to create the binding file at `${CONFIG_ROOT}/governance.paths.json`. |
 | `BLOCKED-MISSING-COMMANDS-HOME` | `commands_home` is missing, empty, or invalid. | Set `COMMANDS_HOME` environment variable or repair binding evidence: `export COMMANDS_HOME=/path/to/commands`. |
 | `BLOCKED-VARIABLE-RESOLUTION` | Required canonical variables could not be resolved deterministically. | Run `opencode-governance-bootstrap init --profile <solo\|team\|regulated> --repo-root <repo>`. Check that `${USER_HOME}`, `${CONFIG_ROOT}`, `${COMMANDS_HOME}` resolve correctly. |
 | `BLOCKED-MISSING-EVIDENCE` | Required activation evidence is missing for deterministic resolution. | Check `SESSION_STATE.Diagnostics.ReasonPayloads` for specifics. Run `opencode-governance-bootstrap init --profile <solo\|team\|regulated> --repo-root <repo>` to re-gather evidence. |
@@ -291,7 +291,7 @@ These codes accept a dynamic `:<key>` suffix at runtime:
 ### 5.1 Orphan Codes
 
 Three codes exist in `REASON_REMEDIATION_MAP.json` but are **not registered**
-in the Python SSOT (`governance/domain/reason_codes.py`):
+in the Python SSOT (`governance_runtime/domain/reason_codes.py`):
 
 | Code | Status |
 |------|--------|
@@ -320,11 +320,11 @@ is a product decision, not a defect.
 
 | Artifact | Path |
 |----------|------|
-| Reason code constants | `governance/domain/reason_codes.py` |
+| Reason code constants | `governance_runtime/domain/reason_codes.py` |
 | Reason code registry | `governance_runtime/assets/catalogs/reason_codes.registry.json` |
 | Remediation map | `governance_runtime/assets/catalogs/REASON_REMEDIATION_MAP.json` |
 | Blocked reason catalog | `governance_runtime/assets/reasons/blocked_reason_catalog.yaml` |
-| Embedded reason registry | `governance/engine/_embedded_reason_registry.py` |
+| Embedded reason registry | `governance_runtime/engine/_embedded_reason_registry.py` |
 
 ### Operator Scripts
 
@@ -345,6 +345,6 @@ is a product decision, not a defect.
 
 ---
 
-> SSOT: `governance/domain/reason_codes.py` is the only truth for reason code registration.
+> SSOT: `governance_runtime/domain/reason_codes.py` is the only truth for reason code registration.
 > Kernel: `governance_runtime/kernel/*` is the only control-plane implementation.
 > MD files are AI rails/guidance only and are never routing-binding.
