@@ -31,13 +31,10 @@ class TestVersionSourceConformance:
     def test_version_source_for_compatibility(self):
         """Legacy VERSION files, if present, must mirror canonical runtime VERSION."""
         root_version = REPO_ROOT / "VERSION"
-        gov_version = REPO_ROOT / "governance" / "VERSION"
         canonical = (REPO_ROOT / "governance_runtime" / "VERSION").read_text(encoding="utf-8").strip()
 
         if root_version.exists():
             assert root_version.read_text(encoding="utf-8").strip() == canonical
-        if gov_version.exists():
-            assert gov_version.read_text(encoding="utf-8").strip() == canonical
 
 
 @pytest.mark.conformance

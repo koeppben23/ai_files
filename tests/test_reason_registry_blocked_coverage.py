@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.governance
 def test_every_blocked_reason_code_has_registry_schema_mapping():
-    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
     blocked_entries = payload.get("blocked_reasons")
     assert isinstance(blocked_entries, list), "blocked_reasons must be an array"
 
@@ -51,7 +51,7 @@ def test_every_blocked_reason_code_has_registry_schema_mapping():
 
 @pytest.mark.governance
 def test_blocked_registry_has_exactly_one_entry_per_domain_blocked_code():
-    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
     blocked_entries = payload.get("blocked_reasons")
     assert isinstance(blocked_entries, list), "blocked_reasons must be an array"
 
@@ -73,7 +73,7 @@ def test_blocked_registry_has_exactly_one_entry_per_domain_blocked_code():
 
 @pytest.mark.governance
 def test_registry_covers_all_domain_reason_codes():
-    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
     blocked_entries = payload.get("blocked_reasons")
     audit_entries = payload.get("audit_events")
     assert isinstance(blocked_entries, list), "blocked_reasons must be an array"

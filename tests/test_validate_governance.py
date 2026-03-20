@@ -1788,7 +1788,7 @@ def test_error_logger_helper_exists_and_defines_required_log_shape():
 def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     module_path = REPO_ROOT / "governance_runtime" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
-    assert spec and spec.loader, "Failed to load governance/error_logs.py module spec"
+    assert spec and spec.loader, "Failed to load governance_runtime/error_logs.py module spec"
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
     mod = importlib.util.module_from_spec(spec)
@@ -1820,7 +1820,7 @@ def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.Monk
 def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     module_path = REPO_ROOT / "governance_runtime" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
-    assert spec and spec.loader, "Failed to load governance/error_logs.py module spec"
+    assert spec and spec.loader, "Failed to load governance_runtime/error_logs.py module spec"
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
     mod = importlib.util.module_from_spec(spec)
@@ -1853,7 +1853,7 @@ def test_error_logger_uses_ssot_write_policy(tmp_path: Path, monkeypatch: pytest
 
     module_path = REPO_ROOT / "governance_runtime" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_ssot", module_path)
-    assert spec and spec.loader, "Failed to load governance/error_logs.py module spec"
+    assert spec and spec.loader, "Failed to load governance_runtime/error_logs.py module spec"
     
     # CI=true without FORCE_READ_ONLY should allow writes (SSOT)
     monkeypatch.setenv("CI", "true")
@@ -1971,7 +1971,7 @@ def test_lint_catches_catalog_with_non_semver3_version(tmp_path: Path, monkeypat
     """check_catalog_version_format flags catalogs with non-semver-3 version."""
     lint = _import_governance_lint()
     fake_root = tmp_path / "repo"
-    catalogs = fake_root / "governance" / "assets" / "catalogs"
+    catalogs = fake_root / "governance_runtime" / "assets" / "catalogs"
     catalogs.mkdir(parents=True)
     (catalogs / "MY_CATALOG.json").write_text(
         json.dumps({"schema": "test.v1", "version": "1.0"}),
@@ -1989,7 +1989,7 @@ def test_lint_catches_catalog_with_legacy_version_key(tmp_path: Path, monkeypatc
     """check_catalog_version_format flags catalogs using catalog_version instead of version."""
     lint = _import_governance_lint()
     fake_root = tmp_path / "repo"
-    catalogs = fake_root / "governance" / "assets" / "catalogs"
+    catalogs = fake_root / "governance_runtime" / "assets" / "catalogs"
     catalogs.mkdir(parents=True)
     (catalogs / "MY_CATALOG.json").write_text(
         json.dumps({"schema": "test.v1", "catalog_version": 1, "version": "1.0.0"}),

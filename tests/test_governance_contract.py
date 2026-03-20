@@ -55,7 +55,7 @@ class TestCheckDirectoryStructure:
 
     def test_runtime_in_governance_is_valid(self) -> None:
         """Runtime in governance/ is valid."""
-        v = check_directory_structure("governance/engine/orchestrator.py")
+        v = check_directory_structure("governance_runtime/engine/orchestrator.py")
         assert v is None
 
     def test_runtime_in_commands_is_invalid(self) -> None:
@@ -72,7 +72,7 @@ class TestCheckDirectoryStructure:
 
     def test_spec_in_governance_is_valid(self) -> None:
         """Spec in governance/contracts/ is valid."""
-        v = check_directory_structure("governance/contracts/test.yaml")
+        v = check_directory_structure("governance_runtime/contracts/test.yaml")
         assert v is None
 
     def test_governance_yaml_in_commands_is_invalid(self) -> None:
@@ -99,7 +99,7 @@ class TestCheckDirectoryStructure:
         paths = [
             "commands/continue.md",
             "master.md",
-            "governance/engine/orchestrator.py",
+            "governance_runtime/engine/orchestrator.py",
         ]
         
         violations = validate_directory_structure(paths)
@@ -121,7 +121,7 @@ class TestGetAllowedPrefixesForLayer:
         """Runtime has governance/ prefix."""
         prefixes = get_allowed_prefixes_for_layer(GovernanceLayer.GOVERNANCE_RUNTIME)
         
-        assert "governance/" in prefixes
+        assert "governance_runtime/" in prefixes
 
 
 class TestValidateSinglePath:

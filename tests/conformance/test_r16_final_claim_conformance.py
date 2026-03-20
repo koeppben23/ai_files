@@ -34,12 +34,12 @@ class TestR16FinalClaimConformance:
                 offenders.append(py.relative_to(REPO_ROOT).as_posix())
         assert not offenders, f"runtime canonicality broken by legacy import edges: {offenders}"
 
-        plugin = _read(REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs")
+        plugin = _read(REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs")
         assert "governance_runtime.entrypoints.new_work_session" in plugin
         assert "governance.entrypoints.new_work_session" not in plugin
 
         bootstrap_surfaces = [
-            REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs",
+            REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs",
             REPO_ROOT / "governance_runtime" / "bin" / "opencode-governance-bootstrap",
             REPO_ROOT / "governance_runtime" / "bin" / "opencode-governance-bootstrap.cmd",
         ]

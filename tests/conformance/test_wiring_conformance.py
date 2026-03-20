@@ -233,7 +233,7 @@ class TestLauncherToEntrypoints:
     def test_happy_plugin_references_correct_module(self):
         """Happy: Plugin source references governance_runtime.entrypoints.new_work_session."""
         plugin_src = _read_source(
-            REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+            REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
         )
         assert "governance_runtime.entrypoints.new_work_session" in plugin_src
 
@@ -399,7 +399,7 @@ class TestRailsToPaths:
 class TestPluginToRuntime:
     """Validate that the plugin invokes governance correctly."""
 
-    PLUGIN_PATH = REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+    PLUGIN_PATH = REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
 
     def test_happy_plugin_invokes_governance_module(self):
         """Happy: Plugin uses -m governance_runtime.entrypoints.new_work_session."""
@@ -749,7 +749,7 @@ class TestNoRoguePaths:
         """Edge: Plugin does not reference paths that only exist after installation
         by absolute path (it should use module invocation instead)."""
         plugin_src = _read_source(
-            REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+            REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
         )
         # Plugin should use -m module invocation, not absolute script paths
         assert "-m" in plugin_src, (
@@ -768,7 +768,7 @@ class TestNoRoguePaths:
     def test_bad_no_plugin_references_to_noninstalled_paths(self):
         """Bad: Plugin must not reference any paths that don't exist in the source tree."""
         plugin_src = _read_source(
-            REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+            REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
         )
         # The plugin should not reference governance files by absolute path
         # It should only use -m module invocation

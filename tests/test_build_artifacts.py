@@ -31,10 +31,10 @@ def _resolve_existing_rel(rel: str) -> str:
 
 
 def _governance_version() -> str:
-    version_file = REPO_ROOT / "governance" / "VERSION"
-    assert version_file.exists(), "Missing governance/VERSION (required for build)"
+    version_file = REPO_ROOT / "governance_runtime" / "VERSION"
+    assert version_file.exists(), "Missing governance_runtime/VERSION (required for build)"
     version = version_file.read_text(encoding="utf-8").strip()
-    assert version, "Empty governance/VERSION"
+    assert version, "Empty governance_runtime/VERSION"
     return version
 
 
@@ -46,7 +46,7 @@ def _assert_member_paths_safe(names: list[str]) -> None:
 
 
 def _shipped_customer_scripts() -> list[str]:
-    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
     scripts = []
     for entry in payload.get("scripts", []):
         if entry.get("ship_in_release") is True:
@@ -61,7 +61,7 @@ def _shipped_workflow_templates() -> list[str]:
 
 
 def _release_excluded_markdown() -> list[str]:
-    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_MARKDOWN_EXCLUDE.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "CUSTOMER_MARKDOWN_EXCLUDE.json").read_text(encoding="utf-8"))
     return sorted(_resolve_existing_rel(rel) for rel in payload.get("release_excluded_markdown", []))
 
 
@@ -160,7 +160,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
 
         assert any(Path(n).name.upper().startswith(("LICENSE", "LICENCE")) for n in names), "ZIP missing LICENSE* file"
         assert any(n.startswith(f"{prefix}/profiles/") or n.startswith(f"{prefix}/governance_content/profiles/") for n in names), "ZIP missing profiles payload"
-        assert any(n.startswith(f"{prefix}/governance/") for n in names), "ZIP missing governance/ payload"
+        assert any(n.startswith(f"{prefix}/governance_runtime/") for n in names), "ZIP missing governance_runtime/ payload"
 
         for zi in zf.infolist():
             if zi.is_dir():
@@ -208,7 +208,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
 
         assert any(Path(n).name.upper().startswith(("LICENSE", "LICENCE")) for n in names), "TAR missing LICENSE* file"
         assert any(n.startswith(f"{prefix}/profiles/") or n.startswith(f"{prefix}/governance_content/profiles/") for n in names), "TAR missing profiles payload"
-        assert any(n.startswith(f"{prefix}/governance/") for n in names), "TAR missing governance/ payload"
+        assert any(n.startswith(f"{prefix}/governance_runtime/") for n in names), "TAR missing governance_runtime/ payload"
 
         for m in members:
             assert m.mtime == 0, f"Non-deterministic TAR mtime for {m.name}: {m.mtime}"

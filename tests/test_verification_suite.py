@@ -48,7 +48,7 @@ def _kernel_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
             "pythonCommand": sys.executable,
         },
     }
-    (config_root / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
     (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 

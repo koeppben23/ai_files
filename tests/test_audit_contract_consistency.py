@@ -51,7 +51,7 @@ from governance_runtime.infrastructure.run_audit_artifacts import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-_ASSETS_ROOT = Path(__file__).resolve().parent.parent / "governance" / "assets"
+_ASSETS_ROOT = Path(__file__).resolve().parent.parent / "governance_runtime" / "assets"
 _CONFIG_ROOT = _ASSETS_ROOT / "config"
 _SCHEMA_ROOT = _ASSETS_ROOT / "schemas"
 

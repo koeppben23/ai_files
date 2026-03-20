@@ -80,7 +80,7 @@ class TestLayerClassificationViaTopLevel:
 
     def test_python_is_runtime(self) -> None:
         """Python files are governance_runtime."""
-        assert classify_layer("governance/engine/orchestrator.py") == GovernanceLayer.GOVERNANCE_RUNTIME
+        assert classify_layer("governance_runtime/engine/orchestrator.py") == GovernanceLayer.GOVERNANCE_RUNTIME
 
     def test_state_is_state_layer(self) -> None:
         """State files are repo_run_state."""
@@ -127,7 +127,7 @@ class TestHelperFunctionsViaTopLevel:
             Path("commands/continue.md"),
             Path("master.md"),
             Path("phase_api.yaml"),
-            Path("governance/engine/orchestrator.py"),
+            Path("governance_runtime/engine/orchestrator.py"),
         ]
         
         stats = get_layer_stats(paths)

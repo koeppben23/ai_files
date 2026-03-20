@@ -22,7 +22,7 @@ from governance_runtime.engine.reason_codes import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_DIR = REPO_ROOT / "governance" / "assets" / "schemas"
+SCHEMA_DIR = REPO_ROOT / "governance_runtime" / "assets" / "schemas"
 
 
 # -- Fixtures: strict-exit payloads ------------------------------------------

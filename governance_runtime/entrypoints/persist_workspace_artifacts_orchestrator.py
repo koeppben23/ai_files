@@ -1546,11 +1546,11 @@ def main() -> int:
             ],
             "required_operator_action": "restore installer-owned path binding evidence before persistence",
             "feedback_required": "reply with governance.paths.json location used for rerun",
-            "next_command": "${PYTHON_COMMAND} governance/entrypoints/persist_workspace_artifacts.py --config-root <config_root>",
+            "next_command": "${PYTHON_COMMAND} governance_runtime/entrypoints/persist_workspace_artifacts.py --config-root <config_root>",
             "next_command_profiles": render_command_profiles(
                 [
                     "${PYTHON_COMMAND}",
-                    "governance/entrypoints/persist_workspace_artifacts.py",
+                    "governance_runtime/entrypoints/persist_workspace_artifacts.py",
                     "--config-root",
                     "<config_root>",
                 ]
@@ -1572,19 +1572,22 @@ def main() -> int:
         cmd_profiles = render_command_profiles(
             [
                 python_cmd,
-                "governance/entrypoints/persist_workspace_artifacts.py",
+                "governance_runtime/entrypoints/persist_workspace_artifacts.py",
                 "--repo-root",
                 "<repo_root>",
                 "--config-root",
                 str(config_root),
             ]
         )
-        log_path = resolve_log_path(
-            config_root=str(config_root),
-            commands_home=str(binding_paths.get("commandsHome", "")),
-            workspaces_home=str(config_root / "workspaces"),
-            repo_fingerprint=None,
-        )
+        try:
+            log_path = resolve_log_path(
+                config_root=str(config_root),
+                commands_home=str(binding_paths.get("commandsHome", "")),
+                workspaces_home=str(config_root / "workspaces"),
+                repo_fingerprint=None,
+            )
+        except RuntimeError:
+            log_path = config_root / "INSTALL_HEALTH.json"
         emit_gate_failure(
             gate="PERSISTENCE",
             code="BLOCKED-REPO-ROOT-NOT-DETECTABLE",
@@ -1633,7 +1636,7 @@ def main() -> int:
         cmd_profiles = render_command_profiles(
             [
                 python_cmd,
-                "governance/entrypoints/persist_workspace_artifacts.py",
+                "governance_runtime/entrypoints/persist_workspace_artifacts.py",
                 "--config-root",
                 "<outside_repo_config_root>",
                 "--repo-root",
@@ -1702,7 +1705,7 @@ def main() -> int:
             cmd_profiles = render_command_profiles(
                 [
                     python_cmd,
-                    "governance/entrypoints/persist_workspace_artifacts.py",
+                    "governance_runtime/entrypoints/persist_workspace_artifacts.py",
                     "--repo-fingerprint",
                     "<repo_fingerprint>",
                     "--repo-root",
@@ -1773,12 +1776,12 @@ def main() -> int:
                 message="Repo-scoped SESSION_STATE bootstrap failed before artifact persistence.",
                 expected="repo-scoped SESSION_STATE.json exists",
                 observed={"bootstrap_status": bootstrap_status, "repoFingerprint": repo_fingerprint},
-                remediation="Run governance/entrypoints/bootstrap_session_state.py with the same --repo-fingerprint and --config-root, then rerun persistence.",
+                remediation="Run governance_runtime/entrypoints/bootstrap_session_state.py with the same --repo-fingerprint and --config-root, then rerun persistence.",
             )
             cmd_profiles = render_command_profiles(
                 [
                     python_cmd,
-                    "governance/entrypoints/bootstrap_session_state.py",
+                    "governance_runtime/entrypoints/bootstrap_session_state.py",
                     "--repo-fingerprint",
                     repo_fingerprint,
                     "--config-root",
@@ -1791,8 +1794,8 @@ def main() -> int:
                 "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
                 "missing_evidence": ["repo-scoped SESSION_STATE.json"],
                 "recovery_steps": [
-                    "run governance/entrypoints/bootstrap_session_state.py with --repo-fingerprint and --config-root",
-                    "rerun governance/entrypoints/persist_workspace_artifacts.py after bootstrap succeeds",
+                    "run governance_runtime/entrypoints/bootstrap_session_state.py with --repo-fingerprint and --config-root",
+                    "rerun governance_runtime/entrypoints/persist_workspace_artifacts.py after bootstrap succeeds",
                 ],
                 "required_operator_action": "bootstrap repo-scoped session state and rerun persistence",
                 "feedback_required": "reply with bootstrap helper output and repo fingerprint",
@@ -1826,7 +1829,7 @@ def main() -> int:
             cmd_profiles = render_command_profiles(
                 [
                     python_cmd,
-                    "governance/entrypoints/persist_workspace_artifacts.py",
+                    "governance_runtime/entrypoints/persist_workspace_artifacts.py",
                     "--repo-fingerprint",
                     repo_fingerprint,
                     "--config-root",
@@ -2449,13 +2452,13 @@ def main() -> int:
                 "missing_evidence": ["normalized decision-pack automatic policy format"],
                 "recovery_steps": [
                     "replace legacy A/B prompts in decision-pack.md with automatic policy format",
-                    "rerun governance/entrypoints/persist_workspace_artifacts.py",
+                    "rerun governance_runtime/entrypoints/persist_workspace_artifacts.py",
                 ],
                 "required_operator_action": "normalize decision-pack markdown to non-interactive format",
                 "feedback_required": "reply with rerun result after normalization",
                 "next_command": _preferred_shell_command(render_command_profiles([
                     python_cmd,
-                    "governance/entrypoints/persist_workspace_artifacts.py",
+                    "governance_runtime/entrypoints/persist_workspace_artifacts.py",
                     "--repo-fingerprint", repo_fingerprint,
                     "--config-root", str(config_root),
                 ])),

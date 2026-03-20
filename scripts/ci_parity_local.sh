@@ -93,9 +93,9 @@ if [[ ! -x "${PY}" ]]; then
   exit 2
 fi
 
-if ! "${PY}" -m pytest --version >/dev/null 2>&1; then
-  run_step "Installing local test dependencies (pip, pytest)" "${PY}" -m pip install --upgrade pip
-  run_step "Installing pytest" "${PIP}" install pytest
+if ! "${PY}" -m pytest --version >/dev/null 2>&1 || ! "${PY}" -c "import yaml, jsonschema" >/dev/null 2>&1; then
+  run_step "Installing local test dependencies (pip, pytest, pyyaml, jsonschema)" "${PY}" -m pip install --upgrade pip
+  run_step "Installing pytest, pyyaml, and jsonschema" "${PIP}" install pytest pyyaml jsonschema
 fi
 
 if [[ "${SKIP_PR_TITLE}" -eq 0 ]]; then

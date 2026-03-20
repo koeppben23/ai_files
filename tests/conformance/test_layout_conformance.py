@@ -114,9 +114,9 @@ class TestInstalledTreeShape:
                 missing.append(rel)
         assert not missing, f"Missing command source files: {missing}"
 
-    def test_happy_governance_dir_exists(self):
-        """Happy: governance/ directory exists at repo root."""
-        assert (REPO_ROOT / "governance").is_dir()
+    def test_happy_legacy_governance_dir_removed(self):
+        """Happy: legacy governance/ directory is removed from repo root."""
+        assert not (REPO_ROOT / "governance").exists()
 
     def test_happy_install_script_exists(self):
         """Happy: install.py exists at repo root."""
@@ -124,7 +124,13 @@ class TestInstalledTreeShape:
 
     def test_happy_plugin_source_exists(self):
         """Happy: audit-new-session.mjs plugin source exists."""
-        assert (REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs").is_file()
+        assert (
+            REPO_ROOT
+            / "governance_runtime"
+            / "artifacts"
+            / "opencode-plugins"
+            / "audit-new-session.mjs"
+        ).is_file()
 
     def test_corner_profiles_dir_exists(self):
         """Happy: profiles/ directory exists (now in governance_content/)."""

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic selfcheck for reason registry and payload schemas.
 
-This helper verifies that governance/reason_codes.registry.json exists,
+This helper verifies that governance_runtime/assets/catalogs/reason_codes.registry.json exists,
 matches expected schema tag, and all referenced payload schemas are present.
 """
 
@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).absolute().parents[2]
-REGISTRY_PATH = REPO_ROOT / "governance" / "assets" / "catalogs" / "reason_codes.registry.json"
+REGISTRY_PATH = REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "reason_codes.registry.json"
 EXPECTED_SCHEMA = "governance.reason-codes.registry.v1"
 
 

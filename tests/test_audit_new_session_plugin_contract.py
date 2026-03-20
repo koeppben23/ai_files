@@ -6,7 +6,7 @@ import pytest
 
 from tests.util import REPO_ROOT
 
-PLUGIN_PATH = REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+PLUGIN_PATH = REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
 
 
 def _read_plugin() -> str:

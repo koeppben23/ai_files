@@ -17,13 +17,13 @@ def test_legacy_surface_guard_happy_path(tmp_path: Path) -> None:
 
 
 def test_legacy_surface_guard_bad_import_path(tmp_path: Path) -> None:
-    _write(tmp_path / "cli" / "bootstrap.py", "from governance_runtime.entrypoints.bootstrap_executor import main\n")
+    _write(tmp_path / "cli" / "bootstrap.py", "from governance.entrypoints.bootstrap_executor import main\n")
     violations = scan_legacy_surface(tmp_path, allowed_prefixes=())
     assert any("forbidden governance import" in item for item in violations)
 
 
 def test_legacy_surface_guard_corner_allowed_archive_prefix(tmp_path: Path) -> None:
-    _write(tmp_path / "docs" / "archive" / "legacy.md", "python -m governance_runtime.entrypoints.bootstrap_executor\n")
+    _write(tmp_path / "docs" / "archive" / "legacy.md", "python -m governance.entrypoints.bootstrap_executor\n")
     violations = scan_legacy_surface(tmp_path, allowed_prefixes=("docs/archive/",))
     assert violations == []
 
@@ -31,14 +31,14 @@ def test_legacy_surface_guard_corner_allowed_archive_prefix(tmp_path: Path) -> N
 def test_legacy_surface_guard_edge_large_tree_performance(tmp_path: Path) -> None:
     for idx in range(500):
         _write(tmp_path / "governance_content" / "docs" / f"doc-{idx}.md", "no legacy references here\n")
-    _write(tmp_path / "scripts" / "build.py", "python -m governance_runtime.entrypoints.bootstrap_executor\n")
+    _write(tmp_path / "scripts" / "build.py", "python -m governance.entrypoints.bootstrap_executor\n")
 
     violations = scan_legacy_surface(tmp_path, allowed_prefixes=())
     assert len(violations) == 1
 
 
 def test_legacy_surface_guard_blocks_legacy_path_literal(tmp_path: Path) -> None:
-    _write(tmp_path / "cli" / "tool.py", "path = 'governance_runtime/entrypoints/bootstrap.py'\n")
+    _write(tmp_path / "cli" / "tool.py", "path = 'governance/entrypoints/bootstrap.py'\n")
     violations = scan_legacy_surface(tmp_path, allowed_prefixes=())
     assert any("forbidden legacy path literal" in item for item in violations)
 
@@ -50,7 +50,7 @@ def test_legacy_surface_guard_allows_schema_identifiers(tmp_path: Path) -> None:
 
 
 def test_legacy_surface_guard_scans_top_level_install_py(tmp_path: Path) -> None:
-    _write(tmp_path / "install.py", "from governance_runtime import GovernanceLayer\n")
+    _write(tmp_path / "install.py", "from governance import GovernanceLayer\n")
     violations = scan_legacy_surface(tmp_path, allowed_prefixes=())
     assert any(item.startswith("install.py:") and "forbidden governance import" in item for item in violations)
 

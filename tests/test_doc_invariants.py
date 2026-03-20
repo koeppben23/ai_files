@@ -382,14 +382,14 @@ class TestCatalogPathsCorner:
     @pytest.mark.parametrize("pack_name", _PACK_NAMES)
     def test_referenced_pack_file_exists(self, pack_name: str) -> None:
         """Every benchmark pack referenced in the matrix must exist on disk."""
-        path = REPO_ROOT / "governance" / "assets" / "catalogs" / f"{pack_name}.json"
+        path = REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / f"{pack_name}.json"
         assert path.exists(), (
             f"Benchmark pack referenced in docs does not exist: {path.relative_to(REPO_ROOT)}"
         )
 
     def test_security_gate_policy_exists(self) -> None:
         """SECURITY_GATE_POLICY.json must exist at the catalogs path."""
-        path = REPO_ROOT / "governance" / "assets" / "catalogs" / "SECURITY_GATE_POLICY.json"
+        path = REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "SECURITY_GATE_POLICY.json"
         assert path.exists(), (
             f"SECURITY_GATE_POLICY.json not found at {path.relative_to(REPO_ROOT)}"
         )

@@ -73,7 +73,7 @@ def get_phase_api_path() -> Path:
 
 def get_review_path() -> Path:
     """Get review.md path (SSOT only)."""
-    return REPO_ROOT / "governance_content" / "docs" / "review.md"
+    return REPO_ROOT / "opencode" / "commands" / "review.md"
 
 
 def _remap_legacy_relative_path(rel: str) -> str:

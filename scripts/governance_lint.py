@@ -67,7 +67,7 @@ def check_yaml_rulebook_schema(issues: list[str]) -> None:
 def check_catalog_version_format(issues: list[str]) -> None:
     """Check catalog files for semver-3 version format."""
     root = ROOT
-    catalogs_dir = root / "governance" / "assets" / "catalogs"
+    catalogs_dir = root / "governance_runtime" / "assets" / "catalogs"
     if not catalogs_dir.exists():
         catalogs_dir = root / "governance_content" / "governance" / "assets" / "catalogs"
     if not catalogs_dir.exists():
@@ -128,8 +128,8 @@ def main() -> int:
     # References: docs/resume.md, docs/resume_prompt.md, docs/new_profile.md, docs/new_addon.md
     # References: docs/phases.md, docs/operator-runbook.md
     ssot_candidates = [
-        root / "governance_content" / "master.md",
-        root / "governance_content" / "rules.md",
+        root / "governance_content" / "reference" / "master.md",
+        root / "governance_content" / "reference" / "rules.md",
         root / "governance_spec" / "phase_api.yaml",
         root / "governance_spec" / "rules.yml",
         root / "governance_spec" / "rulesets" / "core" / "rules.yml",

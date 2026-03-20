@@ -145,7 +145,7 @@ class TestMergeOwnership:
 class TestPluginLifecycle:
     """Validate plugin lifecycle invariants from contract section 2."""
 
-    PLUGIN_SOURCE = REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+    PLUGIN_SOURCE = REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
 
     def test_happy_plugin_source_exists(self):
         """Happy: Plugin source file exists at contract-specified location."""
@@ -203,17 +203,17 @@ class TestPythonResolutionOrder:
 
     def test_happy_plugin_checks_opencode_python_env(self):
         """Happy: Plugin checks OPENCODE_PYTHON environment variable first."""
-        src = (REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs").read_text(encoding="utf-8")
+        src = (REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs").read_text(encoding="utf-8")
         assert "OPENCODE_PYTHON" in src
 
     def test_happy_plugin_checks_py_launcher_on_windows(self):
         """Happy: Plugin checks py -3 on Windows."""
-        src = (REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs").read_text(encoding="utf-8")
+        src = (REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs").read_text(encoding="utf-8")
         assert "py" in src
 
     def test_happy_plugin_checks_python3_on_unix(self):
         """Happy: Plugin checks python3 on Unix."""
-        src = (REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs").read_text(encoding="utf-8")
+        src = (REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs").read_text(encoding="utf-8")
         assert "python3" in src
 
 

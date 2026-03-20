@@ -82,7 +82,7 @@ def schema(request: pytest.FixtureRequest) -> dict:
     if request.param == "embedded":
         return SESSION_STATE_CORE_SCHEMA
     repo_root = Path(__file__).resolve().parents[1]
-    json_path = repo_root / "governance" / "assets" / "schemas" / "session_state.core.v1.schema.json"
+    json_path = repo_root / "governance_runtime" / "assets" / "schemas" / "session_state.core.v1.schema.json"
     with open(json_path, encoding="utf-8") as f:
         return json.load(f)
 
@@ -382,7 +382,7 @@ class TestBusinessRuleCandidatesSchemaSync:
     def test_both_schemas_have_business_rule_candidates(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         json_path = (
-            repo_root / "governance" / "assets" / "schemas" / "session_state.core.v1.schema.json"
+            repo_root / "governance_runtime" / "assets" / "schemas" / "session_state.core.v1.schema.json"
         )
         with open(json_path, encoding="utf-8") as f:
             json_schema = json.load(f)
@@ -412,7 +412,7 @@ class TestBusinessRuleCandidatesSchemaSync:
         """Both schemas must require the same fields on candidate items."""
         repo_root = Path(__file__).resolve().parents[1]
         json_path = (
-            repo_root / "governance" / "assets" / "schemas" / "session_state.core.v1.schema.json"
+            repo_root / "governance_runtime" / "assets" / "schemas" / "session_state.core.v1.schema.json"
         )
         with open(json_path, encoding="utf-8") as f:
             json_schema = json.load(f)
@@ -442,7 +442,7 @@ class TestBusinessRuleCandidatesSchemaSync:
         """Both schemas must list the same pattern_type enum values."""
         repo_root = Path(__file__).resolve().parents[1]
         json_path = (
-            repo_root / "governance" / "assets" / "schemas" / "session_state.core.v1.schema.json"
+            repo_root / "governance_runtime" / "assets" / "schemas" / "session_state.core.v1.schema.json"
         )
         with open(json_path, encoding="utf-8") as f:
             json_schema = json.load(f)

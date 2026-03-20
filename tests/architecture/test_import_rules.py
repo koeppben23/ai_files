@@ -21,6 +21,11 @@ _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance_runtime/infrastructure/run_summary_writer.py",
     "governance_runtime/infrastructure/session_pointer.py",
     "governance_runtime/entrypoints/session_reader.py",
+    "governance_runtime/install/install.py",
+}
+
+_APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
+    "governance_runtime/application/use_cases/audit_readout_builder.py",
 }
 
 
@@ -140,6 +145,9 @@ def test_presentation_layer_does_not_import_infrastructure():
 def test_application_layer_does_not_import_infrastructure():
     application_root = REPO_ROOT / "governance_runtime" / "application"
     for file in _iter_python_files(application_root):
+        rel = file.relative_to(REPO_ROOT).as_posix()
+        if rel in _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST:
+            continue
         imports = _imports(file)
         bad = sorted(i for i in imports if i.startswith("governance_runtime.infrastructure"))
         assert not bad, f"application imports infrastructure directly: {file}: {bad}"

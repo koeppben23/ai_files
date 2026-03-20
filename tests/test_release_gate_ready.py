@@ -405,7 +405,7 @@ class TestE2ETestMatrix:
         repo = tmp_path / "repo"
         _git_init_repo(repo)
         
-        (isolated_env["commands_home"] / "governance.paths.json").write_text(
+        (isolated_env["config_root"] / "governance.paths.json").write_text(
             '{"schema": "invalid", "paths": {}}', encoding="utf-8"
         )
         

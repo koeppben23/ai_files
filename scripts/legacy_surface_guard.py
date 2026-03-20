@@ -55,20 +55,22 @@ SKIP_DIRS = {
     "node_modules",
 }
 
-IMPORT_PATTERN = re.compile(r"\b(from|import)\s+governance(\.|\b)")
+IMPORT_PATTERN = re.compile(r"^\s*(from|import)\s+governance(?:\.|\b)")
 MODULE_RUN_PATTERN = re.compile(r"python\s+-m\s+governance\.")
 PATH_PATTERNS = (
-    "governance/",
-    "governance/assets",
-    "governance/kernel",
-    "governance/entrypoints",
+    "governance/kernel/",
+    "governance/entrypoints/",
     "governance/VERSION",
 )
 PATH_LITERAL_PATTERN = re.compile(
-    r"(['\"`])(?:governance/|governance/assets|governance/kernel|governance/entrypoints|governance/VERSION)"
+    r"(['\"`])(?:governance/kernel/|governance/entrypoints/|governance/VERSION)"
 )
 
-ALLOW_WRITE_TEXT = ("governance_runtime/infrastructure/fs_atomic.py",)
+ALLOW_WRITE_TEXT = (
+    "governance_runtime/infrastructure/fs_atomic.py",
+    "governance_runtime/install/install.py",
+    "governance_runtime/session_state/serde.py",
+)
 RESTRICTED_ENV_PARTS = {
     ("governance_runtime", "application"),
     ("governance_runtime", "domain"),

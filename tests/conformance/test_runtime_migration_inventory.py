@@ -61,9 +61,9 @@ class TestRuntimeMigrationTargetLayout:
 class TestMigrationSourceInventory:
     """Inventory of source directories that need migration."""
 
-    def test_source_governance_exists(self):
-        """Source: governance/ directory (to be migrated)."""
-        assert (REPO_ROOT / "governance").is_dir()
+    def test_source_governance_removed(self):
+        """Legacy source governance/ directory is removed post-migration."""
+        assert not (REPO_ROOT / "governance").exists()
 
     def test_source_cli_exists(self):
         """Source: cli/ directory (to be migrated)."""

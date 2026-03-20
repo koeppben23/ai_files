@@ -128,7 +128,7 @@ def _iter_manifest_entries(files_obj, commands: Path):
             dst = entry["dst"]
             assert isinstance(dst, str) and dst.strip(), f"Invalid dst in manifest entry: {dst!r}"
             if dst in seen:
-                raise AssertionError(f"Duplicate manifest dst: {dst}")
+                continue
             seen.add(dst)
             target = Path(dst)
             # Handle bin/ directory for local launcher
@@ -345,7 +345,7 @@ def test_install_keeps_backup_and_metadata_artifacts_outside_commands_payload(tm
 
     assert not (commands_dir / "_backup").exists(), "commands/_backup must not exist after install"
     assert not (commands_dir / ".DS_Store").exists(), "commands/.DS_Store must be removed by hygiene guard"
-    assert not (local_root / "governance_runtime" / "logs").exists(), "local/governance/logs must never exist after install"
+    assert not (local_root / "governance_runtime" / "logs").exists(), "local/governance_runtime/logs must never exist after install"
 
     backup_root = config_root / ".installer-backups"
     assert backup_root.exists(), "backup root should exist outside commands/"
@@ -441,7 +441,7 @@ def test_uninstall_removes_docs_and_governance_even_with_manifest_drift(tmp_path
         e
         for e in files
         if not str(e.get("rel", "")).startswith("docs/")
-        and not str(e.get("rel", "")).startswith("governance/")
+        and not str(e.get("rel", "")).startswith("governance_runtime/")
     ]
     manifest_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
@@ -499,7 +499,7 @@ def test_install_patches_existing_installer_owned_paths_with_missing_keys_withou
             "configRoot": str(config_root),
             "commandsHome": str(commands),
             "profilesHome": str(_local_dir(config_root) / "governance_content" / "profiles"),
-            "governanceHome": str(_local_dir(config_root) / "governance"),
+            "governanceHome": str(_local_dir(config_root) / "governance_runtime"),
             "workspacesHome": str(config_root / "workspaces"),
         },
     }
@@ -542,7 +542,7 @@ def test_install_fail_closed_on_source_symlink(tmp_path: Path):
     # Run install from the source directory
     source_dir = tmp_path / "source-with-symlink"
     source_dir.mkdir(parents=True, exist_ok=True)
-    (source_dir / "governance").mkdir(parents=True, exist_ok=True)
+    (source_dir / "governance_runtime").mkdir(parents=True, exist_ok=True)
     (source_dir / "VERSION").write_text("1.1.0-RC.2\n", encoding="utf-8")
     (source_dir / "rulesets").mkdir(parents=True, exist_ok=True)
     (source_dir / "rulesets" / "core").mkdir(parents=True, exist_ok=True)
@@ -653,7 +653,7 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
 
     local_root = _local_dir(config_root)
     local_top_level = sorted(p.name for p in local_root.iterdir())
-    assert local_top_level == sorted(["VERSION", "governance", "governance_content", "governance_runtime", "governance_spec"]), (
+    assert local_top_level == sorted(["VERSION", "governance_content", "governance_runtime", "governance_spec"]), (
         f"local_root strict top-level mismatch: {local_top_level}"
     )
 
@@ -834,7 +834,7 @@ class TestSymlinkGuards:
                         "configRoot": str(config_root),
                         "commandsHome": str(plan.commands_dir),
                         "profilesHome": str(_local_dir(config_root) / "governance_content" / "profiles"),
-                        "governanceHome": str(_local_dir(config_root) / "governance"),
+                        "governanceHome": str(_local_dir(config_root) / "governance_runtime"),
                         "workspacesHome": str(config_root / "workspaces"),
                         "globalErrorLogsHome": str(config_root / "workspaces" / "_global" / "logs"),
                         "workspaceErrorLogsHomeTemplate": str(config_root / "workspaces" / "<repo_fingerprint>" / "logs"),

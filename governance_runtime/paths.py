@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from governance_runtime import layer_adapter
+
 
 def get_config_root() -> Path:
     env_root = os.environ.get("OPENCODE_CONFIG_ROOT")
@@ -19,4 +21,4 @@ def get_workspace_logs_root(repo_fingerprint: str) -> Path:
     return get_workspace_root(repo_fingerprint) / "logs"
 
 
-__all__ = ["get_config_root", "get_workspace_root", "get_workspace_logs_root"]
+__all__ = ["get_config_root", "get_workspace_root", "get_workspace_logs_root", "layer_adapter"]

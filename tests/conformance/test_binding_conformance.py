@@ -25,7 +25,7 @@ CONTRACT_PATH = get_docs_path() / "contracts" / "python-binding-contract.v1.md"
 INSTALL_PATH = REPO_ROOT / "governance_runtime" / "install" / "install.py"
 ROOT_INSTALL_PATH = REPO_ROOT / "install.py"
 PLUGIN_PATH = (
-    REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+    REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
 )
 THIS_FILE_REL = "tests/conformance/test_binding_conformance.py"
 

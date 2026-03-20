@@ -170,7 +170,7 @@ class TestPlanRecordArtifactConfig:
     def test_plan_record_in_artifacts_yaml(self) -> None:
         import yaml
 
-        yaml_path = REPO_ROOT / "governance" / "assets" / "config" / "persistence_artifacts.yaml"
+        yaml_path = REPO_ROOT / "governance_runtime" / "assets" / "config" / "persistence_artifacts.yaml"
         content = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
         artifacts = content.get("artifacts", {})
         assert "plan_record" in artifacts
@@ -178,7 +178,7 @@ class TestPlanRecordArtifactConfig:
     def test_plan_record_phase_window(self) -> None:
         import yaml
 
-        yaml_path = REPO_ROOT / "governance" / "assets" / "config" / "persistence_artifacts.yaml"
+        yaml_path = REPO_ROOT / "governance_runtime" / "assets" / "config" / "persistence_artifacts.yaml"
         content = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
         plan_record = content["artifacts"]["plan_record"]
         phase_window = plan_record.get("phase_window", {})

@@ -16,7 +16,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CATALOGS_DIR = REPO_ROOT / "governance" / "assets" / "catalogs"
+CATALOGS_DIR = REPO_ROOT / "governance_runtime" / "assets" / "catalogs"
 
 SEMVER3_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 

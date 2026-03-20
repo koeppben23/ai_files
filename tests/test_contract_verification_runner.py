@@ -29,12 +29,12 @@ def test_runner_bad_when_pytest_node_fails(monkeypatch) -> None:
 
 def test_runner_corner_missing_registry_method_is_unverified(tmp_path: Path, monkeypatch) -> None:
     repo = tmp_path
-    (repo / "governance" / "contracts" / "requirements").mkdir(parents=True)
-    (repo / "governance" / "contracts" / "verification_registry.json").write_text(
+    (repo / "governance_runtime" / "contracts" / "requirements").mkdir(parents=True)
+    (repo / "governance_runtime" / "contracts" / "verification_registry.json").write_text(
         json.dumps({"schema": "governance-verification-registry.v1", "requirements": {}}, ensure_ascii=True),
         encoding="utf-8",
     )
-    (repo / "governance" / "contracts" / "requirements" / "R-X.json").write_text(
+    (repo / "governance_runtime" / "contracts" / "requirements" / "R-X.json").write_text(
         json.dumps(
             {
                 "id": "R-X",

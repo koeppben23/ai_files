@@ -468,7 +468,7 @@ REASON_CODE_HINTS: Final[dict[str, str]] = {
     ),
     BLOCKED_INSTALL_VERSION_MISSING: (
         "Governance version metadata not found. "
-        "Ensure governance/VERSION contains a semantic version."
+        "Ensure governance_runtime/VERSION contains a semantic version."
     ),
     BLOCKED_INSTALL_CONFIG_ROOT_INVALID: (
         "Config root path is invalid or not writable. "

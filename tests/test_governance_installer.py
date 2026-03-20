@@ -319,9 +319,9 @@ class TestCollectRuntime:
 
     def test_collects_runtime_files(self, tmp_path: Path) -> None:
         """Collects runtime Python files."""
-        (tmp_path / "governance").mkdir()
-        (tmp_path / "governance" / "orchestrator.py").write_text("# Python")
-        (tmp_path / "governance" / "__init__.py").write_text("# Init")
+        (tmp_path / "governance_runtime").mkdir()
+        (tmp_path / "governance_runtime" / "orchestrator.py").write_text("# Python")
+        (tmp_path / "governance_runtime" / "__init__.py").write_text("# Init")
         (tmp_path / "master.md").write_text("# Master")  # Content, not runtime
         
         result = collect_runtime(tmp_path)
@@ -389,8 +389,8 @@ class TestCollectForInstallTarget:
 
     def test_collects_runtime_for_target(self, tmp_path: Path) -> None:
         """Collects runtime when target is 'runtime'."""
-        (tmp_path / "governance").mkdir()
-        (tmp_path / "governance" / "orchestrator.py").write_text("# Python")
+        (tmp_path / "governance_runtime").mkdir()
+        (tmp_path / "governance_runtime" / "orchestrator.py").write_text("# Python")
         (tmp_path / "master.md").write_text("# Master")
         
         result = collect_for_install_target(tmp_path, "runtime")

@@ -146,7 +146,7 @@ class TestSchemaValidator:
     def test_schema_sync_between_json_and_fallback(self):
         """Verify the hardcoded fallback matches the JSON file."""
         repo_root = Path(__file__).resolve().parents[1]
-        json_path = repo_root / "governance" / "assets" / "schemas" / "session_state.core.v1.schema.json"
+        json_path = repo_root / "governance_runtime" / "assets" / "schemas" / "session_state.core.v1.schema.json"
         with open(json_path, encoding="utf-8") as f:
             json_schema = json.load(f)
 

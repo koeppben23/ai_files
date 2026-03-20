@@ -16,14 +16,14 @@ _POLICY_FILES = [
 
 
 def _copy_policy_files(commands_home: Path) -> None:
-    src_root = REPO_ROOT / "governance" / "assets"
+    src_root = REPO_ROOT / "governance_runtime" / "assets"
     for filename in _POLICY_FILES:
         if filename == "blocked_reason_catalog.yaml":
             src = src_root / "reasons" / filename
-            dst_dir = commands_home / "governance" / "assets" / "reasons"
+            dst_dir = commands_home / "governance_runtime" / "assets" / "reasons"
         else:
             src = src_root / "config" / filename
-            dst_dir = commands_home / "governance" / "assets" / "config"
+            dst_dir = commands_home / "governance_runtime" / "assets" / "config"
         if src.exists():
             dst_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst_dir / filename)

@@ -31,10 +31,10 @@ def _resolve_existing_rel(rel: str) -> str:
 
 
 def _governance_version() -> str:
-    version_file = REPO_ROOT / "governance" / "VERSION"
-    assert version_file.exists(), "Missing governance/VERSION"
+    version_file = REPO_ROOT / "governance_runtime" / "VERSION"
+    assert version_file.exists(), "Missing governance_runtime/VERSION"
     version = version_file.read_text(encoding="utf-8").strip()
-    assert version, "Empty governance/VERSION"
+    assert version, "Empty governance_runtime/VERSION"
     return version
 
 
@@ -63,7 +63,7 @@ def _top_level_prefix(names: list[str]) -> set[str]:
 
 
 def _shipped_customer_scripts() -> set[str]:
-    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
     return {
         str(entry["path"])
         for entry in payload.get("scripts", [])
@@ -147,7 +147,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
     required_rel = {
         "install.py",
         "cli/bootstrap.py",
-        "governance/VERSION",
+        "governance_runtime/VERSION",
         _resolve_existing_rel("master.md"),
         _resolve_existing_rel("rules.md"),
         "BOOTSTRAP.md",
@@ -206,7 +206,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         # - profiles/addons/*.addon.yml
         # - governance_runtime/entrypoints/*.py runtime helpers
         # - cli/*.py local bootstrap runtime package
-        # - governance/artifacts/opencode-plugins/*.{mjs,js} desktop session hooks
+        # - governance_runtime/artifacts/opencode-plugins/*.{mjs,js} desktop session hooks
         # - scripts/*.py listed in CUSTOMER_SCRIPT_CATALOG ship_in_release
         # - templates/github-actions/*.yml listed in workflow template catalog
         for n in files:
@@ -220,17 +220,13 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
                 continue
             if rel.startswith("governance_runtime/entrypoints/") and Path(name).suffix.lower() == ".py":
                 continue
-            if rel.startswith("governance/") and Path(name).suffix.lower() == ".py":
-                continue
             if rel.startswith("governance_runtime/") and Path(name).suffix.lower() == ".py":
                 continue
             if rel.startswith("bootstrap/") and Path(name).suffix.lower() == ".py":
                 continue
             if rel.startswith("cli/") and Path(name).suffix.lower() == ".py":
                 continue
-            if rel.startswith("governance/artifacts/opencode-plugins/") and Path(name).suffix.lower() in {".mjs", ".js"}:
-                continue
-            if rel == "governance/VERSION":
+            if rel.startswith("governance_runtime/artifacts/opencode-plugins/") and Path(name).suffix.lower() in {".mjs", ".js"}:
                 continue
             if rel == "governance_runtime/VERSION":
                 continue

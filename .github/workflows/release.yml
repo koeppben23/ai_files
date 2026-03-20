@@ -77,11 +77,11 @@ jobs:
           expected = "${{ steps.release_tag.outputs.version }}"
           
           # Read from VERSION file (authoritative source)
-          version_file = Path("governance/VERSION")
+          version_file = Path("VERSION")
           if version_file.exists():
               observed = version_file.read_text(encoding="utf-8").strip()
           else:
-              print("BLOCKED: governance/VERSION not found", file=sys.stderr)
+              print("BLOCKED: VERSION not found", file=sys.stderr)
               raise SystemExit(1)
           
           if observed != expected:

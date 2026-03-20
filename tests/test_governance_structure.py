@@ -44,8 +44,8 @@ class TestGetDirectoryType:
 
     def test_governance_is_runtime(self) -> None:
         """governance/ maps to GOVERNANCE_RUNTIME via layer classification."""
-        assert get_directory_type("governance/") == DirectoryType.GOVERNANCE_RUNTIME
-        assert get_directory_type("governance/engine/orchestrator.py") == DirectoryType.GOVERNANCE_RUNTIME
+        assert get_directory_type("governance_runtime/") == DirectoryType.GOVERNANCE_RUNTIME
+        assert get_directory_type("governance_runtime/engine/orchestrator.py") == DirectoryType.GOVERNANCE_RUNTIME
 
     def test_docs_is_content(self) -> None:
         """docs/ maps to GOVERNANCE_CONTENT via layer classification."""

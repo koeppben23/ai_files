@@ -68,7 +68,7 @@ def _check_reason_registry_parity(repo_root: Path) -> tuple[bool, str | None]:
 
 
 def _check_yaml_reason_refs(repo_root: Path) -> tuple[bool, str | None]:
-    yaml_root = repo_root / "governance"
+    yaml_root = repo_root / "governance_runtime" / "assets" / "config"
     unknown: set[str] = set()
     if yaml_root.exists():
         for yaml_path in sorted(yaml_root.glob("*.yaml")):

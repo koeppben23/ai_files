@@ -108,7 +108,7 @@ class TestRuntimeClassification:
 
     def test_plugin_mjs_is_not_runtime(self) -> None:
         """OpenCode plugins are NOT runtime (they're plugins)."""
-        assert is_runtime_file(Path("governance/artifacts/opencode-plugins/audit-new-session.mjs")) is False
+        assert is_runtime_file(Path("governance_runtime/artifacts/opencode-plugins/audit-new-session.mjs")) is False
 
 
 class TestContentVsSpecBoundary:

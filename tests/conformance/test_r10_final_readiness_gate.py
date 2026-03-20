@@ -46,10 +46,14 @@ class TestR10FinalReadinessGate:
         assert not edges, f"R10 gate failed: runtime contains governance.* imports: {edges[:20]}"
 
     def test_legacy_runtime_bridges_are_logic_free(self) -> None:
+        legacy_root = REPO_ROOT / "governance"
+        if not legacy_root.exists():
+            assert not legacy_root.exists()
+            return
         runtime_bridge_pat = re.compile(r"^\s*(?:from|import)\s+governance_runtime\.", re.MULTILINE)
         active_logic_pat = re.compile(r"^\s*(?:def|class)\s+", re.MULTILINE)
         offenders: list[str] = []
-        for py_file in (REPO_ROOT / "governance").rglob("*.py"):
+        for py_file in legacy_root.rglob("*.py"):
             if py_file.name == "__init__.py":
                 continue
             text = py_file.read_text(encoding="utf-8")
