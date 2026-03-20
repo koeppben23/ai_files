@@ -28,7 +28,7 @@
 ### 2. Version SSOT
 
 - Single source of truth for version: `VERSION` at repository root
-- `governance/VERSION` is deprecated and should be removed
+- Legacy VERSION path in the former governance namespace is deprecated and should be removed
 
 ### 3. Logging Rule (Hard)
 

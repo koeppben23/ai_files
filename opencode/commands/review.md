@@ -1,5 +1,7 @@
 # Governance Review
 
+Command-surface rail for `/review`; normative long-form guidance is mirrored here for execution fidelity.
+
 <!-- rail-classification: READ-ONLY, GATE-EVALUATION, NO-STATE-CHANGE -->
 
 ## Purpose
