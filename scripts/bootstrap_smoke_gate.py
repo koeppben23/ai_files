@@ -36,10 +36,9 @@ def _ensure_spec_authority(config_root: Path, local_root: Path, repo_root: Path)
         payload = {"schema": "opencode-governance.paths.v1", "paths": {}}
         paths = {}
 
-    commands_home = Path(str(paths.get("commandsHome") or (config_root / "commands")))
-    workspaces_home = Path(str(paths.get("workspacesHome") or (config_root / "workspaces")))
-    raw_spec_home = str(paths.get("specHome") or (local_root / "governance_spec"))
-    spec_home = Path(raw_spec_home)
+    commands_home = config_root / "commands"
+    workspaces_home = config_root / "workspaces"
+    spec_home = local_root / "governance_spec"
 
     runtime_home = local_root / "governance_runtime"
     governance_home = local_root / "governance"
@@ -67,10 +66,8 @@ def _ensure_spec_authority(config_root: Path, local_root: Path, repo_root: Path)
     for path in (commands_home, workspaces_home, runtime_home, governance_home, content_home, spec_home, profiles_home):
         path.mkdir(parents=True, exist_ok=True)
     phase_api = spec_home / "phase_api.yaml"
-    if not phase_api.exists():
-        src = repo_root / "governance_spec" / "phase_api.yaml"
-        if not src.exists():
-            return None
+    src = repo_root / "governance_spec" / "phase_api.yaml"
+    if src.exists():
         phase_api.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
     return None
 
@@ -119,7 +116,24 @@ def run_bootstrap_smoke(repo_root: Path, python_cmd: str) -> list[str]:
         ]
         code, out, err = _run(bootstrap_cmd, repo_root)
         if code != 0:
+            debug_lines: list[str] = []
+            if "BLOCKED_PHASE_API_MISSING" in out:
+                binding = config_root.resolve() / "governance.paths.json"
+                if binding.exists():
+                    payload = json.loads(binding.read_text(encoding="utf-8"))
+                    raw_paths = payload.get("paths", payload)
+                    paths = dict(raw_paths) if isinstance(raw_paths, dict) else {}
+                    spec_home = Path(str(paths.get("specHome", "")))
+                    phase_api = spec_home / "phase_api.yaml" if str(spec_home) else None
+                    debug_lines.append(f"binding={binding}")
+                    debug_lines.append(f"binding.specHome={spec_home}")
+                    if phase_api is not None:
+                        debug_lines.append(f"phase_api.exists={phase_api.exists()}")
+                        if phase_api.exists():
+                            debug_lines.append(f"phase_api.size={phase_api.stat().st_size}")
             issues.append(f"bootstrap phase failed (code={code})\nstdout:\n{out}\nstderr:\n{err}")
+            if debug_lines:
+                issues.append("bootstrap authority debug:\n" + "\n".join(debug_lines))
 
         uninstall_cmd = [
             python_cmd,
