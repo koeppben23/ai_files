@@ -17,7 +17,7 @@ Terminology (explicit):
 | Surface | Role | Binding | Notes |
 |---|---|---|---|
 | `governance_runtime/kernel/*` | Runtime routing, transitions, gate decisions | Yes | Source of execution truth |
-| `${COMMANDS_HOME}/phase_api.yaml` | Phase graph and transition config | Yes | Kernel-consumed control plane |
+| `${SPEC_HOME}/phase_api.yaml` | Phase graph and transition config | Yes | Kernel-consumed control plane |
 | `governance_runtime/assets/schemas/*` | Data contract validation | Yes | Session/document shape |
 | `governance_runtime/assets/catalogs/*` | Deterministic catalogs/templates | Yes | Contracted fixtures/templates |
 | `master.md` / `rules.md` / `start.md` | AI behavior rails | No | Guidance only; no runtime authority |

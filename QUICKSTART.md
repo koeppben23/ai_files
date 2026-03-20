@@ -1,4 +1,4 @@
-SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
+SSOT: `${SPEC_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
 Kernel: `governance_runtime/kernel/*` is the canonical control-plane implementation.
 Control-plane enforcement is runtime-native only.
 MD files are AI rails/guidance only and are never routing-binding.

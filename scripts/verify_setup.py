@@ -43,7 +43,7 @@ def check_binding_file() -> tuple[bool, str, dict[str, Any] | None]:
     home = Path.home()
     config_root = Path(os.environ.get("OPENCODE_CONFIG_ROOT", str(home / ".config" / "opencode"))).expanduser()
     local_root = Path(os.environ.get("OPENCODE_LOCAL_ROOT", str(home / ".local" / "opencode"))).expanduser()
-    binding_file = config_root / "commands" / "governance.paths.json"
+    binding_file = config_root / "governance.paths.json"
     
     if not binding_file.exists():
         return False, "not found", None

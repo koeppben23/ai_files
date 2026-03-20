@@ -3,7 +3,7 @@
 This checklist captures non-negotiable governance invariants that must remain true.
 Any change violating one item is a regression.
 
-SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
+SSOT: `${SPEC_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
 Kernel: `governance_runtime/kernel/*` is the canonical control-plane implementation.
 MD files are AI rails/guidance only and are never routing-binding.
 Phase `1.3` is mandatory before every phase `>=2`.
@@ -55,7 +55,7 @@ Evidence:
 
 Evidence:
 - `governance_runtime/kernel/phase_kernel.py`
-- `${COMMANDS_HOME}/phase_api.yaml`
+- `${SPEC_HOME}/phase_api.yaml`
 - `governance_runtime/application/use_cases/orchestrate_run.py`
 - `tests/test_verification_suite.py`
 - `tests/test_engine_orchestrator.py`

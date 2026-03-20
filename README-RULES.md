@@ -6,7 +6,7 @@ It does not define runtime behavior.
 ## Canonical Rule Authorities
 
 - Phase routing, transitions, and gate semantics:
-  - Operative control-plane source: `${COMMANDS_HOME}/phase_api.yaml`
+  - Operative control-plane source: `${SPEC_HOME}/phase_api.yaml`
   - Repo-side source of that projected spec: `governance_spec/phase_api.yaml`
   - Runtime enforcement surface: `governance_runtime/kernel/*`
 - Core technical and quality constraints:

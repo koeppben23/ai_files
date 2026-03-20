@@ -3,7 +3,7 @@
 This document is a detailed phase map that was previously embedded in README.md.
 Authority boundary: policy, gate semantics, and routing are owned by kernel code plus kernel-owned configs/schemas; this file is explanatory and does not widen kernel behavior.
 
-SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
+SSOT: `${SPEC_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
 Kernel: `governance_runtime/kernel/*` is the canonical control-plane implementation.
 MD files are AI rails/guidance only and are never routing-binding.
 Phase `1.3` is mandatory before every phase `>=2`.
@@ -12,7 +12,7 @@ Phase `1.3` is mandatory before every phase `>=2`.
 
 - Phase 0/1.1 performs bootstrap validation and preflight probes (including build tool detection). **Note:** Phase 0 is a customer-facing term; in the kernel, bootstrap logic is unified under Phase 1.1-Bootstrap.
 - Phase 1.1 performs preflight and initializes the governance runtime.
-- **Phase 1.2/1.3 are kernel-owned subphases** of the Rule Loading Pipeline (1.x family). They handle lazy rulebook loading and profile resolution and are routed by the kernel via `${COMMANDS_HOME}/phase_api.yaml`.
+- **Phase 1.2/1.3 are kernel-owned subphases** of the Rule Loading Pipeline (1.x family). They handle lazy rulebook loading and profile resolution and are routed by the kernel via `${SPEC_HOME}/phase_api.yaml`.
 - Phase 1.5 is an optional business-rules routing branch from discovery (2.1), not a parallel executor track.
 - If an external alias is needed, refer to it as customer-facing alias only; kernel semantics and routing remain Phase 1.5.
 - 2.1 creates the Decision Pack; routing then resolves through the Phase 1.5 branch when required.
@@ -101,7 +101,7 @@ Phase 3 is **conditionally executed** based on API presence:
 
 **Key insight:** Phase 3A is executed by default but may immediately exit with `not-applicable` status. Phase 3B-1 and 3B-2 are only executed when APIs are actually present.
 
-**Implementation note:** Phase routing is kernel-enforced by `governance_runtime/kernel/*` against `${COMMANDS_HOME}/phase_api.yaml`. The routing includes:
+**Implementation note:** Phase routing is kernel-enforced by `governance_runtime/kernel/*` against `${SPEC_HOME}/phase_api.yaml`. The routing includes:
 - Phase 2.1 → Phase 1.5 (Business Rules Discovery decision)
 - Phase 1.5 → Phase 3A (default routing; kernel-enforced)
 - Phase 2.1 → Phase 3A (default routing; 3A may exit with not-applicable; kernel-enforced)

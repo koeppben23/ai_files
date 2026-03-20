@@ -1,7 +1,7 @@
 <!-- rail-classification: GUIDANCE, MULTI-PHASE -->
 
 This file is the multi-phase interpretation guide for governance behavior.
-SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
+SSOT: `${SPEC_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
 Kernel: `governance_runtime/kernel/*` is the canonical control-plane implementation.
 MD files are AI rails/guidance only and are never routing-binding.
 Phase `1.3` is mandatory before every phase `>=2`.
@@ -18,7 +18,7 @@ Phase `1.3` is mandatory before every phase `>=2`.
 
 | Area | SSOT source |
 |------|-------------|
-| Routing, transitions, validation | `${COMMANDS_HOME}/phase_api.yaml`, `governance_runtime/kernel/*` |
+| Routing, transitions, validation | `${SPEC_HOME}/phase_api.yaml`, `governance_runtime/kernel/*` |
 | Session-state shape and invariants | `SESSION_STATE_SCHEMA.md`, `governance_runtime/assets/schemas/*` |
 | Response envelope and renderer behavior | `governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` |
 | Blocked reason catalog | `governance_runtime/assets/config/blocked_reason_catalog.yaml` |

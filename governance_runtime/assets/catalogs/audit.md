@@ -95,7 +95,7 @@ It is diagnostic only.
 
 ### AR-5 — Non-normative disclaimer
 - The audit report MUST NOT be interpreted as normative authority.
-- Active runtime evidence (`SESSION_STATE` + kernel + `${COMMANDS_HOME}/phase_api.yaml`) is authoritative for phase/gate status.
+- Active runtime evidence (`SESSION_STATE` + kernel + `${SPEC_HOME}/phase_api.yaml`) is authoritative for phase/gate status.
 
 ## REPORT PERSISTENCE (Repo-aware only; descriptive)
 
