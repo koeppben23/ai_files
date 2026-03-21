@@ -807,3 +807,51 @@ class TestPlanGeneration:
         monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
         monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "implement-llm-cmd")
         assert module._resolve_plan_executor() == "implement-llm-cmd"
+
+    def test_parse_blocks_when_plan_output_schema_missing(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        valid_response = self._valid_plan_response()
+
+        # Mock _load_mandates_schema to return schema WITHOUT planOutputSchema
+        def _schema_without_plan():
+            return {"$defs": {"reviewOutputSchema": {"type": "object"}}}
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _schema_without_plan)
+        result = module._parse_plan_generation_response(valid_response)
+        assert result["blocked"] is True
+        assert "plan-output-schema-missing" in result["reason"]
+
+    def test_parse_blocks_when_mandate_schema_unavailable_in_response(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        valid_response = self._valid_plan_response()
+
+        def _raise_missing():
+            raise module.MandateSchemaMissingError("not found")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_missing)
+        result = module._parse_plan_generation_response(valid_response)
+        assert result["blocked"] is True
+        assert result["reason_code"] == "MANDATE-SCHEMA-UNAVAILABLE"
+
+    def test_auto_generate_blocks_when_mandate_schema_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        doc["SESSION_STATE"]["Ticket"] = "Implement authentication"
+        doc["SESSION_STATE"]["Task"] = "Add JWT login"
+        session_path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+        def _raise_missing():
+            raise module.MandateSchemaMissingError("schema file not found")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_missing)
+
+        rc = module.main(["--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["status"] == "blocked"
+        assert payload["reason_code"] == "MANDATE-SCHEMA-MISSING"

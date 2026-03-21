@@ -321,6 +321,54 @@ def validate_developer_response(
     )
 
 
+def validate_plan_response(
+    data: Any,
+    plan_schema: dict[str, Any] | None = None,
+) -> LLMResponseValidationResult:
+    """Validate an LLM plan generation response against planOutputSchema.
+
+    Args:
+        data: The parsed LLM response (should be a dict).
+        plan_schema: The planOutputSchema definition dict. Must be provided.
+
+    Returns:
+        LLMResponseValidationResult with valid/invalid status and violation details.
+    """
+    if not isinstance(data, dict):
+        return LLMResponseValidationResult(
+            valid=False,
+            result=ValidationResult.INVALID,
+            verdict="unknown",
+            raw_violations=[f"plan response must be a JSON object, got {type(data).__name__}"],
+        )
+
+    all_errors: list[str] = []
+
+    if plan_schema is not None and isinstance(plan_schema, dict):
+        all_errors.extend(_validate_json_schema(data, plan_schema))
+    else:
+        all_errors.append("plan-schema-unavailable: no planOutputSchema provided for validation")
+
+    violations = []
+    for err in all_errors:
+        violations.append(
+            ValidationViolation(
+                field=_extract_field_from_error(err),
+                expected=_extract_expected_from_error(err),
+                actual=_extract_actual_from_error(err),
+                rule=err,
+            )
+        )
+
+    return LLMResponseValidationResult(
+        valid=len(all_errors) == 0,
+        result=ValidationResult.VALID if not all_errors else ValidationResult.INVALID,
+        verdict="plan_response",
+        violations=violations,
+        raw_violations=all_errors,
+    )
+
+
 def _extract_field_from_error(err: str) -> str:
     if ":" in err:
         prefix = err.split(":")[0].strip()

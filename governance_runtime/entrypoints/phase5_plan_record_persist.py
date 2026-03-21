@@ -450,12 +450,19 @@ def _parse_plan_generation_response(response_text: str) -> dict[str, object]:
     """Parse and validate LLM plan generation response.
 
     Fail-closed: only structured, schema-valid JSON responses proceed.
+    Validator must be importable — no fallback to manual field check.
+    planOutputSchema must be present and non-empty.
     """
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
     try:
         from llm_response_validator import validate_plan_response
-    except Exception:
-        validate_plan_response = None
+    except Exception as exc:
+        return {
+            "blocked": True,
+            "reason": f"plan-validator-unavailable: {exc}",
+            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+            "recovery_action": "Ensure llm_response_validator module is importable for plan validation.",
+        }
 
     raw_text = response_text.strip()
 
@@ -483,11 +490,18 @@ def _parse_plan_generation_response(response_text: str) -> dict[str, object]:
             "recovery_action": "LLM did not return valid JSON for plan generation.",
         }
 
-    # Validate against planOutputSchema
+    # Load planOutputSchema — must be present and non-empty
     try:
         mandates_schema = _load_mandates_schema()
         defs = mandates_schema.get("$defs", {})
-        plan_schema = defs.get("planOutputSchema", {})
+        plan_schema = defs.get("planOutputSchema")
+        if not plan_schema or not isinstance(plan_schema, dict):
+            return {
+                "blocked": True,
+                "reason": "plan-output-schema-missing: planOutputSchema not found in mandates schema",
+                "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+                "recovery_action": "Ensure planOutputSchema is defined in governance_mandates.v1.schema.json.",
+            }
     except (
         MandateSchemaMissingError,
         MandateSchemaInvalidJsonError,
@@ -501,31 +515,17 @@ def _parse_plan_generation_response(response_text: str) -> dict[str, object]:
             "recovery_action": "Ensure governance_mandates.v1.schema.json is loadable.",
         }
 
-    if validate_plan_response is not None:
-        validation = validate_plan_response(parsed_data, plan_schema=plan_schema)
-        if not validation.valid:
-            violations = [v.rule for v in validation.violations]
-            return {
-                "blocked": True,
-                "reason": f"plan-schema-violation: {violations}",
-                "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
-                "recovery_action": "LLM response did not conform to planOutputSchema.",
-                "validation_violations": violations,
-            }
-    else:
-        # Fallback: manual required-fields check
-        required_fields = [
-            "objective", "target_state", "target_flow", "state_machine",
-            "blocker_taxonomy", "audit", "go_no_go", "test_strategy", "reason_code",
-        ]
-        missing = [f for f in required_fields if not parsed_data.get(f)]
-        if missing:
-            return {
-                "blocked": True,
-                "reason": f"plan-missing-required-fields: {missing}",
-                "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
-                "recovery_action": f"LLM plan response missing required fields: {missing}",
-            }
+    # Validate against planOutputSchema — fail-closed, no fallback
+    validation = validate_plan_response(parsed_data, plan_schema=plan_schema)
+    if not validation.valid:
+        violations = [v.rule for v in validation.violations]
+        return {
+            "blocked": True,
+            "reason": f"plan-schema-violation: {violations}",
+            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+            "recovery_action": "LLM response did not conform to planOutputSchema.",
+            "validation_violations": violations,
+        }
 
     # Convert structured plan to markdown plan text for the existing review/persist chain
     plan_text = _structured_plan_to_markdown(parsed_data)
@@ -1213,29 +1213,79 @@ def main(argv: list[str] | None = None) -> int:
         evidence = getattr(resolver, "resolve")(mode="user")
         commands_home = evidence.commands_home
 
-        # Load mandate schema for plan mandate text
+        # Load mandate schema for plan mandate text — fail-closed
         plan_mandate = ""
+        mandates_schema: dict[str, object] | None = None
         try:
             mandates_schema = _load_mandates_schema()
             plan_mandate = _build_plan_mandate_text(mandates_schema)
-        except (
-            MandateSchemaMissingError,
-            MandateSchemaInvalidJsonError,
-            MandateSchemaInvalidStructureError,
-            MandateSchemaUnavailableError,
-        ):
-            pass
+        except MandateSchemaMissingError as exc:
+            payload = _payload(
+                "blocked",
+                reason_code="MANDATE-SCHEMA-MISSING",
+                reason=f"plan-mandate-schema-missing: {exc}",
+                recovery_action="Ensure governance_mandates.v1.schema.json exists at canonical path.",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+        except MandateSchemaInvalidJsonError as exc:
+            payload = _payload(
+                "blocked",
+                reason_code="MANDATE-SCHEMA-INVALID-JSON",
+                reason=f"plan-mandate-schema-invalid-json: {exc}",
+                recovery_action="Fix JSON syntax in governance_mandates.v1.schema.json.",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+        except MandateSchemaInvalidStructureError as exc:
+            payload = _payload(
+                "blocked",
+                reason_code="MANDATE-SCHEMA-INVALID-STRUCTURE",
+                reason=f"plan-mandate-schema-invalid-structure: {exc}",
+                recovery_action="Ensure mandate schema has valid plan_mandate block.",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+        except MandateSchemaUnavailableError as exc:
+            payload = _payload(
+                "blocked",
+                reason_code="MANDATE-SCHEMA-UNAVAILABLE",
+                reason=f"plan-mandate-schema-unavailable: {exc}",
+                recovery_action="Check file permissions for governance_mandates.v1.schema.json.",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
 
-        # Load effective authoring policy (temporary — will be refactored to effective_plan_policy)
+        if not plan_mandate:
+            payload = _payload(
+                "blocked",
+                reason_code="PLAN-MANDATE-EMPTY",
+                reason="plan-mandate-empty: mandate schema loaded but plan_mandate block produced no text",
+                recovery_action="Ensure plan_mandate block in governance_mandates.v1.schema.json has content.",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+
+        # Load effective authoring policy — fail-closed (temporary — will be refactored to effective_plan_policy)
         effective_policy_text = ""
+        effective_policy_error = ""
         try:
             from governance_runtime.entrypoints.implement_start import _load_effective_authoring_policy_text
-            effective_policy_text, _ep_err = _load_effective_authoring_policy_text(
+            effective_policy_text, effective_policy_error = _load_effective_authoring_policy_text(
                 state=state,
                 commands_home=commands_home,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            effective_policy_error = str(exc)
+        if effective_policy_error:
+            payload = _payload(
+                "blocked",
+                reason_code=BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+                reason=f"effective-policy-unavailable: {effective_policy_error}",
+                recovery_action="Ensure rulebooks and addons are loadable and contain valid policy content.",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
 
         gen_result = _call_llm_generate_plan(
             ticket_text=ticket_text,
