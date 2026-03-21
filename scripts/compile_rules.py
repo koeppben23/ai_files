@@ -24,6 +24,57 @@ _RULES_MD = _REPO_ROOT / "governance_content" / "reference" / "rules.md"
 _SCHEMA_OUT = _REPO_ROOT / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 _SCHEMA_VERSION = "1.0.0"
 
+_REVIEW_OUTPUT_SCHEMA = {
+    "type": "object",
+    "description": "Structured output contract for LLM review responses",
+    "required": ["verdict", "governing_evidence", "contract_check", "findings", "regression_assessment", "test_assessment"],
+    "additionalProperties": False,
+    "properties": {
+        "verdict": {"type": "string", "enum": ["approve", "changes_requested"]},
+        "governing_evidence": {"type": "string", "minLength": 10},
+        "contract_check": {"type": "string", "minLength": 10},
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["severity", "type", "location", "evidence", "impact", "fix"],
+                "additionalProperties": False,
+                "properties": {
+                    "severity": {"type": "string", "enum": ["critical", "high", "medium", "low"]},
+                    "type": {"type": "string", "enum": ["defect", "risk", "contract-drift", "test-gap", "improvement"]},
+                    "location": {"type": "string", "minLength": 3},
+                    "evidence": {"type": "string", "minLength": 10},
+                    "impact": {"type": "string", "minLength": 10},
+                    "fix": {"type": "string", "minLength": 5},
+                },
+            },
+        },
+        "regression_assessment": {"type": "string", "minLength": 10},
+        "test_assessment": {"type": "string", "minLength": 10},
+    },
+}
+
+_DEVELOPER_OUTPUT_SCHEMA = {
+    "type": "object",
+    "description": "Structured output contract for LLM developer responses",
+    "required": [
+        "objective", "governing_evidence", "touched_surface",
+        "change_summary", "contract_and_authority_check", "test_evidence",
+        "regression_assessment", "residual_risks",
+    ],
+    "additionalProperties": False,
+    "properties": {
+        "objective": {"type": "string", "minLength": 10},
+        "governing_evidence": {"type": "string", "minLength": 10},
+        "touched_surface": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "change_summary": {"type": "string", "minLength": 10},
+        "contract_and_authority_check": {"type": "string", "minLength": 10},
+        "test_evidence": {"type": "string", "minLength": 10},
+        "regression_assessment": {"type": "string", "minLength": 10},
+        "residual_risks": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -276,6 +327,12 @@ def compile_rules() -> dict:
             "compiled_at": {"type": "string", "format": "date-time"},
             "review_mandate": {"type": "object", "description": "Compiled Review mandate"},
             "developer_mandate": {"type": "object", "description": "Compiled Developer/Authoring mandate"},
+            "review_output_schema": {"$ref": "#/$defs/reviewOutputSchema"},
+            "developer_output_schema": {"$ref": "#/$defs/developerOutputSchema"},
+        },
+        "$defs": {
+            "reviewOutputSchema": _REVIEW_OUTPUT_SCHEMA,
+            "developerOutputSchema": _DEVELOPER_OUTPUT_SCHEMA,
         },
         "review_mandate": review_mandate,
         "developer_mandate": developer_mandate,

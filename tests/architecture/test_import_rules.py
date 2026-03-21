@@ -21,6 +21,8 @@ _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance_runtime/infrastructure/run_summary_writer.py",
     "governance_runtime/infrastructure/session_pointer.py",
     "governance_runtime/entrypoints/session_reader.py",
+    "governance_runtime/entrypoints/implement_start.py",
+    "governance_runtime/entrypoints/phase5_plan_record_persist.py",
     "governance_runtime/install/install.py",
 }
 

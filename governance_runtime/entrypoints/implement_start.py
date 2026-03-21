@@ -134,6 +134,20 @@ def _build_authoring_mandate_text(schema: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _get_developer_output_schema_text() -> str:
+    """Extract developerOutputSchema from compiled mandates schema as JSON text."""
+    schema = _load_mandates_schema()
+    if schema:
+        try:
+            defs = schema.get("$defs", {})
+            for key in defs:
+                if key == "developerOutputSchema":
+                    return json.dumps({"$schema": "https://json-schema.org/draft/2020-12/schema", **defs[key]}, indent=2)
+        except Exception:
+            pass
+    return ""
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -317,6 +331,16 @@ def _run_llm_edit_step(
     if schema:
         mandate_text = _build_authoring_mandate_text(schema)
 
+    developer_schema_text = _get_developer_output_schema_text()
+    structured_output_instruction = ""
+    if developer_schema_text:
+        structured_output_instruction = (
+            "\n\nSTRUCTURED OUTPUT REQUIRED:\n"
+            "You MUST respond with valid JSON that conforms to the output schema below.\n"
+            "Do NOT include any text outside the JSON object.\n\n"
+            "Output schema:\n" + developer_schema_text
+        )
+
     context: dict[str, object] = {
         "schema": "opencode.implement.llm-context.v3",
         "ticket": ticket_text,
@@ -339,11 +363,13 @@ def _run_llm_edit_step(
             "Apply the authoring mandate below to implement approved plan steps. "
             "Build only what can be justified by the plan, contracts, and repository evidence. "
             "Do not limit changes to .governance artifacts."
+            + structured_output_instruction
         )
     else:
         context["instruction"] = (
             "Implement approved plan steps using repository edits. "
             "Do not limit changes to .governance artifacts."
+            + structured_output_instruction
         )
     _write_text_atomic(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
@@ -388,6 +414,26 @@ def _run_llm_edit_step(
     _write_text_atomic(stdout_file, str(result.stdout or ""))
     _write_text_atomic(stderr_file, str(result.stderr or ""))
 
+    validation_violations: list[str] = []
+    response_valid = False
+    response_text = (result.stdout or "").strip()
+
+    if response_text and response_text.startswith("{"):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
+        try:
+            from llm_response_validator import validate_developer_response
+            parsed = json.loads(response_text)
+            validation = validate_developer_response(parsed, mandates_schema=schema)
+            if validation.valid:
+                response_valid = True
+            else:
+                validation_violations = validation.raw_violations
+        except Exception:
+            validation_violations = ["response-not-structured-json"]
+    else:
+        if response_text:
+            validation_violations = ["response-not-structured-json"]
+
     changed_files = _parse_changed_files_from_git_status(repo_root)
     return {
         "executor_invoked": True,
@@ -397,6 +443,8 @@ def _run_llm_edit_step(
         "stdout_path": str(stdout_file),
         "stderr_path": str(stderr_file),
         "changed_files": changed_files,
+        "response_valid": response_valid,
+        "validation_violations": validation_violations,
     }
 
 
@@ -561,6 +609,74 @@ def start_implementation(
         plan_text=plan_text,
         required_hotspots=required_hotspots,
     )
+
+    validation_violations = llm_result.get("validation_violations") or []
+    response_valid = bool(llm_result.get("response_valid"))
+
+    if validation_violations:
+        _impl_dir = repo_root / ".governance" / "implementation"
+        _impl_dir.mkdir(parents=True, exist_ok=True)
+        report = validate_implementation(
+            executor_result=ExecutorRunResult(
+                executor_invoked=bool(llm_result.get("executor_invoked")),
+                exit_code=int(str(llm_result.get("exit_code") or "0")),
+                stdout_path=str(llm_result.get("stdout_path") or "") or None,
+                stderr_path=str(llm_result.get("stderr_path") or "") or None,
+                changed_files=(),
+                domain_changed_files=(),
+                governance_only_changes=True,
+            ),
+            plan_coverage=build_plan_coverage(
+                requirements=compiled_requirements,
+                domain_changed_files=tuple(),
+            ),
+            checks=(),
+            forbidden_paths_changed=False,
+        )
+        validation_report_path = _impl_dir / "implementation_validation_report.json"
+        write_validation_report(validation_report_path, report)
+
+        state["implementation_authorized"] = True
+        state["implementation_started"] = True
+        state["implementation_started_at"] = ts
+        state["implementation_started_by"] = actor.strip() or "operator"
+        state["implementation_execution_started"] = True
+        state["implementation_validation_report"] = to_report_payload(report)
+        state["implementation_validation_report_path"] = str(validation_report_path)
+        state["implementation_llm_response_valid"] = response_valid
+        state["implementation_llm_validation_violations"] = validation_violations
+        state["Next"] = "6"
+        state["next"] = "6"
+        state["active_gate"] = "Implementation Blocked"
+        state["next_gate_condition"] = (
+            "Implementation blocked: LLM response failed validation. "
+            f"violations={validation_violations}. Rerun with a schema-compliant response."
+        )
+        _write_json_atomic(session_path, state_doc)
+        audit_event: dict[str, object] = {
+            "schema": "opencode.implementation-started.v2",
+            "ts_utc": ts,
+            "event_id": uuid.uuid4().hex,
+            "event": "IMPLEMENTATION_BLOCKED_VALIDATION",
+            "phase": phase_text,
+            "actor": actor.strip() or "operator",
+            "validation_violations": validation_violations,
+        }
+        if events_path is not None:
+            _append_event(events_path, audit_event)
+        return _payload(
+            "blocked",
+            phase="6-PostFlight",
+            next="6",
+            active_gate="Implementation Blocked",
+            next_gate_condition=state["next_gate_condition"],
+            implementation_started=True,
+            implementation_validation=to_report_payload(report),
+            implementation_llm_response_valid=response_valid,
+            implementation_llm_validation_violations=validation_violations,
+            reason_code="LLM_RESPONSE_VALIDATION_FAILED",
+            reason_codes=validation_violations,
+        )
 
     changed_files_raw = llm_result.get("changed_files")
     changed_files_seq = changed_files_raw if isinstance(changed_files_raw, list) else []

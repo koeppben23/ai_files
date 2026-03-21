@@ -143,8 +143,22 @@ def _has_active_desktop_llm_binding() -> bool:
     return False
 
 
+def _get_review_output_schema_text() -> str:
+    """Return the review output schema as a JSON string for LLM context."""
+    try:
+        schema = _load_mandates_schema()
+        if schema:
+            defs = schema.get("$defs", {})
+            for key in defs:
+                if key == "reviewOutputSchema":
+                    return json.dumps({"$schema": "https://json-schema.org/draft/2020-12/schema", **defs[key]}, indent=2)
+    except Exception:
+        pass
+    return ""
+
+
 def _call_llm_review(content: str, mandate: str) -> dict[str, object]:
-    """Call LLM for review with content and mandate from JSON schema."""
+    """Call LLM for review with structured output enforcement."""
     executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
     if not executor_cmd:
         return {
@@ -159,14 +173,19 @@ def _call_llm_review(content: str, mandate: str) -> dict[str, object]:
     stdout_file = review_dir / "llm_review_stdout.log"
     stderr_file = review_dir / "llm_review_stderr.log"
 
+    output_schema_text = _get_review_output_schema_text()
+    instruction = (
+        "Apply the review mandate to review the provided plan.\n"
+        "You MUST respond with valid JSON that conforms to the output schema below.\n"
+        "Do NOT include any text outside the JSON object.\n\n"
+        "Output schema:\n" + output_schema_text
+    )
+
     context = {
-        "schema": "opencode.review.llm-context.v1",
+        "schema": "opencode.review.llm-context.v2",
         "content_to_review": content,
         "review_mandate": mandate,
-        "instruction": (
-            "Apply the review mandate to review the provided plan. "
-            "Return a structured response with verdict, findings, and recommendations."
-        ),
+        "instruction": instruction,
     }
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
@@ -192,55 +211,82 @@ def _call_llm_review(content: str, mandate: str) -> dict[str, object]:
                 "verdict": "changes_requested",
                 "findings": ["LLM executor returned empty response"],
             }
-        return _parse_llm_review_response(response_text)
+        mandates_schema = _load_mandates_schema()
+        return _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
     except Exception as exc:
         atomic_write_text(stderr_file, str(exc))
         return {"llm_invoked": False, "error": str(exc), "verdict": "changes_requested", "findings": [f"LLM review failed: {exc}"]}
 
 
-def _parse_llm_review_response(response_text: str) -> dict[str, object]:
-    """Parse LLM review response to extract verdict and findings."""
-    verdict = "changes_requested"
-    findings: list[str] = []
-    summary = ""
+def _parse_llm_review_response(
+    response_text: str,
+    mandates_schema: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Parse and validate LLM review response against output contract.
 
-    text_lower = response_text.lower()
+    Fail-closed: only structured, schema-valid JSON responses proceed.
+    Non-JSON and schema-violating responses are hard-blocked with changes_requested.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
+    try:
+        from llm_response_validator import validate_review_response
+    except Exception:
+        validate_review_response = None
 
-    if "verdict:" in text_lower or "verdict :" in text_lower:
-        for line in response_text.split("\n"):
-            line_stripped = line.strip().lower()
-            if line_stripped.startswith("verdict"):
-                if "approve" in line_stripped and "changes" not in line_stripped:
-                    verdict = "approve"
-                break
+    raw_text = response_text.strip()
 
-    if "findings:" in text_lower or "findings :" in text_lower or "## findings" in text_lower:
-        in_findings = False
-        for line in response_text.split("\n"):
-            line_lower = line.lower().strip()
-            if line_lower.startswith("findings") and ":" in line:
-                in_findings = True
-                continue
-            if in_findings and line.strip() and not line.strip().startswith("#") and not line.strip().startswith("-" * 10):
-                if line.strip().startswith("##") or line.strip().startswith("**"):
-                    break
-                if line.strip():
-                    findings.append(line.strip())
+    if not raw_text:
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": ["LLM returned empty response"],
+            "validation_valid": False,
+            "validation_violations": ["response-not-structured-json"],
+            "raw_response": "",
+        }
 
-    for keyword in ["summary", "## summary"]:
-        if keyword in text_lower:
-            for line in response_text.split("\n"):
-                if keyword in line.lower():
-                    summary = line.split(keyword, 1)[1].strip(":- ")
-                    break
-            break
+    parsed_data: dict[str, object] | None = None
 
+    if raw_text.startswith("{"):
+        try:
+            parsed_data = json.loads(raw_text)
+        except json.JSONDecodeError:
+            pass
+
+    if parsed_data is None:
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": [f"response-not-structured-json: LLM did not return valid JSON. Received {len(raw_text)} chars starting with: {raw_text[:80]!r}"],
+            "validation_valid": False,
+            "validation_violations": ["response-not-structured-json"],
+            "raw_response": raw_text[:1000],
+        }
+
+    if validate_review_response is not None:
+        validation = validate_review_response(parsed_data, mandates_schema=mandates_schema)
+        if not validation.valid:
+            return {
+                "llm_invoked": True,
+                "verdict": "changes_requested",
+                "findings": [f"schema-violation: {v.rule}" for v in validation.violations],
+                "validation_valid": False,
+                "validation_violations": [v.rule for v in validation.violations],
+                "raw_response": raw_text[:1000],
+            }
+
+    findings = []
+    for f in parsed_data.get("findings", []) or []:
+        if isinstance(f, dict):
+            findings.append(
+                f"[{f.get('severity', '?')}] {f.get('location', '?')}: {f.get('evidence', '')[:100]}"
+            )
     return {
         "llm_invoked": True,
-        "verdict": verdict,
+        "verdict": parsed_data.get("verdict", "changes_requested"),
         "findings": findings,
-        "summary": summary or response_text[:200],
-        "raw_response": response_text[:1000],
+        "raw_response": raw_text[:1000],
+        "validation_valid": True,
     }
 
 

@@ -35,12 +35,164 @@
     "developer_mandate": {
       "type": "object",
       "description": "Compiled Developer/Authoring mandate"
+    },
+    "review_output_schema": {
+      "$ref": "#/$defs/reviewOutputSchema"
+    },
+    "developer_output_schema": {
+      "$ref": "#/$defs/developerOutputSchema"
+    }
+  },
+  "$defs": {
+    "reviewOutputSchema": {
+      "type": "object",
+      "description": "Structured output contract for LLM review responses",
+      "required": [
+        "verdict",
+        "governing_evidence",
+        "contract_check",
+        "findings",
+        "regression_assessment",
+        "test_assessment"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "approve",
+            "changes_requested"
+          ]
+        },
+        "governing_evidence": {
+          "type": "string",
+          "minLength": 10
+        },
+        "contract_check": {
+          "type": "string",
+          "minLength": 10
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "severity",
+              "type",
+              "location",
+              "evidence",
+              "impact",
+              "fix"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "critical",
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "defect",
+                  "risk",
+                  "contract-drift",
+                  "test-gap",
+                  "improvement"
+                ]
+              },
+              "location": {
+                "type": "string",
+                "minLength": 3
+              },
+              "evidence": {
+                "type": "string",
+                "minLength": 10
+              },
+              "impact": {
+                "type": "string",
+                "minLength": 10
+              },
+              "fix": {
+                "type": "string",
+                "minLength": 5
+              }
+            }
+          }
+        },
+        "regression_assessment": {
+          "type": "string",
+          "minLength": 10
+        },
+        "test_assessment": {
+          "type": "string",
+          "minLength": 10
+        }
+      }
+    },
+    "developerOutputSchema": {
+      "type": "object",
+      "description": "Structured output contract for LLM developer responses",
+      "required": [
+        "objective",
+        "governing_evidence",
+        "touched_surface",
+        "change_summary",
+        "contract_and_authority_check",
+        "test_evidence",
+        "regression_assessment",
+        "residual_risks"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "objective": {
+          "type": "string",
+          "minLength": 10
+        },
+        "governing_evidence": {
+          "type": "string",
+          "minLength": 10
+        },
+        "touched_surface": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "change_summary": {
+          "type": "string",
+          "minLength": 10
+        },
+        "contract_and_authority_check": {
+          "type": "string",
+          "minLength": 10
+        },
+        "test_evidence": {
+          "type": "string",
+          "minLength": 10
+        },
+        "regression_assessment": {
+          "type": "string",
+          "minLength": 10
+        },
+        "residual_risks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "review_mandate": {
     "schema_version": "1.0.0",
     "source": "governance_content/reference/rules.md",
-    "compiled_at": "2026-03-21T10:36:52Z",
+    "compiled_at": "2026-03-21T10:50:07Z",
     "role": "falsification-first reviewer",
     "core_posture": [
       "Assume the change is incorrect until evidence supports it.",
@@ -210,7 +362,7 @@
   "developer_mandate": {
     "schema_version": "1.0.0",
     "source": "governance_content/reference/rules.md",
-    "compiled_at": "2026-03-21T10:36:52Z",
+    "compiled_at": "2026-03-21T10:50:07Z",
     "role": "contract-first developer",
     "core_posture": [
       "Build only what can be justified by active contracts, repository evidence, and stated scope.",
@@ -396,5 +548,5 @@
     ]
   },
   "source_digest": "c18be60b470c48037b13c403e84555c6e9bfde74b60e126227095d300ee96213",
-  "compiled_at": "2026-03-21T10:36:52Z"
+  "compiled_at": "2026-03-21T10:50:07Z"
 }

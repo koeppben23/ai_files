@@ -347,3 +347,168 @@ def test_phase5_plan_persist_bad_missing_active_repo_pointer_blocked(
     assert rc == 2
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["reason_code"] == "BLOCKED-P5-PLAN-RECORD-PERSIST"
+
+
+class TestReviewResponseEnforcementE2E:
+    """Runtime E2E evals proving the enforcement chain is fail-closed.
+
+    These tests prove that the full runtime path from LLM response → parsed
+    → validated → blocked/proceeded is correctly enforced. They test the
+    actual entrypoint's _parse_llm_review_response with real schema loading.
+
+    The enforcement chain:
+      LLM raw response
+          ↓
+      _parse_llm_review_response(response_text, mandates_schema)
+          ↓
+      JSON parse? ─no→ hard block (response-not-structured-json)
+          ↓ yes
+      schema validate? ─fail→ hard block (schema-violation:*)
+          ↓ pass
+      proceed with verdict + findings
+    """
+
+    @staticmethod
+    def _load_schema() -> dict | None:
+        schema_path = REPO_ROOT / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+        if not schema_path.exists():
+            return None
+        try:
+            return json.loads(schema_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def test_freetext_response_hard_blocked(self):
+        module = _load_module()
+        response = "Looks good overall. I reviewed the code and it seems fine. Minor suggestions but nothing blocking."
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert "response-not-structured-json" in result["validation_violations"]
+        assert result["verdict"] == "changes_requested"
+
+    def test_malformed_json_hard_blocked(self):
+        module = _load_module()
+        response = '{"verdict": "approve", "findings": []'  # trailing comma, unclosed
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert "response-not-structured-json" in result["validation_violations"]
+        assert result["verdict"] == "changes_requested"
+
+    def test_empty_response_hard_blocked(self):
+        module = _load_module()
+        result = module._parse_llm_review_response("", mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
+
+    def test_valid_approve_with_no_findings_proceeds(self):
+        module = _load_module()
+        response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation against plan. All steps covered.",
+            "contract_check": "SSOT boundaries preserved. No contract drift.",
+            "findings": [],
+            "regression_assessment": "Low risk. Changes are isolated.",
+            "test_assessment": "Tests cover the changed scope adequately.",
+        })
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is True
+        assert result["verdict"] == "approve"
+        assert result["findings"] == []
+
+    def test_valid_changes_requested_with_findings_proceeds(self):
+        module = _load_module()
+        response = json.dumps({
+            "verdict": "changes_requested",
+            "governing_evidence": "Checked source against contracts.",
+            "contract_check": "Minor drift in API response shape.",
+            "findings": [
+                {
+                    "severity": "medium",
+                    "type": "contract-drift",
+                    "location": "src/api.py:42",
+                    "evidence": "Response field 'user_id' missing",
+                    "impact": "Client code relying on this field will break",
+                    "fix": "Add 'user_id' to response payload",
+                }
+            ],
+            "regression_assessment": "Existing endpoints unaffected.",
+            "test_assessment": "Tests missing for new field.",
+        })
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is True
+        assert result["verdict"] == "changes_requested"
+        assert len(result["findings"]) == 1
+
+    def test_approve_with_critical_defect_hard_blocked(self):
+        module = _load_module()
+        response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Looks fine.",
+            "contract_check": "OK.",
+            "findings": [
+                {
+                    "severity": "critical",
+                    "type": "defect",
+                    "location": "src/auth.py:1",
+                    "evidence": "Auth bypass via missing token check",
+                    "impact": "Anyone can access protected endpoints",
+                    "fix": "Add token validation",
+                }
+            ],
+            "regression_assessment": "All endpoints affected.",
+            "test_assessment": "No tests for auth.",
+        })
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
+        violations = result.get("validation_violations", [])
+        assert any("defect" in v.lower() for v in violations)
+
+    def test_missing_required_field_hard_blocked(self):
+        module = _load_module()
+        response = json.dumps({
+            "verdict": "changes_requested",
+            "findings": [
+                {
+                    "severity": "high",
+                    "type": "defect",
+                    "location": "src/main.py:42",
+                    "evidence": "Missing null check",
+                    "impact": "Crash on empty input",
+                    "fix": "Add null guard",
+                }
+            ],
+            # missing: governing_evidence, contract_check, regression_assessment, test_assessment
+        })
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
+        violations = result.get("validation_violations", [])
+        assert any("governing_evidence" in v or "contract_check" in v or "required" in v.lower() for v in violations)
+
+    def test_invalid_verdict_value_hard_blocked(self):
+        module = _load_module()
+        response = json.dumps({
+            "verdict": "looks_good_to_me",
+            "governing_evidence": "Reviewed all files.",
+            "contract_check": "No issues found.",
+            "findings": [],
+            "regression_assessment": "Minimal risk.",
+            "test_assessment": "Tests sufficient.",
+        })
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"  # hard-blocked: invalid verdict
+
+    def test_json_array_response_hard_blocked(self):
+        module = _load_module()
+        response = json.dumps([{"verdict": "approve"}, {"note": "all good"}])
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert "response-not-structured-json" in result.get("validation_violations", [])
+
+    def test_whitespace_only_response_hard_blocked(self):
+        module = _load_module()
+        result = module._parse_llm_review_response("   \n\n  ", mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
