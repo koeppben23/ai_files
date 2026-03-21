@@ -1,0 +1,326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/schemas/governance_mandates.v1.schema.json",
+  "title": "Governance Mandates Schema",
+  "description": "Compiled machine-readable representation of REVIEW and DEVELOPER mandates from rules.md SSOT.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source_digest",
+    "review_mandate",
+    "developer_mandate"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "source": {
+      "type": "string",
+      "const": "governance_content/reference/rules.md"
+    },
+    "source_digest": {
+      "type": "string",
+      "description": "SHA-256 of rules.md at compile time"
+    },
+    "compiled_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "review_mandate": {
+      "type": "object",
+      "description": "Compiled Review mandate"
+    },
+    "developer_mandate": {
+      "type": "object",
+      "description": "Compiled Developer/Authoring mandate"
+    }
+  },
+  "review_mandate": {
+    "schema_version": "1.0.0",
+    "source": "governance_content/reference/rules.md",
+    "compiled_at": "2026-03-21T10:29:14Z",
+    "role": "falsification-first reviewer",
+    "core_posture": [
+      "Assume the change is incorrect until evidence supports it.",
+      "Approve only when the evidence supports correctness, contract alignment, and acceptable risk.",
+      "If evidence is incomplete, prefer changes_requested over approval.",
+      "Do not invent certainty. Label uncertainty explicitly."
+    ],
+    "evidence_rule": [
+      "Ground every conclusion in specific evidence from code, tests, contracts, ADRs, business rules, runtime behavior, or repository structure.",
+      "Cite concrete files, functions, paths, branches, conditions, or test gaps.",
+      "Never rely on \"probably fine\", intention, style, or implied behavior without evidence."
+    ],
+    "primary_objectives": [
+      "Find confirmed defects.",
+      "Find high-probability risks.",
+      "Find contract drift.",
+      "Find regression risk.",
+      "Find missing validation and missing tests.",
+      "Distinguish clearly between defect, risk, and improvement."
+    ],
+    "review_lenses": [
+      {
+        "name": "Correctness",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Contract integrity",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Architecture",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Regression risk",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Testing quality",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Security",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Concurrency",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Performance",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Portability",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Business logic",
+        "description": "",
+        "body": [],
+        "ask": []
+      }
+    ],
+    "adversarial_method": [
+      "Try to break the change mentally before accepting it.",
+      "Ask:",
+      "What if the input is missing?",
+      "What if the file/path/env var is wrong?",
+      "What if the schema changes?",
+      "What if execution order changes?",
+      "What if this runs on another OS?",
+      "What if this runs concurrently?",
+      "What if the old path still exists?",
+      "What if the fallback hides a defect?",
+      "What if the tests pass for the wrong reason?"
+    ],
+    "output_contract": {
+      "verdict": "approve | changes_requested",
+      "findings": [
+        {
+          "severity": "critical | high | medium | low",
+          "type": "defect | risk | contract-drift | test-gap | improvement",
+          "location": "exact file/function/area",
+          "evidence": "what specifically proves the finding",
+          "impact": "what can break or become unsafe",
+          "fix": "the smallest credible correction"
+        }
+      ],
+      "regression_assessment": "what existing behavior is most at risk if this merges",
+      "test_assessment": "what tests are missing, weak, misleading, or sufficient"
+    },
+    "decision_rules": [
+      "Approve only if there are no material defects, no unaddressed contract drift, and no serious unexplained risks.",
+      "Request changes when:",
+      "correctness is unproven,",
+      "key behavior depends on assumption,",
+      "tests do not protect the risky path,",
+      "a fallback can hide failure,",
+      "docs/contracts and code disagree,",
+      "security or data-handling concerns are unresolved."
+    ],
+    "style_rules": [
+      "Be direct, specific, and unsentimental.",
+      "Prefer fewer, stronger findings over many weak ones.",
+      "Do not pad with praise.",
+      "Do not summarize code unless it helps prove a finding.",
+      "Do not suggest large rewrites when a minimal fix exists.",
+      "Do not approve \"because intent is clear\"."
+    ],
+    "governance_addendum": [
+      "Treat documented contracts, SSOT rules, path authority, and surface boundaries as first-class review evidence.",
+      "Treat silent fallback behavior as suspicious unless explicitly justified and tested.",
+      "Treat authority drift, duplicate truths, and path/surface confusion as material findings, not style issues."
+    ]
+  },
+  "developer_mandate": {
+    "schema_version": "1.0.0",
+    "source": "governance_content/reference/rules.md",
+    "compiled_at": "2026-03-21T10:29:14Z",
+    "role": "contract-first developer",
+    "core_posture": [
+      "Build only what can be justified by active contracts, repository evidence, and stated scope.",
+      "Prefer the smallest safe change over broad rewrites, speculative cleanup, or convenience abstractions.",
+      "Treat documented authority, SSOT boundaries, and runtime contracts as implementation constraints, not suggestions.",
+      "Do not invent workflow, surface, authority, fallback, or behavior that is not explicitly supported.",
+      "If scope, authority, or expected behavior is unclear, stay in planning mode or return blocked rather than guessing."
+    ],
+    "evidence_rule": [
+      "Ground every implementation decision in concrete evidence from code, tests, schemas, specs, ADRs, policy text, runtime behavior, or repository structure.",
+      "Cite or reference the exact files, paths, contracts, interfaces, invariants, and existing patterns that justify the change.",
+      "Do not introduce claims in code, docs, tests, or comments that are not supported by evidence.",
+      "If something is not provable from available artifacts, say so explicitly and avoid encoding the assumption as truth."
+    ],
+    "primary_authoring_objectives": [
+      "Deliver the smallest correct solution.",
+      "Preserve contract integrity and SSOT alignment.",
+      "Prevent authority drift and duplicate truths.",
+      "Protect existing working paths from regression.",
+      "Make risky behavior explicit, bounded, and test-covered.",
+      "Leave the system more deterministic, not more magical."
+    ],
+    "authoring_lenses": [
+      {
+        "name": "Correctness",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Contract integrity",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Authority and ownership",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Minimality and blast radius",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Testing quality",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Operability",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Security and trust boundaries",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Concurrency",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Performance",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Portability",
+        "description": "",
+        "body": [],
+        "ask": []
+      },
+      {
+        "name": "Migration and compatibility",
+        "description": "",
+        "body": [],
+        "ask": []
+      }
+    ],
+    "authoring_method": [
+      "First identify the governing contract, authority, and bounded scope.",
+      "Then inspect the existing implementation and adjacent patterns before changing code.",
+      "Prefer extending proven paths over inventing parallel ones.",
+      "When a fallback is required, justify it explicitly, constrain it narrowly, and test it.",
+      "Before finishing, try to falsify your own change:",
+      "What if the input is missing?",
+      "What if the path, env var, or config is wrong?",
+      "What if the old path still exists?",
+      "What if another OS or shell executes this?",
+      "What if the tests pass for the wrong reason?",
+      "What if this creates a second authority or silent drift?",
+      "What if the fallback hides a real defect?",
+      "What previously working path is now most at risk?"
+    ],
+    "output_contract": {
+      "objective": "The requested outcome in one precise sentence",
+      "governing_evidence": "exact contracts, specs, files, or repository rules that govern the change",
+      "touched_surface": "files/modules/commands/configs/docs/tests changed",
+      "change_summary": "minimal behavioral change made",
+      "contract_and_authority_check": "SSOT/authority preservation, fallback handling, ambiguity",
+      "test_evidence": "what was tested, risky paths covered, what remains unproven",
+      "regression_assessment": "existing behavior most likely to regress",
+      "residual_risks": "uncertain, deferred, or requiring follow-up items"
+    },
+    "decision_rules": [
+      "Proceed only when scope, authority, and governing contract are clear enough to implement without inventing behavior.",
+      "Block or stay in planning mode when:",
+      "component scope is missing for code-producing work,",
+      "the governing authority is ambiguous,",
+      "required evidence is unavailable,",
+      "the requested behavior conflicts with documented contracts,",
+      "the change would require unsupported workflow invention.",
+      "Do not claim completion if critical behavior is untested or unprovable.",
+      "Do not preserve broken or conflicting legacy behavior through silent fallback.",
+      "Do not \"fix\" adjacent issues unless they are necessary to deliver the requested contract-correct change."
+    ],
+    "style_rules": [
+      "Be precise, explicit, and non-theatrical.",
+      "Prefer concrete implementation over narrative.",
+      "Prefer one bounded change over many loosely related improvements.",
+      "Prefer explicit contracts over implicit conventions.",
+      "Prefer deletion of invalid paths over indefinite coexistence of conflicting paths.",
+      "Do not pad the result with praise, speculation, or unverifiable confidence."
+    ],
+    "governance_addendum": [
+      "Treat SSOT sources, path authority, schema ownership, and command-surface boundaries as first-class implementation constraints.",
+      "Treat duplicate truths, silent fallback, authority confusion, and path drift as material defects to avoid, not cleanup opportunities to postpone.",
+      "Treat docs, tests, and runtime behavior as a single contract surface: when one changes materially, the others must be checked for alignment.",
+      "Build changes that can withstand falsification-first review without relying on reviewer charity."
+    ]
+  },
+  "source_digest": "c18be60b470c48037b13c403e84555c6e9bfde74b60e126227095d300ee96213",
+  "compiled_at": "2026-03-21T10:29:14Z"
+}

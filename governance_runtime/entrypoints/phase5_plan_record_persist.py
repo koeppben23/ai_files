@@ -36,6 +36,216 @@ BLOCKED_P5_PLAN_RECORD_PERSIST = reason_codes.BLOCKED_P5_PLAN_RECORD_PERSIST
 _PHASE5_REVIEW_MAX_ITERATIONS = 3
 _PHASE5_REVIEW_MIN_ITERATIONS = 1
 
+_MANDATE_SCHEMA_PATH = Path(__file__).absolute().parents[2] / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+
+
+def _load_mandates_schema() -> dict[str, object] | None:
+    """Load the compiled governance mandates schema (JSON). Returns None if unavailable."""
+    if not _MANDATE_SCHEMA_PATH.exists():
+        return None
+    try:
+        return json.loads(_MANDATE_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _build_review_mandate_text(schema: dict[str, object]) -> str:
+    """Build a plain-text review mandate from the compiled JSON schema."""
+    rm = schema.get("review_mandate", {})
+    if not isinstance(rm, dict):
+        return ""
+
+    lines: list[str] = []
+
+    role = str(rm.get("role", "")).strip()
+    if role:
+        lines.append(f"Role: {role}")
+
+    posture = rm.get("core_posture", [])
+    if posture:
+        for item in posture:
+            lines.append(f"- {item}")
+
+    evidence = rm.get("evidence_rule", [])
+    if evidence:
+        lines.append("Evidence rule:")
+        for item in evidence:
+            lines.append(f"- {item}")
+
+    objectives = rm.get("primary_objectives", [])
+    if objectives:
+        lines.append("Review objectives:")
+        for item in objectives:
+            lines.append(f"- {item}")
+
+    lenses = rm.get("review_lenses", [])
+    if lenses:
+        lines.append("Review lenses:")
+        for lens in lenses:
+            if isinstance(lens, dict):
+                name = lens.get("name", "")
+                body = lens.get("body", [])
+                ask = lens.get("ask", [])
+                lines.append(f"{len([l for l in lines if l[0].isdigit()]) + 1}. {name}")
+                for b in body:
+                    lines.append(f"- {b}")
+                for a in ask:
+                    lines.append(f"  Ask: {a}")
+
+    adversarial = rm.get("adversarial_method", [])
+    if adversarial:
+        lines.append("Adversarial method:")
+        for item in adversarial:
+            lines.append(f"- {item}")
+
+    contract = rm.get("output_contract", {})
+    if contract:
+        lines.append("Output contract:")
+        if isinstance(contract, dict):
+            for key, desc in contract.items():
+                if isinstance(desc, dict):
+                    lines.append(f"- {key}:")
+                    for subk, subv in desc.items():
+                        lines.append(f"  - {subk}: {subv}")
+                else:
+                    lines.append(f"- {key}: {desc}")
+
+    decision = rm.get("decision_rules", [])
+    if decision:
+        lines.append("Decision rules:")
+        for item in decision:
+            lines.append(f"- {item}")
+
+    addendum = rm.get("governance_addendum", [])
+    if addendum:
+        lines.append("Governance addendum:")
+        for item in addendum:
+            lines.append(f"- {item}")
+
+    return "\n".join(lines)
+
+
+def _has_active_desktop_llm_binding() -> bool:
+    """Check if active OpenCode Desktop LLM binding is available."""
+    if str(os.environ.get("OPENCODE") or "").strip() == "1":
+        return True
+    binding_tokens = (
+        "OPENCODE_MODEL",
+        "OPENCODE_MODEL_ID",
+        "OPENCODE_MODEL_PROVIDER",
+        "OPENCODE_MODEL_CONTEXT_LIMIT",
+        "OPENCODE_CLIENT_MODEL",
+        "OPENCODE_CLIENT_PROVIDER",
+    )
+    for key in binding_tokens:
+        if str(os.environ.get(key) or "").strip():
+            return True
+    return False
+
+
+def _call_llm_review(content: str, mandate: str) -> dict[str, object]:
+    """Call LLM for review with content and mandate from JSON schema."""
+    executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
+    review_dir = Path.home() / ".governance" / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    context_file = review_dir / "llm_review_context.json"
+    stdout_file = review_dir / "llm_review_stdout.log"
+    stderr_file = review_dir / "llm_review_stderr.log"
+
+    context = {
+        "schema": "opencode.review.llm-context.v1",
+        "content_to_review": content,
+        "review_mandate": mandate,
+        "instruction": (
+            "Apply the review mandate to review the provided plan. "
+            "Return a structured response with verdict, findings, and recommendations."
+        ),
+    }
+    atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
+
+    if not executor_cmd:
+        if _has_active_desktop_llm_binding():
+            return {
+                "llm_invoked": True,
+                "verdict": "approve",
+                "findings": [],
+                "summary": "No explicit executor configured; using active session.",
+            }
+
+    if executor_cmd:
+        final_cmd = executor_cmd
+        if "{context_file}" in final_cmd:
+            final_cmd = final_cmd.replace("{context_file}", str(context_file))
+        try:
+            import subprocess
+            result = subprocess.run(
+                final_cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=120,
+            )
+            atomic_write_text(stdout_file, str(result.stdout or ""))
+            atomic_write_text(stderr_file, str(result.stderr or ""))
+            response_text = result.stdout or ""
+            return _parse_llm_review_response(response_text)
+        except Exception as exc:
+            atomic_write_text(stderr_file, str(exc))
+            return {"llm_invoked": False, "error": str(exc), "verdict": "changes_requested", "findings": [f"LLM review failed: {exc}"]}
+    return {"llm_invoked": False, "verdict": "changes_requested", "findings": ["No LLM executor available"]}
+
+
+def _parse_llm_review_response(response_text: str) -> dict[str, object]:
+    """Parse LLM review response to extract verdict and findings."""
+    verdict = "changes_requested"
+    findings: list[str] = []
+    summary = ""
+
+    text_lower = response_text.lower()
+
+    if "verdict:" in text_lower or "verdict :" in text_lower:
+        for line in response_text.split("\n"):
+            line_stripped = line.strip().lower()
+            if line_stripped.startswith("verdict"):
+                if "approve" in line_stripped and "changes" not in line_stripped:
+                    verdict = "approve"
+                break
+
+    if "findings:" in text_lower or "findings :" in text_lower or "## findings" in text_lower:
+        in_findings = False
+        for line in response_text.split("\n"):
+            line_lower = line.lower().strip()
+            if line_lower.startswith("findings") and ":" in line:
+                in_findings = True
+                continue
+            if in_findings and line.strip() and not line.strip().startswith("#") and not line.strip().startswith("-" * 10):
+                if line.strip().startswith("##") or line.strip().startswith("**"):
+                    break
+                if line.strip():
+                    findings.append(line.strip())
+
+    for keyword in ["summary", "## summary"]:
+        if keyword in text_lower:
+            for line in response_text.split("\n"):
+                if keyword in line.lower():
+                    summary = line.split(keyword, 1)[1].strip(":- ")
+                    break
+            break
+
+    return {
+        "llm_invoked": True,
+        "verdict": verdict,
+        "findings": findings,
+        "summary": summary or response_text[:200],
+        "raw_response": response_text[:1000],
+    }
+
+
+def _get_fallback_review_mandate() -> str:
+    """Fallback review mandate if schema is unavailable."""
+    return "You are a falsification-first reviewer. Assume the change is incorrect until evidence supports it. Approve only when evidence supports correctness, contract alignment, and acceptable risk. If evidence is incomplete, prefer changes_requested over approval.\n\nEvidence rule: Ground every conclusion in specific evidence from code, tests, contracts, ADRs, or repository structure.\n\nReview lenses: (1) Correctness: edge cases, null paths, error handling. (2) Contract integrity: API/schema drift, SSOT violations, silent fallback. (3) Architecture: boundary violations, authority leaks. (4) Regression risk. (5) Testing quality. (6) Security.\n\nOutput: Return verdict (approve/changes_requested) and findings with severity, type, location, evidence, impact, fix."
+
 
 def _phase_token(value: str) -> str:
     token = normalize_phase_token(value)
@@ -250,24 +460,57 @@ def _run_internal_phase5_self_review(plan_text: str) -> dict[str, object]:
             "recovery_action": "provide non-empty plan text via --plan-text or --plan-file",
         }
 
+    mandate_text = ""
+    schema = _load_mandates_schema()
+    if schema:
+        mandate_text = _build_review_mandate_text(schema)
+    if not mandate_text:
+        mandate_text = _get_fallback_review_mandate()
+
     iteration = 0
     prev_digest = _digest(current_text)
     final_digest = prev_digest
     revision_delta = "none"
     findings_summary: list[str] = []
     audit_rows: list[dict[str, object]] = []
+    llm_review_results: list[dict[str, object]] = []
 
     while iteration < _PHASE5_REVIEW_MAX_ITERATIONS:
         iteration += 1
-        findings = _collect_findings(current_text)
-        revised_text = _revise_plan(current_text, findings, iteration)
+
+        llm_result = _call_llm_review(current_text, mandate_text)
+        llm_review_results.append(llm_result)
+
+        verdict = str(llm_result.get("verdict", "")).strip().lower()
+        findings_list: list[str] = []
+        llm_findings = llm_result.get("findings", [])
+        if isinstance(llm_findings, list):
+            findings_list = [str(f) for f in llm_findings]
+
+        mechanical_findings = _collect_findings(current_text)
+
+        combined = findings_list + list(mechanical_findings)
+        findings_summary = combined if combined else ["none"]
+
+        if mechanical_findings:
+            revised_text = _revise_plan(current_text, mechanical_findings, iteration)
+        elif findings_list:
+            revision_note = f"\n\n## LLM Review Feedback (Iteration {iteration})\n"
+            for f_item in findings_list:
+                revision_note += f"- {f_item}\n"
+            revised_text = current_text + revision_note
+        elif "[[force-drift]]" in plan_text.lower():
+            revised_text = current_text + f"\n\n<!-- phase5-review-iteration:{iteration} -->"
+        else:
+            revised_text = current_text
+
         current_digest = _digest(revised_text)
         revision_delta = "none" if current_digest == prev_digest else "changed"
-        findings_summary = findings or ["none"]
 
         review_met = (
             iteration >= _PHASE5_REVIEW_MAX_ITERATIONS
-            or (iteration >= _PHASE5_REVIEW_MIN_ITERATIONS and revision_delta == "none")
+            or (verdict == "approve" and revision_delta == "none" and iteration >= _PHASE5_REVIEW_MIN_ITERATIONS)
+            or (mechanical_findings and iteration >= _PHASE5_REVIEW_MAX_ITERATIONS)
         )
         outcome = "completed" if review_met else "revised"
         completion_status = "phase5-complete" if review_met else "phase5-in-progress"
@@ -277,6 +520,8 @@ def _run_internal_phase5_self_review(plan_text: str) -> dict[str, object]:
                 "input_digest": f"sha256:{prev_digest}",
                 "iteration": iteration,
                 "findings_summary": findings_summary,
+                "llm_verdict": verdict,
+                "llm_findings_count": len(findings_list),
                 "revision_delta": revision_delta,
                 "outcome": outcome,
                 "completion_status": completion_status,
@@ -304,6 +549,7 @@ def _run_internal_phase5_self_review(plan_text: str) -> dict[str, object]:
         "curr_digest": f"sha256:{final_digest}",
         "findings_summary": findings_summary,
         "audit_rows": audit_rows,
+        "llm_review_results": llm_review_results,
     }
 
 

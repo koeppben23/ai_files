@@ -50,6 +50,89 @@ from governance_runtime.infrastructure.session_pointer import (
 
 BLOCKED_IMPLEMENT_START_INVALID = "BLOCKED-UNSPECIFIED"
 
+_SCHEMA_PATH = Path(__file__).absolute().parents[2] / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+
+
+def _load_mandates_schema() -> dict[str, object] | None:
+    """Load the compiled governance mandates schema (JSON). Returns None if unavailable."""
+    if not _SCHEMA_PATH.exists():
+        return None
+    try:
+        return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _build_authoring_mandate_text(schema: dict[str, object]) -> str:
+    """Build a plain-text authoring mandate from the compiled JSON schema."""
+    dm = schema.get("developer_mandate", {})
+    if not isinstance(dm, dict):
+        return ""
+
+    lines: list[str] = []
+
+    role = str(dm.get("role", "")).strip()
+    if role:
+        lines.append(f"Role: {role}")
+
+    posture = dm.get("core_posture", [])
+    if posture:
+        for item in posture:
+            lines.append(f"- {item}")
+
+    evidence = dm.get("evidence_rule", [])
+    if evidence:
+        lines.append("Evidence rule:")
+        for item in evidence:
+            lines.append(f"- {item}")
+
+    objectives = dm.get("primary_authoring_objectives", [])
+    if objectives:
+        lines.append("Authoring objectives:")
+        for item in objectives:
+            lines.append(f"- {item}")
+
+    lenses = dm.get("authoring_lenses", [])
+    if lenses:
+        lines.append("Authoring lenses:")
+        for lens in lenses:
+            if isinstance(lens, dict):
+                name = lens.get("name", "")
+                body = lens.get("body", [])
+                ask = lens.get("ask", [])
+                lines.append(f"{len(lines)}. {name}")
+                for b in body:
+                    lines.append(f"- {b}")
+                for a in ask:
+                    lines.append(f"  Ask: {a}")
+
+    method = dm.get("authoring_method", [])
+    if method:
+        lines.append("Authoring method:")
+        for item in method:
+            lines.append(f"- {item}")
+
+    contract = dm.get("output_contract", {})
+    if contract:
+        lines.append("Output contract:")
+        if isinstance(contract, dict):
+            for key, desc in contract.items():
+                lines.append(f"- {key}: {desc}")
+
+    decision = dm.get("decision_rules", [])
+    if decision:
+        lines.append("Decision rules:")
+        for item in decision:
+            lines.append(f"- {item}")
+
+    addendum = dm.get("governance_addendum", [])
+    if addendum:
+        lines.append("Governance addendum:")
+        for item in addendum:
+            lines.append(f"- {item}")
+
+    return "\n".join(lines)
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -229,8 +312,13 @@ def _run_llm_edit_step(
     stdout_file = implementation_dir / "executor_stdout.log"
     stderr_file = implementation_dir / "executor_stderr.log"
 
-    context = {
-        "schema": "opencode.implement.llm-context.v2",
+    mandate_text = ""
+    schema = _load_mandates_schema()
+    if schema:
+        mandate_text = _build_authoring_mandate_text(schema)
+
+    context: dict[str, object] = {
+        "schema": "opencode.implement.llm-context.v3",
         "ticket": ticket_text,
         "task": task_text,
         "approved_plan": plan_text,
@@ -244,11 +332,19 @@ def _run_llm_edit_step(
             "plan_step_coverage_required": True,
             "targeted_checks_required": True,
         },
-        "instruction": (
+    }
+    if mandate_text:
+        context["authoring_mandate"] = mandate_text
+        context["instruction"] = (
+            "Apply the authoring mandate below to implement approved plan steps. "
+            "Build only what can be justified by the plan, contracts, and repository evidence. "
+            "Do not limit changes to .governance artifacts."
+        )
+    else:
+        context["instruction"] = (
             "Implement approved plan steps using repository edits. "
             "Do not limit changes to .governance artifacts."
-        ),
-    }
+        )
     _write_text_atomic(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
     if not executor_cmd:
