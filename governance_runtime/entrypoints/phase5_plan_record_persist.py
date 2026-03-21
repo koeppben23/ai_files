@@ -151,6 +151,91 @@ def _build_review_mandate_text(schema: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _build_plan_mandate_text(schema: dict[str, object]) -> str:
+    """Build a plain-text plan mandate from the compiled JSON schema."""
+    pm = schema.get("plan_mandate", {})
+    if not isinstance(pm, dict):
+        return ""
+
+    lines: list[str] = []
+
+    role = str(pm.get("role", "")).strip()
+    if role:
+        lines.append(f"Role: {role}")
+
+    posture = pm.get("core_posture", [])
+    if posture:
+        for item in posture:
+            lines.append(f"- {item}")
+
+    evidence = pm.get("evidence_rule", [])
+    if evidence:
+        lines.append("Evidence rule:")
+        for item in evidence:
+            lines.append(f"- {item}")
+
+    objectives = pm.get("primary_objectives", [])
+    if objectives:
+        lines.append("Planning objectives:")
+        for item in objectives:
+            lines.append(f"- {item}")
+
+    lenses = pm.get("planning_lenses", [])
+    if lenses:
+        lines.append("Planning lenses:")
+        for idx, lens in enumerate(lenses, 1):
+            if isinstance(lens, dict):
+                name = lens.get("name", "")
+                body = lens.get("body", [])
+                ask = lens.get("ask", [])
+                lines.append(f"{idx}. {name}")
+                for b in body:
+                    lines.append(f"- {b}")
+                for a in ask:
+                    lines.append(f"  Ask: {a}")
+
+    contract = pm.get("output_contract", {})
+    if contract:
+        lines.append("Output contract:")
+        if isinstance(contract, dict):
+            for key, desc in contract.items():
+                lines.append(f"- {key}: {desc}")
+
+    decision = pm.get("decision_rules", [])
+    if decision:
+        lines.append("Decision rules:")
+        for item in decision:
+            lines.append(f"- {item}")
+
+    style = pm.get("style_rules", [])
+    if style:
+        lines.append("Style rules:")
+        for item in style:
+            lines.append(f"- {item}")
+
+    addendum = pm.get("governance_addendum", [])
+    if addendum:
+        lines.append("Governance addendum:")
+        for item in addendum:
+            lines.append(f"- {item}")
+
+    return "\n".join(lines)
+
+
+def _get_plan_output_schema_text() -> str:
+    """Extract planOutputSchema text from mandates schema."""
+    try:
+        schema = _load_mandates_schema()
+        if schema:
+            defs = schema.get("$defs", {})
+            for key in defs:
+                if key == "planOutputSchema":
+                    return json.dumps({"$schema": "https://json-schema.org/draft/2020-12/schema", **defs[key]}, indent=2)
+    except Exception:
+        pass
+    return ""
+
+
 def _load_effective_review_policy_text(
     state: Mapping[str, object],
     commands_home: Path,
@@ -256,6 +341,261 @@ def _get_review_output_schema_text() -> str:
     except Exception:
         pass
     return ""
+
+
+BLOCKED_PLAN_GENERATION_FAILED = "BLOCKED-PLAN-GENERATION-FAILED"
+BLOCKED_PLAN_EXECUTOR_UNAVAILABLE = "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE"
+
+
+def _resolve_plan_executor() -> str:
+    """Resolve the plan LLM executor command.
+
+    Priority:
+    1. OPENCODE_PLAN_LLM_CMD (plan-specific)
+    2. OPENCODE_IMPLEMENT_LLM_CMD (fallback, for backward compat)
+    """
+    plan_cmd = str(os.environ.get("OPENCODE_PLAN_LLM_CMD") or "").strip()
+    if plan_cmd:
+        return plan_cmd
+    return str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
+
+
+def _call_llm_generate_plan(
+    ticket_text: str,
+    task_text: str,
+    plan_mandate: str,
+    effective_authoring_policy: str = "",
+) -> dict[str, object]:
+    """Call LLM to generate a plan from ticket/task context.
+
+    Fail-closed: returns blocked state on any failure.
+    """
+    executor_cmd = _resolve_plan_executor()
+    if not executor_cmd:
+        return {
+            "blocked": True,
+            "reason": "plan-executor-unavailable",
+            "reason_code": BLOCKED_PLAN_EXECUTOR_UNAVAILABLE,
+            "recovery_action": "Set OPENCODE_PLAN_LLM_CMD or OPENCODE_IMPLEMENT_LLM_CMD to enable plan generation.",
+        }
+
+    plan_dir = Path.home() / ".governance" / "plan"
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    context_file = plan_dir / "llm_plan_context.json"
+    stdout_file = plan_dir / "llm_plan_stdout.log"
+    stderr_file = plan_dir / "llm_plan_stderr.log"
+
+    output_schema_text = _get_plan_output_schema_text()
+    instruction_parts = [
+        "You are a governance planner. Generate a structured plan from the ticket and task below.",
+    ]
+    if plan_mandate:
+        instruction_parts.append("Apply the plan mandate below.")
+    if effective_authoring_policy:
+        instruction_parts.append("Apply the effective authoring policy below for active profile and addons.")
+    instruction_parts.append(
+        "You MUST respond with valid JSON that conforms to the output schema below.\n"
+        "Do NOT include any text outside the JSON object.\n\n"
+        "Output schema:\n" + output_schema_text
+    )
+
+    context = {
+        "schema": "opencode.plan.llm-context.v1",
+        "ticket": ticket_text,
+        "task": task_text,
+    }
+    if plan_mandate:
+        context["plan_mandate"] = plan_mandate
+    if effective_authoring_policy:
+        context["effective_authoring_policy"] = effective_authoring_policy
+        context["effective_policy_loaded"] = True
+    context["instruction"] = "\n".join(instruction_parts)
+    atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
+
+    final_cmd = executor_cmd
+    if "{context_file}" in final_cmd:
+        final_cmd = final_cmd.replace("{context_file}", str(context_file))
+    try:
+        import subprocess
+        result = subprocess.run(
+            final_cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        atomic_write_text(stdout_file, str(result.stdout or ""))
+        atomic_write_text(stderr_file, str(result.stderr or ""))
+        response_text = result.stdout or ""
+        if not response_text.strip():
+            return {
+                "blocked": True,
+                "reason": "plan-llm-empty-response",
+                "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+                "recovery_action": "LLM returned empty response for plan generation.",
+            }
+        return _parse_plan_generation_response(response_text)
+    except Exception as exc:
+        atomic_write_text(stderr_file, str(exc))
+        return {
+            "blocked": True,
+            "reason": f"plan-llm-error: {exc}",
+            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+            "recovery_action": "Check LLM executor configuration and retry /plan.",
+        }
+
+
+def _parse_plan_generation_response(response_text: str) -> dict[str, object]:
+    """Parse and validate LLM plan generation response.
+
+    Fail-closed: only structured, schema-valid JSON responses proceed.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
+    try:
+        from llm_response_validator import validate_plan_response
+    except Exception:
+        validate_plan_response = None
+
+    raw_text = response_text.strip()
+
+    if not raw_text:
+        return {
+            "blocked": True,
+            "reason": "plan-llm-empty-response",
+            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+            "recovery_action": "LLM returned empty response for plan generation.",
+        }
+
+    parsed_data: dict[str, object] | None = None
+
+    if raw_text.startswith("{"):
+        try:
+            parsed_data = json.loads(raw_text)
+        except json.JSONDecodeError:
+            pass
+
+    if parsed_data is None:
+        return {
+            "blocked": True,
+            "reason": f"plan-response-not-json: received {len(raw_text)} chars starting with: {raw_text[:80]!r}",
+            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+            "recovery_action": "LLM did not return valid JSON for plan generation.",
+        }
+
+    # Validate against planOutputSchema
+    try:
+        mandates_schema = _load_mandates_schema()
+        defs = mandates_schema.get("$defs", {})
+        plan_schema = defs.get("planOutputSchema", {})
+    except (
+        MandateSchemaMissingError,
+        MandateSchemaInvalidJsonError,
+        MandateSchemaInvalidStructureError,
+        MandateSchemaUnavailableError,
+    ):
+        return {
+            "blocked": True,
+            "reason": "plan-mandate-schema-unavailable",
+            "reason_code": "MANDATE-SCHEMA-UNAVAILABLE",
+            "recovery_action": "Ensure governance_mandates.v1.schema.json is loadable.",
+        }
+
+    if validate_plan_response is not None:
+        validation = validate_plan_response(parsed_data, plan_schema=plan_schema)
+        if not validation.valid:
+            violations = [v.rule for v in validation.violations]
+            return {
+                "blocked": True,
+                "reason": f"plan-schema-violation: {violations}",
+                "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+                "recovery_action": "LLM response did not conform to planOutputSchema.",
+                "validation_violations": violations,
+            }
+    else:
+        # Fallback: manual required-fields check
+        required_fields = [
+            "objective", "target_state", "target_flow", "state_machine",
+            "blocker_taxonomy", "audit", "go_no_go", "test_strategy", "reason_code",
+        ]
+        missing = [f for f in required_fields if not parsed_data.get(f)]
+        if missing:
+            return {
+                "blocked": True,
+                "reason": f"plan-missing-required-fields: {missing}",
+                "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+                "recovery_action": f"LLM plan response missing required fields: {missing}",
+            }
+
+    # Convert structured plan to markdown plan text for the existing review/persist chain
+    plan_text = _structured_plan_to_markdown(parsed_data)
+    return {
+        "blocked": False,
+        "plan_text": plan_text,
+        "structured_plan": parsed_data,
+    }
+
+
+def _structured_plan_to_markdown(plan: dict[str, object]) -> str:
+    """Convert structured plan output to markdown plan text.
+
+    The markdown format is what the existing Phase 5 review/persist chain expects.
+    """
+    lines: list[str] = []
+
+    objective = str(plan.get("objective", "")).strip()
+    if objective:
+        lines.append(f"# Plan Objective\n{objective}\n")
+
+    target_state = str(plan.get("target_state", "")).strip()
+    if target_state:
+        lines.append(f"## Target State\n{target_state}\n")
+
+    target_flow = str(plan.get("target_flow", "")).strip()
+    if target_flow:
+        lines.append(f"## Target Flow\n{target_flow}\n")
+
+    state_machine = str(plan.get("state_machine", "")).strip()
+    if state_machine:
+        lines.append(f"## State Machine\n{state_machine}\n")
+
+    blocker_taxonomy = str(plan.get("blocker_taxonomy", "")).strip()
+    if blocker_taxonomy:
+        lines.append(f"## Blocker Taxonomy\n{blocker_taxonomy}\n")
+
+    audit = str(plan.get("audit", "")).strip()
+    if audit:
+        lines.append(f"## Audit\n{audit}\n")
+
+    go_no_go = str(plan.get("go_no_go", "")).strip()
+    if go_no_go:
+        lines.append(f"## Go/No-Go\n{go_no_go}\n")
+
+    test_strategy = str(plan.get("test_strategy", "")).strip()
+    if test_strategy:
+        lines.append(f"## Test Strategy\n{test_strategy}\n")
+
+    assumptions = str(plan.get("assumptions", "")).strip()
+    if assumptions:
+        lines.append(f"## Assumptions\n{assumptions}\n")
+
+    risks = str(plan.get("risks", "")).strip()
+    if risks:
+        lines.append(f"## Risks\n{risks}\n")
+
+    non_goals = str(plan.get("non_goals", "")).strip()
+    if non_goals:
+        lines.append(f"## Non-Goals\n{non_goals}\n")
+
+    open_questions = str(plan.get("open_questions", "")).strip()
+    if open_questions:
+        lines.append(f"## Open Questions\n{open_questions}\n")
+
+    reason_code = str(plan.get("reason_code", "")).strip()
+    if reason_code:
+        lines.append(f"## Reason Code\n{reason_code}\n")
+
+    return "\n".join(lines)
 
 
 def _call_llm_review(
@@ -836,23 +1176,96 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     plan_text = _canonicalize_text(plan_source)
-    if not plan_text:
-        payload = _payload(
-            "blocked",
-            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
-            reason="missing-plan-record-evidence",
-            recovery_action="provide non-empty plan text via --plan-text or --plan-file",
-        )
-        print(json.dumps(payload, ensure_ascii=True))
-        return 2
 
+    # ── Load session state early (needed for auto-generation) ──
     try:
         session_path, repo_fingerprint = _resolve_active_session_path()
         document = _load_json(session_path)
         state = document.get("SESSION_STATE")
         if not isinstance(state, dict):
             raise RuntimeError("SESSION_STATE root missing")
+    except Exception as exc:
+        payload = _payload(
+            "blocked",
+            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+            reason="session-state-unreadable",
+            observed=str(exc),
+            recovery_action="ensure session state is loadable",
+        )
+        print(json.dumps(payload, ensure_ascii=True))
+        return 2
 
+    # ── Auto-generate plan if none provided ──
+    if not plan_text:
+        ticket_text = str(state.get("Ticket") or "").strip()
+        task_text = str(state.get("Task") or "").strip()
+        if not ticket_text and not task_text:
+            payload = _payload(
+                "blocked",
+                reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+                reason="missing-plan-record-evidence",
+                recovery_action="provide non-empty plan text via --plan-text or --plan-file, or persist ticket via /ticket first",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+
+        resolver = BindingEvidenceResolver(env=os.environ)
+        evidence = getattr(resolver, "resolve")(mode="user")
+        commands_home = evidence.commands_home
+
+        # Load mandate schema for plan mandate text
+        plan_mandate = ""
+        try:
+            mandates_schema = _load_mandates_schema()
+            plan_mandate = _build_plan_mandate_text(mandates_schema)
+        except (
+            MandateSchemaMissingError,
+            MandateSchemaInvalidJsonError,
+            MandateSchemaInvalidStructureError,
+            MandateSchemaUnavailableError,
+        ):
+            pass
+
+        # Load effective authoring policy (temporary — will be refactored to effective_plan_policy)
+        effective_policy_text = ""
+        try:
+            from governance_runtime.entrypoints.implement_start import _load_effective_authoring_policy_text
+            effective_policy_text, _ep_err = _load_effective_authoring_policy_text(
+                state=state,
+                commands_home=commands_home,
+            )
+        except Exception:
+            pass
+
+        gen_result = _call_llm_generate_plan(
+            ticket_text=ticket_text,
+            task_text=task_text,
+            plan_mandate=plan_mandate,
+            effective_authoring_policy=effective_policy_text,
+        )
+        if gen_result.get("blocked") is True:
+            payload = _payload(
+                "blocked",
+                reason_code=str(gen_result.get("reason_code") or BLOCKED_PLAN_GENERATION_FAILED),
+                reason=str(gen_result.get("reason") or "plan-generation-failed"),
+                recovery_action=str(gen_result.get("recovery_action") or "provide plan text via --plan-text or check LLM executor"),
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+
+        plan_text = _canonicalize_text(str(gen_result.get("plan_text") or ""))
+        if not plan_text:
+            payload = _payload(
+                "blocked",
+                reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+                reason="plan-generation-empty-result",
+                recovery_action="LLM generated an empty plan. Provide plan text via --plan-text.",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+
+    # ── Standard Phase 5 flow ──
+    try:
         phase_before = str(state.get("Phase") or "")
 
         # /plan may be the directed exit rail from Phase-6 rework clarification.

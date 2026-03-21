@@ -36,11 +36,18 @@
       "type": "object",
       "description": "Compiled Developer/Authoring mandate"
     },
+    "plan_mandate": {
+      "type": "object",
+      "description": "Compiled Plan mandate for LLM-based plan generation"
+    },
     "review_output_schema": {
       "$ref": "#/$defs/reviewOutputSchema"
     },
     "developer_output_schema": {
       "$ref": "#/$defs/developerOutputSchema"
+    },
+    "plan_output_schema": {
+      "$ref": "#/$defs/planOutputSchema"
     }
   },
   "$defs": {
@@ -131,6 +138,85 @@
         "test_assessment": {
           "type": "string",
           "minLength": 10
+        }
+      }
+    },
+    "planOutputSchema": {
+      "type": "object",
+      "description": "Structured output contract for LLM-generated plan records",
+      "required": [
+        "objective",
+        "target_state",
+        "target_flow",
+        "state_machine",
+        "blocker_taxonomy",
+        "audit",
+        "go_no_go",
+        "test_strategy",
+        "reason_code"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "objective": {
+          "type": "string",
+          "minLength": 10,
+          "description": "The planned outcome in one precise sentence"
+        },
+        "target_state": {
+          "type": "string",
+          "minLength": 20,
+          "description": "Desired end state after plan execution"
+        },
+        "target_flow": {
+          "type": "string",
+          "minLength": 20,
+          "description": "Step-by-step flow from current state to target state"
+        },
+        "state_machine": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Key state transitions and their triggers"
+        },
+        "blocker_taxonomy": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Known or expected blockers, categorized"
+        },
+        "audit": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Auditability trail: what evidence will prove execution"
+        },
+        "go_no_go": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Go/no-go criteria: what must be true to proceed"
+        },
+        "test_strategy": {
+          "type": "string",
+          "minLength": 10,
+          "description": "How correctness will be verified"
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 3,
+          "description": "Structured reason code for this plan"
+        },
+        "assumptions": {
+          "type": "string",
+          "description": "Explicit assumptions underlying the plan"
+        },
+        "risks": {
+          "type": "string",
+          "description": "Identified risks and mitigations"
+        },
+        "non_goals": {
+          "type": "string",
+          "description": "What this plan explicitly does NOT cover"
+        },
+        "open_questions": {
+          "type": "string",
+          "description": "Unresolved questions that may affect execution"
         }
       }
     },
@@ -545,6 +631,80 @@
       "Treat duplicate truths, silent fallback, authority confusion, and path drift as material defects to avoid, not cleanup opportunities to postpone.",
       "Treat docs, tests, and runtime behavior as a single contract surface: when one changes materially, the others must be checked for alignment.",
       "Build changes that can withstand falsification-first review without relying on reviewer charity."
+    ]
+  },
+  "plan_mandate": {
+    "schema_version": "1.0.0",
+    "source": "governance_content/reference/rules.md",
+    "compiled_at": "2026-03-21T10:50:07Z",
+    "role": "evidence-first planner",
+    "core_posture": [
+      "Derive the plan only from the ticket, task, repository evidence, and active governance constraints.",
+      "Prefer the smallest safe scope over speculative broadening.",
+      "Treat scope, sequencing, risk, rollback, and testability as first-class planning concerns.",
+      "Do not invent scope, authority, or behavior not supported by the ticket or repository evidence.",
+      "If scope or expected behavior is unclear, say so explicitly in open_questions rather than guessing."
+    ],
+    "evidence_rule": [
+      "Ground every plan decision in the ticket text, task text, repository structure, or documented contracts.",
+      "Cite or reference the specific areas of the codebase that are relevant.",
+      "Do not plan changes to surfaces not justified by the ticket scope."
+    ],
+    "primary_objectives": [
+      "Define a clear target state derived from the ticket.",
+      "Sequence work into safe, reviewable steps.",
+      "Identify blockers, risks, and rollback paths before implementation.",
+      "Establish go/no-go criteria and test strategy upfront."
+    ],
+    "planning_lenses": [
+      {
+        "name": "Scope",
+        "body": ["Is the plan scoped to what the ticket asks for? Does it over- or under-deliver?"],
+        "ask": ["is every planned step justified by the ticket?"]
+      },
+      {
+        "name": "Sequencing",
+        "body": ["Are steps ordered to minimize blast radius? Can later steps be dropped without breaking earlier ones?"],
+        "ask": ["is there a safer order?"]
+      },
+      {
+        "name": "Risk",
+        "body": ["What can go wrong? Are high-risk steps identified with mitigations?"],
+        "ask": ["what breaks if this plan is wrong?"]
+      },
+      {
+        "name": "Testability",
+        "body": ["Can each step be verified independently? Are acceptance criteria clear?"],
+        "ask": ["how will we know each step worked?"]
+      }
+    ],
+    "output_contract": {
+      "objective": "one precise sentence describing the planned outcome",
+      "target_state": "desired end state with measurable criteria",
+      "target_flow": "ordered steps from current state to target",
+      "state_machine": "key state transitions and their triggers",
+      "blocker_taxonomy": "expected blockers categorized by type",
+      "audit": "evidence trail that proves execution",
+      "go_no_go": "criteria that must be true to proceed",
+      "test_strategy": "how correctness will be verified",
+      "reason_code": "structured reason code for this plan"
+    },
+    "decision_rules": [
+      "A plan must cover: objective, target state, flow, state machine, blockers, audit trail, go/no-go, and test strategy.",
+      "If the ticket scope is ambiguous, populate open_questions rather than inventing scope.",
+      "If rollback is non-trivial, it must be addressed in the plan.",
+      "Do not produce a plan that cannot be reviewed or verified."
+    ],
+    "style_rules": [
+      "Be specific and actionable, not narrative.",
+      "Prefer numbered steps over paragraphs.",
+      "State assumptions explicitly.",
+      "Label uncertainty rather than hiding it."
+    ],
+    "governance_addendum": [
+      "Plans are first-class governance artifacts subject to falsification-first review.",
+      "A plan that cannot be reviewed is not a plan — it is speculation.",
+      "Scope drift in the plan is as dangerous as scope drift in implementation."
     ]
   },
   "source_digest": "c18be60b470c48037b13c403e84555c6e9bfde74b60e126227095d300ee96213",

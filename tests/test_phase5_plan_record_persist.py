@@ -657,3 +657,153 @@ class TestCallLLMReviewMandateSchemaFailClosed:
         assert result["llm_invoked"] is False
         assert result["verdict"] == "changes_requested"
         assert result["reason_code"] == "MANDATE-SCHEMA-UNAVAILABLE"
+
+
+class TestPlanGeneration:
+    """Tests for LLM-based plan generation in /plan."""
+
+    def _valid_plan_response(self) -> str:
+        return json.dumps({
+            "objective": "Add authentication endpoint with JWT support",
+            "target_state": "New /auth/login endpoint accepts credentials and returns JWT token",
+            "target_flow": "1. Add auth route. 2. Validate credentials. 3. Generate JWT. 4. Return token.",
+            "state_machine": "unauthenticated -> authenticated (on valid login)",
+            "blocker_taxonomy": "Credential store must be available; JWT secret must be configured",
+            "audit": "Login events logged with timestamp and user id",
+            "go_no_go": "JWT library available; credential store reachable; tests pass",
+            "test_strategy": "Unit tests for token generation; integration test for login flow",
+            "reason_code": "PLAN-AUTH-001",
+        })
+
+    def test_blocks_when_executor_unavailable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+        monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
+        monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth",
+            task_text="Implement login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is True
+        assert result["reason_code"] == "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE"
+
+    def test_blocks_when_llm_returns_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo ''")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth",
+            task_text="Implement login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is True
+        assert "empty" in result["reason"].lower() or result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
+
+    def test_blocks_when_llm_returns_non_json(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo 'not json at all'")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth",
+            task_text="Implement login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is True
+        assert "not-json" in result["reason"] or result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
+
+    def test_blocks_when_llm_returns_invalid_plan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        module = _load_module()
+        # Response with only objective — missing all other required fields
+        invalid = json.dumps({"objective": "Something"})
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{invalid}'")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth",
+            task_text="Implement login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is True
+        assert result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
+
+    def test_valid_plan_response_accepted(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        valid = self._valid_plan_response()
+        escaped = valid.replace("'", "'\\''")
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{escaped}'")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth endpoint",
+            task_text="Implement JWT login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is False
+        assert "plan_text" in result
+        plan_text = result["plan_text"]
+        assert "Target State" in plan_text
+        assert "Target Flow" in plan_text
+        assert "Go/No-Go" in plan_text
+
+    def test_auto_generate_blocks_when_no_ticket(self, capsys: pytest.CaptureFixture[str]):
+        module = _load_module()
+        # No ticket, no task, no plan text — must block
+        rc = module.main(["--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["status"] == "blocked"
+        assert "missing-plan-record-evidence" in payload["reason"] or "session-state-unreadable" in payload["reason"]
+
+    def test_auto_generate_blocks_when_executor_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        # Add Ticket text to session so auto-generation path is reached
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        doc["SESSION_STATE"]["Ticket"] = "Implement authentication endpoint"
+        doc["SESSION_STATE"]["Task"] = "Add JWT login support"
+        session_path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+        monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
+        monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+
+        rc = module.main(["--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["status"] == "blocked"
+        assert payload["reason_code"] == "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE"
+
+    def test_uses_user_plan_text_when_provided(self, capsys: pytest.CaptureFixture[str]):
+        module = _load_module()
+        # Provide explicit plan text — should skip auto-generation
+        rc = module.main(["--plan-text", "Manual plan text for testing purposes here.", "--quiet"])
+        # May succeed or fail depending on session state, but should NOT try auto-generation
+        # If session state is missing, it should fail with a session-related error, not plan-executor
+        out = capsys.readouterr().out
+        if rc != 0:
+            payload = json.loads(out.strip())
+            assert "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE" != payload.get("reason_code", "")
+
+    def test_resolve_plan_executor_prefers_plan_cmd(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "plan-llm-cmd")
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "implement-llm-cmd")
+        assert module._resolve_plan_executor() == "plan-llm-cmd"
+
+    def test_resolve_plan_executor_falls_back_to_implement_cmd(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "implement-llm-cmd")
+        assert module._resolve_plan_executor() == "implement-llm-cmd"
