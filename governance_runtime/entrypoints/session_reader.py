@@ -821,7 +821,24 @@ def _sync_phase6_completion_fields(*, state_doc: dict) -> None:
         if revision_delta not in {"none", "changed"}:
             revision_delta = "changed"
 
-    complete = iteration >= max_iterations or (iteration >= min_iterations and revision_delta == "none")
+    llm_review_valid = bool(review_block.get("llm_review_valid") is True)
+    llm_review_verdict = str(review_block.get("llm_review_verdict") or "").strip().lower()
+    llm_approve = llm_review_valid and llm_review_verdict == "approve"
+
+    has_llm_data = any(
+        review_block.get(f"llm_review_iteration_{i}") is not None
+        for i in range(1, max(max_iterations, 1) + 1)
+    )
+
+    if has_llm_data:
+        complete = False
+        if llm_approve:
+            if iteration >= max_iterations:
+                complete = True
+            elif iteration >= min_iterations and revision_delta == "none":
+                complete = True
+    else:
+        complete = iteration >= max_iterations or (iteration >= min_iterations and revision_delta == "none")
 
     review_block["iteration"] = iteration
     review_block["max_iterations"] = max_iterations

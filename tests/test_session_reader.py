@@ -1372,6 +1372,7 @@ class TestMain:
         self,
         fake_config: Path,
         capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(
@@ -1416,7 +1417,9 @@ class TestMain:
         )
 
         commands_home = fake_config / "commands"
-        (commands_home / "phase_api.yaml").write_text(
+        spec_home = fake_config / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        (spec_home / "phase_api.yaml").write_text(
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
@@ -1434,8 +1437,24 @@ class TestMain:
             ),
             encoding="utf-8",
         )
+        approve_response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation. All plan steps correctly implemented.",
+            "contract_check": "SSOT boundaries preserved. No contract drift.",
+            "findings": [],
+            "regression_assessment": "Low risk profile. Implementation isolated.",
+            "test_assessment": "Tests sufficient for changed scope.",
+        })
 
-        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        import subprocess
+
+        def mock_subprocess_run(*args, **kwargs):
+            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
         assert "Presented review content" in output
@@ -1551,6 +1570,7 @@ class TestMain:
         self,
         fake_config: Path,
         capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Phase 6 should not keep stale in-progress flags once iterations are complete."""
         ws_state = _write_pointer(fake_config)
@@ -1609,7 +1629,9 @@ class TestMain:
         )
 
         commands_home = fake_config / "commands"
-        (commands_home / "phase_api.yaml").write_text(
+        spec_home = fake_config / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        (spec_home / "phase_api.yaml").write_text(
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
@@ -1627,8 +1649,24 @@ class TestMain:
             ),
             encoding="utf-8",
         )
+        approve_response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation. Phase 6 review complete.",
+            "contract_check": "No contract drift detected.",
+            "findings": [],
+            "regression_assessment": "Low risk profile. No regressions.",
+            "test_assessment": "Tests are sufficient for the scope.",
+        })
 
-        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        import subprocess
+
+        def mock_subprocess_run(*args, **kwargs):
+            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
         assert "Presented review content" in output
@@ -3482,7 +3520,7 @@ class TestPhase6LLMReviewIntegrationEvals:
             "governing_evidence": "Something needs fixing.",
             "contract_check": "Minor drift.",
             "findings": [],
-            "regression_assessment": "Low risk.",
+            "regression_assessment": "Low risk profile.",
             "test_assessment": "Tests adequate.",
         })
         result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
@@ -3581,7 +3619,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
             "governing_evidence": "Reviewed implementation. All plan steps implemented.",
             "contract_check": "SSOT boundaries preserved.",
             "findings": [],
-            "regression_assessment": "Low risk.",
+            "regression_assessment": "Low risk profile.",
             "test_assessment": "Tests sufficient.",
         })
 
@@ -3628,6 +3666,9 @@ class TestPhase6LLMReviewLoopGatingEvals:
                     "LoadedRulebooks": {
                         "core": "rulesets/core/rules.yml",
                         "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
                     },
                     "RulebookLoadEvidence": {
                         "core": "rulesets/core/rules.yml",
@@ -3645,7 +3686,9 @@ class TestPhase6LLMReviewLoopGatingEvals:
             },
         )
         commands_home = fake_config / "commands"
-        (commands_home / "phase_api.yaml").write_text(
+        spec_home = fake_config / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        (spec_home / "phase_api.yaml").write_text(
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
@@ -3684,7 +3727,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
         import subprocess
 
         def mock_subprocess_run(*args, **kwargs):
-            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+            return type("MockResult", (), {"stdout": cr_response, "stderr": "", "returncode": 0})()
 
         monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
         with monkeypatch.context() as m:
@@ -3724,6 +3767,9 @@ class TestPhase6LLMReviewLoopGatingEvals:
                     "LoadedRulebooks": {
                         "core": "rulesets/core/rules.yml",
                         "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
                     },
                     "RulebookLoadEvidence": {
                         "core": "rulesets/core/rules.yml",
@@ -3741,7 +3787,9 @@ class TestPhase6LLMReviewLoopGatingEvals:
             },
         )
         commands_home = fake_config / "commands"
-        (commands_home / "phase_api.yaml").write_text(
+        spec_home = fake_config / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        (spec_home / "phase_api.yaml").write_text(
             get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
@@ -3764,7 +3812,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
             "governing_evidence": "Reviewed implementation.",
             "contract_check": "OK.",
             "findings": [],
-            "regression_assessment": "Low risk.",
+            "regression_assessment": "Low risk profile.",
             "test_assessment": "OK.",
         })
 
@@ -3774,7 +3822,6 @@ class TestPhase6LLMReviewLoopGatingEvals:
             return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
 
         monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
-        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
             m.setattr(
