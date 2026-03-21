@@ -33,6 +33,17 @@ from governance_runtime.infrastructure.workspace_paths import plan_record_archiv
 
 
 BLOCKED_P5_PLAN_RECORD_PERSIST = reason_codes.BLOCKED_P5_PLAN_RECORD_PERSIST
+BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE = "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+
+# Canonical mandate schema error types (Python exceptions, not reason codes)
+class MandateSchemaMissingError(Exception):
+    pass
+class MandateSchemaInvalidJsonError(Exception):
+    pass
+class MandateSchemaInvalidStructureError(Exception):
+    pass
+class MandateSchemaUnavailableError(Exception):
+    pass
 _PHASE5_REVIEW_MAX_ITERATIONS = 3
 _PHASE5_REVIEW_MIN_ITERATIONS = 1
 
@@ -40,13 +51,28 @@ _MANDATE_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime
 
 
 def _load_mandates_schema() -> dict[str, object] | None:
-    """Load the compiled governance mandates schema (JSON). Returns None if unavailable."""
+    """Load the compiled governance mandates schema (JSON).
+    Canonical path only; no fallbacks allowed."""
     if not _MANDATE_SCHEMA_PATH.exists():
-        return None
+        raise MandateSchemaMissingError(
+            f"Mandate schema not found at canonical path: {_MANDATE_SCHEMA_PATH}"
+        )
     try:
-        return json.loads(_MANDATE_SCHEMA_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return None
+        data = json.loads(_MANDATE_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise MandateSchemaInvalidJsonError(f"Mandate schema JSON invalid: {exc}") from exc
+    except Exception as exc:
+        raise MandateSchemaUnavailableError(
+            f"Mandate schema unavailable due to IO error: {exc}"
+        ) from exc
+
+    # Structural validation: must be dict with a valid 'review_mandate' block
+    if not isinstance(data, dict):
+        raise MandateSchemaInvalidStructureError("Mandate schema root must be an object")
+    rm = data.get("review_mandate")
+    if not isinstance(rm, dict):
+        raise MandateSchemaInvalidStructureError("Mandate schema missing or invalid 'review_mandate' block")
+    return data
 
 
 def _build_review_mandate_text(schema: dict[str, object]) -> str:
@@ -125,6 +151,81 @@ def _build_review_mandate_text(schema: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _load_effective_review_policy_text(
+    state: Mapping[str, object],
+    commands_home: Path,
+) -> tuple[str, str]:
+    """Load and format effective review policy for LLM injection.
+
+    Returns (policy_text, error_code). error_code is empty on success.
+    Fail-closed: returns error_code if policy cannot be built.
+    """
+    from governance_runtime.application.use_cases.build_effective_llm_policy import (
+        BLOCKED_EFFECTIVE_POLICY_EMPTY,
+        BLOCKED_EFFECTIVE_POLICY_SCHEMA_INVALID,
+        BLOCKED_RULEBOOK_CONTENT_PARSE_FAILED,
+        BLOCKED_RULEBOOK_CONTENT_UNLOADABLE,
+        EffectivePolicyInput,
+        build_effective_llm_policy,
+        format_review_policy_for_llm,
+    )
+
+    lrb: dict[str, object] = {}
+    addons_ev: dict[str, object] = {}
+    active_profile = "profile.fallback-minimum"
+
+    state_obj = state
+    if isinstance(state, dict):
+        nested = state.get("SESSION_STATE")
+        if isinstance(nested, dict):
+            state_obj = nested
+    if isinstance(state_obj, dict):
+        lrb_raw = state_obj.get("LoadedRulebooks")
+        if isinstance(lrb_raw, dict):
+            lrb = lrb_raw
+        addons_ev_raw = state_obj.get("AddonsEvidence")
+        if isinstance(addons_ev_raw, dict):
+            addons_ev = addons_ev_raw
+        active_profile = str(
+            state_obj.get("ActiveProfile")
+            or state_obj.get("active_profile")
+            or "profile.fallback-minimum"
+        ).strip()
+
+    if not lrb:
+        return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
+
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "assets"
+        / "schemas"
+        / "effective_llm_policy.v1.schema.json"
+    )
+    compiled_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+    try:
+        input_data = EffectivePolicyInput(
+            active_profile=active_profile,
+            loaded_rulebooks=lrb,
+            addons_evidence=addons_ev,
+            commands_home=commands_home,
+            schema_path=schema_path,
+            compiled_at=compiled_at,
+        )
+        result = build_effective_llm_policy(input_data)
+        policy_text = format_review_policy_for_llm(result.policy.review_policy)
+        return policy_text, ""
+    except (
+        BLOCKED_RULEBOOK_CONTENT_UNLOADABLE,
+        BLOCKED_RULEBOOK_CONTENT_PARSE_FAILED,
+        BLOCKED_EFFECTIVE_POLICY_EMPTY,
+        BLOCKED_EFFECTIVE_POLICY_SCHEMA_INVALID,
+    ):
+        return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
+    except Exception:
+        return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
+
+
 def _has_active_desktop_llm_binding() -> bool:
     """Check if active OpenCode Desktop LLM binding is available."""
     if str(os.environ.get("OPENCODE") or "").strip() == "1":
@@ -157,7 +258,11 @@ def _get_review_output_schema_text() -> str:
     return ""
 
 
-def _call_llm_review(content: str, mandate: str) -> dict[str, object]:
+def _call_llm_review(
+    content: str,
+    mandate: str,
+    effective_review_policy: str = "",
+) -> dict[str, object]:
     """Call LLM for review with structured output enforcement."""
     executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
     if not executor_cmd:
@@ -174,19 +279,27 @@ def _call_llm_review(content: str, mandate: str) -> dict[str, object]:
     stderr_file = review_dir / "llm_review_stderr.log"
 
     output_schema_text = _get_review_output_schema_text()
-    instruction = (
-        "Apply the review mandate to review the provided plan.\n"
+    instruction_parts = []
+    if mandate:
+        instruction_parts.append("Apply the review mandate to review the provided plan.")
+    if effective_review_policy:
+        instruction_parts.append("Apply the effective review policy below for active profile and addons.")
+    instruction_parts.append(
         "You MUST respond with valid JSON that conforms to the output schema below.\n"
         "Do NOT include any text outside the JSON object.\n\n"
         "Output schema:\n" + output_schema_text
     )
 
     context = {
-        "schema": "opencode.review.llm-context.v2",
+        "schema": "opencode.review.llm-context.v3",
         "content_to_review": content,
-        "review_mandate": mandate,
-        "instruction": instruction,
     }
+    if mandate:
+        context["review_mandate"] = mandate
+    if effective_review_policy:
+        context["effective_review_policy"] = effective_review_policy
+        context["effective_policy_loaded"] = True
+    context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
     final_cmd = executor_cmd
@@ -211,7 +324,37 @@ def _call_llm_review(content: str, mandate: str) -> dict[str, object]:
                 "verdict": "changes_requested",
                 "findings": ["LLM executor returned empty response"],
             }
-        mandates_schema = _load_mandates_schema()
+        # Fail-closed: mandate schema MUST be available for response validation
+        try:
+            mandates_schema = _load_mandates_schema()
+        except MandateSchemaMissingError as exc:
+            return {
+                "llm_invoked": False,
+                "verdict": "changes_requested",
+                "findings": [f"mandate-schema-missing: {exc}"],
+                "reason_code": "MANDATE-SCHEMA-MISSING",
+            }
+        except MandateSchemaInvalidJsonError as exc:
+            return {
+                "llm_invoked": False,
+                "verdict": "changes_requested",
+                "findings": [f"mandate-schema-invalid-json: {exc}"],
+                "reason_code": "MANDATE-SCHEMA-INVALID-JSON",
+            }
+        except MandateSchemaInvalidStructureError as exc:
+            return {
+                "llm_invoked": False,
+                "verdict": "changes_requested",
+                "findings": [f"mandate-schema-invalid-structure: {exc}"],
+                "reason_code": "MANDATE-SCHEMA-INVALID-STRUCTURE",
+            }
+        except MandateSchemaUnavailableError as exc:
+            return {
+                "llm_invoked": False,
+                "verdict": "changes_requested",
+                "findings": [f"mandate-schema-unavailable: {exc}"],
+                "reason_code": "MANDATE-SCHEMA-UNAVAILABLE",
+            }
         return _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
     except Exception as exc:
         atomic_write_text(stderr_file, str(exc))
@@ -508,7 +651,11 @@ def _has_any_llm_executor() -> bool:
     return bool(executor_cmd)
 
 
-def _run_internal_phase5_self_review(plan_text: str) -> dict[str, object]:
+def _run_internal_phase5_self_review(
+    plan_text: str,
+    state: Mapping[str, object] | None = None,
+    commands_home: Path | None = None,
+) -> dict[str, object]:
     current_text = _canonicalize_text(plan_text)
     if not current_text:
         return {
@@ -519,15 +666,46 @@ def _run_internal_phase5_self_review(plan_text: str) -> dict[str, object]:
         }
 
     mandate_text = ""
-    schema = _load_mandates_schema()
-    if schema:
-        mandate_text = _build_review_mandate_text(schema)
-    if not mandate_text:
+    try:
+        schema = _load_mandates_schema()
+        if schema:
+            mandate_text = _build_review_mandate_text(schema)
+        else:
+            mandate_text = ""
+    except MandateSchemaMissingError:
+        return {
+            "blocked": True,
+            "reason": "mandate-schema-missing",
+            "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
+            "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
+        }
+    except MandateSchemaInvalidJsonError:
+        return {
+            "blocked": True,
+            "reason": "mandate-schema-invalid-json",
+            "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
+            "recovery_action": "Validate the JSON syntax of governance_mandates.v1.schema.json at the canonical runtime location.",
+        }
+    except MandateSchemaInvalidStructureError:
+        return {
+            "blocked": True,
+            "reason": "mandate-schema-invalid-structure",
+            "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
+            "recovery_action": "Regenerate the compiled mandate schema from rules.md or ensure correct structure.",
+        }
+    except MandateSchemaUnavailableError:
         return {
             "blocked": True,
             "reason": "mandate-schema-unavailable",
             "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
-            "recovery_action": "Ensure governance_mandates.v1.schema.json exists at governance_runtime/assets/schemas/. Run scripts/compile_rules.py if rules.md was modified.",
+            "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
+        }
+    except Exception:
+        return {
+            "blocked": True,
+            "reason": "mandate-schema-unavailable",
+            "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
+            "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
         }
 
     iteration = 0
@@ -546,8 +724,23 @@ def _run_internal_phase5_self_review(plan_text: str) -> dict[str, object]:
         verdict = "changes_requested"
         findings_list: list[str] = []
 
+        effective_review_policy = ""
+        effective_policy_error = ""
+        if commands_home is not None and state is not None:
+            effective_review_policy, effective_policy_error = _load_effective_review_policy_text(
+                state=state,
+                commands_home=commands_home,
+            )
+            if effective_policy_error:
+                return {
+                    "blocked": True,
+                    "reason": "effective-review-policy-unavailable",
+                    "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+                    "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
+                }
+
         if has_executor:
-            llm_result = _call_llm_review(current_text, mandate_text)
+            llm_result = _call_llm_review(current_text, mandate_text, effective_review_policy)
             llm_review_results.append(llm_result)
             verdict = str(llm_result.get("verdict", "")).strip().lower()
             llm_findings = llm_result.get("findings", [])
@@ -700,7 +893,11 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(payload, ensure_ascii=True))
             return 2
 
-        review_result = _run_internal_phase5_self_review(plan_text)
+        resolver = BindingEvidenceResolver(env=os.environ)
+        evidence = getattr(resolver, "resolve")(mode="user")
+        commands_home = evidence.commands_home
+
+        review_result = _run_internal_phase5_self_review(plan_text, state=state, commands_home=commands_home)
         if review_result.get("blocked") is True:
             payload = _payload(
                 "blocked",

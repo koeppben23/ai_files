@@ -22,6 +22,7 @@ from unittest.mock import patch
 
 import pytest
 
+import governance_runtime.entrypoints.session_reader as session_reader_entrypoint
 from governance_runtime.entrypoints.session_reader import (
     POINTER_SCHEMA,
     SNAPSHOT_SCHEMA,
@@ -1454,6 +1455,11 @@ class TestMain:
         monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
+            m.setattr(
+                session_reader_entrypoint,
+                "_load_effective_review_policy_text",
+                lambda **_kwargs: ("[EFFECTIVE REVIEW POLICY]\n- baseline", ""),
+            )
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
@@ -1556,6 +1562,11 @@ class TestMain:
         monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
+            m.setattr(
+                session_reader_entrypoint,
+                "_load_effective_review_policy_text",
+                lambda **_kwargs: ("[EFFECTIVE REVIEW POLICY]\n- baseline", ""),
+            )
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
@@ -1666,6 +1677,11 @@ class TestMain:
         monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
+            m.setattr(
+                session_reader_entrypoint,
+                "_load_effective_review_policy_text",
+                lambda **_kwargs: ("[EFFECTIVE REVIEW POLICY]\n- baseline", ""),
+            )
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
@@ -3631,6 +3647,11 @@ class TestPhase6LLMReviewLoopGatingEvals:
         monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
+            m.setattr(
+                session_reader_entrypoint,
+                "_load_effective_review_policy_text",
+                lambda **_kwargs: ("[EFFECTIVE REVIEW POLICY]\n- baseline", ""),
+            )
             rc = main(["--commands-home", str(commands_home), "--materialize"])
 
         assert rc == 0
@@ -3835,3 +3856,45 @@ class TestPhase6LLMReviewLoopGatingEvals:
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["implementation_review_complete"] is False
 
+    def test_phase6_blocks_when_effective_review_policy_unavailable(
+        self,
+        fake_config: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        state_doc = {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "Next": "6",
+                "active_gate": "Post Flight",
+                "status": "OK",
+                "LoadedRulebooks": {
+                    "core": "${COMMANDS_HOME}/rules.md",
+                    "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.md",
+                },
+                "AddonsEvidence": {},
+            }
+        }
+        _write_workspace_state(ws_state, state_doc)
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        monkeypatch.setattr(
+            session_reader_entrypoint,
+            "_derive_commands_home",
+            lambda: fake_config / "commands",
+        )
+        monkeypatch.setattr(
+            session_reader_entrypoint,
+            "_load_effective_review_policy_text",
+            lambda **_kwargs: ("", "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"),
+        )
+
+        result = session_reader_entrypoint._run_phase6_internal_review_loop(
+            state_doc=state_doc,
+            session_path=ws_state,
+        )
+
+        assert isinstance(result, dict)
+        assert result.get("blocked") is True
+        assert result.get("reason") == "effective-review-policy-unavailable"
+        assert result.get("reason_code") == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"

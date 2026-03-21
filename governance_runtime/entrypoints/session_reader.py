@@ -238,6 +238,84 @@ def _has_any_llm_executor() -> bool:
     return bool(executor)
 
 
+BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE = "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+
+
+def _load_effective_review_policy_text(
+    state: Mapping[str, object],
+    commands_home: Path,
+) -> tuple[str, str]:
+    """Load and format effective review policy for Phase 6 LLM injection.
+
+    Returns (policy_text, error_code). error_code is empty on success.
+    Fail-closed: returns error_code if policy cannot be built.
+    """
+    from governance_runtime.application.use_cases.build_effective_llm_policy import (
+        BLOCKED_EFFECTIVE_POLICY_EMPTY,
+        BLOCKED_EFFECTIVE_POLICY_SCHEMA_INVALID,
+        BLOCKED_RULEBOOK_CONTENT_PARSE_FAILED,
+        BLOCKED_RULEBOOK_CONTENT_UNLOADABLE,
+        EffectivePolicyInput,
+        build_effective_llm_policy,
+        format_review_policy_for_llm,
+    )
+
+    lrb: dict[str, object] = {}
+    addons_ev: dict[str, object] = {}
+    active_profile = "profile.fallback-minimum"
+
+    state_obj = state
+    if isinstance(state, dict):
+        nested = state.get("SESSION_STATE")
+        if isinstance(nested, dict):
+            state_obj = nested
+    if isinstance(state_obj, dict):
+        lrb_raw = state_obj.get("LoadedRulebooks")
+        if isinstance(lrb_raw, dict):
+            lrb = lrb_raw
+        addons_ev_raw = state_obj.get("AddonsEvidence")
+        if isinstance(addons_ev_raw, dict):
+            addons_ev = addons_ev_raw
+        active_profile = str(
+            state_obj.get("ActiveProfile")
+            or state_obj.get("active_profile")
+            or "profile.fallback-minimum"
+        ).strip()
+
+    if not lrb:
+        return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
+
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "assets"
+        / "schemas"
+        / "effective_llm_policy.v1.schema.json"
+    )
+    compiled_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+    try:
+        input_data = EffectivePolicyInput(
+            active_profile=active_profile,
+            loaded_rulebooks=lrb,
+            addons_evidence=addons_ev,
+            commands_home=commands_home,
+            schema_path=schema_path,
+            compiled_at=compiled_at,
+        )
+        result = build_effective_llm_policy(input_data)
+        policy_text = format_review_policy_for_llm(result.policy.review_policy)
+        return policy_text, ""
+    except (
+        BLOCKED_RULEBOOK_CONTENT_UNLOADABLE,
+        BLOCKED_RULEBOOK_CONTENT_PARSE_FAILED,
+        BLOCKED_EFFECTIVE_POLICY_EMPTY,
+        BLOCKED_EFFECTIVE_POLICY_SCHEMA_INVALID,
+    ):
+        return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
+    except Exception:
+        return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
+
+
 def _call_llm_impl_review(
     *,
     ticket: str,
@@ -245,6 +323,7 @@ def _call_llm_impl_review(
     plan_text: str,
     implementation_summary: str,
     mandate: str,
+    effective_review_policy: str = "",
 ) -> dict[str, object]:
     executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
     if not executor_cmd:
@@ -268,22 +347,30 @@ def _call_llm_impl_review(
             "findings": ["mandate-schema-missing: governance_mandates.v1.schema.json unavailable — cannot enforce structured output contract"],
         }
 
-    instruction = (
-        "Apply the review mandate below to review the implementation result.\n"
+    instruction_parts = []
+    if mandate:
+        instruction_parts.append("Apply the review mandate below to review the implementation result.")
+    if effective_review_policy:
+        instruction_parts.append("Apply the effective review policy below for active profile and addons.")
+    instruction_parts.append(
         "You MUST respond with valid JSON that conforms to the output schema below.\n"
         "Do NOT include any text outside the JSON object.\n\n"
         "Output schema:\n" + output_schema_text
     )
 
-    context = {
-        "schema": "opencode.impl-review.llm-context.v1",
+    context: dict[str, object] = {
+        "schema": "opencode.impl-review.llm-context.v2",
         "ticket": ticket,
         "task": task,
         "approved_plan": plan_text,
         "implementation_summary": implementation_summary,
-        "review_mandate": mandate,
-        "instruction": instruction,
     }
+    if mandate:
+        context["review_mandate"] = mandate
+    if effective_review_policy:
+        context["effective_review_policy"] = effective_review_policy
+        context["effective_policy_loaded"] = True
+    context["instruction"] = "\n".join(instruction_parts)
     _write_json_atomic(context_file, context)
 
     final_cmd = executor_cmd
@@ -637,10 +724,25 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
 
     has_executor = _has_any_llm_executor()
     mandate_text = ""
+    effective_review_policy = ""
+    effective_policy_error = ""
     if has_executor:
         schema = _load_mandates_schema()
         if schema:
             mandate_text = _build_review_mandate_text(schema)
+        commands_home = _derive_commands_home()
+        if commands_home is not None:
+            effective_review_policy, effective_policy_error = _load_effective_review_policy_text(
+                state=state,
+                commands_home=commands_home,
+            )
+            if effective_policy_error and has_executor:
+                return {
+                    "blocked": True,
+                    "reason": "effective-review-policy-unavailable",
+                    "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+                    "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
+                }
 
     ticket = str(state.get("Ticket") or state.get("ticket") or "").strip()
     task = str(state.get("Task") or state.get("task") or "").strip()
@@ -694,6 +796,7 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
                 plan_text=plan_text,
                 implementation_summary=impl_summary,
                 mandate=mandate_text,
+                effective_review_policy=effective_review_policy,
             )
             review_block[f"llm_review_iteration_{iteration}"] = llm_result
             review_block["llm_review_valid"] = llm_result.get("validation_valid", False)
@@ -1709,6 +1812,12 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             "approve=governance complete + implementation authorized; "
             "changes_requested=enter rework clarification gate; "
             "reject=return to phase 4 ticket input gate"
+        )
+        snapshot["effective_policy_loaded"] = bool(
+            state_view.get("effective_policy_loaded") or state.get("effective_policy_loaded")
+        )
+        snapshot["effective_policy_error"] = str(
+            state_view.get("effective_policy_error") or state.get("effective_policy_error") or ""
         )
         snapshot["review_package_presented"] = True
         snapshot["review_package_plan_body_present"] = plan_body != "none"

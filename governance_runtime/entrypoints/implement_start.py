@@ -49,6 +49,7 @@ from governance_runtime.infrastructure.session_pointer import (
 )
 
 BLOCKED_IMPLEMENT_START_INVALID = "BLOCKED-UNSPECIFIED"
+BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE = "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
 
 _SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 
@@ -61,6 +62,81 @@ def _load_mandates_schema() -> dict[str, object] | None:
         return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def _load_effective_authoring_policy_text(
+    state: Mapping[str, object],
+    commands_home: Path,
+) -> tuple[str, str]:
+    """Load and format effective authoring policy for LLM injection.
+
+    Returns (policy_text, error_code). error_code is empty on success.
+    Fail-closed: returns error_code if policy cannot be built.
+    """
+    from governance_runtime.application.use_cases.build_effective_llm_policy import (
+        BLOCKED_EFFECTIVE_POLICY_EMPTY,
+        BLOCKED_EFFECTIVE_POLICY_SCHEMA_INVALID,
+        BLOCKED_RULEBOOK_CONTENT_PARSE_FAILED,
+        BLOCKED_RULEBOOK_CONTENT_UNLOADABLE,
+        EffectivePolicyInput,
+        build_effective_llm_policy,
+        format_authoring_policy_for_llm,
+    )
+
+    lrb: dict[str, object] = {}
+    addons_ev: dict[str, object] = {}
+    active_profile = "profile.fallback-minimum"
+
+    state_obj = state
+    if isinstance(state, dict):
+        nested = state.get("SESSION_STATE")
+        if isinstance(nested, dict):
+            state_obj = nested
+    if isinstance(state_obj, dict):
+        lrb_raw = state_obj.get("LoadedRulebooks")
+        if isinstance(lrb_raw, dict):
+            lrb = lrb_raw
+        addons_ev_raw = state_obj.get("AddonsEvidence")
+        if isinstance(addons_ev_raw, dict):
+            addons_ev = addons_ev_raw
+        active_profile = str(
+            state_obj.get("ActiveProfile")
+            or state_obj.get("active_profile")
+            or "profile.fallback-minimum"
+        ).strip()
+
+    if not lrb:
+        return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
+
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "assets"
+        / "schemas"
+        / "effective_llm_policy.v1.schema.json"
+    )
+    compiled_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+    try:
+        input_data = EffectivePolicyInput(
+            active_profile=active_profile,
+            loaded_rulebooks=lrb,
+            addons_evidence=addons_ev,
+            commands_home=commands_home,
+            schema_path=schema_path,
+            compiled_at=compiled_at,
+        )
+        result = build_effective_llm_policy(input_data)
+        policy_text = format_authoring_policy_for_llm(result.policy.authoring_policy)
+        return policy_text, ""
+    except (
+        BLOCKED_RULEBOOK_CONTENT_UNLOADABLE,
+        BLOCKED_RULEBOOK_CONTENT_PARSE_FAILED,
+        BLOCKED_EFFECTIVE_POLICY_EMPTY,
+        BLOCKED_EFFECTIVE_POLICY_SCHEMA_INVALID,
+    ):
+        return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
+    except Exception:
+        return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
 
 
 def _build_authoring_mandate_text(schema: dict[str, object]) -> str:
@@ -318,6 +394,7 @@ def _run_llm_edit_step(
     task_text: str,
     plan_text: str,
     required_hotspots: list[str],
+    commands_home: Path | None = None,
 ) -> dict[str, object]:
     executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
     implementation_dir = repo_root / ".governance" / "implementation"
@@ -331,6 +408,23 @@ def _run_llm_edit_step(
     if schema:
         mandate_text = _build_authoring_mandate_text(schema)
 
+    effective_policy_text, effective_policy_error = "", ""
+    if commands_home is not None:
+        effective_policy_text, effective_policy_error = _load_effective_authoring_policy_text(
+            state=state,
+            commands_home=commands_home,
+        )
+    # Determine if we have an LLM executor
+    executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
+    has_executor = bool(executor_cmd) or _has_active_desktop_llm_binding()
+    if has_executor and effective_policy_error:
+        return {
+            "blocked": True,
+            "reason": "effective-policy-unavailable",
+            "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+            "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
+        }
+
     developer_schema_text = _get_developer_output_schema_text()
     structured_output_instruction = ""
     if developer_schema_text:
@@ -342,7 +436,7 @@ def _run_llm_edit_step(
         )
 
     context: dict[str, object] = {
-        "schema": "opencode.implement.llm-context.v3",
+        "schema": "opencode.implement.llm-context.v4",
         "ticket": ticket_text,
         "task": task_text,
         "approved_plan": plan_text,
@@ -359,12 +453,28 @@ def _run_llm_edit_step(
     }
     if mandate_text:
         context["authoring_mandate"] = mandate_text
-        context["instruction"] = (
-            "Apply the authoring mandate below to implement approved plan steps. "
-            "Build only what can be justified by the plan, contracts, and repository evidence. "
-            "Do not limit changes to .governance artifacts."
-            + structured_output_instruction
+    if effective_policy_text:
+        context["effective_authoring_policy"] = effective_policy_text
+        context["effective_policy_loaded"] = True
+    elif effective_policy_error:
+        context["effective_policy_error"] = effective_policy_error
+
+    if mandate_text or effective_policy_text:
+        instruction_parts = []
+        if mandate_text:
+            instruction_parts.append(
+                "Apply the authoring mandate below to implement approved plan steps."
+            )
+        if effective_policy_text:
+            instruction_parts.append(
+                "Apply the effective authoring policy below for active profile and addons."
+            )
+        instruction_parts.append(
+            "Build only what can be justified by the plan, contracts, and repository evidence."
         )
+        instruction_parts.append("Do not limit changes to .governance artifacts.")
+        instruction_parts.append(structured_output_instruction)
+        context["instruction"] = "\n".join(instruction_parts)
     else:
         context["instruction"] = (
             "Implement approved plan steps using repository edits. "
@@ -601,6 +711,10 @@ def start_implementation(
     compiled_requirements = _load_compiled_requirements(session_path, state)
     required_hotspots = _extract_hotspot_files(compiled_requirements)
 
+    resolver = BindingEvidenceResolver(env=os.environ)
+    evidence = getattr(resolver, "resolve")(mode="user")
+    commands_home = evidence.commands_home
+
     llm_result = _run_llm_edit_step(
         repo_root=repo_root,
         state=state,
@@ -608,6 +722,7 @@ def start_implementation(
         task_text=str(state.get("Task") or ""),
         plan_text=plan_text,
         required_hotspots=required_hotspots,
+        commands_home=commands_home,
     )
 
     validation_violations = llm_result.get("validation_violations") or []

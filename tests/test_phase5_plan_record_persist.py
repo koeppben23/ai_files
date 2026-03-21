@@ -42,6 +42,47 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     except Exception:
         pass
 
+    # Create profile and addon rulebook files for effective policy loading
+    try:
+        profiles_dir = commands_home / "rulesets" / "profiles"
+        profiles_dir.mkdir(parents=True, exist_ok=True)
+        # Fallback-minimum profile - must have enough structure to generate constraints
+        fallback_content = (
+            "# Fallback Minimum Profile Rulebook\n\n"
+            "## Intent (binding)\n"
+            "Provide a mandatory baseline when no explicit standards exist.\n\n"
+            "## Scope (binding)\n"
+            "Applies when no stack profile can be selected.\n\n"
+            "## Evidence contract (binding)\n"
+            "Maintain evidence for every verification claim.\n\n"
+            "## Quality heuristics (SHOULD)\n"
+            "- Use repo-native tools when available.\n\n"
+            "## Mandatory baseline (MUST)\n"
+            "- Identify how to build and verify the project.\n\n"
+            "## Anti-Patterns Catalog (Binding)\n"
+            "- Do not claim verification without executed checks.\n"
+        )
+        (profiles_dir / "rules.fallback-minimum.md").write_text(fallback_content, encoding="utf-8")
+        # Risk-tiering addon
+        addon_content = (
+            "# Risk Tiering Addon\n\n"
+            "## Intent (binding)\n"
+            "Define risk-based evidence requirements.\n\n"
+            "## Scope (binding)\n"
+            "Applies to all changes.\n\n"
+            "## Evidence contract (binding)\n"
+            "Higher risk changes require more evidence.\n\n"
+            "## Quality heuristics (SHOULD)\n"
+            "- Document risk rationale.\n\n"
+            "## Decision Trees (Binding)\n"
+            "- High risk: require additional evidence.\n\n"
+            "## Anti-Patterns Catalog (Binding)\n"
+            "- Do not skip risk assessment for high-impact changes.\n"
+        )
+        (profiles_dir / "rules.risk-tiering.md").write_text(addon_content, encoding="utf-8")
+    except Exception:
+        pass
+
     paths = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
@@ -73,15 +114,15 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
             "ActiveProfile": "profile.fallback-minimum",
             "LoadedRulebooks": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.md",
                 "templates": "${COMMANDS_HOME}/master.md",
                 "addons": {
-                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.md",
                 },
             },
             "RulebookLoadEvidence": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.md",
             },
             "AddonsEvidence": {
                 "riskTiering": {"status": "loaded"},
@@ -512,3 +553,107 @@ class TestReviewResponseEnforcementE2E:
         result = module._parse_llm_review_response("   \n\n  ", mandates_schema=self._load_schema())
         assert result["validation_valid"] is False
         assert result["verdict"] == "changes_requested"
+
+
+class TestPhase5BlocksWhenEffectivePolicyUnavailable:
+    """Phase 5 must block when effective review policy cannot be built."""
+
+    def test_phase5_blocks_when_effective_review_policy_unavailable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+        # Clear the profile files so effective policy cannot be built
+        profiles_dir = commands_home / "rulesets" / "profiles"
+        if profiles_dir.exists():
+            for f in profiles_dir.iterdir():
+                f.unlink()
+
+        rc = module.main(["--plan-text", "Architecture plan v1", "--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["status"] == "blocked"
+        assert payload["reason_code"] == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+        assert "effective-review-policy-unavailable" in payload["reason"]
+
+    def test_phase5_blocks_when_mandate_schema_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+        # Mock _load_mandates_schema to raise MandateSchemaMissingError
+        original_load = module._load_mandates_schema
+
+        def mock_load():
+            raise module.MandateSchemaMissingError("Schema missing")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", mock_load)
+
+        rc = module.main(["--plan-text", "Architecture plan v1", "--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["status"] == "blocked"
+        assert payload["reason"] == "mandate-schema-missing"
+
+
+class TestCallLLMReviewMandateSchemaFailClosed:
+    """_call_llm_review() must itself fail-closed on mandate schema errors."""
+
+    def test_blocks_on_missing_schema(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+
+        def _raise_missing():
+            raise module.MandateSchemaMissingError("schema file not found")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_missing)
+        result = module._call_llm_review("plan text", "mandate text")
+        assert result["llm_invoked"] is False
+        assert result["verdict"] == "changes_requested"
+        assert result["reason_code"] == "MANDATE-SCHEMA-MISSING"
+        assert any("mandate-schema-missing" in f for f in result["findings"])
+
+    def test_blocks_on_invalid_json(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+
+        def _raise_invalid_json():
+            raise module.MandateSchemaInvalidJsonError("bad json at line 5")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_invalid_json)
+        result = module._call_llm_review("plan text", "mandate text")
+        assert result["llm_invoked"] is False
+        assert result["verdict"] == "changes_requested"
+        assert result["reason_code"] == "MANDATE-SCHEMA-INVALID-JSON"
+
+    def test_blocks_on_invalid_structure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+
+        def _raise_invalid_structure():
+            raise module.MandateSchemaInvalidStructureError("missing review_mandate")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_invalid_structure)
+        result = module._call_llm_review("plan text", "mandate text")
+        assert result["llm_invoked"] is False
+        assert result["verdict"] == "changes_requested"
+        assert result["reason_code"] == "MANDATE-SCHEMA-INVALID-STRUCTURE"
+
+    def test_blocks_on_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+
+        def _raise_unavailable():
+            raise module.MandateSchemaUnavailableError("IO error reading schema")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_unavailable)
+        result = module._call_llm_review("plan text", "mandate text")
+        assert result["llm_invoked"] is False
+        assert result["verdict"] == "changes_requested"
+        assert result["reason_code"] == "MANDATE-SCHEMA-UNAVAILABLE"
