@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import textwrap
 from pathlib import Path
 from unittest.mock import patch
@@ -694,7 +695,9 @@ class TestReadonlyKernelEvalEnrichment:
                 "LoadedRulebooks": {
                     "core": "rulesets/core/rules.yml",
                     "profile": "rulesets/profiles/rules.fallback-minimum.yml",
-                    "addons": {"riskTiering": "rulesets/profiles/rules.risk-tiering.yml"},
+                    "addons": {
+                        "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                    },
                 },
                 "RulebookLoadEvidence": {
                     "core": "rulesets/core/rules.yml",
@@ -1447,6 +1450,7 @@ class TestMain:
         self,
         fake_config: Path,
         capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(
@@ -1516,7 +1520,24 @@ class TestMain:
             encoding="utf-8",
         )
 
-        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        approve_response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation. All plan steps correctly implemented.",
+            "contract_check": "SSOT boundaries preserved. No contract drift.",
+            "findings": [],
+            "regression_assessment": "Low risk. Implementation isolated.",
+            "test_assessment": "Tests sufficient for changed scope.",
+        })
+
+        import subprocess
+        def mock_subprocess_run(*args, **kwargs):
+            result = type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+            return result
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
         assert "Presented review content" in output
@@ -3468,4 +3489,302 @@ class TestPhase6LLMReviewIntegrationEvals:
         assert result["validation_valid"] is False
         violations = result.get("validation_violations", [])
         assert any("changes_requested" in v.lower() and "no findings" in v.lower() for v in violations)
+
+
+class TestPhase6LLMReviewLoopGatingEvals:
+    """E2E evals proving LLM verdict gates Phase 6 completion.
+
+    These tests verify that _run_phase6_internal_review_loop() uses the LLM
+    review result to determine completion — not just mechanical iteration count.
+    """
+
+    @staticmethod
+    def _load_schema() -> dict | None:
+        schema_path = Path(__file__).resolve().parents[1] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+        if not schema_path.exists():
+            return None
+        try:
+            return json.loads(schema_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def test_approve_verdict_at_max_iterations_completes_phase6(
+        self,
+        fake_config: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "6-PostFlight",
+                    "Next": "6",
+                    "active_gate": "Post Flight",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "phase5_plan_record_digest": "sha256:plan-v1",
+                    "ImplementationReview": {
+                        "iteration": 0,
+                        "max_iterations": 3,
+                        "min_self_review_iterations": 1,
+                    },
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
+                        "P5.4-BusinessRules": "compliant",
+                        "P5.5-TechnicalDebt": "approved",
+                        "P5.6-RollbackSafety": "approved",
+                    },
+                }
+            },
+        )
+        commands_home = fake_config / "commands"
+        spec_home = fake_config / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        (spec_home / "phase_api.yaml").write_text(
+            get_phase_api_path().read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (fake_config / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        approve_response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation. All plan steps implemented.",
+            "contract_check": "SSOT boundaries preserved.",
+            "findings": [],
+            "regression_assessment": "Low risk.",
+            "test_assessment": "Tests sufficient.",
+        })
+
+        import subprocess
+
+        def mock_subprocess_run(*args, **kwargs):
+            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
+
+        assert rc == 0
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["implementation_review_complete"] is True
+        assert updated_state["phase6_review_iterations"] == 3
+
+    def test_changes_requested_verdict_blocks_phase6_completion(
+        self,
+        fake_config: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "6-PostFlight",
+                    "Next": "6",
+                    "active_gate": "Post Flight",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "phase5_plan_record_digest": "sha256:plan-v1",
+                    "ImplementationReview": {
+                        "iteration": 0,
+                        "max_iterations": 3,
+                        "min_self_review_iterations": 1,
+                    },
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
+                        "P5.4-BusinessRules": "compliant",
+                        "P5.5-TechnicalDebt": "approved",
+                        "P5.6-RollbackSafety": "approved",
+                    },
+                }
+            },
+        )
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            get_phase_api_path().read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (fake_config / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        cr_response = json.dumps({
+            "verdict": "changes_requested",
+            "governing_evidence": "Reviewed implementation.",
+            "contract_check": "Minor drift found.",
+            "findings": [
+                {
+                    "severity": "high",
+                    "type": "defect",
+                    "location": "src/main.py:42",
+                    "evidence": "Missing null check causes crash",
+                    "impact": "Crash on empty input",
+                    "fix": "Add null guard",
+                }
+            ],
+            "regression_assessment": "Other endpoints unaffected.",
+            "test_assessment": "Tests sufficient.",
+        })
+
+        import subprocess
+
+        def mock_subprocess_run(*args, **kwargs):
+            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
+
+        assert rc == 0
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["implementation_review_complete"] is False
+        assert updated_state["phase6_state"] == "phase6_in_progress"
+
+    def test_validator_import_failure_blocks_phase6_completion(
+        self,
+        fake_config: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "6-PostFlight",
+                    "Next": "6",
+                    "active_gate": "Post Flight",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "phase5_plan_record_digest": "sha256:plan-v1",
+                    "ImplementationReview": {
+                        "iteration": 0,
+                        "max_iterations": 3,
+                        "min_self_review_iterations": 1,
+                    },
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
+                        "P5.4-BusinessRules": "compliant",
+                        "P5.5-TechnicalDebt": "approved",
+                        "P5.6-RollbackSafety": "approved",
+                    },
+                }
+            },
+        )
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            get_phase_api_path().read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (fake_config / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        approve_response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation.",
+            "contract_check": "OK.",
+            "findings": [],
+            "regression_assessment": "Low risk.",
+            "test_assessment": "OK.",
+        })
+
+        import subprocess
+
+        def mock_subprocess_run(*args, **kwargs):
+            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            m.setattr(
+                sys.modules["governance_runtime.entrypoints.session_reader"],
+                "_load_mandates_schema",
+                lambda: None,
+            )
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
+
+        assert rc == 0
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["implementation_review_complete"] is False
 

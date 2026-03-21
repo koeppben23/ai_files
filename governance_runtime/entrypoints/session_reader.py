@@ -261,6 +261,13 @@ def _call_llm_impl_review(
     stderr_file = review_dir / "llm_impl_review_stderr.log"
 
     output_schema_text = _get_review_output_schema_text()
+    if not output_schema_text:
+        return {
+            "llm_invoked": False,
+            "verdict": "changes_requested",
+            "findings": ["mandate-schema-missing: governance_mandates.v1.schema.json unavailable — cannot enforce structured output contract"],
+        }
+
     instruction = (
         "Apply the review mandate below to review the implementation result.\n"
         "You MUST respond with valid JSON that conforms to the output schema below.\n"
@@ -352,17 +359,26 @@ def _parse_llm_review_response(
             "raw_response": raw_text[:1000],
         }
 
-    if validate_review_response is not None:
-        validation = validate_review_response(parsed_data, mandates_schema=mandates_schema)
-        if not validation.valid:
-            return {
-                "llm_invoked": True,
-                "verdict": "changes_requested",
-                "findings": [f"schema-violation: {v.rule}" for v in validation.violations],
-                "validation_valid": False,
-                "validation_violations": [v.rule for v in validation.violations],
-                "raw_response": raw_text[:1000],
-            }
+    if validate_review_response is None:
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": ["validator-not-available: llm_response_validator could not be imported"],
+            "validation_valid": False,
+            "validation_violations": ["validator-not-available"],
+            "raw_response": raw_text[:1000],
+        }
+
+    validation = validate_review_response(parsed_data, mandates_schema=mandates_schema)
+    if not validation.valid:
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": [f"schema-violation: {v.rule}" for v in validation.violations],
+            "validation_valid": False,
+            "validation_violations": [v.rule for v in validation.violations],
+            "raw_response": raw_text[:1000],
+        }
 
     findings = []
     for f in parsed_data.get("findings", []) or []:
@@ -658,9 +674,10 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
 
     audit_rows: list[dict[str, object]] = []
     revision_delta = "none" if (prev_digest and curr_digest and prev_digest == curr_digest) else "changed"
-    complete = iteration >= max_iterations or (iteration >= min_iterations and revision_delta == "none")
+    llm_approve = False
+    complete = False
 
-    while iteration < max_iterations:
+    while iteration < max_iterations and not complete:
         iteration += 1
         previous = curr_digest
         if force_stable and iteration >= 2:
@@ -668,7 +685,6 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
         else:
             curr_digest = f"sha256:{_sha256_text(base_seed + ':' + str(iteration))}"
         revision_delta = "none" if curr_digest == previous else "changed"
-        complete = iteration >= max_iterations or (iteration >= min_iterations and revision_delta == "none")
 
         llm_result: dict[str, object] = {}
         if has_executor:
@@ -683,6 +699,12 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
             review_block["llm_review_valid"] = llm_result.get("validation_valid", False)
             review_block["llm_review_verdict"] = llm_result.get("verdict", "unknown")
             review_block["llm_review_findings"] = llm_result.get("findings", [])
+            if llm_result.get("validation_valid") is True and llm_result.get("verdict") == "approve":
+                llm_approve = True
+                if iteration >= max_iterations:
+                    complete = True
+                elif iteration >= min_iterations and revision_delta == "none":
+                    complete = True
 
         audit_rows.append(
             {
