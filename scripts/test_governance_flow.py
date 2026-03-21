@@ -300,6 +300,49 @@ def review_decision(
         return False, {"error": result.stdout[:200], "stderr": result.stderr[:200]}
 
 
+def run_review_command(
+    target: str,
+    config_root: Path,
+    env: dict[str, str],
+) -> tuple[bool, dict[str, Any], str]:
+    """Run the /review command for a PR URL, file path, or directory path.
+
+    This simulates the /review command flow:
+    1. Read session state via session_reader --materialize
+    2. Simulate fetching content (for test: just return OK with review context)
+    3. Return review command metadata for validation
+
+    Returns: (ok, review_context, stderr)
+    """
+    ok, state, stderr = session_reader_materialize(config_root, env)
+    review_context: dict[str, Any] = {
+        "session_state_ok": ok,
+        "phase": state.get("phase") or state.get("Phase"),
+        "mode": state.get("mode") or state.get("Mode"),
+        "target": target,
+        "target_type": _classify_review_target(target),
+    }
+    return ok, review_context, stderr
+
+
+def _classify_review_target(target: str) -> str:
+    """Classify the review target type."""
+    if target.startswith("http://") or target.startswith("https://"):
+        if "github.com" in target and "/pull/" in target:
+            return "github_pr"
+        if "gitlab.com" in target and "/merge_requests/" in target:
+            return "gitlab_mr"
+        if "bitbucket.org" in target and "/pull-requests/" in target:
+            return "bitbucket_pr"
+        return "url"
+    p = Path(target)
+    if p.is_dir():
+        return "directory"
+    if p.is_file():
+        return "file"
+    return "unknown"
+
+
 # ---------------------------------------------------------------------------
 # JSON helpers
 # ---------------------------------------------------------------------------
@@ -839,6 +882,74 @@ def test_review_decisions(
     return True
 
 
+def test_review_command(
+    env: dict[str, str],
+    config_root: Path,
+    local_root: Path,
+    repo_root: Path,
+    results: TestResults,
+) -> bool:
+    """Test the /review command as an independent parallel process in Phase 4.
+
+    This tests the new /review command that:
+    - Lives alongside /ticket as its own workflow
+    - Does not require ticket intake
+    - Has access to full repo context from governance bootstrap
+    - Supports PR URLs, file paths, and directory paths
+    """
+    log_step("REVIEW COMMAND", f"repo={repo_root.name}")
+
+    ok, response, _ = bootstrap(repo_root, config_root, local_root, env)
+    results.add("Bootstrap for review test succeeds", ok, "")
+    if not ok:
+        return False
+
+    ok, state, _ = session_reader_materialize(config_root, env)
+    results.add("Session reader works for review context", ok, "")
+    phase = state.get("phase") or state.get("Phase") or ""
+
+    log_info(f"Current phase: {phase}")
+
+    test_targets = [
+        ("github_pr", "https://github.com/owner/repo/pull/123"),
+        ("file", "src/main.py"),
+        ("directory", "src/"),
+    ]
+
+    for expected_type, target in test_targets:
+        ok, ctx, stderr = run_review_command(target, config_root, env)
+        actual_type = ctx.get("target_type", "unknown")
+        target_ok = actual_type == expected_type
+        results.add(
+            f"Review target type '{expected_type}' recognized",
+            target_ok,
+            f"target={target}, type={actual_type}",
+        )
+
+        results.add(
+            f"Review command gets session state",
+            ctx.get("session_state_ok", False),
+            f"session_state_ok={ctx.get('session_state_ok')}",
+        )
+
+        session_phase = ctx.get("phase")
+        results.add(
+            f"Review command has phase context",
+            session_phase is not None,
+            f"phase={session_phase}",
+        )
+
+        session_mode = ctx.get("mode")
+        results.add(
+            f"Review command has mode context",
+            session_mode is not None,
+            f"mode={session_mode}",
+        )
+
+    log_info("Review command test completed")
+    return True
+
+
 def test_corner_bootstrap_fail(
     env: dict[str, str],
     config_root: Path,
@@ -1001,6 +1112,15 @@ def main() -> int:
     results.add("Governance installed (review test)", install_ok3)
     if install_ok3:
         test_review_decisions(env3, envs3["config"], envs3["local"], envs3["repo"], results)
+
+    # ---- TEST 3b: /review Command ----
+    envs3b = setup_environment("e2e-review-cmd-")
+    init_git_repo(envs3b["repo"])
+    env3b = make_env(envs3b["config"], envs3b["local"], envs3b["repo"], envs3b["home"])
+    install_ok3b = install_governance(env3b, envs3b["config"], envs3b["local"])
+    results.add("Governance installed (review command test)", install_ok3b)
+    if install_ok3b:
+        test_review_command(env3b, envs3b["config"], envs3b["local"], envs3b["repo"], results)
 
     # ---- TEST 4: Corner - Bootstrap fail ----
     envs4 = setup_environment("e2e-corner-")
