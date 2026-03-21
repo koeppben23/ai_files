@@ -17,11 +17,13 @@ Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import shlex
+import subprocess
 import sys
 import tempfile
-import hashlib
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -147,6 +149,234 @@ def _sha256_text(value: str) -> str:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+
+
+def _load_mandates_schema() -> dict[str, object] | None:
+    if not _SCHEMA_PATH.exists():
+        return None
+    try:
+        return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _get_review_output_schema_text() -> str:
+    schema = _load_mandates_schema()
+    if schema:
+        try:
+            defs = schema.get("$defs", {})
+            for key in defs:
+                if key == "reviewOutputSchema":
+                    return json.dumps({"$schema": "https://json-schema.org/draft/2020-12/schema", **defs[key]}, indent=2)
+        except Exception:
+            pass
+    return ""
+
+
+def _build_review_mandate_text(schema: dict[str, object]) -> str:
+    rm = schema.get("review_mandate", {})
+    if not isinstance(rm, dict):
+        return ""
+
+    lines: list[str] = []
+
+    role = str(rm.get("role", "")).strip()
+    if role:
+        lines.append(f"Role: {role}")
+
+    posture = rm.get("core_posture", [])
+    if posture:
+        for item in posture:
+            lines.append(f"- {item}")
+
+    evidence = rm.get("evidence_rule", [])
+    if evidence:
+        lines.append("Evidence rule:")
+        for item in evidence:
+            lines.append(f"- {item}")
+
+    lenses = rm.get("review_lenses", [])
+    if lenses:
+        lines.append("Review lenses:")
+        for idx, lens in enumerate(lenses, 1):
+            if isinstance(lens, dict):
+                name = lens.get("name", "")
+                body = lens.get("body", [])
+                ask = lens.get("ask", [])
+                lines.append(f"{idx}. {name}")
+                for b in body:
+                    lines.append(f"- {b}")
+                for a in ask:
+                    lines.append(f"  Ask: {a}")
+
+    method = rm.get("adversarial_method", [])
+    if method:
+        lines.append("Adversarial method:")
+        for item in method:
+            lines.append(f"- {item}")
+
+    decision = rm.get("decision_rules", [])
+    if decision:
+        lines.append("Decision rules:")
+        for item in decision:
+            lines.append(f"- {item}")
+
+    addendum = rm.get("governance_addendum", [])
+    if addendum:
+        lines.append("Governance addendum:")
+        for item in addendum:
+            lines.append(f"- {item}")
+
+    return "\n".join(lines)
+
+
+def _has_any_llm_executor() -> bool:
+    executor = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
+    return bool(executor)
+
+
+def _call_llm_impl_review(
+    *,
+    ticket: str,
+    task: str,
+    plan_text: str,
+    implementation_summary: str,
+    mandate: str,
+) -> dict[str, object]:
+    executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
+    if not executor_cmd:
+        return {
+            "llm_invoked": False,
+            "verdict": "changes_requested",
+            "findings": ["No LLM executor configured (OPENCODE_IMPLEMENT_LLM_CMD not set)"],
+        }
+
+    review_dir = Path.home() / ".governance" / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    context_file = review_dir / "llm_impl_review_context.json"
+    stdout_file = review_dir / "llm_impl_review_stdout.log"
+    stderr_file = review_dir / "llm_impl_review_stderr.log"
+
+    output_schema_text = _get_review_output_schema_text()
+    instruction = (
+        "Apply the review mandate below to review the implementation result.\n"
+        "You MUST respond with valid JSON that conforms to the output schema below.\n"
+        "Do NOT include any text outside the JSON object.\n\n"
+        "Output schema:\n" + output_schema_text
+    )
+
+    context = {
+        "schema": "opencode.impl-review.llm-context.v1",
+        "ticket": ticket,
+        "task": task,
+        "approved_plan": plan_text,
+        "implementation_summary": implementation_summary,
+        "review_mandate": mandate,
+        "instruction": instruction,
+    }
+    _write_json_atomic(context_file, context)
+
+    final_cmd = executor_cmd
+    if "{context_file}" in final_cmd:
+        final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
+
+    import subprocess
+    try:
+        result = subprocess.run(
+            final_cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        with open(stdout_file, "w", encoding="utf-8") as fh:
+            fh.write(str(result.stdout or ""))
+        with open(stderr_file, "w", encoding="utf-8") as fh:
+            fh.write(str(result.stderr or ""))
+        response_text = result.stdout or ""
+        if not response_text.strip():
+            return {
+                "llm_invoked": False,
+                "verdict": "changes_requested",
+                "findings": ["LLM executor returned empty response"],
+            }
+        mandates_schema = _load_mandates_schema()
+        return _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
+    except Exception as exc:
+        with open(stderr_file, "w", encoding="utf-8") as fh:
+            fh.write(str(exc))
+        return {"llm_invoked": False, "error": str(exc), "verdict": "changes_requested", "findings": [f"LLM review failed: {exc}"]}
+
+
+def _parse_llm_review_response(
+    response_text: str,
+    mandates_schema: dict[str, object] | None = None,
+) -> dict[str, object]:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
+    try:
+        from llm_response_validator import validate_review_response
+    except Exception:
+        validate_review_response = None
+
+    raw_text = response_text.strip()
+
+    if not raw_text:
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": ["LLM returned empty response"],
+            "validation_valid": False,
+            "validation_violations": ["response-not-structured-json"],
+            "raw_response": "",
+        }
+
+    parsed_data: dict[str, object] | None = None
+
+    if raw_text.startswith("{"):
+        try:
+            parsed_data = json.loads(raw_text)
+        except json.JSONDecodeError:
+            pass
+
+    if parsed_data is None:
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": [f"response-not-structured-json: LLM did not return valid JSON. Received {len(raw_text)} chars starting with: {raw_text[:80]!r}"],
+            "validation_valid": False,
+            "validation_violations": ["response-not-structured-json"],
+            "raw_response": raw_text[:1000],
+        }
+
+    if validate_review_response is not None:
+        validation = validate_review_response(parsed_data, mandates_schema=mandates_schema)
+        if not validation.valid:
+            return {
+                "llm_invoked": True,
+                "verdict": "changes_requested",
+                "findings": [f"schema-violation: {v.rule}" for v in validation.violations],
+                "validation_valid": False,
+                "validation_violations": [v.rule for v in validation.violations],
+                "raw_response": raw_text[:1000],
+            }
+
+    findings = []
+    for f in parsed_data.get("findings", []) or []:
+        if isinstance(f, dict):
+            findings.append(
+                f"[{f.get('severity', '?')}] {f.get('location', '?')}: {f.get('evidence', '')[:100]}"
+            )
+    return {
+        "llm_invoked": True,
+        "verdict": parsed_data.get("verdict", "changes_requested"),
+        "findings": findings,
+        "raw_response": raw_text[:1000],
+        "validation_valid": True,
+    }
 
 
 def _truncate_text(value: object, *, limit: int = 180) -> str:
@@ -317,6 +547,11 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
     - max 3 iterations
     - early-stop allowed only when digest is unchanged after minimum iterations
     - otherwise hard-stop at max iterations
+
+    LLM review: each iteration calls the LLM with implementation context and
+    REVIEW_MANDATE from rules.md. Response must be structured JSON conforming
+    to reviewOutputSchema. Fail-closed: non-JSON / schema-invalid responses
+    are treated as changes_requested.
     """
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
@@ -384,6 +619,43 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
 
     force_stable = bool(state.get("phase6_force_stable_digest", False))
 
+    has_executor = _has_any_llm_executor()
+    mandate_text = ""
+    if has_executor:
+        schema = _load_mandates_schema()
+        if schema:
+            mandate_text = _build_review_mandate_text(schema)
+
+    ticket = str(state.get("Ticket") or state.get("ticket") or "").strip()
+    task = str(state.get("Task") or state.get("task") or "").strip()
+    plan_text = _build_plan_body(session_path=session_path)
+    changed_files = (
+        state.get("implementation_changed_files")
+        or state.get("implementation_package_changed_files")
+        or []
+    )
+    domain_changed = (
+        state.get("implementation_domain_changed_files")
+        or state.get("implementation_package_domain_changed_files")
+        or []
+    )
+    validation_report = state.get("implementation_validation_report") or {}
+    checks = state.get("implementation_checks_executed") or []
+    checks_ok = bool(state.get("implementation_checks_ok", False))
+
+    impl_summary_parts: list[str] = []
+    if changed_files:
+        impl_summary_parts.append(f"Changed files ({len(changed_files)}): " + ", ".join(str(f) for f in changed_files[:20]))
+    if domain_changed:
+        impl_summary_parts.append(f"Domain files changed ({len(domain_changed)}): " + ", ".join(str(f) for f in domain_changed[:20]))
+    if checks:
+        impl_summary_parts.append(f"Checks executed ({len(checks)}): " + ", ".join(str(c) for c in checks))
+    if checks_ok:
+        impl_summary_parts.append("Checks result: PASS")
+    else:
+        impl_summary_parts.append("Checks result: FAIL or not executed")
+    impl_summary = "\n".join(impl_summary_parts) if impl_summary_parts else "No implementation data available."
+
     audit_rows: list[dict[str, object]] = []
     revision_delta = "none" if (prev_digest and curr_digest and prev_digest == curr_digest) else "changed"
     complete = iteration >= max_iterations or (iteration >= min_iterations and revision_delta == "none")
@@ -398,6 +670,20 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
         revision_delta = "none" if curr_digest == previous else "changed"
         complete = iteration >= max_iterations or (iteration >= min_iterations and revision_delta == "none")
 
+        llm_result: dict[str, object] = {}
+        if has_executor:
+            llm_result = _call_llm_impl_review(
+                ticket=ticket,
+                task=task,
+                plan_text=plan_text,
+                implementation_summary=impl_summary,
+                mandate=mandate_text,
+            )
+            review_block[f"llm_review_iteration_{iteration}"] = llm_result
+            review_block["llm_review_valid"] = llm_result.get("validation_valid", False)
+            review_block["llm_review_verdict"] = llm_result.get("verdict", "unknown")
+            review_block["llm_review_findings"] = llm_result.get("findings", [])
+
         audit_rows.append(
             {
                 "event": "phase6-implementation-review-iteration",
@@ -408,6 +694,9 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
                 "completion_status": "phase6-completed" if complete else "phase6-in-progress",
                 "reason_code": "none",
                 "impl_digest": curr_digest,
+                "llm_review_invoked": llm_result.get("llm_invoked", False) if llm_result else False,
+                "llm_review_valid": llm_result.get("validation_valid", False) if llm_result else False,
+                "llm_review_verdict": llm_result.get("verdict", "unknown") if llm_result else "unknown",
             }
         )
         prev_digest = previous
@@ -422,6 +711,7 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
     review_block["revision_delta"] = revision_delta
     review_block["completion_status"] = "phase6-completed" if complete else "phase6-in-progress"
     review_block["implementation_review_complete"] = complete
+    review_block["llm_review_executor_available"] = has_executor
     state["ImplementationReview"] = review_block
 
     state["phase6_review_iterations"] = iteration

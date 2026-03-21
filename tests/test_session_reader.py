@@ -3306,3 +3306,166 @@ class TestImplementationBlockerSurface:
         assert any("Executor invoked: true" in line for line in lines)
         assert any("Changed files: 1" in line for line in lines)
         assert any("Domain files changed: 0" in line for line in lines)
+
+
+class TestPhase6LLMReviewIntegrationEvals:
+    """Integration E2E evals for Phase 6 LLM review enforcement chain.
+
+    Tests the full path: _call_llm_impl_review -> subprocess (mocked) ->
+    _parse_llm_review_response -> validation -> block/proceed.
+
+    Chain:
+      _run_phase6_internal_review_loop
+          -> _has_any_llm_executor()
+          -> _call_llm_impl_review(content, mandate)
+              -> subprocess.run (mocked)
+              -> response captured from stdout
+              -> _parse_llm_review_response(response_text, schema)
+                  -> JSON parse? no -> hard block
+                  -> schema validate? fail -> hard block
+                  -> proceed
+    """
+
+    @staticmethod
+    def _load_schema() -> dict | None:
+        schema_path = Path(__file__).resolve().parents[1] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+        if not schema_path.exists():
+            return None
+        try:
+            return json.loads(schema_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def test_parse_llm_review_response_valid_json_approve_proceeds(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation. All plan steps implemented correctly.",
+            "contract_check": "SSOT boundaries preserved. No contract drift.",
+            "findings": [],
+            "regression_assessment": "Low risk. Implementation isolated.",
+            "test_assessment": "Tests sufficient for changed scope.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is True
+        assert result["verdict"] == "approve"
+        assert result["findings"] == []
+
+    def test_parse_llm_review_response_valid_json_changes_requested_proceeds(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "changes_requested",
+            "governing_evidence": "Reviewed implementation against plan.",
+            "contract_check": "Minor drift in response shape.",
+            "findings": [
+                {
+                    "severity": "high",
+                    "type": "defect",
+                    "location": "src/api.py:42",
+                    "evidence": "Response field missing",
+                    "impact": "Client breakage",
+                    "fix": "Add missing field",
+                }
+            ],
+            "regression_assessment": "Existing endpoints unaffected.",
+            "test_assessment": "Tests missing for new behavior.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is True
+        assert result["verdict"] == "changes_requested"
+        assert len(result["findings"]) == 1
+
+    def test_parse_llm_review_response_free_prose_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = "Looks good. I reviewed the implementation and everything seems fine."
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert "response-not-structured-json" in result["validation_violations"]
+        assert result["verdict"] == "changes_requested"
+
+    def test_parse_llm_review_response_malformed_json_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = '{"verdict": "approve", "findings": ['
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert "response-not-structured-json" in result["validation_violations"]
+
+    def test_parse_llm_review_response_empty_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        result = _parse_llm_review_response("", mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
+
+    def test_parse_llm_review_response_approve_with_defect_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed code.",
+            "contract_check": "OK.",
+            "findings": [
+                {
+                    "severity": "medium",
+                    "type": "defect",
+                    "location": "src/main.py:1",
+                    "evidence": "Logic error in condition",
+                    "impact": "Wrong branch executed",
+                    "fix": "Fix condition",
+                }
+            ],
+            "regression_assessment": "Most endpoints affected.",
+            "test_assessment": "Insufficient coverage.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        violations = result.get("validation_violations", [])
+        assert any("defect" in v.lower() for v in violations)
+
+    def test_parse_llm_review_response_missing_required_field_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "changes_requested",
+            "findings": [
+                {
+                    "severity": "high",
+                    "type": "defect",
+                    "location": "src/main.py:42",
+                    "evidence": "Missing null check causes crash",
+                    "impact": "Crash on empty input",
+                    "fix": "Add null guard",
+                }
+            ],
+            "regression_assessment": "Other endpoints unaffected.",
+            "test_assessment": "Tests sufficient.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+
+    def test_parse_llm_review_response_invalid_verdict_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "looks_good",
+            "governing_evidence": "Reviewed all files.",
+            "contract_check": "No issues found.",
+            "findings": [],
+            "regression_assessment": "Minimal risk.",
+            "test_assessment": "Tests sufficient.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
+
+    def test_parse_llm_review_response_changes_requested_without_findings_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "changes_requested",
+            "governing_evidence": "Something needs fixing.",
+            "contract_check": "Minor drift.",
+            "findings": [],
+            "regression_assessment": "Low risk.",
+            "test_assessment": "Tests adequate.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        violations = result.get("validation_violations", [])
+        assert any("changes_requested" in v.lower() and "no findings" in v.lower() for v in violations)
+
