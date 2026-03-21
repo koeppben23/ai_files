@@ -50,7 +50,7 @@ from governance_runtime.infrastructure.session_pointer import (
 
 BLOCKED_IMPLEMENT_START_INVALID = "BLOCKED-UNSPECIFIED"
 
-_SCHEMA_PATH = Path(__file__).absolute().parents[2] / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 
 
 def _load_mandates_schema() -> dict[str, object] | None:
@@ -95,12 +95,12 @@ def _build_authoring_mandate_text(schema: dict[str, object]) -> str:
     lenses = dm.get("authoring_lenses", [])
     if lenses:
         lines.append("Authoring lenses:")
-        for lens in lenses:
+        for idx, lens in enumerate(lenses, 1):
             if isinstance(lens, dict):
                 name = lens.get("name", "")
                 body = lens.get("body", [])
                 ask = lens.get("ask", [])
-                lines.append(f"{len(lines)}. {name}")
+                lines.append(f"{idx}. {name}")
                 for b in body:
                     lines.append(f"- {b}")
                 for a in ask:

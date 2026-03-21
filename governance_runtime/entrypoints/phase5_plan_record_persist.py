@@ -36,7 +36,7 @@ BLOCKED_P5_PLAN_RECORD_PERSIST = reason_codes.BLOCKED_P5_PLAN_RECORD_PERSIST
 _PHASE5_REVIEW_MAX_ITERATIONS = 3
 _PHASE5_REVIEW_MIN_ITERATIONS = 1
 
-_MANDATE_SCHEMA_PATH = Path(__file__).absolute().parents[2] / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+_MANDATE_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 
 
 def _load_mandates_schema() -> dict[str, object] | None:
@@ -81,12 +81,12 @@ def _build_review_mandate_text(schema: dict[str, object]) -> str:
     lenses = rm.get("review_lenses", [])
     if lenses:
         lines.append("Review lenses:")
-        for lens in lenses:
+        for idx, lens in enumerate(lenses, 1):
             if isinstance(lens, dict):
                 name = lens.get("name", "")
                 body = lens.get("body", [])
                 ask = lens.get("ask", [])
-                lines.append(f"{len([l for l in lines if l[0].isdigit()]) + 1}. {name}")
+                lines.append(f"{idx}. {name}")
                 for b in body:
                     lines.append(f"- {b}")
                 for a in ask:
@@ -146,6 +146,13 @@ def _has_active_desktop_llm_binding() -> bool:
 def _call_llm_review(content: str, mandate: str) -> dict[str, object]:
     """Call LLM for review with content and mandate from JSON schema."""
     executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
+    if not executor_cmd:
+        return {
+            "llm_invoked": False,
+            "verdict": "changes_requested",
+            "findings": ["No LLM executor configured (OPENCODE_IMPLEMENT_LLM_CMD not set)"],
+        }
+
     review_dir = Path.home() / ".governance" / "review"
     review_dir.mkdir(parents=True, exist_ok=True)
     context_file = review_dir / "llm_review_context.json"
@@ -163,37 +170,32 @@ def _call_llm_review(content: str, mandate: str) -> dict[str, object]:
     }
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
-    if not executor_cmd:
-        if _has_active_desktop_llm_binding():
+    final_cmd = executor_cmd
+    if "{context_file}" in final_cmd:
+        final_cmd = final_cmd.replace("{context_file}", str(context_file))
+    try:
+        import subprocess
+        result = subprocess.run(
+            final_cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        atomic_write_text(stdout_file, str(result.stdout or ""))
+        atomic_write_text(stderr_file, str(result.stderr or ""))
+        response_text = result.stdout or ""
+        if not response_text.strip():
             return {
-                "llm_invoked": True,
-                "verdict": "approve",
-                "findings": [],
-                "summary": "No explicit executor configured; using active session.",
+                "llm_invoked": False,
+                "verdict": "changes_requested",
+                "findings": ["LLM executor returned empty response"],
             }
-
-    if executor_cmd:
-        final_cmd = executor_cmd
-        if "{context_file}" in final_cmd:
-            final_cmd = final_cmd.replace("{context_file}", str(context_file))
-        try:
-            import subprocess
-            result = subprocess.run(
-                final_cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=120,
-            )
-            atomic_write_text(stdout_file, str(result.stdout or ""))
-            atomic_write_text(stderr_file, str(result.stderr or ""))
-            response_text = result.stdout or ""
-            return _parse_llm_review_response(response_text)
-        except Exception as exc:
-            atomic_write_text(stderr_file, str(exc))
-            return {"llm_invoked": False, "error": str(exc), "verdict": "changes_requested", "findings": [f"LLM review failed: {exc}"]}
-    return {"llm_invoked": False, "verdict": "changes_requested", "findings": ["No LLM executor available"]}
+        return _parse_llm_review_response(response_text)
+    except Exception as exc:
+        atomic_write_text(stderr_file, str(exc))
+        return {"llm_invoked": False, "error": str(exc), "verdict": "changes_requested", "findings": [f"LLM review failed: {exc}"]}
 
 
 def _parse_llm_review_response(response_text: str) -> dict[str, object]:
@@ -242,9 +244,6 @@ def _parse_llm_review_response(response_text: str) -> dict[str, object]:
     }
 
 
-def _get_fallback_review_mandate() -> str:
-    """Fallback review mandate if schema is unavailable."""
-    return "You are a falsification-first reviewer. Assume the change is incorrect until evidence supports it. Approve only when evidence supports correctness, contract alignment, and acceptable risk. If evidence is incomplete, prefer changes_requested over approval.\n\nEvidence rule: Ground every conclusion in specific evidence from code, tests, contracts, ADRs, or repository structure.\n\nReview lenses: (1) Correctness: edge cases, null paths, error handling. (2) Contract integrity: API/schema drift, SSOT violations, silent fallback. (3) Architecture: boundary violations, authority leaks. (4) Regression risk. (5) Testing quality. (6) Security.\n\nOutput: Return verdict (approve/changes_requested) and findings with severity, type, location, evidence, impact, fix."
 
 
 def _phase_token(value: str) -> str:
@@ -450,6 +449,19 @@ def _revise_plan(plan_text: str, findings: Sequence[str], iteration: int) -> str
     return _canonicalize_text(revised)
 
 
+def _has_any_llm_executor() -> bool:
+    """Check if an explicit LLM executor command is configured.
+
+    Unlike implement_start.py, Phase-5 self-review does NOT fall back to
+    Desktop LLM binding (OPENCODE=1). The binding only indicates an
+    active Desktop session, not that a callable executor exists. An
+    explicit OPENCODE_IMPLEMENT_LLM_CMD is required for deterministic
+    behavior in the self-review loop.
+    """
+    executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
+    return bool(executor_cmd)
+
+
 def _run_internal_phase5_self_review(plan_text: str) -> dict[str, object]:
     current_text = _canonicalize_text(plan_text)
     if not current_text:
@@ -465,7 +477,12 @@ def _run_internal_phase5_self_review(plan_text: str) -> dict[str, object]:
     if schema:
         mandate_text = _build_review_mandate_text(schema)
     if not mandate_text:
-        mandate_text = _get_fallback_review_mandate()
+        return {
+            "blocked": True,
+            "reason": "mandate-schema-unavailable",
+            "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
+            "recovery_action": "Ensure governance_mandates.v1.schema.json exists at governance_runtime/assets/schemas/. Run scripts/compile_rules.py if rules.md was modified.",
+        }
 
     iteration = 0
     prev_digest = _digest(current_text)
@@ -474,18 +491,22 @@ def _run_internal_phase5_self_review(plan_text: str) -> dict[str, object]:
     findings_summary: list[str] = []
     audit_rows: list[dict[str, object]] = []
     llm_review_results: list[dict[str, object]] = []
+    has_executor = _has_any_llm_executor()
 
     while iteration < _PHASE5_REVIEW_MAX_ITERATIONS:
         iteration += 1
 
-        llm_result = _call_llm_review(current_text, mandate_text)
-        llm_review_results.append(llm_result)
-
-        verdict = str(llm_result.get("verdict", "")).strip().lower()
+        llm_result: dict[str, object] = {"llm_invoked": False, "verdict": "changes_requested", "findings": []}
+        verdict = "changes_requested"
         findings_list: list[str] = []
-        llm_findings = llm_result.get("findings", [])
-        if isinstance(llm_findings, list):
-            findings_list = [str(f) for f in llm_findings]
+
+        if has_executor:
+            llm_result = _call_llm_review(current_text, mandate_text)
+            llm_review_results.append(llm_result)
+            verdict = str(llm_result.get("verdict", "")).strip().lower()
+            llm_findings = llm_result.get("findings", [])
+            if isinstance(llm_findings, list):
+                findings_list = [str(f) for f in llm_findings]
 
         mechanical_findings = _collect_findings(current_text)
 

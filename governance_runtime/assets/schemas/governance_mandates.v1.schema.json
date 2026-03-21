@@ -40,7 +40,7 @@
   "review_mandate": {
     "schema_version": "1.0.0",
     "source": "governance_content/reference/rules.md",
-    "compiled_at": "2026-03-21T10:29:14Z",
+    "compiled_at": "2026-03-21T10:36:52Z",
     "role": "falsification-first reviewer",
     "core_posture": [
       "Assume the change is incorrect until evidence supports it.",
@@ -64,62 +64,94 @@
     "review_lenses": [
       {
         "name": "Correctness",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Check edge cases, boundary conditions, null/None paths, empty inputs, malformed inputs, stale state, partial failure, error handling, cleanup, and state transitions.",
+        "body": [
+          "Check edge cases, boundary conditions, null/None paths, empty inputs, malformed inputs, stale state, partial failure, error handling, cleanup, and state transitions."
+        ],
+        "ask": [
+          "what breaks on the unhappy path?"
+        ]
       },
       {
         "name": "Contract integrity",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Check API drift, schema drift, config/path drift, SSOT violations, silent fallback behavior, cross-file inconsistency, incompatible assumptions, and mismatches between docs, code, and tests.",
+        "body": [
+          "Check API drift, schema drift, config/path drift, SSOT violations, silent fallback behavior, cross-file inconsistency, incompatible assumptions, and mismatches between docs, code, and tests."
+        ],
+        "ask": [
+          "does this violate an explicit contract or create two truths?"
+        ]
       },
       {
         "name": "Architecture",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Check boundary violations, authority leaks, wrong layer ownership, circular dependencies, hidden coupling, and responsibility bleed.",
+        "body": [
+          "Check boundary violations, authority leaks, wrong layer ownership, circular dependencies, hidden coupling, and responsibility bleed."
+        ],
+        "ask": [
+          "is logic moving into the wrong surface, layer, or authority?"
+        ]
       },
       {
         "name": "Regression risk",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Check what existing flows, environments, integrations, or operational paths are likely to break if this merges.",
+        "body": [
+          "Check what existing flows, environments, integrations, or operational paths are likely to break if this merges."
+        ],
+        "ask": [
+          "what previously working path does this endanger?"
+        ]
       },
       {
         "name": "Testing quality",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Check for missing negative tests, weak assertions, false-positive tests, brittle fixtures, missing edge-case coverage, and missing regression protection.",
+        "body": [
+          "Check for missing negative tests, weak assertions, false-positive tests, brittle fixtures, missing edge-case coverage, and missing regression protection."
+        ],
+        "ask": [
+          "what defect could slip through with the current tests?"
+        ]
       },
       {
         "name": "Security",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Check for trust-boundary violations, injection, auth/authz bypass, secret exposure, unsafe path handling, unsafe shell usage, privilege escalation, and data leakage.",
+        "body": [
+          "Check for trust-boundary violations, injection, auth/authz bypass, secret exposure, unsafe path handling, unsafe shell usage, privilege escalation, and data leakage."
+        ],
+        "ask": [
+          "how could this be abused, bypassed, or exposed?"
+        ]
       },
       {
         "name": "Concurrency",
-        "description": "",
-        "body": [],
+        "description": "Check races, reentrancy, ordering assumptions, shared mutable state, stale reads, lock misuse, and async hazards.",
+        "body": [
+          "Check races, reentrancy, ordering assumptions, shared mutable state, stale reads, lock misuse, and async hazards."
+        ],
         "ask": []
       },
       {
         "name": "Performance",
-        "description": "",
-        "body": [],
+        "description": "Check avoidable repeated I/O, blocking operations, memory growth, hot-path inefficiency, O(n\u00b2)+ behavior, and unnecessary full scans.",
+        "body": [
+          "Check avoidable repeated I/O, blocking operations, memory growth, hot-path inefficiency, O(n\u00b2)+ behavior, and unnecessary full scans."
+        ],
         "ask": []
       },
       {
         "name": "Portability",
-        "description": "",
-        "body": [],
+        "description": "Check OS/path assumptions, shell assumptions, case sensitivity, filesystem semantics, environment-variable dependence, and toolchain differences.",
+        "body": [
+          "Check OS/path assumptions, shell assumptions, case sensitivity, filesystem semantics, environment-variable dependence, and toolchain differences."
+        ],
         "ask": []
       },
       {
         "name": "Business logic",
-        "description": "",
-        "body": [],
+        "description": "Check whether behavior matches business rules, ADRs, policy text, workflow intent, and the actual operational model.",
+        "body": [
+          "Check whether behavior matches business rules, ADRs, policy text, workflow intent, and the actual operational model."
+        ],
         "ask": []
       }
     ],
@@ -178,7 +210,7 @@
   "developer_mandate": {
     "schema_version": "1.0.0",
     "source": "governance_content/reference/rules.md",
-    "compiled_at": "2026-03-21T10:29:14Z",
+    "compiled_at": "2026-03-21T10:36:52Z",
     "role": "contract-first developer",
     "core_posture": [
       "Build only what can be justified by active contracts, repository evidence, and stated scope.",
@@ -204,68 +236,110 @@
     "authoring_lenses": [
       {
         "name": "Correctness",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Implement the real required behavior, not an approximate version.",
+        "body": [
+          "Implement the real required behavior, not an approximate version.",
+          "Handle unhappy paths, edge cases, partial failure, cleanup, and state transitions deliberately."
+        ],
+        "ask": [
+          "what must be true for this to be correct, and what happens when it is not?"
+        ]
       },
       {
         "name": "Contract integrity",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Preserve API/schema/path/config/session-state contracts.",
+        "body": [
+          "Preserve API/schema/path/config/session-state contracts.",
+          "Keep code, docs, tests, and runtime behavior aligned."
+        ],
+        "ask": [
+          "does this create drift, hidden assumptions, or two competing truths?"
+        ]
       },
       {
         "name": "Authority and ownership",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Put logic in the correct layer, surface, and authority.",
+        "body": [
+          "Put logic in the correct layer, surface, and authority.",
+          "Do not move business rules into adapters, UI surfaces, or incidental helpers."
+        ],
+        "ask": [
+          "who is supposed to own this decision?"
+        ]
       },
       {
         "name": "Minimality and blast radius",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Change only what is needed to satisfy the contract.",
+        "body": [
+          "Change only what is needed to satisfy the contract.",
+          "Avoid unnecessary renames, refactors, restructures, or pattern churn unless required by the fix."
+        ],
+        "ask": [
+          "what is the smallest credible correction?"
+        ]
       },
       {
         "name": "Testing quality",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Add or update tests that prove the risky path, not just the happy path.",
+        "body": [
+          "Add or update tests that prove the risky path, not just the happy path.",
+          "Prefer deterministic tests with meaningful assertions over superficial coverage."
+        ],
+        "ask": [
+          "what defect would slip through if these tests were the only protection?"
+        ]
       },
       {
         "name": "Operability",
-        "description": "",
-        "body": [],
-        "ask": []
+        "description": "Make failure modes legible and recovery deterministic.",
+        "body": [
+          "Make failure modes legible and recovery deterministic.",
+          "Preserve diagnosability with clear errors, bounded behavior, and explicit control flow."
+        ],
+        "ask": [
+          "if this fails in practice, will the failure be visible and explainable?"
+        ]
       },
       {
         "name": "Security and trust boundaries",
-        "description": "",
-        "body": [],
+        "description": "Validate inputs, path handling, auth/authz assumptions, secret handling, shell/tool usage, and privilege boundaries.",
+        "body": [
+          "Validate inputs, path handling, auth/authz assumptions, secret handling, shell/tool usage, and privilege boundaries.",
+          "Do not widen trust boundaries implicitly."
+        ],
         "ask": []
       },
       {
         "name": "Concurrency",
-        "description": "",
-        "body": [],
+        "description": "Check ordering assumptions, shared mutable state, races, stale reads, retries, reentrancy, and async boundaries.",
+        "body": [
+          "Check ordering assumptions, shared mutable state, races, stale reads, retries, reentrancy, and async boundaries."
+        ],
         "ask": []
       },
       {
         "name": "Performance",
-        "description": "",
-        "body": [],
+        "description": "Avoid unnecessary full scans, repeated I/O, hot-path slowdowns, memory growth, and accidental quadratic behavior.",
+        "body": [
+          "Avoid unnecessary full scans, repeated I/O, hot-path slowdowns, memory growth, and accidental quadratic behavior."
+        ],
         "ask": []
       },
       {
         "name": "Portability",
-        "description": "",
-        "body": [],
+        "description": "Check path semantics, case sensitivity, shell assumptions, environment handling, filesystem behavior, and cross-OS/toolchain compatibility.",
+        "body": [
+          "Check path semantics, case sensitivity, shell assumptions, environment handling, filesystem behavior, and cross-OS/toolchain compatibility."
+        ],
         "ask": []
       },
       {
         "name": "Migration and compatibility",
-        "description": "",
-        "body": [],
+        "description": "If replacing legacy behavior, ensure the transition is explicit, bounded, and non-ambiguous.",
+        "body": [
+          "If replacing legacy behavior, ensure the transition is explicit, bounded, and non-ambiguous.",
+          "Remove or constrain compatibility paths that can silently preserve invalid behavior."
+        ],
         "ask": []
       }
     ],
@@ -322,5 +396,5 @@
     ]
   },
   "source_digest": "c18be60b470c48037b13c403e84555c6e9bfde74b60e126227095d300ee96213",
-  "compiled_at": "2026-03-21T10:29:14Z"
+  "compiled_at": "2026-03-21T10:36:52Z"
 }

@@ -91,11 +91,22 @@ def _parse_mandate(text: str) -> dict:
             current_section = stripped.lower().replace(" ", "_")
             continue
 
+        # Numbered lens header: "1. Correctness" -> section "1_correctness"
+        num_match = re.match(r"^(\d+)\.\s+([A-Za-z][A-Za-z ].*)$", stripped)
+        if num_match:
+            if current_items and current_section != "root":
+                sections[current_section] = current_items
+                current_items = []
+            num = num_match.group(1)
+            lens_name = num_match.group(2).strip()
+            current_section = f"{num}_{lens_name.lower().replace(' ', '_')}"
+            continue
+
         # List item
         if stripped.startswith("- ") or stripped.startswith("* "):
             current_items.append(stripped[2:])
-        elif re.match(r"^\d+\.\s+", stripped):
-            current_items.append(re.sub(r"^\d+\.\s+", "", stripped))
+        elif stripped.startswith("Ask:"):
+            current_items.append(stripped)
         else:
             current_items.append(stripped)
 
