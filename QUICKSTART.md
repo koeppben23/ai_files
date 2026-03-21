@@ -103,7 +103,7 @@ Use `--verbose` for step-by-step bootstrap output.
 ## Step 4: Open Desktop and continue
 
 After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/continue`.
-If `/continue` lands in Phase 4, run `/ticket` and then `/plan`; alternatively run `/review` for read-only review feedback (no state change).
+If `/continue` lands in Phase 4, run `/ticket` to persist the ticket/task, then run `/plan` to auto-generate a plan from the ticket via Desktop LLM. Alternatively run `/review` for read-only review feedback (no state change).
 Use `/review` as a read-only rail entrypoint for quality feedback. At Phase 6, run `/review-decision <approve|changes_requested|reject>` for the final decision.
 If you choose `changes_requested`, the workflow enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
 If you choose `reject`, the workflow returns to the Ticket Input Gate; primary next action is `/ticket` with updated scope.

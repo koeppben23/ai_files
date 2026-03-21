@@ -21,9 +21,9 @@ Phase `1.3` is mandatory before every phase `>=2`.
 - Phase 3A (API Inventory) inventories external API artifacts — always executed, may record `not-applicable`.
 - Phase 3B-1 / 3B-2 (API Validation) run only when APIs are detected.
 - Phase 4 (Ticket Intake) produces the concrete implementation plan; `/review` is a read-only rail entrypoint for feedback.
-- Phase 5 - Lead Architect Review requires plan-record evidence and runs internal self-review (min 1, max 3 iterations).
+- Phase 5 — `/plan` auto-generates a plan from the persisted ticket/task via Desktop LLM, runs self-review (min 1, max 3 iterations), compiles requirement contracts, and persists plan-record evidence. User may also provide plan text explicitly via `--plan-text`.
 - Phase 5.3 / 5.4 / 5.5 / 5.6 are conditional gates following Phase 5.
-- Phase 6 (Implementation) runs internal review loop, then presents evidence. Final decision via `/implementation-decision` (approve | changes_requested | reject). `/continue` does NOT advance past the Evidence Presentation Gate.
+- Phase 6 (Implementation) runs internal review loop, then presents evidence. Final decision via `/review-decision` (approve | changes_requested | reject). `/continue` does NOT advance past the Evidence Presentation Gate.
 
 ## Canonical Flow
 
@@ -34,7 +34,7 @@ Phase `1.3` is mandatory before every phase `>=2`.
   Main execution: 4 → 5 → 5.3 → [5.4] → [5.5] → [5.6] → 6
   Phase 6 internal: Implementation Internal Review (max 3 iterations)
     → Evidence Presentation Gate
-    → /implementation-decision <approve|changes_requested|reject>
+    → /review-decision <approve|changes_requested|reject>
       approve     → Workflow Complete (terminal)
       changes_requested → Rework Clarification Gate (Phase 6)
       reject      → Phase 4 (Ticket Input Gate)
@@ -56,7 +56,7 @@ Phase `1.3` is mandatory before every phase `>=2`.
 | API Logical Validation | `3B-1` | API Logical Validation | **Conditional**: only when APIs detected. Auto-routes to 3B-2. |
 | Contract Validation | `3B-2` | Contract Validation | **Conditional**: only when APIs detected. Auto-routes to 4. |
 | Ticket Intake / Planning | `4` | Ticket Input Gate | Non-gate for routing. Code output blocked until gates pass. `/review` is a read-only rail entrypoint without state change. Transitions: `ticket_present` → 5; `default` → stay in 4. |
-| Architecture Review | `5-ArchitectureReview` | Plan Record Preparation Gate / Architecture Review Gate | Gate review. `output_policy.min_self_review_iterations: 1`, max 3. Transitions: `plan_record_missing` → stay; `self_review_iterations_pending` → stay; `self_review_iterations_met` → 5.3. Output classes: `plan`, `review`, `risk_analysis`, `test_strategy`, `gate_check`, `rollback_plan`, `review_questions`, `consolidated_review_plan`. |
+| Architecture Review | `5-ArchitectureReview` | Plan Record Preparation Gate / Architecture Review Gate | `/plan` auto-generates plan from Ticket/Task via Desktop LLM (fail-closed: mandate, policy, schema required). Self-review loop runs min 1, max 3 iterations. Transitions: `plan_record_missing` → stay; `self_review_iterations_pending` → stay; `self_review_iterations_met` → 5.3. |
 | Test Quality Review | `5.3-TestQuality` | Test Quality Gate | Unconditional. Transitions: `business_rules_gate_required` → 5.4; `technical_debt_proposed` → 5.5; `rollback_required` → 5.6; `default` → 6. |
 | Business Rules Compliance | `5.4-BusinessRules` | Business Rules Validation | Conditional — only active when Phase 1.5 executed. Transitions: `technical_debt_proposed` → 5.5; `rollback_required` → 5.6; `default` → 6. |
 | Technical Debt Review | `5.5-TechnicalDebt` | Technical Debt Review | Always checked (may be `not-applicable`). Transitions: `rollback_required` → 5.6; `default` → 6. |
@@ -139,9 +139,9 @@ These are the authoritative CLI commands that drive governance. Every phase tran
 | Bootstrap | `cli.bootstrap init` | Initializes workspace, runs persistence hook |
 | `/continue` | `governance_runtime.entrypoints.session_reader --materialize` | Advances routing, runs Phase 6 internal loop |
 | `/ticket` | `governance_runtime.entrypoints.phase4_intake_persist` | Persists ticket/task intake evidence |
-| `/plan` | `governance_runtime.entrypoints.phase5_plan_record_persist` | Persists plan-record evidence, triggers self-review |
+| `/plan` | `governance_runtime.entrypoints.phase5_plan_record_persist` | Auto-generates plan from Ticket/Task via LLM, runs self-review, persists plan-record evidence |
 | `/implement` | `governance_runtime.entrypoints.implement_start` | Starts implementation execution (Phase 6) |
-| `/implementation-decision` | `governance_runtime.entrypoints.review_decision_persist --decision <approve\|changes_requested\|reject>` | Final review decision at Evidence Presentation Gate |
+| `/review-decision` | `governance_runtime.entrypoints.review_decision_persist --decision <approve\|changes_requested\|reject>` | Final review decision at Evidence Presentation Gate |
 
 ## Gate Requirements for Code Generation
 
@@ -160,13 +160,24 @@ These are the authoritative CLI commands that drive governance. Every phase tran
 - Phase progression is unlocked only by persisted intake evidence (`Ticket`/`Task` with matching digest fields).
 - `phase4_intake_evidence=true` is supporting metadata and never sufficient by itself.
 - `/ticket` is the mutating intake rail for Phase 4 evidence persistence.
-- `/plan` is the mutating plan-record rail for Phase 5 evidence persistence.
+- `/plan` is the productive planning rail: auto-generates plan from ticket/task, reviews, and persists.
 - `/continue` and `/review` remain read-only rails and do not mutate intake/plan evidence.
 - `FeatureComplexity` can be persisted as supporting metadata but does not unlock Phase 4 on its own.
 
-## Phase 5 Self-Review (Internal)
+## Phase 5 Plan Generation and Self-Review
 
-Phase 5 runs an internal self-review loop with these constraints (from `phase_api.yaml`):
+Phase 5 runs an integrated plan-generation and self-review loop:
+
+1. **Plan generation:** `/plan` reads the persisted `Ticket`/`Task` from session state and generates a structured plan via the Desktop LLM. This requires:
+   - `OPENCODE_PLAN_LLM_CMD` (or fallback `OPENCODE_IMPLEMENT_LLM_CMD`) — executor must be configured
+   - `governance_mandates.v1.schema.json` must be loadable with valid `plan_mandate` block
+   - Effective authoring policy must be buildable from active rulebooks/addons
+   - LLM response must conform to `planOutputSchema` (fail-closed on any violation)
+2. **Self-review loop:** The generated plan is reviewed (max 3 iterations, min 1). Each iteration runs LLM review and mechanical section checks.
+3. **Contract compilation:** Final plan is compiled to requirement contracts (merging ticket, task, and plan text).
+4. **Persistence:** Plan record and compiled contracts are persisted only when valid.
+
+Constraints (from `phase_api.yaml`):
 - `output_policy.min_self_review_iterations: 1`
 - Maximum 3 review iterations
 - Early-stop: only when digest unchanged after minimum iterations
@@ -176,7 +187,7 @@ Phase 5 runs an internal self-review loop with these constraints (from `phase_ap
 
 ## Phase 6 Review Decision
 
-At the Evidence Presentation Gate (`implementation_review_complete`), the operator must run `/implementation-decision`:
+At the Evidence Presentation Gate (`implementation_review_complete`), the operator must run `/review-decision`:
 
 | Decision | Effect |
 |----------|--------|
@@ -184,7 +195,7 @@ At the Evidence Presentation Gate (`implementation_review_complete`), the operat
 | `changes_requested` | Enter Rework Clarification Gate in Phase 6 — clarify in chat first, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`) |
 | `reject` | Back to Phase 4 — restart from planning (Ticket Input Gate) |
 
-**Key:** `/continue` does NOT advance past the Evidence Presentation Gate. The operator must explicitly run `/implementation-decision`.
+**Key:** `/continue` does NOT advance past the Evidence Presentation Gate. The operator must explicitly run `/review-decision`.
 
 ## Phase 3 Routing (API Detection)
 

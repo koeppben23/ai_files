@@ -167,12 +167,13 @@ opencode-governance-bootstrap --set-operating-mode solo --repo-root /path/to/rep
 ### Continue in OpenCode
 
 1. Open OpenCode Desktop in the same repository and run `/continue`.
-2. For new work at Phase 4, run `/ticket`, then `/plan`; alternatively run `/review` for read-only review feedback (no state change).
-3. Use `/review` as a read-only rail entrypoint for review-depth feedback.
-4. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` (for example `/review-decision approve`).
-5. If you choose `changes_requested`, the workflow enters `Rework Clarification Gate`; clarify requested changes in chat first, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
-6. If you choose `reject`, the workflow returns to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
-7. If you choose `approve`, run `/implement` to start authorized implementation execution (default executor: active OpenCode Desktop LLM; optional override executor supported).
+2. For new work at Phase 4, run `/ticket` to persist the ticket/task.
+3. Run `/plan` — this auto-generates a plan from the persisted ticket via Desktop LLM, runs self-review, and persists the plan record. Alternatively provide explicit plan text via `/plan --plan-text "..."`.
+4. Use `/review` as a read-only rail entrypoint for review-depth feedback.
+5. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` (for example `/review-decision approve`).
+6. If you choose `changes_requested`, the workflow enters `Rework Clarification Gate`; clarify requested changes in chat first, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
+7. If you choose `reject`, the workflow returns to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
+8. If you choose `approve`, run `/implement` to start authorized implementation execution (default executor: active OpenCode Desktop LLM; optional override executor supported).
 
 ## Docs and troubleshooting
 

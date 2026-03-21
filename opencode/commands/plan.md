@@ -4,23 +4,35 @@
 
 ## Purpose
 
-`/plan` persists Phase-5 plan-record evidence.
+`/plan` is the productive planning rail. It generates a plan from the persisted ticket/task, runs self-review, and persists the result.
 The command is mutating — it writes evidence and reroutes kernel state.
-Chat text or a file path alone does not change gate state; the persist command below must be executed to write evidence and reroute state.
 
-Two accepted inputs:
-- plan text in chat
-- a local file path containing plan text
+**Auto-generation (default):** When no `--plan-text` or `--plan-file` is provided, `/plan` reads the ticket and task from session state and generates a structured plan via the configured Desktop LLM. The generated plan is reviewed (max 3 self-review iterations) and only persisted when valid.
 
-Deterministic persist flow:
-1. normalize input
-2. persist evidence
-3. append audit event
-4. reroute state
+**Explicit input:** You may also provide plan text directly via `--plan-text` or `--plan-file`. In this case the LLM generation step is skipped.
+
+Deterministic plan flow:
+1. read Ticket/Task from session state
+2. load plan mandate and effective policy (fail-closed)
+3. LLM generates structured plan (conforms to planOutputSchema)
+4. self-review loop (max 3 iterations)
+5. compile to requirement contracts
+6. persist plan-record evidence
+7. reroute state
 
 ## Commands by platform
 
-Chat text input:
+Auto-generation (reads Ticket/Task from session state):
+
+```bash
+PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --plan-persist --quiet
+```
+
+```powershell
+$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --plan-persist --quiet
+```
+
+Explicit plan text input (skips LLM generation):
 
 ```bash
 PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --plan-persist --plan-text "<plan text>" --quiet
@@ -40,6 +52,10 @@ PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --plan-persist --plan-fil
 $env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --plan-persist --plan-file "C:\absolute\path\to\plan.md" --quiet
 ```
 
+## Plan LLM executor
+
+`/plan` uses `OPENCODE_PLAN_LLM_CMD` (plan-specific executor). If not set, falls back to `OPENCODE_IMPLEMENT_LLM_CMD`.
+
 ## If execution is unavailable
 
 If the command cannot be executed, ask the user to paste the command output or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
@@ -48,11 +64,12 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 ## Interpretation scope
 
-- Plan drafts in chat do not pass the Plan Record Preparation Gate by themselves; the persist command must run.
+- `/plan` generates a plan from the persisted ticket/task when no explicit plan text is given.
 - After successful persist, follow the emitted `Next action` exactly:
   - run `/plan` when gate evidence is still missing
   - run `/continue` when evidence is present and only materialization is pending
-- This rail persists plan-record evidence; it does not perform implementation.
+- This rail generates, reviews, and persists plan-record evidence; it does not perform implementation.
+- Generated plans enter the existing Phase-5 self-review loop before persistence — generation is before review, not instead of it.
 
 ## Response shape
 
