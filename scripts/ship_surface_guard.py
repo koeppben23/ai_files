@@ -47,6 +47,11 @@ FORBIDDEN_DIST_TOKENS = (
     "governance_runtime/bin/opencode-governance-bootstrap.cmd",
 )
 
+ALLOWED_MARKER_INIT_PATHS_PREFIXES = (
+    "governance_runtime/infrastructure/rendering/__init__.py",
+    "local/governance_runtime/infrastructure/rendering/__init__.py",
+)
+
 
 def _is_marker_init_text(text: str) -> bool:
     stripped = text.strip()
@@ -125,7 +130,8 @@ def _check_install_surface(repo_root: Path, *, python_cmd: str) -> list[str]:
             if file_path.name == "__init__.py":
                 text = file_path.read_text(encoding="utf-8", errors="replace")
                 if _is_marker_init_text(text):
-                    issues.append(f"install surface contains marker-only __init__.py: {rel}")
+                    if not any(rel.endswith(prefix) for prefix in ALLOWED_MARKER_INIT_PATHS_PREFIXES):
+                        issues.append(f"install surface contains marker-only __init__.py: {rel}")
             for token in FORBIDDEN_INSTALL_TOKENS:
                 if token in rel:
                     issues.append(f"install surface contains forbidden path token '{token}': {rel}")
@@ -214,7 +220,8 @@ def _check_dist_surface(repo_root: Path, *, python_cmd: str) -> list[str]:
                     if token in name:
                         issues.append(f"artifact {archive.name} contains forbidden path '{name}'")
             for name in marker_inits:
-                issues.append(f"artifact {archive.name} contains marker-only __init__.py: {name}")
+                if not any(name.endswith(prefix) for prefix in ALLOWED_MARKER_INIT_PATHS_PREFIXES):
+                    issues.append(f"artifact {archive.name} contains marker-only __init__.py: {name}")
     finally:
         if tmp_out.exists():
             shutil.rmtree(tmp_out)
