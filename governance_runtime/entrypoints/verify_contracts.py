@@ -7,7 +7,6 @@ import json
 import uuid
 from pathlib import Path
 
-from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.session_pointer import (
     parse_session_pointer_document,
@@ -16,6 +15,7 @@ from governance_runtime.infrastructure.session_pointer import (
 from governance_runtime.verification.runner import run_contract_verification
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import load_json as _load_json
+from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
@@ -23,19 +23,9 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
 
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
-    resolver = BindingEvidenceResolver()
-    evidence = resolver.resolve(mode="user")
-    if evidence.config_root is None:
-        raise RuntimeError("binding unavailable")
-    pointer_path = evidence.config_root / "SESSION_STATE.json"
-    pointer = parse_session_pointer_document(_load_json(pointer_path))
-    session_path = resolve_active_session_state_path(pointer, config_root=evidence.config_root)
-    if not session_path.exists():
-        raise RuntimeError("active session missing")
-    events_path = session_path.parent / "events.jsonl"
+    session_path, _, workspace_dir = resolve_active_session_paths()
+    events_path = workspace_dir / "events.jsonl"
     return session_path, events_path
-
-
 def _append_event(path: Path, event: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:

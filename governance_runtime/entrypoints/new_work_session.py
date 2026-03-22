@@ -15,7 +15,6 @@ from typing import Any, Mapping
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
-from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.engine.sanitization import apply_fresh_start_business_rules_neutralization
 from governance_runtime.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
 from governance_runtime.infrastructure.run_audit_artifacts import purge_runtime_artifacts
@@ -29,6 +28,7 @@ from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
+from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 
 try:
     from governance_runtime.infrastructure.governance_hooks import run_post_archive_governance as _run_post_archive_governance
@@ -44,22 +44,8 @@ except Exception:
 
 
 def _resolve_active_session_path() -> tuple[Path, str, Path]:
-    resolver = BindingEvidenceResolver()
-    evidence = getattr(resolver, "resolve")(mode="user")
-    if evidence.config_root is None or evidence.workspaces_home is None:
-        raise RuntimeError("binding unavailable")
-
-    pointer_path = evidence.config_root / "SESSION_STATE.json"
-    pointer = parse_session_pointer_document(_load_json(pointer_path))
-    session_path = resolve_active_session_state_path(pointer, config_root=evidence.config_root)
-    fingerprint = str(pointer.get("activeRepoFingerprint") or "").strip()
-    if not fingerprint:
-        raise RuntimeError("activeRepoFingerprint missing")
-    if not session_path.exists():
-        raise RuntimeError("active session missing")
-    return session_path, fingerprint, evidence.workspaces_home
-
-
+    session_path, fingerprint, workspace_dir = resolve_active_session_paths()
+    return session_path, fingerprint, workspace_dir
 def _new_run_id() -> str:
     return f"work-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
 

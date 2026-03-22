@@ -17,7 +17,6 @@ from governance_runtime.application.use_cases.phase_router import route_phase
 from governance_runtime.application.use_cases.rework_clarification import consume_rework_clarification_state
 from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
 from governance_runtime.domain.phase_state_machine import normalize_phase_token
-from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.session_pointer import (
     parse_session_pointer_document,
@@ -26,6 +25,7 @@ from governance_runtime.infrastructure.session_pointer import (
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
+from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 
 
 BLOCKED_P4_INTAKE_MISSING_EVIDENCE = "BLOCKED-P4-INTAKE-MISSING-EVIDENCE"
@@ -52,22 +52,8 @@ def _digest(payload: str, *, kind: str) -> str:
 
 
 def _resolve_active_session_path() -> tuple[Path, str]:
-    resolver = BindingEvidenceResolver(env=os.environ)
-    evidence = getattr(resolver, "resolve")(mode="user")
-    if evidence.config_root is None or evidence.workspaces_home is None:
-        raise RuntimeError("binding unavailable")
-
-    pointer_path = evidence.config_root / "SESSION_STATE.json"
-    pointer = parse_session_pointer_document(_load_json(pointer_path))
-    session_path = resolve_active_session_state_path(pointer, config_root=evidence.config_root)
-    fingerprint = str(pointer.get("activeRepoFingerprint") or "").strip()
-    if not fingerprint:
-        raise RuntimeError("activeRepoFingerprint missing")
-    if not session_path.exists():
-        raise RuntimeError("active session missing")
+    session_path, fingerprint, _ = resolve_active_session_paths()
     return session_path, fingerprint
-
-
 def _payload(status: str, **kwargs: object) -> dict[str, object]:
     out: dict[str, object] = {"status": status}
     out.update(kwargs)

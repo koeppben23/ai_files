@@ -14,7 +14,6 @@ if __package__ in {None, ""}:
 
 from governance_runtime.domain.canonical_json import canonical_json_hash
 from governance_runtime.domain.operating_profile import derive_mode_evidence
-from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.current_run_pointer import read_active_run_id, write_current_run_pointer
 from governance_runtime.infrastructure.io_verify import verify_run_archive
 from governance_runtime.infrastructure.session_pointer import (
@@ -26,6 +25,7 @@ from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
+from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 
 try:
     from governance_runtime.entrypoints.workspace_lock import acquire_workspace_lock
@@ -35,22 +35,8 @@ except Exception:
 
 
 def _resolve_active_session_path() -> tuple[Path, str, Path]:
-    resolver = BindingEvidenceResolver()
-    evidence = getattr(resolver, "resolve")(mode="user")
-    if evidence.config_root is None or evidence.workspaces_home is None:
-        raise RuntimeError("binding unavailable")
-
-    pointer_path = evidence.config_root / "SESSION_STATE.json"
-    pointer = parse_session_pointer_document(_load_json(pointer_path))
-    session_path = resolve_active_session_state_path(pointer, config_root=evidence.config_root)
-    fingerprint = str(pointer.get("activeRepoFingerprint") or "").strip()
-    if not fingerprint:
-        raise RuntimeError("activeRepoFingerprint missing")
-    if not session_path.exists():
-        raise RuntimeError("active session missing")
-    return session_path, fingerprint, evidence.workspaces_home
-
-
+    session_path, fingerprint, workspace_dir = resolve_active_session_paths()
+    return session_path, fingerprint, workspace_dir
 def _extract_state_view(document: Mapping[str, object]) -> Mapping[str, object]:
     nested = document.get("SESSION_STATE")
     if isinstance(nested, Mapping):

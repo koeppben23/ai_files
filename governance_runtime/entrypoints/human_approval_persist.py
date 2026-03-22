@@ -14,7 +14,6 @@ if __package__ in {None, ""}:
 from governance_runtime.domain import reason_codes
 from governance_runtime.domain.access_control import Action, AccessDecision, Role, evaluate_access
 from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event
-from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.session_pointer import (
@@ -22,6 +21,7 @@ from governance_runtime.infrastructure.session_pointer import (
     resolve_active_session_state_path,
 )
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
+from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 
 VALID_DECISIONS = frozenset({"approve", "reject", "reset"})
 
@@ -44,24 +44,9 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
 
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
-    resolver = BindingEvidenceResolver()
-    evidence = getattr(resolver, "resolve")(mode="user")
-    if evidence.config_root is None or evidence.workspaces_home is None:
-        raise RuntimeError("binding unavailable")
-
-    pointer_path = evidence.config_root / "SESSION_STATE.json"
-    pointer = parse_session_pointer_document(_load_json(pointer_path))
-    session_path = resolve_active_session_state_path(pointer, config_root=evidence.config_root)
-    fingerprint = str(pointer.get("activeRepoFingerprint") or "").strip()
-    if not fingerprint:
-        raise RuntimeError("activeRepoFingerprint missing")
-    if not session_path.exists():
-        raise RuntimeError("active session missing")
-
-    events_path = session_path.parent / "events.jsonl"
+    session_path, _, workspace_dir = resolve_active_session_paths()
+    events_path = workspace_dir / "events.jsonl"
     return session_path, events_path
-
-
 def apply_human_approval(
     *,
     decision: str,
