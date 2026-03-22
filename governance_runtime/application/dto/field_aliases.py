@@ -15,7 +15,7 @@ from __future__ import annotations
 FIELD_ALIASES: dict[str, list[str]] = {
     # Core workflow
     "phase": ["Phase"],
-    "next_step": ["Next", "next"],
+    "next_action": ["Next", "next"],
     "active_gate": [],
     "next_gate_condition": [],
     "workflow_complete": ["WorkflowComplete"],

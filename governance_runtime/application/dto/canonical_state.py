@@ -115,7 +115,7 @@ class CanonicalSessionState(TypedDict, total=False):
 
     # Core workflow
     phase: str
-    next_step: str
+    next_action: str
     active_gate: str
     next_gate_condition: str
     workflow_complete: bool
