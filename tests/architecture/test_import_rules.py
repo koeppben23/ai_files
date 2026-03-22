@@ -24,29 +24,20 @@ _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance_runtime/entrypoints/implement_start.py",
     "governance_runtime/entrypoints/phase5_plan_record_persist.py",
     "governance_runtime/install/install.py",
-    # Phase-6 orchestrator components (need Path.resolve for path canonicalization)
-    "governance_runtime/application/services/phase6_review_orchestrator/policy_resolver.py",
-    "governance_runtime/application/services/phase6_review_orchestrator/response_validator.py",
 }
 
 _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
     "governance_runtime/application/use_cases/audit_readout_builder.py",
 }
 
-# Temporary allowlist for side-effect calls in application layer
-# These should be refactored to use dependency injection in Sprint B
+# Side-effect calls allowlist for application layer
+# All application→infrastructure side effects must be injected via dependency injection
 _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
-    # policy_resolver.py uses datetime.now for policy expiration checks and Path.resolve for path canonicalization
-    "governance_runtime/application/services/phase6_review_orchestrator/policy_resolver.py": {
-        "L232:datetime.now",
-        "L223:Path.resolve",
-        "L66:Path.resolve",
-    },
-    # response_validator.py uses Path.resolve for path canonicalization
-    "governance_runtime/application/services/phase6_review_orchestrator/response_validator.py": {
-        "L61:Path.resolve",
-    },
     # llm_caller.py uses subprocess.run and os.environ for LLM executor
+    # NOTE: These are core functionality and require deeper refactoring:
+    # - subprocess.run: Would need an injectable executor_func
+    # - os.environ: Would need an injectable env_reader
+    # Deferred to Sprint C for full dependency injection
     "governance_runtime/application/services/phase6_review_orchestrator/llm_caller.py": {
         "L156:subprocess.run",
         "L53:os.environ",

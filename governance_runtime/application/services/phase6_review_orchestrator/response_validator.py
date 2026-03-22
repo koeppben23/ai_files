@@ -46,19 +46,24 @@ class ResponseValidator:
     It does NOT execute LLM calls - that's the LLMCaller's job.
     """
 
-    def __init__(self) -> None:
-        """Initialize the response validator."""
-        self._validate_func = self._load_validator()
+    def __init__(self, *, validators_path: Path | None = None) -> None:
+        """Initialize the response validator.
 
-    def _load_validator(self):
+        Args:
+            validators_path: Path to the validators directory.
+                            If None, uses default location.
+        """
+        self._validate_func = self._load_validator(validators_path)
+
+    def _load_validator(self, validators_path: Path | None = None):
         """Load the llm_response_validator module."""
-        # The validators directory is at: governance_runtime/application/validators
-        # This file is at: governance_runtime/application/services/phase6_review_orchestrator/response_validator.py
-        # parents[0] = phase6_review_orchestrator
-        # parents[1] = services
-        # parents[2] = application
-        # parents[3] = governance_runtime
-        validators_dir = Path(__file__).resolve().parents[2] / "validators"
+        if validators_path is None:
+            # From: governance_runtime/application/services/phase6_review_orchestrator/response_validator.py
+            # To:   governance_runtime/application/validators
+            validators_dir = Path(__file__).parent.parent.parent / "validators"
+        else:
+            validators_dir = validators_path
+
         import sys
 
         if str(validators_dir) not in sys.path:

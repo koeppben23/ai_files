@@ -87,6 +87,8 @@ class TestPolicyResolver:
         result = resolver.load_effective_review_policy(
             state={"SESSION_STATE": {}},
             commands_home=Path("/tmp"),
+            clock=lambda: "2026-03-22T00:00:00Z",
+            schema_path_resolver=lambda p: p,
         )
         assert result.is_available is False
         assert result.error_code == BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE

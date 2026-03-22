@@ -495,7 +495,14 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
             session_path=session_path,
             commands_home=commands_home,
         )
-        review_result = run_review_loop(state_doc=state_doc, config=config, json_loader=_read_json, context_writer=_write_json_atomic)
+        review_result = run_review_loop(
+            state_doc=state_doc,
+            config=config,
+            json_loader=_read_json,
+            context_writer=_write_json_atomic,
+            clock=_now_iso,
+            schema_path_resolver=lambda p: p.resolve(),
+        )
 
         # Apply result to state (entrypoint's responsibility)
         if review_result.success and review_result.loop_result:

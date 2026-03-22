@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
 BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE = "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
 BLOCKED_EFFECTIVE_POLICY_EMPTY = "BLOCKED-EFFECTIVE-POLICY-EMPTY"
@@ -63,7 +63,7 @@ class PolicyResolver:
     def _default_schema_path() -> Path:
         """Get the default path to the governance mandates schema."""
         return (
-            Path(__file__).resolve().parents[3]
+            Path(__file__).parent.parent.parent.parent
             / "governance_runtime"
             / "assets"
             / "schemas"
@@ -170,12 +170,16 @@ class PolicyResolver:
         *,
         state: Mapping[str, object],
         commands_home: Path,
+        clock: Callable[[], str],
+        schema_path_resolver: Callable[[Path], Path],
     ) -> ReviewPolicy:
         """Load and format effective review policy for Phase 6 LLM injection.
 
         Args:
             state: The session state (or SESSION_STATE nested dict).
             commands_home: Path to the commands directory.
+            clock: Injectable clock function that returns ISO timestamp.
+            schema_path_resolver: Injectable path resolver for schema path.
 
         Returns:
             ReviewPolicy with policy text or error code.
@@ -219,21 +223,18 @@ class PolicyResolver:
                 error_code=BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
             )
 
+        base_path = Path(__file__).parent.parent.parent.parent
+        base_path = schema_path_resolver(base_path)
+
         schema_path = (
-            Path(__file__).resolve().parents[3]
+            base_path
             / "governance_runtime"
             / "assets"
             / "schemas"
             / "effective_llm_policy.v1.schema.json"
         )
-        from datetime import datetime, timezone
 
-        compiled_at = (
-            datetime.now(timezone.utc)
-            .replace(microsecond=0)
-            .isoformat()
-            .replace("+00:00", "Z")
-        )
+        compiled_at = clock()
 
         try:
             input_data = EffectivePolicyInput(

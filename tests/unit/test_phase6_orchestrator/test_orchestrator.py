@@ -35,6 +35,11 @@ def _mock_context_writer(path: Path, data: dict[str, Any]) -> None:
     pass
 
 
+def _mock_clock() -> str:
+    """Mock clock that returns a fixed timestamp."""
+    return "2026-03-22T19:30:00Z"
+
+
 class TestReviewLoopConfig:
     """Tests for ReviewLoopConfig."""
 
@@ -193,6 +198,7 @@ class TestRunReviewLoop:
             dependencies=mock_dependencies,
             json_loader=_mock_json_loader,
             context_writer=_mock_context_writer,
+            clock=_mock_clock,
         )
 
         assert result.success is True
@@ -225,6 +231,7 @@ class TestRunReviewLoop:
             dependencies=mock_dependencies,
             json_loader=_mock_json_loader,
             context_writer=_mock_context_writer,
+            clock=_mock_clock,
         )
 
         updates = result.loop_result.to_state_updates()
@@ -257,6 +264,7 @@ class TestRunReviewLoop:
             dependencies=mock_dependencies,
             json_loader=_mock_json_loader,
             context_writer=_mock_context_writer,
+            clock=_mock_clock,
         )
 
         events = result.loop_result.to_audit_events()

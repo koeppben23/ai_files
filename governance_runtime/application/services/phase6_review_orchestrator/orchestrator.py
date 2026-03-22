@@ -143,6 +143,8 @@ def run_review_loop(
     dependencies: ReviewDependencies | None = None,
     json_loader: Callable[[Path], dict] | None = None,
     context_writer: Callable[[Path, dict], None] | None = None,
+    clock: Callable[[], str] | None = None,
+    schema_path_resolver: Callable[[Path], Path] | None = None,
 ) -> ReviewResult:
     """Run the Phase-6 internal review loop.
 
@@ -162,6 +164,8 @@ def run_review_loop(
         dependencies: Injectable dependencies (for testing).
         json_loader: Injectable JSON loader for reading plan records.
         context_writer: Injectable context writer for LLM calls.
+        clock: Injectable clock function for timestamps.
+        schema_path_resolver: Injectable path resolver for schema path.
 
     Returns:
         ReviewResult with the outcome of the review loop.
@@ -237,6 +241,8 @@ def run_review_loop(
         policy_result = policy_resolver.load_effective_review_policy(
             state=state,
             commands_home=config.commands_home,
+            clock=clock,
+            schema_path_resolver=schema_path_resolver,
         )
         if not policy_result.is_available and llm_caller.is_configured:
             return ReviewResult(
