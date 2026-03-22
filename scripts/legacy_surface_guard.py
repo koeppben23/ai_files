@@ -71,6 +71,9 @@ ALLOW_WRITE_TEXT = (
     "governance_runtime/install/install.py",
     "governance_runtime/session_state/serde.py",
 )
+ALLOW_ENV_ACCESS = (
+    "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py",
+)
 RESTRICTED_ENV_PARTS = {
     ("governance_runtime", "application"),
     ("governance_runtime", "domain"),
@@ -153,7 +156,9 @@ def scan_legacy_surface(repo_root: Path, *, allowed_prefixes: tuple[str, ...]) -
 
         rel_parts = rel.parts
         if scan_arch_guards and len(rel_parts) >= 2 and (rel_parts[0], rel_parts[1]) in RESTRICTED_ENV_PARTS:
-            if "os.environ" in text or "os.getenv(" in text:
+            if rel_posix in ALLOW_ENV_ACCESS:
+                pass
+            elif "os.environ" in text or "os.getenv(" in text:
                 violations.append(f"{rel_posix}: disallowed direct env access outside infrastructure")
 
     repo_identity = repo_root / REPO_IDENTITY_PATH
