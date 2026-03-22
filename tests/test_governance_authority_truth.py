@@ -382,3 +382,85 @@ class TestE2ENoDriftGuards:
         )
         assert state.get("Phase"), "Phase must be set in session state"
         assert state.get("session_run_id"), "session_run_id must be set"
+
+
+# ── F. LAYOUT COMPLETENESS ────────────────────────────────────────────────
+
+@pytest.mark.e2e_governance
+class TestE2ELayoutCompleteness:
+    """Verify canonical layout completeness: all required content exists at correct paths.
+
+    Canonical layout (per install.py):
+      commands_home/     = ONLY the 8 command files
+      spec_home/        = ONLY phase_api.yaml
+      governance_content/profiles/ = rulebooks, addons
+      governance_content/ = reference/, profiles/, templates/, docs/
+    """
+
+    def test_commands_home_has_all_8_canonical_command_files(self, tmp_path, monkeypatch):
+        """commands_home must contain ALL 8 canonical command files, no more, no less."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        CANONICAL_RAIL_FILENAMES = frozenset({
+            "audit-readout.md",
+            "continue.md",
+            "implement.md",
+            "implementation-decision.md",
+            "plan.md",
+            "review-decision.md",
+            "review.md",
+            "ticket.md",
+        })
+        for name in CANONICAL_RAIL_FILENAMES:
+            (commands_home / name).write_text(f"# {name}\n", encoding="utf-8")
+        entries = {p.name for p in commands_home.iterdir() if p.is_file()}
+        assert entries == CANONICAL_RAIL_FILENAMES, (
+            f"commands_home must contain exactly these 8 files: {sorted(CANONICAL_RAIL_FILENAMES)}, "
+            f"found: {sorted(entries)}"
+        )
+
+    def test_commands_home_contains_no_other_artifacts(self, tmp_path, monkeypatch):
+        """commands_home must not contain rulebooks, addons, or phase_api.yaml."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        all_entries = {p.name for p in commands_home.iterdir()}
+        forbidden = {
+            "rules.md", "master.md", "rules.fallback-minimum.md",
+            "rules.risk-tiering.md", "phase_api.yaml", "governance_mandates.v1.schema.json",
+            "plan_record.v1.schema.json",
+        }
+        found_forbidden = all_entries & forbidden
+        assert not found_forbidden, (
+            f"commands_home must not contain non-command artifacts: {sorted(found_forbidden)}"
+        )
+
+    def test_spec_home_contains_only_phase_api_yaml(self, tmp_path, monkeypatch):
+        """specHome must contain ONLY phase_api.yaml."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        spec_home = config_root.parent / f"{config_root.name}-local" / "governance_spec"
+        entries = {p.name for p in spec_home.iterdir()}
+        assert "phase_api.yaml" in entries, "spec_home must contain phase_api.yaml"
+        unexpected = entries - {"phase_api.yaml"}
+        assert not unexpected, (
+            f"specHome must contain only phase_api.yaml, found extra: {sorted(unexpected)}"
+        )
+
+    def test_governance_content_profiles_contains_rulebooks(self, tmp_path, monkeypatch):
+        """governance_content/profiles/ must contain at least the fallback rulebook."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        profiles_home = config_root.parent / f"{config_root.name}-local" / "governance_content" / "profiles"
+        assert profiles_home.exists(), "governance_content/profiles/ must exist"
+        rulebook_files = {p.name for p in profiles_home.iterdir() if p.is_file()}
+        assert rulebook_files, (
+            "governance_content/profiles/ must contain at least one rulebook file"
+        )
+
+    def test_loaded_rulebooks_use_profiles_home_not_commands_home(self, tmp_path, monkeypatch):
+        """LoadedRulebooks must reference ${PROFILES_HOME}, never ${COMMANDS_HOME}."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        state = _read_state(session_path)
+        loaded = state.get("LoadedRulebooks", {})
+        for key, path_ref in loaded.items():
+            if isinstance(path_ref, dict):
+                path_ref = str(path_ref)
+            assert "COMMANDS_HOME" not in str(path_ref), (
+                f"LoadedRulebooks[{key}] must not reference COMMANDS_HOME, got {path_ref!r}"
+            )

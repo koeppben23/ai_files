@@ -643,7 +643,7 @@ def _persist_implementation_package_markers(*, state_doc: dict) -> None:
     )
 
 
-def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> None:
+def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> dict | None:
     """Run kernel-owned Phase 6 internal review iterations without user chat loop.
 
     Deterministic rules:

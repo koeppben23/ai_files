@@ -923,3 +923,161 @@ class TestE2EReworkClassificationBoundary:
         assert is_rework_clarification_active(
             {"phase6_state": "phase6_completed"}
         ) is False
+
+# ── F. PERSISTED STATE CONTRACT ─────────────────────────────────────────
+
+@pytest.mark.e2e_governance
+class TestE2EPersistedStateContract:
+    """Test persisted session state contract: gate/condition consistency.
+
+    After any command succeeds, the persisted state must contain consistent
+    active_gate, next_gate_condition, and Phase fields. Blocked/error
+    responses must not persist forward-progress state changes.
+
+    Note: next_action_command is only persisted by /review-decision (approve path).
+    Other commands set next_action in response payload only.
+    """
+
+    def test_ticket_persists_gate_and_condition(self, tmp_path, monkeypatch, capsys):
+        """After /ticket success, session state must persist active_gate, next_gate_condition, Phase."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        state = _read_state(session_path)
+        state["Phase"] = "4"
+        state["active_gate"] = "Ticket Input Gate"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_module("phase4_intake_persist", "phase4_intake_persist.py")
+        capsys.readouterr()
+        rc = module.main(["--ticket-text", "New feature", "--task-text", "Add X", "--quiet"])
+        assert rc == 0, f"/ticket must succeed, got rc={rc}"
+
+        state = _read_state(session_path)
+        assert state.get("Phase") in ("5", "5-ArchitectureReview"), (
+            f"/ticket must advance to Phase 5 (kernel routes to Architecture Review), got Phase={state.get('Phase')}"
+        )
+        assert state.get("active_gate") == "Plan Record Preparation Gate", (
+            f"/ticket must set active_gate=Plan Record Preparation Gate, got {state.get('active_gate')}"
+        )
+        assert state.get("Ticket") == "New feature", "/ticket must persist Ticket text"
+
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") == "ok"
+        assert "next_action" in payload, "response must include next_action"
+
+    def test_plan_persists_gate_and_plan_record(self, tmp_path, monkeypatch, capsys):
+        """After /plan success, session state must persist active_gate, Phase, and plan record fields."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        module_plan = _load_phase5()
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo '{\"objective\":\"Implement feature X with high quality\",\"target_state\":\"Feature X delivered and verified\",\"target_flow\":\"Step 1: Setup. Step 2: Implement. Step 3: Test.\",\"state_machine\":\"Draft -> Active -> Complete\",\"blocker_taxonomy\":\"Dependencies,Complexity\",\"audit\":\"Test results, coverage report\",\"go_no_go\":\"All tests pass, no critical bugs\",\"test_strategy\":\"Unit + integration tests\",\"reason_code\":\"PLAN-001\"}'")
+        capsys.readouterr()
+        rc = module_plan.main(["--quiet"])
+        assert rc == 0, f"/plan must succeed with valid schema, got rc={rc}"
+
+        state = _read_state(session_path)
+        assert state.get("active_gate") == "Architecture Review Gate", (
+            f"/plan must keep active_gate=Architecture Review Gate, got {state.get('active_gate')}"
+        )
+        assert state.get("Phase") in ("5", "5-ArchitectureReview"), (
+            f"/plan must keep Phase at 5, got {state.get('Phase')}"
+        )
+        assert "PlanRecordVersions" in state or "PlanRecordDigest" in state, (
+            "/plan must persist plan record fields"
+        )
+
+    def test_phase6_review_decision_persists_next_action_command(self, tmp_path, monkeypatch, capsys):
+        """After /review-decision approve, session state must contain next_action_command=/implement."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        _write_phase6_session(session_path, workspace, repo_fp)
+
+        module = _load_review_decision()
+        capsys.readouterr()
+        rc = module.main(["--decision", "approve", "--quiet"])
+        assert rc == 0, f"/review-decision approve must succeed, got rc={rc}"
+
+        state = _read_state(session_path)
+        assert "next_action_command" in state, (
+            "next_action_command must be persisted after /review-decision approve"
+        )
+        assert state["next_action_command"] == "/implement", (
+            f"after approve, next_action_command must be /implement, got {state['next_action_command']}"
+        )
+
+    def test_gate_condition_phase_triple_is_consistent_after_ticket(self, tmp_path, monkeypatch, capsys):
+        """After /ticket, active_gate, next_gate_condition, and Phase must be consistent."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        state = _read_state(session_path)
+        state["Phase"] = "4"
+        state["active_gate"] = "Ticket Input Gate"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_module("phase4_intake_persist", "phase4_intake_persist.py")
+        capsys.readouterr()
+        rc = module.main(["--ticket-text", "Feature X", "--task-text", "Add X", "--quiet"])
+        assert rc == 0
+
+        state = _read_state(session_path)
+        gate = state.get("active_gate", "")
+        phase = state.get("Phase", "")
+        condition = state.get("next_gate_condition", "")
+
+        assert gate == "Plan Record Preparation Gate", (
+            f"after /ticket, active_gate must be Plan Record Preparation Gate, got {gate!r}"
+        )
+        assert phase in ("5", "5-ArchitectureReview"), (
+            f"after /ticket, Phase must be 5, got {phase!r}"
+        )
+        assert condition != "", "next_gate_condition must be non-empty after /ticket"
+
+    def test_blocked_response_does_not_advance_gate(self, tmp_path, monkeypatch, capsys):
+        """Blocked/error responses must not advance the gate or phase."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        state_before = _read_state(session_path)
+        gate_before = state_before.get("active_gate", "")
+        phase_before = state_before.get("Phase", "")
+
+        monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
+        monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+
+        module = _load_phase5()
+        capsys.readouterr()
+        rc = module.main(["--quiet"])
+        assert rc == 2, "blocked /plan must return rc!=0"
+
+        state = _read_state(session_path)
+        assert state.get("active_gate") == gate_before, (
+            f"blocked /plan must not change active_gate, was {gate_before!r}"
+        )
+        assert state.get("Phase") == phase_before, (
+            f"blocked /plan must not change Phase, was {phase_before!r}"
+        )
+
+    def test_response_includes_next_action(self, tmp_path, monkeypatch, capsys):
+        """All successful commands must include next_action in the response payload."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        state = _read_state(session_path)
+        state["Phase"] = "4"
+        state["active_gate"] = "Ticket Input Gate"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_module("phase4_intake_persist", "phase4_intake_persist.py")
+        capsys.readouterr()
+        rc = module.main(["--ticket-text", "Feature X", "--task-text", "Add X", "--quiet"])
+        assert rc == 0
+
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") == "ok"
+        assert "next_action" in payload, "successful response must include next_action"
+        next_action = payload.get("next_action", "")
+        assert len(next_action) > 0, "next_action must be non-empty"
+

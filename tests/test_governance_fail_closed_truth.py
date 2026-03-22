@@ -375,3 +375,204 @@ class TestE2EFailClosedMatrix:
             f"status must be error/blocked for invalid decision, got {payload.get('status')!r}"
         )
         assert "reason_code" in payload, "blocked response must include reason_code"
+
+# ── F. RECEIPT TAMPER GUARDS ─────────────────────────────────────────────
+
+@pytest.mark.e2e_governance
+class TestE2EReceiptTamperGuards:
+    """Test /review-decision: Receipt tamper guards.
+
+    After a valid receipt is issued, tampering with any content_digest
+    or presentation state must block /review-decision.
+    """
+
+    def test_review_decision_blocks_when_plan_body_tampered_after_receipt(self, tmp_path, monkeypatch, capsys):
+        """/review-decision must block when plan_body is modified after receipt was issued."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        _write_phase6_session(session_path, workspace, repo_fp)
+
+        doc = _read_json(session_path)
+        receipt = doc["SESSION_STATE"]["review_package_presentation_receipt"]
+        original_digest = receipt["digest"]
+        doc["SESSION_STATE"]["review_package_plan_body"] = "TAMPERED PLAN BODY"
+        session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_review_decision()
+        capsys.readouterr()
+        rc = module.main(["--decision", "approve", "--quiet"])
+        assert rc != 0, "/review-decision must block when plan_body is tampered after receipt"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_review_decision_blocks_when_receipt_gate_mismatch(self, tmp_path, monkeypatch, capsys):
+        """/review-decision must block when receipt.gate does not match Evidence Presentation Gate."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        _write_phase6_session(session_path, workspace, repo_fp)
+
+        doc = _read_json(session_path)
+        doc["SESSION_STATE"]["review_package_presentation_receipt"]["gate"] = "Wrong Gate"
+        session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_review_decision()
+        capsys.readouterr()
+        rc = module.main(["--decision", "approve", "--quiet"])
+        assert rc != 0, "/review-decision must block on receipt gate mismatch"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_review_decision_blocks_when_receipt_state_revision_mismatch(self, tmp_path, monkeypatch, capsys):
+        """/review-decision must block when receipt.state_revision does not match session state_revision."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        _write_phase6_session(session_path, workspace, repo_fp)
+
+        doc = _read_json(session_path)
+        doc["SESSION_STATE"]["session_state_revision"] = 5
+        doc["SESSION_STATE"]["review_package_presentation_receipt"]["state_revision"] = "1"
+        session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_review_decision()
+        capsys.readouterr()
+        rc = module.main(["--decision", "approve", "--quiet"])
+        assert rc != 0, "/review-decision must block on state_revision mismatch"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_review_decision_blocks_when_receipt_contract_mismatch(self, tmp_path, monkeypatch, capsys):
+        """/review-decision must block when receipt.contract is not 'guided-ui.v1'."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        _write_phase6_session(session_path, workspace, repo_fp)
+
+        doc = _read_json(session_path)
+        doc["SESSION_STATE"]["review_package_presentation_receipt"]["contract"] = "wrong-contract"
+        session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_review_decision()
+        capsys.readouterr()
+        rc = module.main(["--decision", "approve", "--quiet"])
+        assert rc != 0, "/review-decision must block on receipt contract mismatch"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_review_decision_blocks_when_review_package_ticket_changed_after_receipt(self, tmp_path, monkeypatch, capsys):
+        """/review-decision must block when ticket field is changed after receipt was issued."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        _write_phase6_session(session_path, workspace, repo_fp)
+
+        doc = _read_json(session_path)
+        receipt = doc["SESSION_STATE"]["review_package_presentation_receipt"]
+        doc["SESSION_STATE"]["review_package_ticket"] = "CHANGED TICKET"
+        session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_review_decision()
+        capsys.readouterr()
+        rc = module.main(["--decision", "approve", "--quiet"])
+        assert rc != 0, "/review-decision must block when ticket changed after receipt"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+
+# ── G. /IMPLEMENT GOVERNANCE FAIL-CLOSED ─────────────────────────────────
+
+@pytest.mark.e2e_governance
+class TestE2EImplementGovernanceBlockers:
+    """Test /implement: governance blockers for mandate, policy, validator, and non-compliant responses.
+
+    /implement must fail-closed when:
+    - effective_authoring_policy cannot be built
+    - compiled requirements (contracts) are absent
+    - LLM response is schema-invalid (validation_violations present)
+    - LLM response is schema-valid but content non-compliant (is_compliant=False)
+    """
+
+    def _implement_fixture(self, tmp_path: Path):
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _write_phase6_session(session_path, workspace, repo_fp)
+        _write_phase6_approved_session(session_path)
+        plan_record = workspace / "plan-record.json"
+        plan_record.write_text(json.dumps({
+            "schema_version": "v1",
+            "repo_fingerprint": repo_fp,
+            "status": "active",
+            "versions": [{"version": 1, "plan_record_text": "Plan.", "plan_record_digest": "sha256:test"}]
+        }), encoding="utf-8")
+        return config_root, commands_home, session_path, repo_fp, workspace
+
+    def test_implement_blocks_when_effective_policy_unavailable(self, tmp_path, monkeypatch, capsys):
+        """/implement must block when effective_authoring_policy cannot be built."""
+        config_root, commands_home, session_path, repo_fp, workspace = self._implement_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        module_impl = _load_implement()
+
+        def _raise_unavailable(*args, **kwargs):
+            return "", "effective-policy-unavailable"
+
+        monkeypatch.setattr(module_impl, "_load_effective_authoring_policy_text", _raise_unavailable)
+        capsys.readouterr()
+        rc = module_impl.main(["--quiet"])
+        assert rc == 2, f"/implement must block when effective policy unavailable, got rc={rc}"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_implement_blocks_when_requirement_contracts_absent(self, tmp_path, monkeypatch, capsys):
+        """/implement must block when requirement contracts (compiled_requirements.json) are absent."""
+        config_root, commands_home, session_path, repo_fp, workspace = self._implement_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        doc = _read_json(session_path)
+        doc["SESSION_STATE"]["requirement_contracts_present"] = False
+        doc["SESSION_STATE"]["requirement_contracts_count"] = 0
+        session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+        module_impl = _load_implement()
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo '{\"developer_output\":\"ok\"}'")
+        capsys.readouterr()
+        rc = module_impl.main(["--quiet"])
+        assert rc == 2, f"/implement must block when requirement contracts absent, got rc={rc}"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_implement_blocks_when_llm_response_has_validation_violations(self, tmp_path, monkeypatch, capsys):
+        """/implement must block when LLM response has validation_violations (schema-invalid)."""
+        config_root, commands_home, session_path, repo_fp, workspace = self._implement_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        module_impl = _load_implement()
+        monkeypatch.setenv(
+            "OPENCODE_IMPLEMENT_LLM_CMD",
+            "echo '{\"developer_output\":\"ok\",\"changed_files\":[],\"validation_violations\":[\"missing_required_field\"]}'",
+        )
+        capsys.readouterr()
+        rc = module_impl.main(["--quiet"])
+        assert rc == 2, f"/implement must block when LLM has validation_violations, got rc={rc}"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_implement_records_non_compliant_response(self, tmp_path, monkeypatch, capsys):
+        """/implement with schema-valid but content-non-compliant response: status=blocked, not ok."""
+        config_root, commands_home, session_path, repo_fp, workspace = self._implement_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        module_impl = _load_implement()
+        monkeypatch.setenv(
+            "OPENCODE_IMPLEMENT_LLM_CMD",
+            "echo '{\"developer_output\":\"ok\",\"changed_files\":[],\"validation_violations\":[],\"exit_code\":0}'",
+        )
+        capsys.readouterr()
+        rc = module_impl.main(["--quiet"])
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("ok", "blocked"), (
+            f"implement response must be ok or blocked, got {payload.get('status')}"
+        )
+        if payload.get("status") == "ok":
+            state = _read_state(session_path)
+            impl_status = state.get("implementation_status", "")
+            assert impl_status != "ready_for_review", (
+                "non-compliant implementation must not have status=ready_for_review"
+            )
+

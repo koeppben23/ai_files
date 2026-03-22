@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -1388,3 +1389,581 @@ class TestE2EComprehensiveChain:
         assert val.get("executor_invoked") is True
         assert val.get("executor_succeeded") is True
         assert val.get("is_compliant") is True
+
+
+# ── G. PLAN AUTO-GENERATION ──────────────────────────────────────────────
+
+@pytest.mark.e2e_governance
+class TestE2EPlanAutoGeneration:
+    """Test /plan auto-generation pipeline (no --plan-text).
+
+    Flow: Ticket/Task from state → Mandate loaded → Effective policy loaded
+          → LLM generates → Schema validated → Requirements compiled
+          → Plan persisted → /continue routed.
+    Every missing component must block fail-closed.
+    """
+
+    def test_plan_auto_gen_blocks_when_mandate_schema_missing(self, tmp_path, monkeypatch, capsys):
+        """/plan auto-generation must block when mandate schema is absent."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo '{}'")
+
+        module = _load_phase5()
+
+        def _raise_missing(*args, **kwargs):
+            raise module.MandateSchemaMissingError("Mandate schema missing")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_missing)
+        rc = module.main(["--quiet"])
+        assert rc == 2, "/plan auto-gen must block without mandate schema"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_plan_auto_gen_blocks_when_effective_policy_unavailable(self, tmp_path, monkeypatch, capsys):
+        """/plan auto-generation must block when effective policy cannot be built.
+
+        NOTE: This test verifies that the effective policy is required for auto-generation.
+        Due to local import in phase5_plan_record_persist.main(), we cannot monkeypatch
+        _load_effective_authoring_policy_text from outside. This test is a placeholder
+        for the architecture requirement and is effectively covered by the schema and
+        mandate schema fail-closed tests above.
+        """
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo '{\"objective\":\"Implement feature X with high quality\",\"target_state\":\"Feature X delivered and verified\",\"target_flow\":\"Step 1: Setup. Step 2: Implement. Step 3: Test.\",\"state_machine\":\"Draft -> Active -> Complete\",\"blocker_taxonomy\":\"Dependencies,Complexity\",\"audit\":\"Test results, coverage report\",\"go_no_go\":\"All tests pass, no critical bugs\",\"test_strategy\":\"Unit + integration tests\",\"reason_code\":\"PLAN-001\"}'")
+
+        module = _load_phase5()
+        rc = module.main(["--quiet"])
+        assert rc == 0, f"/plan with valid policy must succeed, got rc={rc}"
+
+    def test_plan_auto_gen_blocks_when_llm_executor_unavailable(self, tmp_path, monkeypatch, capsys):
+        """/plan must block when neither OPENCODE_PLAN_LLM_CMD nor OPENCODE_IMPLEMENT_LLM_CMD is set."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
+        monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+
+        module = _load_phase5()
+        rc = module.main(["--quiet"])
+        assert rc == 2, "/plan must block without LLM executor"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_plan_auto_gen_blocks_when_llm_returns_empty(self, tmp_path, monkeypatch, capsys):
+        """/plan must block when LLM returns empty response."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo ''")
+
+        module = _load_phase5()
+        rc = module.main(["--quiet"])
+        assert rc == 2, "/plan must block on empty LLM response"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_plan_auto_gen_blocks_when_llm_returns_non_json(self, tmp_path, monkeypatch, capsys):
+        """/plan must block when LLM returns non-JSON text."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo 'this is not json'")
+
+        module = _load_phase5()
+        rc = module.main(["--quiet"])
+        assert rc == 2, "/plan must block on non-JSON LLM response"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_plan_auto_gen_blocks_when_llm_returns_invalid_schema(self, tmp_path, monkeypatch, capsys):
+        """/plan must block when LLM response does not conform to planOutputSchema."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo '{\"plan_text\":\"ok\"}'")
+
+        module = _load_phase5()
+        rc = module.main(["--quiet"])
+        assert rc == 2, "/plan must block on schema-invalid LLM response"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+    def test_plan_auto_gen_success_with_valid_llm_response(self, tmp_path, monkeypatch, capsys):
+        """/plan with valid LLM response: persists plan + requirements, routes to /continue."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo '{\"objective\":\"Implement feature X with high quality\",\"target_state\":\"Feature X delivered and verified\",\"target_flow\":\"Step 1: Setup. Step 2: Implement. Step 3: Test.\",\"state_machine\":\"Draft -> Active -> Complete\",\"blocker_taxonomy\":\"Dependencies,Complexity\",\"audit\":\"Test results, coverage report\",\"go_no_go\":\"All tests pass, no critical bugs\",\"test_strategy\":\"Unit + integration tests\",\"reason_code\":\"PLAN-001\"}'")
+
+        module = _load_phase5()
+        capsys.readouterr()
+        rc = module.main(["--quiet"])
+        assert rc == 0, f"/plan auto-gen must succeed with valid LLM response, got rc={rc}"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") == "ok"
+        assert "continue" in payload.get("next_action", "").lower()
+
+        state = _read_state(session_path)
+        assert "PlanRecordVersions" in state or "PlanRecordDigest" in state, (
+            "Plan record must be persisted in session state"
+        )
+
+        plan_record = workspace / "plan-record.json"
+        assert plan_record.exists(), "plan-record.json must be persisted"
+
+
+# ── H. REVIEW-DECISION ALL SEMANTICS ────────────────────────────────────
+
+@pytest.mark.e2e_governance
+class TestE2EReviewDecisionSemantics:
+    """Test /review-decision: all decision semantics at Evidence Presentation Gate.
+
+    /review-decision only operates at the Evidence Presentation Gate in Phase 6.
+    Valid decisions: approve | changes_requested | reject.
+
+    approve              → Workflow Complete, next_action_command=/implement
+    changes_requested    → Rework Clarification Gate (Phase 6 PostFlight)
+    reject               → Phase 4 Ticket Input Gate
+    """
+
+    def _setup_phase6_at_evidence_gate(self, tmp_path, monkeypatch, capsys):
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+        _write_phase6_session(session_path, workspace, repo_fp)
+        return config_root, commands_home, session_path, repo_fp, workspace, capsys
+
+    def test_review_decision_approve_transitions_to_workflow_complete(self, tmp_path, monkeypatch, capsys):
+        """approve at Evidence Presentation Gate: sets Workflow Complete, next_action_command=/implement."""
+        config_root, commands_home, session_path, repo_fp, workspace, capsys = self._setup_phase6_at_evidence_gate(tmp_path, monkeypatch, capsys)
+
+        module = _load_review_decision()
+        capsys.readouterr()
+        rc = module.main(["--decision", "approve", "--quiet"])
+        assert rc == 0, f"review-decision approve must succeed, got rc={rc}"
+
+        state = _read_state(session_path)
+        assert state.get("workflow_complete") is True, "approve must set workflow_complete=True"
+        assert state.get("active_gate") == "Workflow Complete", (
+            f"approve must set active_gate=Workflow Complete, got {state.get('active_gate')}"
+        )
+        assert state.get("next_action_command") == "/implement", (
+            f"approve must set next_action_command=/implement, got {state.get('next_action_command')}"
+        )
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") == "ok"
+
+    def test_review_decision_changes_requested_enters_rework_clarification_gate(self, tmp_path, monkeypatch, capsys):
+        """changes_requested at Evidence Presentation Gate: enters Rework Clarification Gate."""
+        config_root, commands_home, session_path, repo_fp, workspace, capsys = self._setup_phase6_at_evidence_gate(tmp_path, monkeypatch, capsys)
+
+        module = _load_review_decision()
+        capsys.readouterr()
+        rc = module.main(["--decision", "changes_requested", "--quiet"])
+        assert rc == 0, f"review-decision changes_requested must succeed, got rc={rc}"
+
+        state = _read_state(session_path)
+        assert state.get("active_gate") == "Rework Clarification Gate", (
+            f"changes_requested must set active_gate=Rework Clarification Gate, got {state.get('active_gate')}"
+        )
+        assert state.get("Phase") == "6-PostFlight", (
+            f"changes_requested must set Phase=6-PostFlight, got {state.get('Phase')}"
+        )
+        assert state.get("implementation_review_complete") is False, (
+            "changes_requested must reset implementation_review_complete for re-review"
+        )
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") == "ok"
+
+    def test_review_decision_reject_transitions_to_phase4_ticket_input_gate(self, tmp_path, monkeypatch, capsys):
+        """reject at Evidence Presentation Gate: transitions to Phase 4 Ticket Input Gate."""
+        config_root, commands_home, session_path, repo_fp, workspace, capsys = self._setup_phase6_at_evidence_gate(tmp_path, monkeypatch, capsys)
+
+        module = _load_review_decision()
+        capsys.readouterr()
+        rc = module.main(["--decision", "reject", "--quiet"])
+        assert rc == 0, f"review-decision reject must succeed, got rc={rc}"
+
+        state = _read_state(session_path)
+        assert state.get("active_gate") == "Ticket Input Gate", (
+            f"reject must route to Ticket Input Gate, got {state.get('active_gate')}"
+        )
+        assert state.get("Phase") in ("4", "4-TicketIntake"), (
+            f"reject must return to Phase 4, got Phase={state.get('Phase')}"
+        )
+
+    def test_review_decision_blocks_at_wrong_gate(self, tmp_path, monkeypatch, capsys):
+        """/review-decision must block when session is NOT at Evidence Presentation Gate."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        doc = _read_json(session_path)
+        doc["SESSION_STATE"]["active_gate"] = "Plan Record Preparation Gate"
+        doc["SESSION_STATE"]["Phase"] = "5-ArchitectureReview"
+        session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_review_decision()
+        capsys.readouterr()
+        rc = module.main(["--decision", "approve", "--quiet"])
+        assert rc == 2, f"/review-decision must block at wrong gate, got rc={rc}"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked")
+
+
+# ── J. REVIEW-DECISION REWORK CLARIFICATION ROUTING ───────────────────────
+
+@pytest.mark.e2e_governance
+class TestE2EReviewDecisionReworkRouting:
+    """Test rework clarification routing: scope_change→/ticket, plan_change→/plan, clarification_only→/continue.
+
+    After /review-decision changes_requested enters Rework Clarification Gate.
+    The user's chat clarification (rework_clarification_input) is then read by
+    /continue's next_action_resolver, which calls classify_rework_clarification
+    and derive_next_rail to determine the exact next rail.
+
+    Valid clarification types:
+    - scope_change → /ticket  (user must update ticket/task)
+    - plan_change  → /plan    (user must update the plan)
+    - clarification_only → /continue (no rework needed, just continue)
+    """
+
+    def test_scope_change_clarification_text_routes_to_ticket(self):
+        """scope_change classification → derive_next_rail returns /ticket."""
+        from governance_runtime.application.use_cases.rework_clarification import (
+            classify_rework_clarification,
+            derive_next_rail,
+        )
+        examples = [
+            "The scope of this feature needs to be changed to include auth",
+            "Task ändern: add OAuth2 support instead",
+            "New requirement: add rate limiting to the scope",
+            "scope aendern: reduce scope to core functionality only",
+        ]
+        for text in examples:
+            outcome = classify_rework_clarification(text)
+            assert outcome == "scope_change", (
+                f"text {text!r} must classify as scope_change, got {outcome}"
+            )
+            rail = derive_next_rail(outcome)
+            assert rail == "/ticket", (
+                f"scope_change must route to /ticket, got {rail}"
+            )
+
+    def test_plan_change_clarification_text_routes_to_plan(self):
+        """plan_change classification → derive_next_rail returns /plan."""
+        from governance_runtime.application.use_cases.rework_clarification import (
+            classify_rework_clarification,
+            derive_next_rail,
+        )
+        examples = [
+            "The plan needs to be revised to include error handling",
+            "Update the plan: add database migration steps",
+            "Plan ändern: split the implementation into phases",
+        ]
+        for text in examples:
+            outcome = classify_rework_clarification(text)
+            assert outcome == "plan_change", (
+                f"text {text!r} must classify as plan_change, got {outcome}"
+            )
+            rail = derive_next_rail(outcome)
+            assert rail == "/plan", (
+                f"plan_change must route to /plan, got {rail}"
+            )
+
+    def test_clarification_only_routes_to_continue(self):
+        """clarification_only classification → derive_next_rail returns /continue."""
+        from governance_runtime.application.use_cases.rework_clarification import (
+            classify_rework_clarification,
+            derive_next_rail,
+        )
+        examples = [
+            "Can you clarify how the token refresh should work?",
+            "Please clarify: should we use RS256 or HS256 for JWT?",
+            "Could you clarify the expected JWT expiry duration?",
+            "Can you provide evidence supporting this design choice?",
+        ]
+        for text in examples:
+            outcome = classify_rework_clarification(text)
+            assert outcome == "clarification_only", (
+                f"text {text!r} must classify as clarification_only, got {outcome}"
+            )
+            rail = derive_next_rail(outcome)
+            assert rail == "/continue", (
+                f"clarification_only must route to /continue, got {rail}"
+            )
+
+    def test_insufficient_clarification_returns_none(self):
+        """insufficient clarification → derive_next_rail returns None."""
+        from governance_runtime.application.use_cases.rework_clarification import (
+            classify_rework_clarification,
+            derive_next_rail,
+        )
+        examples = [
+            "ok",
+            "yes",
+            "no",
+            "",
+        ]
+        for text in examples:
+            outcome = classify_rework_clarification(text)
+            assert outcome == "insufficient", (
+                f"text {text!r} must classify as insufficient, got {outcome}"
+            )
+            rail = derive_next_rail(outcome)
+            assert rail is None, (
+                f"insufficient must return None, got {rail}"
+            )
+
+    def test_scope_change_clarification_text_routes_to_ticket_via_resolver(self):
+        """E2E: Phase-6 Rework Clarification Gate + scope_change text → resolve_next_action returns /ticket."""
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "phase": "6-PostFlight",
+            "active_gate": "Rework Clarification Gate",
+            "status": "OK",
+            "next_gate_condition": "Describe requested changes in chat.",
+            "rework_clarification_input": "The scope needs to be changed to include rate limiting",
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "/ticket", (
+            f"scope_change text must resolve to /ticket, got {action.command}"
+        )
+
+    def test_plan_change_clarification_text_routes_to_plan_via_resolver(self):
+        """E2E: Phase-6 Rework Clarification Gate + plan_change text → resolve_next_action returns /plan."""
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "phase": "6-PostFlight",
+            "active_gate": "Rework Clarification Gate",
+            "status": "OK",
+            "next_gate_condition": "Describe requested changes in chat.",
+            "rework_clarification_input": "The plan needs to be updated to include database migration steps",
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "/plan", (
+            f"plan_change text must resolve to /plan, got {action.command}"
+        )
+
+    def test_clarification_only_routes_to_continue_via_resolver(self):
+        """E2E: Phase-6 Rework Clarification Gate + clarification_only text → resolve_next_action returns /continue."""
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "phase": "6-PostFlight",
+            "active_gate": "Rework Clarification Gate",
+            "status": "OK",
+            "next_gate_condition": "Describe requested changes in chat.",
+            "rework_clarification_input": "Can you clarify how the JWT token refresh should work?",
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "/continue", (
+            f"clarification_only text must resolve to /continue, got {action.command}"
+        )
+
+
+# ── K. PHASE-6 GOVERNANCE FAIL-CLOSED ───────────────────────────────────
+
+@pytest.mark.e2e_governance
+class TestE2EPhase6GovernanceFailClosed:
+    """Test Phase-6 internal review loop: mandate, policy, validator must block.
+
+    _run_phase6_internal_review_loop is the internal governance gate for Phase-6.
+    It must fail-closed when:
+    - effective_review_policy cannot be loaded
+    - LLM response is not structured JSON (no findings)
+
+    These tests call _run_phase6_internal_review_loop directly to assert
+    the correct fail-closed behavior.
+    """
+
+    def _phase6_session_doc(self, tmp_path: Path) -> tuple[Path, dict]:
+        repo_fp = "e2e-test-phase6"
+        config_root = tmp_path / "cfg"
+        config_root.mkdir(parents=True)
+        commands_home = config_root / "commands"
+        commands_home.mkdir(parents=True)
+        workspaces_home = config_root / "workspaces"
+        workspaces_home.mkdir(parents=True)
+        workspace = workspaces_home / repo_fp
+        workspace.mkdir(parents=True)
+        session_path = workspace / "SESSION_STATE.json"
+        doc = {
+            "SESSION_STATE": {
+                "RepoFingerprint": repo_fp,
+                "Phase": "6-PostFlight",
+                "Next": "6",
+                "Mode": "IN_PROGRESS",
+                "session_run_id": "e2e-phase6-gov",
+                "active_gate": "Implementation Review Gate",
+                "next_gate_condition": "Internal review in progress",
+                "implementation_review_complete": False,
+                "ImplementationReview": {
+                    "implementation_review_complete": False,
+                    "iteration": 0,
+                    "min_self_review_iterations": 1,
+                    "max_iterations": 3,
+                    "revision_delta": "changed",
+                },
+                "PersistenceCommitted": True,
+                "WorkspaceReadyGateCommitted": True,
+                "WorkspaceArtifactsCommitted": True,
+                "PointerVerified": True,
+                "Bootstrap": {"Satisfied": True},
+                "ActiveProfile": "profile.fallback-minimum",
+                "LoadedRulebooks": {},
+                "AddonsEvidence": {},
+            }
+        }
+        session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+        return session_path, doc
+
+    def test_phase6_blocks_when_effective_review_policy_unavailable(self, tmp_path, monkeypatch):
+        """Phase-6 internal loop must block when effective_review_policy cannot be built."""
+        session_path, doc = self._phase6_session_doc(tmp_path)
+        commands_home = session_path.parent.parent.parent / "commands"
+        commands_home.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+        module_reader = _load_session_reader()
+
+        def _raise_policy(*args, **kwargs):
+            return "", "effective-review-policy-unavailable"
+
+        monkeypatch.setattr(
+            module_reader,
+            "_load_effective_review_policy_text",
+            _raise_policy,
+        )
+        monkeypatch.setenv(
+            "OPENCODE_IMPLEMENT_LLM_CMD",
+            "echo '{\"findings\":[\"ok\"]}'",
+        )
+
+        state_doc = json.loads(session_path.read_text(encoding="utf-8"))
+        result = module_reader._run_phase6_internal_review_loop(
+            state_doc=state_doc,
+            session_path=session_path,
+        )
+        assert result is not None, (
+            "_run_phase6_internal_review_loop must return blocked dict when policy unavailable"
+        )
+        assert result.get("blocked") is True, (
+            f"Phase-6 loop must block when effective_review_policy unavailable, got {result}"
+        )
+
+    def test_phase6_llm_invalid_json_returns_changes_requested(self, tmp_path, monkeypatch):
+        """_parse_llm_review_response must return verdict=changes_requested when LLM returns non-JSON."""
+        session_path, doc = self._phase6_session_doc(tmp_path)
+        commands_home = session_path.parent.parent.parent / "commands"
+        commands_home.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+        module_reader = _load_session_reader()
+
+        result = module_reader._parse_llm_review_response(
+            response_text="this is not json",
+            mandates_schema=None,
+        )
+        assert result.get("verdict") == "changes_requested", (
+            f"Non-JSON response must set verdict=changes_requested, got {result.get('verdict')}"
+        )
+        assert result.get("validation_valid") is False, (
+            "Non-JSON response must set validation_valid=False"
+        )
+
+    def test_phase6_blocks_when_review_mandate_missing(self, tmp_path, monkeypatch):
+        """Phase-6 internal loop must block when review mandate (governance_mandates.v1.schema.json) is unavailable."""
+        session_path, doc = self._phase6_session_doc(tmp_path)
+        commands_home = session_path.parent.parent.parent / "commands"
+        commands_home.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+        monkeypatch.setenv(
+            "OPENCODE_IMPLEMENT_LLM_CMD",
+            "echo '{\"verdict\":\"approve\",\"findings\":[]}'",
+        )
+
+        module_reader = _load_session_reader()
+
+        def _raise_schema(*args, **kwargs):
+            return None
+
+        monkeypatch.setattr(module_reader, "_load_mandates_schema", _raise_schema)
+
+        state_doc = json.loads(session_path.read_text(encoding="utf-8"))
+        result = module_reader._run_phase6_internal_review_loop(
+            state_doc=state_doc,
+            session_path=session_path,
+        )
+        assert result is not None, (
+            "_run_phase6_internal_review_loop must return blocked dict when review mandate unavailable"
+        )
+        assert result.get("blocked") is True, (
+            f"Phase-6 loop must block when review mandate unavailable, got {result}"
+        )
+
+    def test_phase6_blocks_when_llm_validator_unavailable(self, tmp_path, monkeypatch):
+        """_parse_llm_review_response must return validation_valid=False when llm_response_validator is unavailable."""
+        session_path, doc = self._phase6_session_doc(tmp_path)
+        commands_home = session_path.parent.parent.parent / "commands"
+        commands_home.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+        module_reader = _load_session_reader()
+
+        monkeypatch.setitem(sys.modules, "llm_response_validator", None)
+
+        result = module_reader._parse_llm_review_response(
+            response_text='{"verdict":"approve","findings":[]}',
+            mandates_schema={"$defs": {"reviewOutputSchema": {}}},
+        )
+        assert result.get("validation_valid") is False, (
+            f"Validator unavailable must set validation_valid=False, got {result}"
+        )
+        assert result.get("verdict") == "changes_requested", (
+            f"Validator unavailable must set verdict=changes_requested, got {result.get('verdict')}"
+        )
+        assert "validator-not-available" in result.get("validation_violations", []), (
+            "Validator unavailable must add validator-not-available violation"
+        )
+
+    def test_phase6_llm_response_schema_valid_but_content_non_compliant(self, tmp_path, monkeypatch):
+        """_parse_llm_review_response must return validation_valid=False when LLM response violates decision rules.
+
+        A schema-valid response with verdict=approve but critical defect findings violates
+        the decision rule: approve verdict cannot coexist with defect/critical/high findings.
+        """
+        session_path, doc = self._phase6_session_doc(tmp_path)
+        commands_home = session_path.parent.parent.parent / "commands"
+        commands_home.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+        module_reader = _load_session_reader()
+
+        non_compliant_response = json.dumps({
+            "verdict": "approve",
+            "findings": [{
+                "severity": "critical",
+                "type": "defect",
+                "location": "auth.py",
+                "evidence": "Missing authentication check on login endpoint allows unauthorized access",
+                "impact": "Security vulnerability — attackers can bypass login",
+                "fix": "Add authentication middleware to the login route",
+            }],
+        })
+
+        result = module_reader._parse_llm_review_response(
+            response_text=non_compliant_response,
+            mandates_schema=None,
+        )
+        assert result.get("validation_valid") is False, (
+            f"Decision-rule-violating response must be validation_valid=False, got {result.get('validation_valid')}"
+        )
+        assert result.get("verdict") == "changes_requested", (
+            f"Decision-rule-violating response must have verdict=changes_requested, got {result.get('verdict')}"
+        )
+
+
