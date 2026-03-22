@@ -18,6 +18,7 @@ FIELD_ALIASES: dict[str, list[str]] = {
     "next_action": ["Next", "next"],
     "active_gate": [],
     "next_gate_condition": [],
+    "status": [],
     "workflow_complete": ["WorkflowComplete"],
     "gates_blocked": [],
     # Mode
@@ -38,15 +39,19 @@ FIELD_ALIASES: dict[str, list[str]] = {
     # Phase 6 review
     "phase6_review_iterations": [],
     "phase6_max_review_iterations": [],
-    "phase6_min_self_review_iterations": [],
+    "phase6_min_review_iterations": ["phase6_min_self_review_iterations", "phase6MinReviewIterations"],
     "phase6_revision_delta": [],
     "phase6_state": [],
     "implementation_reason_codes": [],
+    "implementation_review_complete": ["ImplementationReviewComplete"],
     # Implementation
     "implementation_changed_files": [],
     "implementation_domain_changed_files": [],
     "implementation_execution_summary": [],
     "implementation_executor_invoked": [],
+    "implementation_authorized": ["ImplementationAuthorized"],
+    "implementation_blocked": ["ImplementationBlocked"],
+    "rework_clarification_input": ["reworkClarificationInput", "ReworkClarificationInput"],
     # Kernel
     "kernel": ["Kernel"],
     "log_paths": [],

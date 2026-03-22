@@ -1,7 +1,6 @@
 """State accessor — canonical getters for session state fields.
 
-Eliminates the copy-paste key-acrobacy pattern:
-    state.get("Phase") or state.get("phase") or ""
+Delegates alias resolution to the central StateNormalizer.
 
 Usage:
     from governance_runtime.application.services.state_accessor import get_phase, get_active_gate
@@ -10,34 +9,24 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Mapping
+from typing import Any, Mapping
+
+from governance_runtime.application.services.state_normalizer import (
+    normalize_to_canonical,
+)
 
 
-def _state_text(state: Mapping, *keys: str) -> str:
-    """Return first non-empty string value for any of the given keys."""
-    for key in keys:
-        val = state.get(key)
-        if isinstance(val, str) and val.strip():
-            return val
-    return ""
+def _to_canonical(state: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert raw state to canonical form via StateNormalizer."""
+    if isinstance(state, dict):
+        return normalize_to_canonical(state)
+    return normalize_to_canonical(dict(state))
 
 
-def _state_bool(state: Mapping, *keys: str) -> bool | None:
-    """Return first truthy bool value for any of the given keys, or None."""
-    for key in keys:
-        val = state.get(key)
-        if isinstance(val, bool):
-            return val
-    return None
-
-
-def _state_int(state: Mapping, *keys: str) -> int:
-    """Return first truthy int value for any of the given keys, defaulting to 0."""
-    for key in keys:
-        val = state.get(key)
-        if isinstance(val, int) and val >= 0:
-            return val
-    return 0
+def _get(state: Mapping, key: str) -> Any:
+    """Get a field from canonical state."""
+    canonical = _to_canonical(state)
+    return canonical.get(key)
 
 
 # ── Phase / Gate ──────────────────────────────────────────────────────────
@@ -45,27 +34,27 @@ def _state_int(state: Mapping, *keys: str) -> int:
 
 def get_phase(state: Mapping) -> str:
     """Return the current phase (e.g. '4', '5-ArchitectureReview', '6-PostFlight')."""
-    return _state_text(state, "Phase", "phase")
+    return str(_get(state, "phase") or "")
 
 
 def get_active_gate(state: Mapping) -> str:
     """Return the active gate name."""
-    return _state_text(state, "active_gate", "ActiveGate")
+    return str(_get(state, "active_gate") or "")
 
 
 def get_status(state: Mapping) -> str:
     """Return the session status (e.g. 'OK', 'error', 'blocked')."""
-    return _state_text(state, "status", "Status")
+    return str(_get(state, "status") or "")
 
 
 def get_next_gate_condition(state: Mapping) -> str:
     """Return the condition text describing what the next gate requires."""
-    return _state_text(state, "next_gate_condition", "NextGateCondition")
+    return str(_get(state, "next_gate_condition") or "")
 
 
 def get_mode(state: Mapping) -> str:
     """Return the operating mode (e.g. 'IN_PROGRESS', 'CLOSED')."""
-    return _state_text(state, "Mode", "mode")
+    return str(_get(state, "mode") or "")
 
 
 # ── Phase-6 Review ────────────────────────────────────────────────────────
@@ -73,22 +62,32 @@ def get_mode(state: Mapping) -> str:
 
 def get_review_iterations(state: Mapping) -> int:
     """Return the current Phase-6 review iteration count."""
-    return _state_int(state, "phase6_review_iterations", "phase6ReviewIterations")
+    val = _get(state, "phase6_review_iterations")
+    if isinstance(val, int) and val >= 0:
+        return val
+    return 0
 
 
 def get_max_review_iterations(state: Mapping) -> int:
     """Return the maximum Phase-6 review iterations."""
-    return _state_int(state, "phase6_max_review_iterations", "phase6MaxReviewIterations", "phase6_max_iterations")
+    for key in ("phase6_max_review_iterations", "phase6_max_iterations"):
+        val = _get(state, key)
+        if isinstance(val, int) and val >= 0:
+            return val
+    return 0
 
 
 def get_min_review_iterations(state: Mapping) -> int:
     """Return the minimum Phase-6 review iterations required."""
-    return _state_int(state, "phase6_min_self_review_iterations", "phase6_min_review_iterations")
+    val = _get(state, "phase6_min_review_iterations")
+    if isinstance(val, int) and val >= 0:
+        return val
+    return 0
 
 
 def get_revision_delta(state: Mapping) -> str:
     """Return the revision delta indicator (e.g. 'changed', 'unchanged')."""
-    return _state_text(state, "phase6_revision_delta", "phase6RevisionDelta")
+    return str(_get(state, "phase6_revision_delta") or "")
 
 
 # ── Booleans ──────────────────────────────────────────────────────────────
@@ -96,27 +95,34 @@ def get_revision_delta(state: Mapping) -> str:
 
 def is_review_complete(state: Mapping) -> bool:
     """Return True if Phase-6 internal review is complete."""
-    review = state.get("ImplementationReview")
+    canonical = _to_canonical(state)
+    review = canonical.get("implementation_review")
     if isinstance(review, Mapping):
         val = review.get("implementation_review_complete")
         if isinstance(val, bool):
             return val
-    return _state_bool(state, "implementation_review_complete", "ImplementationReviewComplete") or False
+    val = canonical.get("implementation_review_complete")
+    if isinstance(val, bool):
+        return val
+    return False
 
 
 def is_workflow_complete(state: Mapping) -> bool:
     """Return True if the workflow is marked complete (after /review-decision approve)."""
-    return _state_bool(state, "workflow_complete", "WorkflowComplete") or False
+    val = _get(state, "workflow_complete")
+    return isinstance(val, bool) and val
 
 
 def is_implementation_authorized(state: Mapping) -> bool:
     """Return True if /implement authorization is set."""
-    return _state_bool(state, "ImplementationAuthorized") or False
+    val = _get(state, "implementation_authorized")
+    return isinstance(val, bool) and val
 
 
 def is_implementation_blocked(state: Mapping) -> bool:
     """Return True if implementation is blocked."""
-    return _state_bool(state, "implementation_blocked", "ImplementationBlocked") or False
+    val = _get(state, "implementation_blocked")
+    return isinstance(val, bool) and val
 
 
 # ── Plan Record ───────────────────────────────────────────────────────────
@@ -124,7 +130,10 @@ def is_implementation_blocked(state: Mapping) -> bool:
 
 def get_plan_versions(state: Mapping) -> int:
     """Return the number of plan record versions."""
-    return _state_int(state, "plan_record_versions", "PlanRecordVersions")
+    val = _get(state, "plan_record_versions")
+    if isinstance(val, int) and val >= 0:
+        return val
+    return 0
 
 
 # ── Rework Clarification ─────────────────────────────────────────────────
@@ -132,7 +141,7 @@ def get_plan_versions(state: Mapping) -> int:
 
 def get_rework_clarification_input(state: Mapping) -> str:
     """Return the rework clarification input text (for /ticket, /plan, /continue routing)."""
-    return _state_text(state, "rework_clarification_input", "reworkClarificationInput")
+    return str(_get(state, "rework_clarification_input") or "")
 
 
 # ── Phase-5 ───────────────────────────────────────────────────────────────
@@ -140,4 +149,5 @@ def get_rework_clarification_input(state: Mapping) -> str:
 
 def is_phase5_completed(state: Mapping) -> bool:
     """Return True if Phase-5 is completed."""
-    return _state_bool(state, "phase5_completed", "phase5Completed") or False
+    val = _get(state, "phase5_completed")
+    return isinstance(val, bool) and val
