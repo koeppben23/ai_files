@@ -33,14 +33,16 @@ _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
 # Side-effect calls allowlist for application layer
 # All application→infrastructure side effects must be injected via dependency injection
 _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
-    # llm_caller.py uses subprocess.run and os.environ for LLM executor
-    # NOTE: These are core functionality and require deeper refactoring:
-    # - subprocess.run: Would need an injectable executor_func
-    # - os.environ: Would need an injectable env_reader
-    # Deferred to Sprint C for full dependency injection
+    # llm_caller.py: Fallback codepaths for backward compatibility
+    # These are only used when subprocess_runner/env_reader are not injected
+    # Will be removed in Sprint D when fallbacks are removed
     "governance_runtime/application/services/phase6_review_orchestrator/llm_caller.py": {
-        "L156:subprocess.run",
-        "L53:os.environ",
+        "L200:subprocess.run",  # Fallback when subprocess_runner is None
+        "L76:os.environ",       # Fallback when env_reader is None
+    },
+    # orchestrator.py: Composition-Root reads env for default dependencies
+    "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py": {
+        "L80:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
     },
 }
 

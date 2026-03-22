@@ -12,12 +12,19 @@ The caller does NOT validate the response - that's the ResponseValidator's job.
 
 from __future__ import annotations
 
-import os
 import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+
+
+@dataclass(frozen=True)
+class SubprocessResult:
+    """Result of a subprocess execution."""
+    stdout: str
+    stderr: str
+    returncode: int
 
 
 @dataclass(frozen=True)
@@ -43,14 +50,31 @@ class LLMCaller:
     It does NOT validate the response - it only executes and returns raw output.
     """
 
-    def __init__(self, *, executor_cmd: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        executor_cmd: str | None = None,
+        env_reader: Callable[[str], str | None] | None = None,
+        subprocess_runner: Callable[[str], SubprocessResult] | None = None,
+    ) -> None:
         """Initialize the LLM caller.
 
         Args:
-            executor_cmd: The command to execute. If None, reads from
-                         OPENCODE_IMPLEMENT_LLM_CMD environment variable.
+            executor_cmd: The command to execute. If None, uses env_reader.
+            env_reader: Injectable env reader for OPENCODE_IMPLEMENT_LLM_CMD.
+            subprocess_runner: Injectable subprocess runner.
         """
-        self._executor_cmd = executor_cmd or os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or ""
+        self._env_reader = env_reader
+        self._subprocess_runner = subprocess_runner
+
+        if executor_cmd is not None:
+            self._executor_cmd = executor_cmd
+        elif env_reader is not None:
+            self._executor_cmd = env_reader("OPENCODE_IMPLEMENT_LLM_CMD") or ""
+        else:
+            # Fallback for backward compatibility (will be removed)
+            import os as _os
+            self._executor_cmd = _os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or ""
 
     @property
     def is_configured(self) -> bool:
@@ -152,34 +176,54 @@ class LLMCaller:
         if "{context_file}" in final_cmd:
             final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
 
-        try:
-            result = subprocess.run(
-                final_cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=120,
-            )
-            return LLMResponse(
-                invoked=True,
-                stdout=result.stdout or "",
-                stderr=result.stderr or "",
-                return_code=result.returncode,
-            )
-        except subprocess.TimeoutExpired as exc:
-            return LLMResponse(
-                invoked=True,
-                stdout="",
-                stderr=str(exc),
-                return_code=-1,
-                error=f"LLM executor timed out: {exc}",
-            )
-        except Exception as exc:
-            return LLMResponse(
-                invoked=True,
-                stdout="",
-                stderr=str(exc),
-                return_code=-1,
-                error=f"LLM executor failed: {exc}",
-            )
+        # Execute command
+        if self._subprocess_runner is not None:
+            try:
+                result = self._subprocess_runner(final_cmd)
+                return LLMResponse(
+                    invoked=True,
+                    stdout=result.stdout or "",
+                    stderr=result.stderr or "",
+                    return_code=result.returncode,
+                )
+            except Exception as exc:
+                return LLMResponse(
+                    invoked=True,
+                    stdout="",
+                    stderr=str(exc),
+                    return_code=-1,
+                    error=f"LLM executor failed: {exc}",
+                )
+        else:
+            # Fallback for backward compatibility (will be removed)
+            try:
+                result = subprocess.run(
+                    final_cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=120,
+                )
+                return LLMResponse(
+                    invoked=True,
+                    stdout=result.stdout or "",
+                    stderr=result.stderr or "",
+                    return_code=result.returncode,
+                )
+            except subprocess.TimeoutExpired as exc:
+                return LLMResponse(
+                    invoked=True,
+                    stdout="",
+                    stderr=str(exc),
+                    return_code=-1,
+                    error=f"LLM executor timed out: {exc}",
+                )
+            except Exception as exc:
+                return LLMResponse(
+                    invoked=True,
+                    stdout="",
+                    stderr=str(exc),
+                    return_code=-1,
+                    error=f"LLM executor failed: {exc}",
+                )

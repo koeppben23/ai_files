@@ -24,7 +24,26 @@ from governance_runtime.application.services.phase6_review_orchestrator.policy_r
 from governance_runtime.application.services.phase6_review_orchestrator.llm_caller import (
     LLMCaller,
     LLMResponse,
+    SubprocessResult,
 )
+import subprocess as _subprocess
+
+
+def _run_subprocess(cmd: str) -> SubprocessResult:
+    """Execute a subprocess and return SubprocessResult."""
+    result = _subprocess.run(
+        cmd,
+        shell=True,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    return SubprocessResult(
+        stdout=result.stdout or "",
+        stderr=result.stderr or "",
+        returncode=result.returncode,
+    )
 from governance_runtime.application.services.phase6_review_orchestrator.response_validator import (
     ResponseValidator,
     ValidationResult,
@@ -54,9 +73,13 @@ class ReviewDependencies:
     @classmethod
     def default(cls) -> ReviewDependencies:
         """Create default dependencies."""
+        import os
         return cls(
             policy_resolver=PolicyResolver(),
-            llm_caller=LLMCaller(),
+            llm_caller=LLMCaller(
+                env_reader=lambda key: os.environ.get(key),
+                subprocess_runner=lambda cmd: _run_subprocess(cmd),
+            ),
             response_validator=ResponseValidator(),
         )
 
