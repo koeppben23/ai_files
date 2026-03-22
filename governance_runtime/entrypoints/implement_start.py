@@ -42,6 +42,7 @@ from governance_runtime.infrastructure.adapters.logging.event_sink import write_
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.json_store import load_json as _load_json
+from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.plan_record_state import resolve_plan_record_signal
 from governance_runtime.infrastructure.session_pointer import (
     parse_session_pointer_document,
@@ -225,9 +226,6 @@ def _get_developer_output_schema_text() -> str:
     return ""
 
 
-def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
-    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    atomic_write_text(path, text)
 
 
 def _write_text_atomic(path: Path, text: str) -> None:

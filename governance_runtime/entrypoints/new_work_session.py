@@ -18,7 +18,6 @@ if __package__ in {None, ""}:
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.engine.sanitization import apply_fresh_start_business_rules_neutralization
 from governance_runtime.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
-from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.run_audit_artifacts import purge_runtime_artifacts
 from governance_runtime.infrastructure.session_pointer import (
     parse_session_pointer_document,
@@ -29,6 +28,7 @@ from governance_runtime.infrastructure.workspace_paths import run_dir
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
+from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 
 try:
     from governance_runtime.infrastructure.governance_hooks import run_post_archive_governance as _run_post_archive_governance
@@ -42,9 +42,6 @@ except Exception:
     from workspace_lock import acquire_workspace_lock  # type: ignore
 
 
-def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
-    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    atomic_write_text(path, text)
 
 def _resolve_active_session_path() -> tuple[Path, str, Path]:
     resolver = BindingEvidenceResolver()

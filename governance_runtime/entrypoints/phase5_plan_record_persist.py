@@ -33,6 +33,7 @@ from governance_runtime.infrastructure.workspace_paths import plan_record_archiv
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
+from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 
 
 BLOCKED_P5_PLAN_RECORD_PERSIST = reason_codes.BLOCKED_P5_PLAN_RECORD_PERSIST
@@ -801,9 +802,6 @@ def _digest(payload: str) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
-    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    atomic_write_text(path, text)
 
 def _contracts_path(session_path: Path) -> Path:
     return session_path.parent / ".governance" / "contracts" / "compiled_requirements.json"

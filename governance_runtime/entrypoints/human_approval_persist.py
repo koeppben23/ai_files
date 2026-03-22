@@ -15,8 +15,8 @@ from governance_runtime.domain import reason_codes
 from governance_runtime.domain.access_control import Action, AccessDecision, Role, evaluate_access
 from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
-from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.json_store import load_json as _load_json
+from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.session_pointer import (
     parse_session_pointer_document,
     resolve_active_session_state_path,
@@ -26,9 +26,6 @@ from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 VALID_DECISIONS = frozenset({"approve", "reject", "reset"})
 
 
-def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
-    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    atomic_write_text(path, text)
 
 
 def _append_event(path: Path, event: dict[str, object]) -> bool:

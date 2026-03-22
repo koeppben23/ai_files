@@ -18,7 +18,6 @@ from governance_runtime.application.use_cases.rework_clarification import consum
 from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
 from governance_runtime.domain.phase_state_machine import normalize_phase_token
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
-from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.session_pointer import (
     parse_session_pointer_document,
@@ -26,6 +25,7 @@ from governance_runtime.infrastructure.session_pointer import (
 )
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
+from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 
 
 BLOCKED_P4_INTAKE_MISSING_EVIDENCE = "BLOCKED-P4-INTAKE-MISSING-EVIDENCE"
@@ -50,9 +50,6 @@ def _digest(payload: str, *, kind: str) -> str:
     return hashlib.sha256(material).hexdigest()
 
 
-def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
-    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    atomic_write_text(path, text)
 
 def _resolve_active_session_path() -> tuple[Path, str]:
     resolver = BindingEvidenceResolver(env=os.environ)

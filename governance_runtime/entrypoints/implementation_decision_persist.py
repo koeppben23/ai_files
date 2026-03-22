@@ -19,8 +19,8 @@ from governance_runtime.contracts.enforcement import require_complete_contracts
 from governance_runtime.receipts.match import ReceiptMatchContext, validate_receipt_match
 from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
-from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.json_store import load_json as _load_json
+from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.session_pointer import (
     parse_session_pointer_document,
     resolve_active_session_state_path,
@@ -31,9 +31,6 @@ VALID_DECISIONS = frozenset({"approve", "changes_requested", "reject"})
 BLOCKED_IMPLEMENTATION_DECISION_INVALID = reason_codes.BLOCKED_REVIEW_DECISION_INVALID
 
 
-def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
-    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    atomic_write_text(path, text)
 
 
 def _append_event(path: Path, event: dict[str, object]) -> bool:
