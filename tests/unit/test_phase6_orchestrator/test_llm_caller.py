@@ -86,11 +86,15 @@ class TestLLMCaller:
         mock_result.returncode = 0
         mock_run.return_value = mock_result
 
-        with patch("governance_runtime.infrastructure.json_store.write_json_atomic"):
-            result = caller_with_executor.invoke(
-                context={"test": "data"},
-                context_file=Path("/tmp/context.json"),
-            )
+        # Mock context_writer
+        def mock_context_writer(path, data):
+            pass
+
+        result = caller_with_executor.invoke(
+            context={"test": "data"},
+            context_file=Path("/tmp/context.json"),
+            context_writer=mock_context_writer,
+        )
 
         assert result.invoked is True
         assert result.stdout == '{"verdict": "approve"}'

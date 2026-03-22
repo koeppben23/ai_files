@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,6 +22,17 @@ from governance_runtime.application.services.phase6_review_orchestrator import (
 from governance_runtime.application.services.phase6_review_orchestrator.review_result import (
     CompletionStatus,
 )
+
+
+# Mock functions for dependency injection
+def _mock_json_loader(path: Path) -> dict[str, Any]:
+    """Mock JSON loader that returns empty dict."""
+    return {}
+
+
+def _mock_context_writer(path: Path, data: dict[str, Any]) -> None:
+    """Mock context writer that does nothing."""
+    pass
 
 
 class TestReviewLoopConfig:
@@ -179,6 +191,8 @@ class TestRunReviewLoop:
             state_doc=state_doc,
             config=config,
             dependencies=mock_dependencies,
+            json_loader=_mock_json_loader,
+            context_writer=_mock_context_writer,
         )
 
         assert result.success is True
@@ -209,6 +223,8 @@ class TestRunReviewLoop:
             state_doc=state_doc,
             config=config,
             dependencies=mock_dependencies,
+            json_loader=_mock_json_loader,
+            context_writer=_mock_context_writer,
         )
 
         updates = result.loop_result.to_state_updates()
@@ -239,6 +255,8 @@ class TestRunReviewLoop:
             state_doc=state_doc,
             config=config,
             dependencies=mock_dependencies,
+            json_loader=_mock_json_loader,
+            context_writer=_mock_context_writer,
         )
 
         events = result.loop_result.to_audit_events()

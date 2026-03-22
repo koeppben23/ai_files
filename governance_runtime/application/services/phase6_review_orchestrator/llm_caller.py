@@ -18,7 +18,7 @@ import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 @dataclass(frozen=True)
@@ -119,12 +119,15 @@ class LLMCaller:
         *,
         context: dict[str, Any],
         context_file: Path,
+        context_writer: Callable[[Path, dict], None] | None = None,
     ) -> LLMResponse:
         """Invoke the LLM executor.
 
         Args:
             context: The context payload (will be written to context_file).
             context_file: Path where context JSON will be written.
+            context_writer: Injectable context writer (for testing). If None,
+                           raises ValueError to enforce architecture rules.
 
         Returns:
             LLMResponse with the raw output.
@@ -138,11 +141,12 @@ class LLMCaller:
                 error="No LLM executor configured (OPENCODE_IMPLEMENT_LLM_CMD not set)",
             )
 
-        # Write context to file
-        from governance_runtime.infrastructure.json_store import write_json_atomic
+        if context_writer is None:
+            raise ValueError("context_writer is required for invoke (inject write_json_atomic from infrastructure)")
 
+        # Write context to file
         context_file.parent.mkdir(parents=True, exist_ok=True)
-        write_json_atomic(context_file, context)
+        context_writer(context_file, context)
 
         # Build the command
         final_cmd = self._executor_cmd

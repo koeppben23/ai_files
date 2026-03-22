@@ -96,6 +96,18 @@ from governance_runtime.infrastructure.text_utils import sha256_text as _sha256_
 from governance_runtime.infrastructure.text_utils import truncate_text as _truncate_text
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
+# Gate evaluator imports for Phase-5 normalizer dependencies
+from governance_runtime.engine.gate_evaluator import (
+    P5_GATE_PRIORITY_ORDER,
+    P5_GATE_TERMINAL_VALUES,
+    evaluate_p53_test_quality_gate,
+    evaluate_p54_business_rules_gate,
+    evaluate_p55_technical_debt_gate,
+    evaluate_p56_rollback_safety_gate,
+    reason_code_for_gate,
+)
+from governance_runtime.kernel.phase_kernel import _phase_1_5_executed
+
 # Import from orchestrator package (main API)
 from governance_runtime.application.services.phase6_review_orchestrator import (
     run_review_loop,
@@ -203,6 +215,8 @@ from governance_runtime.application.services.phase5_normalizer import (
     canonicalize_legacy_p5x_surface as _canonicalize_legacy_p5x_surface,
     sync_conditional_p5_gate_states as _sync_conditional_p5_gate_states,
     normalize_phase6_p5_state as _normalize_phase6_p5_state,
+    GateConstants,
+    GateEvaluators,
 )
 
 
@@ -481,7 +495,7 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
             session_path=session_path,
             commands_home=commands_home,
         )
-        review_result = run_review_loop(state_doc=state_doc, config=config)
+        review_result = run_review_loop(state_doc=state_doc, config=config, json_loader=_read_json, context_writer=_write_json_atomic)
 
         # Apply result to state (entrypoint's responsibility)
         if review_result.success and review_result.loop_result:
@@ -566,11 +580,29 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     state_map["session_materialization_event_id"] = f"mat-{uuid.uuid4().hex}"
     state_map["session_materialized_at"] = _now_iso()
 
-    _sync_conditional_p5_gate_states(state_doc=materialized)
+    # Create gate evaluator dependencies for Phase-5 normalizer
+    _gate_evaluators = GateEvaluators(
+        evaluate_p53=evaluate_p53_test_quality_gate,
+        evaluate_p54=evaluate_p54_business_rules_gate,
+        evaluate_p55=evaluate_p55_technical_debt_gate,
+        evaluate_p56=evaluate_p56_rollback_safety_gate,
+        phase_1_5_executed=_phase_1_5_executed,
+    )
+    _gate_constants = GateConstants(
+        priority_order=P5_GATE_PRIORITY_ORDER,
+        terminal_values=P5_GATE_TERMINAL_VALUES,
+        reason_code_for_gate=reason_code_for_gate,
+    )
+
+    _sync_conditional_p5_gate_states(state_doc=materialized, gate_evaluators=_gate_evaluators)
     _sync_phase6_completion_fields(state_doc=materialized)
     _normalize_phase6_p5_state(
         state_doc=materialized,
         events_path=session_path.parent / "events.jsonl",
+        clock=_now_iso,
+        audit_sink=_append_jsonl,
+        gate_constants=_gate_constants,
+        gate_evaluators=_gate_evaluators,
     )
     _persist_review_package_markers(state_doc=materialized, session_path=session_path)
     _persist_implementation_package_markers(state_doc=materialized)
@@ -850,7 +882,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
 
     phase_str = _safe_str(phase)
     if phase_str.startswith("6") and str(active_gate).strip().lower() == "evidence presentation gate":
-        plan_body = _build_plan_body(session_path=session_path)
+        plan_body = _build_plan_body(session_path=session_path, json_loader=_read_json)
         snapshot["review_package_review_object"] = "Final Phase-6 implementation review decision"
         snapshot["review_package_ticket"] = _build_ticket_summary(state_view)
         snapshot["review_package_approved_plan_summary"] = _build_plan_summary(

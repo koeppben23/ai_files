@@ -11,7 +11,7 @@ New code should import directly from:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from governance_runtime.application.services.phase6_review_orchestrator import (
     PolicyResolver,
@@ -22,7 +22,6 @@ from governance_runtime.application.services.phase6_review_orchestrator import (
     run_review_loop,
     BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
 )
-from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
 
 # Module-level instances for backward compatibility
@@ -77,14 +76,20 @@ def parse_llm_review_response(
     }
 
 
-def read_plan_body(session_path: Path) -> str:
-    """Read plan body from plan-record.json."""
+def read_plan_body(session_path: Path, json_loader: Callable[[Path], dict] | None = None) -> str:
+    """Read plan body from plan-record.json.
+    
+    Args:
+        session_path: Path to the session file.
+        json_loader: Injectable JSON loader (for testing). If None,
+                    raises ValueError to enforce architecture rules.
+    """
+    if json_loader is None:
+        raise ValueError("json_loader is required for read_plan_body (inject load_json from infrastructure)")
     try:
         plan_record_path = session_path.parent / "plan-record.json"
         if plan_record_path.is_file():
-            from governance_runtime.infrastructure.json_store import load_json
-
-            payload = load_json(plan_record_path)
+            payload = json_loader(plan_record_path)
             if isinstance(payload, dict):
                 body = payload.get("body") or payload.get("planBody") or payload.get("plan_body")
                 if isinstance(body, str) and body.strip():

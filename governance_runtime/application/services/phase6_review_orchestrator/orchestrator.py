@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
 from governance_runtime.application.services.phase6_review_orchestrator.policy_resolver import (
     BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
@@ -36,8 +36,8 @@ from governance_runtime.application.services.phase6_review_orchestrator.review_r
     ReviewOutcome,
     ReviewResult,
 )
-from governance_runtime.infrastructure.number_utils import coerce_int as _coerce_int
-from governance_runtime.infrastructure.text_utils import sha256_text as _sha256_text
+from governance_runtime.shared.number_utils import coerce_int as _coerce_int
+from governance_runtime.shared.hash_utils import sha256_text as _sha256_text
 
 
 @dataclass
@@ -141,6 +141,8 @@ def run_review_loop(
     state_doc: dict,
     config: ReviewLoopConfig,
     dependencies: ReviewDependencies | None = None,
+    json_loader: Callable[[Path], dict] | None = None,
+    context_writer: Callable[[Path, dict], None] | None = None,
 ) -> ReviewResult:
     """Run the Phase-6 internal review loop.
 
@@ -158,6 +160,8 @@ def run_review_loop(
         state_doc: The session state document (READ ONLY).
         config: Configuration for the review loop.
         dependencies: Injectable dependencies (for testing).
+        json_loader: Injectable JSON loader for reading plan records.
+        context_writer: Injectable context writer for LLM calls.
 
     Returns:
         ReviewResult with the outcome of the review loop.
@@ -257,7 +261,7 @@ def run_review_loop(
     # Get implementation context
     ticket = str(state.get("Ticket") or state.get("ticket") or "").strip()
     task = str(state.get("Task") or state.get("task") or "").strip()
-    plan_text = _read_plan_body(config.session_path)
+    plan_text = _read_plan_body(config.session_path, json_loader=json_loader)
     impl_summary = _build_implementation_summary(state)
 
     # Get review output schema
@@ -293,7 +297,7 @@ def run_review_loop(
                 output_schema_text=output_schema_text,
             )
             context_file = Path.home() / ".governance" / "review" / "llm_impl_review_context.json"
-            llm_response = llm_caller.invoke(context=context, context_file=context_file)
+            llm_response = llm_caller.invoke(context=context, context_file=context_file, context_writer=context_writer)
             llm_result = response_validator.validate(
                 llm_response.stdout,
                 mandates_schema=mandate_schema.raw_schema if mandate_schema else None,
@@ -340,14 +344,18 @@ def run_review_loop(
     return ReviewResult(loop_result=loop_result)
 
 
-def _read_plan_body(session_path: Path) -> str:
-    """Read the plan body from plan-record.json."""
+def _read_plan_body(session_path: Path, json_loader: Callable[[Path], dict] | None = None) -> str:
+    """Read the plan body from plan-record.json.
+    
+    Requires json_loader to be injected. This enforces the architecture rule
+    that application services must not perform IO directly.
+    """
+    if json_loader is None:
+        raise ValueError("json_loader is required for _read_plan_body (inject load_json from infrastructure)")
     try:
         plan_record_path = session_path.parent / "plan-record.json"
         if plan_record_path.is_file():
-            from governance_runtime.infrastructure.json_store import load_json
-
-            payload = load_json(plan_record_path)
+            payload = json_loader(plan_record_path)
             if isinstance(payload, dict):
                 body = payload.get("body") or payload.get("planBody") or payload.get("plan_body")
                 if isinstance(body, str) and body.strip():

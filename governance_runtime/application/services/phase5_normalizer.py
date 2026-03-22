@@ -13,8 +13,34 @@ kernel contract) but do not persist events - the entrypoint handles persistence.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Callable, Mapping
+
+
+@dataclass(frozen=True)
+class GateEvaluators:
+    """Injectable gate evaluators for testing.
+    
+    Each evaluator returns an object with a `status` attribute.
+    """
+    evaluate_p53: Callable[..., Any]  # Returns object with .status
+    evaluate_p54: Callable[..., Any]  # Returns object with .status
+    evaluate_p55: Callable[..., Any]  # Returns object with .status
+    evaluate_p56: Callable[..., Any]  # Returns object with .status
+    phase_1_5_executed: Callable[[dict], bool]
+
+
+@dataclass(frozen=True)
+class GateConstants:
+    """Injectable gate constants for testing.
+    
+    Contains the canonical gate priority order, terminal values, and
+    reason code mapping from the engine.gate_evaluator module.
+    """
+    priority_order: tuple[str, ...]
+    terminal_values: dict[str, tuple[str, ...]]
+    reason_code_for_gate: Callable[[str], str]
 
 
 def canonicalize_legacy_p5x_surface(*, state_doc: dict) -> None:
@@ -27,7 +53,7 @@ def canonicalize_legacy_p5x_surface(*, state_doc: dict) -> None:
 
     Modifies state_doc in place.
     """
-    from governance_runtime.infrastructure.text_utils import safe_str as _safe_str
+    from governance_runtime.shared.string_utils import safe_str as _safe_str
 
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
@@ -78,13 +104,21 @@ def canonicalize_legacy_p5x_surface(*, state_doc: dict) -> None:
         marker["corrected_active_gate"] = canonical_gate
 
 
-def sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
+def sync_conditional_p5_gate_states(
+    *,
+    state_doc: dict,
+    gate_evaluators: GateEvaluators,
+) -> None:
     """Synchronize conditional P5 gate states from evaluator SSOT.
 
     Pending-only policy: write only when a gate is currently pending so prior
     non-pending operator decisions are preserved.
 
     Modifies state_doc in place.
+    
+    Args:
+        state_doc: The session state document.
+        gate_evaluators: Injectable gate evaluators (required).
     """
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
@@ -92,27 +126,16 @@ def sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
     if not isinstance(gates, dict):
         return
 
-    try:
-        from governance_runtime.engine.gate_evaluator import (
-            evaluate_p53_test_quality_gate,
-            evaluate_p54_business_rules_gate,
-            evaluate_p55_technical_debt_gate,
-            evaluate_p56_rollback_safety_gate,
-        )
-        from governance_runtime.kernel.phase_kernel import _phase_1_5_executed
-    except Exception:
-        return
-
     # --- P5.3 Test Quality ---
-    p53_eval = evaluate_p53_test_quality_gate(session_state=state)
+    p53_eval = gate_evaluators.evaluate_p53(session_state=state)
     if str(gates.get("P5.3-TestQuality", "")).strip().lower() == "pending":
         if p53_eval.status in {"pass", "pass-with-exceptions", "not-applicable"}:
             gates["P5.3-TestQuality"] = p53_eval.status
 
     # --- P5.4 Business Rules ---
-    p54_eval = evaluate_p54_business_rules_gate(
+    p54_eval = gate_evaluators.evaluate_p54(
         session_state=state,
-        phase_1_5_executed=_phase_1_5_executed(state),
+        phase_1_5_executed=gate_evaluators.phase_1_5_executed(state),
     )
     if str(gates.get("P5.4-BusinessRules", "")).strip().lower() == "pending":
         if p54_eval.status in {
@@ -129,18 +152,26 @@ def sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
             state["Phase5State"] = "phase5-in-progress"
             state["phase5_completion_status"] = "phase5-in-progress"
 
-    p55_eval = evaluate_p55_technical_debt_gate(session_state=state)
+    p55_eval = gate_evaluators.evaluate_p55(session_state=state)
     if str(gates.get("P5.5-TechnicalDebt", "")).strip().lower() == "pending":
         if p55_eval.status in {"approved", "not-applicable", "rejected"}:
             gates["P5.5-TechnicalDebt"] = p55_eval.status
 
-    p56_eval = evaluate_p56_rollback_safety_gate(session_state=state)
+    p56_eval = gate_evaluators.evaluate_p56(session_state=state)
     if str(gates.get("P5.6-RollbackSafety", "")).strip().lower() == "pending":
         if p56_eval.status in {"approved", "not-applicable", "rejected"}:
             gates["P5.6-RollbackSafety"] = p56_eval.status
 
 
-def normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = None) -> None:
+def normalize_phase6_p5_state(
+    *,
+    state_doc: dict,
+    events_path: Path | None = None,
+    clock: Callable[[], str] | None = None,
+    audit_sink: Callable[[Path, dict], None] | None = None,
+    gate_constants: GateConstants,
+    gate_evaluators: GateEvaluators,
+) -> None:
     """Detect and correct inconsistent Phase 6 / P5 gate state (fail-closed).
 
     If ``phase=6`` but one or more P5 gates are still in a non-terminal
@@ -157,16 +188,15 @@ def normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = Non
     The entrypoint should persist audit events if needed.
 
     Modifies state_doc in place.
+    
+    Args:
+        state_doc: The session state document.
+        events_path: Path for audit events (optional).
+        clock: Clock function for timestamps (optional).
+        audit_sink: Audit event sink (optional).
+        gate_constants: Injectable gate constants (required).
+        gate_evaluators: Injectable gate evaluators (required).
     """
-    from governance_runtime.engine.gate_evaluator import (
-        P5_GATE_PRIORITY_ORDER,
-        P5_GATE_TERMINAL_VALUES,
-        evaluate_p54_business_rules_gate,
-        reason_code_for_gate,
-    )
-    from governance_runtime.kernel.phase_kernel import _phase_1_5_executed
-    from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
-    from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
@@ -185,8 +215,8 @@ def normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = Non
     # Only gates that *exist but are not terminal* are considered open.
     # Absent gates are skipped — they may be conditionally not-applicable.
     open_gates: list[str] = []
-    for gate_key in P5_GATE_PRIORITY_ORDER:
-        terminal_values = P5_GATE_TERMINAL_VALUES.get(gate_key, ())
+    for gate_key in gate_constants.priority_order:
+        terminal_values = gate_constants.terminal_values.get(gate_key, ())
         current = gates.get(gate_key)
         if current is None:
             continue
@@ -196,22 +226,22 @@ def normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = Non
     # Fail-closed: even with stale terminal gate states, force-open P5.4 when
     # the evaluator reports non-compliant business-rules validation.
     active_gate_text = str(state.get("active_gate") or "").strip().lower()
-    if _phase_1_5_executed(state) and active_gate_text == "rework clarification gate":
-        p54_eval = evaluate_p54_business_rules_gate(
+    if gate_evaluators.phase_1_5_executed(state) and active_gate_text == "rework clarification gate":
+        p54_eval = gate_evaluators.evaluate_p54(
             session_state=state,
             phase_1_5_executed=True,
         )
-        if p54_eval.status in {"gap-detected", "pending"}:
+        if p54_eval and p54_eval.status in {"gap-detected", "pending"}:
             if "P5.4-BusinessRules" not in open_gates:
                 open_gates.append("P5.4-BusinessRules")
-                _order = {gate: idx for idx, gate in enumerate(P5_GATE_PRIORITY_ORDER)}
+                _order = {gate: idx for idx, gate in enumerate(gate_constants.priority_order)}
                 open_gates.sort(key=lambda gate: _order.get(gate, 999))
 
     if not open_gates:
         return
 
     first_open = open_gates[0]
-    blocking_reason_code = reason_code_for_gate(first_open)
+    blocking_reason_code = gate_constants.reason_code_for_gate(first_open)
 
     gate_to_phase_next: dict[str, tuple[str, str, str]] = {
         "P5.3-TestQuality": ("5.3-TestQuality", "5.3", "Test Quality Gate"),
@@ -268,21 +298,20 @@ def normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = Non
         "corrected_active_gate": corrected_gate,
     }
 
-    if events_path is not None:
-        _append_jsonl(
-            events_path,
-            {
-                "schema": "opencode.state-normalization.v1",
-                "event": "P6_STATE_NORMALIZED",
-                "observed_at": _now_iso(),
-                "reason_code": "WARN-P6-STATE-INCONSISTENCY",
-                "blocking_reason_code": blocking_reason_code,
-                "first_open_gate": first_open,
-                "open_gates": open_gates,
-                "original_phase": original_phase,
-                "original_next": original_next,
-                "corrected_phase": corrected_phase,
-                "corrected_next": corrected_next,
-                "corrected_active_gate": corrected_gate,
-            },
-        )
+    if events_path is not None and audit_sink is not None:
+        now = clock() if clock else "unknown"
+        event = {
+            "schema": "opencode.state-normalization.v1",
+            "event": "P6_STATE_NORMALIZED",
+            "observed_at": now,
+            "reason_code": "WARN-P6-STATE-INCONSISTENCY",
+            "blocking_reason_code": blocking_reason_code,
+            "first_open_gate": first_open,
+            "open_gates": open_gates,
+            "original_phase": original_phase,
+            "original_next": original_next,
+            "corrected_phase": corrected_phase,
+            "corrected_next": corrected_next,
+            "corrected_active_gate": corrected_gate,
+        }
+        audit_sink(events_path, event)
