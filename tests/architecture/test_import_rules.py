@@ -257,6 +257,7 @@ _ALIAS_RESOLUTION_ALLOWLIST: set[str] = {
     "governance_runtime/application/services/phase5_normalizer.py",
     "governance_runtime/application/services/state_accessor.py",
     "governance_runtime/application/services/phase6_review_orchestrator/policy_resolver.py",
+    "governance_runtime/application/services/transition_model.py",
     # LEGACY COMPATIBILITY: To be migrated later
     "governance_runtime/entrypoints/session_reader.py",
     "governance_runtime/application/services/phase6_review_orchestrator/legacy_compat.py",
