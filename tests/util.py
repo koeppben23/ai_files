@@ -224,6 +224,8 @@ def write_governance_paths(
             "workspaceErrorLogsHomeTemplate": str(workspaces / "<repo_fingerprint>" / "logs"),
             "pythonCommand": "py -3" if os.name == "nt" else "python3",
         },
+        "specHome": str(local / "governance_spec"),
+        "workspacesHome": str(workspaces),
     }
     commands.mkdir(parents=True, exist_ok=True)
     target = root / "governance.paths.json"

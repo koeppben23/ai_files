@@ -47,15 +47,15 @@ def test_bootstrap_autopilot_happy_until_phase_2_1(tmp_path: Path, monkeypatch) 
             "ActiveProfile": "profile.fallback-minimum",
             "LoadedRulebooks": {
                 "core": "${COMMANDS_HOME}/master.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
                 "templates": "${COMMANDS_HOME}/master.md",
                 "addons": {
-                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+                    "riskTiering": "${PROFILES_HOME}/rules.risk-tiering.yml",
                 },
             },
             "RulebookLoadEvidence": {
                 "core": "${COMMANDS_HOME}/master.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
             },
             "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
             "Intent": {"Path": "intent.md", "Sha256": "abc", "EffectiveScope": "repo"},

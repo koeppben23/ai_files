@@ -1087,11 +1087,11 @@ def _detect_repo_profile(repo_root: Path | None) -> dict[str, object]:
 
 
 def _profile_rulebook_path_token(profile_id: str) -> str:
-    return f"${{COMMANDS_HOME}}/rulesets/profiles/rules.{profile_id}.yml"
+    return f"${{PROFILES_HOME}}/rules.{profile_id}.yml"
 
 
 def _addon_rulebook_path_token() -> str:
-    return f"${{COMMANDS_HOME}}/rulesets/profiles/{DEFAULT_ADDON_RULEBOOK}"
+    return f"${{PROFILES_HOME}}/{DEFAULT_ADDON_RULEBOOK}"
 
 
 def _normalize_business_rules_state(state: dict[str, object]) -> None:
@@ -1206,9 +1206,9 @@ def _hydrate_transition_state(
         if not isinstance(loaded, dict):
             loaded = {}
         if not isinstance(loaded.get("core"), str) or not str(loaded.get("core") or "").strip():
-            loaded["core"] = "${COMMANDS_HOME}/rules.md"
+            loaded["core"] = "${CONTENT_HOME}/reference/rules.md"
         loaded["profile"] = _profile_rulebook_path_token(profile_id) if profile_loaded else ""
-        loaded["templates"] = "${COMMANDS_HOME}/master.md"
+        loaded["templates"] = "${CONTENT_HOME}/reference/master.md"
         addons_loaded = loaded.get("addons")
         if not isinstance(addons_loaded, dict):
             addons_loaded = {}
@@ -1220,7 +1220,7 @@ def _hydrate_transition_state(
         if not isinstance(evidence, dict):
             evidence = {}
         if not isinstance(evidence.get("core"), str) or not str(evidence.get("core") or "").strip() or str(evidence.get("core")) == "deferred":
-            evidence["core"] = "${COMMANDS_HOME}/rules.md"
+            evidence["core"] = "${CONTENT_HOME}/reference/rules.md"
         evidence["profile"] = loaded["profile"] if loaded["profile"] else "missing"
         evidence["templates"] = loaded["templates"]
         addons_evidence = evidence.get("addons")

@@ -3870,7 +3870,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
                 "status": "OK",
                 "LoadedRulebooks": {
                     "core": "${COMMANDS_HOME}/rules.md",
-                    "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.md",
+                    "profile": "${PROFILES_HOME}/rules.fallback-minimum.md",
                 },
                 "AddonsEvidence": {},
             }

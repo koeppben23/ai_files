@@ -67,7 +67,7 @@ except Exception:
                 "OutputMode": "ARCHITECT",
                 "DecisionSurface": {},
                 "Kernel": {
-                    "PhaseApiPath": "${COMMANDS_HOME}/phase_api.yaml",
+                    "PhaseApiPath": "${SPEC_HOME}/phase_api.yaml",
                     "PhaseApiSha256": "",
                     "LastPhaseEventId": "",
                 },
@@ -92,8 +92,8 @@ except Exception:
                 "AddonsEvidence": {},
                 "RulebookLoadEvidence": {
                     "top_tier": {
-                        "quality_index": "${COMMANDS_HOME}/QUALITY_INDEX.md",
-                        "conflict_resolution": "${COMMANDS_HOME}/CONFLICT_RESOLUTION.md",
+                        "quality_index": "${CONTENT_HOME}/QUALITY_INDEX.md",
+                        "conflict_resolution": "${CONTENT_HOME}/CONFLICT_RESOLUTION.md",
                     },
                     "core": "deferred",
                     "profile": "deferred",

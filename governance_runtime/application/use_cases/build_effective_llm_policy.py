@@ -88,6 +88,27 @@ def _resolve_content_path(
         resolved = path_ref.replace("${COMMANDS_HOME}", str(commands_home))
         p = Path(resolved)
         return p if p.exists() else None
+    if path_ref.startswith("${PROFILES_HOME}"):
+        config_root = commands_home.parent
+        local_root = config_root.parent / f"{config_root.name}-local"
+        profiles_home = local_root / "governance_content" / "profiles"
+        resolved = path_ref.replace("${PROFILES_HOME}", str(profiles_home))
+        p = Path(resolved)
+        return p if p.exists() else None
+    if path_ref.startswith("${CONTENT_HOME}"):
+        config_root = commands_home.parent
+        local_root = config_root.parent / f"{config_root.name}-local"
+        content_home = local_root / "governance_content"
+        resolved = path_ref.replace("${CONTENT_HOME}", str(content_home))
+        p = Path(resolved)
+        return p if p.exists() else None
+    if path_ref.startswith("${SPEC_HOME}"):
+        config_root = commands_home.parent
+        local_root = config_root.parent / f"{config_root.name}-local"
+        spec_home = local_root / "governance_spec"
+        resolved = path_ref.replace("${SPEC_HOME}", str(spec_home))
+        p = Path(resolved)
+        return p if p.exists() else None
     if path_ref.startswith("${CONFIG_ROOT}"):
         config_root = commands_home.parent
         resolved = path_ref.replace("${CONFIG_ROOT}", str(config_root))

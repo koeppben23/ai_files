@@ -22,29 +22,34 @@ def _load_module():
 def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     config_root = tmp_path / "cfg"
     commands_home = config_root / "commands"
-    spec_home = config_root / "governance_spec"
+    local_root = config_root.parent / f"{config_root.name}-local"
+    spec_home = local_root / "governance_spec"
+    content_home = local_root / "governance_content"
     workspaces_home = config_root / "workspaces"
     repo_fp = "abc123def456abc123def456"
     workspace = workspaces_home / repo_fp
     workspace.mkdir(parents=True, exist_ok=True)
     commands_home.mkdir(parents=True, exist_ok=True)
     spec_home.mkdir(parents=True, exist_ok=True)
+    content_home.mkdir(parents=True, exist_ok=True)
 
     (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
-    # Mirror SSOT content into commands_home for tests
+    # Mirror SSOT content into governance_content for tests (NOT commands_home)
     try:
         master_src = get_master_path()
         rules_src = get_rules_path()
+        ref_dir = content_home / "reference"
+        ref_dir.mkdir(parents=True, exist_ok=True)
         if master_src.exists():
-            (commands_home / "master.md").write_text(master_src.read_text(encoding="utf-8"), encoding="utf-8")
+            (ref_dir / "master.md").write_text(master_src.read_text(encoding="utf-8"), encoding="utf-8")
         if rules_src.exists():
-            (commands_home / "rules.md").write_text(rules_src.read_text(encoding="utf-8"), encoding="utf-8")
+            (ref_dir / "rules.md").write_text(rules_src.read_text(encoding="utf-8"), encoding="utf-8")
     except Exception:
         pass
 
-    # Create profile and addon rulebook files for effective policy loading
+    # Create profile and addon rulebook files under governance_content/profiles/
     try:
-        profiles_dir = commands_home / "rulesets" / "profiles"
+        profiles_dir = content_home / "profiles"
         profiles_dir.mkdir(parents=True, exist_ok=True)
         # Fallback-minimum profile - must have enough structure to generate constraints
         fallback_content = (
@@ -87,7 +92,10 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "commandsHome": str(commands_home),
+            "localRoot": str(local_root),
             "specHome": str(spec_home),
+            "contentHome": str(content_home),
+            "profilesHome": str(content_home / "profiles"),
             "workspacesHome": str(workspaces_home),
             "configRoot": str(config_root),
             "pythonCommand": "python3",
@@ -114,15 +122,15 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
             "ActiveProfile": "profile.fallback-minimum",
             "LoadedRulebooks": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.md",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.md",
                 "templates": "${COMMANDS_HOME}/master.md",
                 "addons": {
-                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.md",
+                    "riskTiering": "${PROFILES_HOME}/rules.risk-tiering.md",
                 },
             },
             "RulebookLoadEvidence": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.md",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.md",
             },
             "AddonsEvidence": {
                 "riskTiering": {"status": "loaded"},
@@ -567,7 +575,8 @@ class TestPhase5BlocksWhenEffectivePolicyUnavailable:
         monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
 
         # Clear the profile files so effective policy cannot be built
-        profiles_dir = commands_home / "rulesets" / "profiles"
+        local_root = config_root.parent / f"{config_root.name}-local"
+        profiles_dir = local_root / "governance_content" / "profiles"
         if profiles_dir.exists():
             for f in profiles_dir.iterdir():
                 f.unlink()

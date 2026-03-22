@@ -21,7 +21,7 @@ Phase `1.3` is mandatory before every phase `>=2`.
 - Phase 3A (API Inventory) inventories external API artifacts — always executed, may record `not-applicable`.
 - Phase 3B-1 / 3B-2 (API Validation) run only when APIs are detected.
 - Phase 4 (Ticket Intake) produces the concrete implementation plan; `/review` is a read-only rail entrypoint for feedback.
-- Phase 5 — `/plan` auto-generates a plan from the persisted ticket/task via Desktop LLM, runs self-review (min 1, max 3 iterations), compiles requirement contracts, and persists plan-record evidence. User may also provide plan text explicitly via `--plan-text`.
+- Phase 5 - Lead Architect Review — `/plan` auto-generates a plan from the persisted ticket/task via Desktop LLM, runs self-review (min 1, max 3 iterations), compiles requirement contracts, and persists plan-record evidence. User may also provide plan text explicitly via `--plan-text`.
 - Phase 5.3 / 5.4 / 5.5 / 5.6 are conditional gates following Phase 5.
 - Phase 6 (Implementation) runs internal review loop, then presents evidence. Final decision via `/review-decision` (approve | changes_requested | reject). `/continue` does NOT advance past the Evidence Presentation Gate.
 
