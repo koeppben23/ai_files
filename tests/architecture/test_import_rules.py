@@ -258,6 +258,8 @@ _ALIAS_RESOLUTION_ALLOWLIST: set[str] = {
     "governance_runtime/application/services/state_accessor.py",
     "governance_runtime/application/services/phase6_review_orchestrator/policy_resolver.py",
     "governance_runtime/application/services/transition_model.py",
+    # SCHEMA: Runtime schema validation (reads phase aliases for validation)
+    "governance_runtime/application/services/state_document_validator.py",
     # LEGACY COMPATIBILITY: To be migrated later
     "governance_runtime/entrypoints/session_reader.py",
     "governance_runtime/application/services/phase6_review_orchestrator/legacy_compat.py",
