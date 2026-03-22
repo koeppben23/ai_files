@@ -678,10 +678,18 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     if not validation_result.valid:
         import logging
         logger = logging.getLogger(__name__)
+        error_details = []
         for error in validation_result.errors:
             logger.error(f"StateDocument validation error [{error.code}]: {error.field} - {error.message}")
+            error_details.append(f"[{error.code}] {error.field}: {error.message}")
         for warning in validation_result.warnings:
             logger.warning(f"StateDocument validation warning [{warning.code}]: {warning.field} - {warning.message}")
+        
+        return {
+            "schema": SNAPSHOT_SCHEMA,
+            "status": "ERROR",
+            "error": f"StateDocument validation failed: {'; '.join(error_details)}",
+        }
 
     _canonicalize_legacy_p5x_surface(state_doc=state)
 

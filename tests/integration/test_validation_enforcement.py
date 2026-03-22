@@ -180,3 +180,30 @@ class TestValidationSeverityClassification:
         assert result.valid is True
         for warning in result.warnings:
             assert warning.severity.value == "warning"
+
+
+class TestSessionReaderEnforcement:
+    """Test fail-closed enforcement at session_reader boundary."""
+
+    def test_invalid_state_document_returns_error(self):
+        """Invalid state document should cause session_reader to return error."""
+        from governance_runtime.application.services.state_document_validator import validate_state_document
+        
+        invalid_doc = {"SESSION_STATE": {}}
+        result = validate_state_document(invalid_doc)
+        assert result.valid is False
+        
+        error_codes = [e.code for e in result.errors]
+        assert "MISSING_PHASE" in error_codes
+        assert "MISSING_ACTIVE_GATE" in error_codes
+
+    def test_missing_session_state_returns_error(self):
+        """Missing SESSION_STATE should cause error."""
+        from governance_runtime.application.services.state_document_validator import validate_state_document
+        
+        invalid_doc = {"metadata": {}}
+        result = validate_state_document(invalid_doc)
+        assert result.valid is False
+        
+        error_codes = [e.code for e in result.errors]
+        assert "MISSING_SESSION_STATE" in error_codes
