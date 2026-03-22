@@ -672,6 +672,17 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             "error": str(exc),
         }
 
+    from governance_runtime.application.services.state_document_validator import validate_state_document
+
+    validation_result = validate_state_document(state)
+    if not validation_result.valid:
+        import logging
+        logger = logging.getLogger(__name__)
+        for error in validation_result.errors:
+            logger.error(f"StateDocument validation error [{error.code}]: {error.field} - {error.message}")
+        for warning in validation_result.warnings:
+            logger.warning(f"StateDocument validation warning [{warning.code}]: {warning.field} - {warning.message}")
+
     _canonicalize_legacy_p5x_surface(state_doc=state)
 
     if materialize:
