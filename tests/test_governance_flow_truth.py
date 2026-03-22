@@ -175,6 +175,25 @@ class TestE2ETicketRail:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload.get("status") in ("error", "blocked")
 
+    def test_ticket_blocks_when_ticket_and_task_text_both_empty(self, tmp_path, monkeypatch, capsys):
+        """/ticket must block when both ticket text and task text are empty strings."""
+        config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        state = _read_state(session_path)
+        state["Phase"] = "4"
+        state["active_gate"] = "Ticket Input Gate"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_module("phase4_intake_persist", "phase4_intake_persist.py")
+        capsys.readouterr()
+        rc = module.main(["--ticket-text=  ", "--task-text=  ", "--quiet"])
+        assert rc != 0, "/ticket must fail when ticket text is whitespace-only"
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload.get("status") in ("error", "blocked"), (
+            f"Expected error/blocked, got {payload.get('status')}"
+        )
+
 
 # ── B. /PLAN ───────────────────────────────────────────────────────────────
 
@@ -1883,6 +1902,25 @@ class TestE2EContinueRail:
         )
         assert action.kind == "recovery", (
             f"Error status must have kind=recovery, got {action.kind}"
+        )
+
+    def test_blocked_status_suggests_continue_with_blocked_kind(self):
+        """Status=blocked must suggest /continue with blocked label."""
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "phase": "6-PostFlight",
+            "active_gate": "Evidence Presentation Gate",
+            "status": "blocked",
+            "next_gate_condition": "Awaiting final review decision.",
+            "plan_record_versions": 1,
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "/continue", (
+            f"Blocked status must suggest /continue, got {action.command}"
+        )
+        assert action.kind == "blocked", (
+            f"Blocked status must have kind=blocked, got {action.kind}"
         )
 
 
