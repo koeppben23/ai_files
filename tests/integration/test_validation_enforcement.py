@@ -183,10 +183,10 @@ class TestValidationSeverityClassification:
 
 
 class TestSessionReaderEnforcement:
-    """Test fail-closed enforcement at session_reader boundary."""
+    """Test fail-closed enforcement at session_reader boundary via real integration."""
 
-    def test_invalid_state_document_returns_error(self):
-        """Invalid state document should cause session_reader to return error."""
+    def test_invalid_state_document_via_validator_causes_error(self):
+        """Invalid state document validation should fail."""
         from governance_runtime.application.services.state_document_validator import validate_state_document
         
         invalid_doc = {"SESSION_STATE": {}}
@@ -197,8 +197,8 @@ class TestSessionReaderEnforcement:
         assert "MISSING_PHASE" in error_codes
         assert "MISSING_ACTIVE_GATE" in error_codes
 
-    def test_missing_session_state_returns_error(self):
-        """Missing SESSION_STATE should cause error."""
+    def test_missing_session_state_via_validator_returns_error(self):
+        """Missing SESSION_STATE validation should fail."""
         from governance_runtime.application.services.state_document_validator import validate_state_document
         
         invalid_doc = {"metadata": {}}
@@ -207,3 +207,33 @@ class TestSessionReaderEnforcement:
         
         error_codes = [e.code for e in result.errors]
         assert "MISSING_SESSION_STATE" in error_codes
+
+    def test_valid_state_document_passes_validation(self):
+        """Valid state document should pass validation."""
+        from governance_runtime.application.services.state_document_validator import validate_state_document
+        
+        valid_doc = {
+            "SESSION_STATE": {
+                "phase": "4",
+                "active_gate": "Ticket Input Gate",
+                "status": "OK",
+            }
+        }
+        result = validate_state_document(valid_doc)
+        assert result.valid is True
+
+    def test_invalid_gates_type_causes_error(self):
+        """Invalid Gates type should cause validation error."""
+        from governance_runtime.application.services.state_document_validator import validate_state_document
+        
+        invalid_doc = {
+            "SESSION_STATE": {
+                "phase": "4",
+                "active_gate": "Ticket Input Gate",
+                "Gates": "not a dict",
+            }
+        }
+        result = validate_state_document(invalid_doc)
+        assert result.valid is False
+        error_codes = [e.code for e in result.errors]
+        assert "INVALID_GATES_TYPE" in error_codes
