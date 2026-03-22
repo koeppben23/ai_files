@@ -1760,6 +1760,132 @@ class TestE2EReviewDecisionReworkRouting:
         )
 
 
+# ── J. /CONTINUE E2E TRUTH ──────────────────────────────────────────────
+
+@pytest.mark.e2e_governance
+class TestE2EContinueRail:
+    """Truth tests for /continue as the session reader.
+
+    /continue must:
+    1. At Evidence Presentation Gate → suggest /review-decision.
+    2. At Workflow Complete → suggest /implement.
+    3. At Phase-5 progress → suggest /continue.
+    4. At Rework Clarification Gate without input → blocked (clarification required).
+    5. At Implementation Blocked → suggest /implement with blocked kind.
+    """
+
+    def test_evidence_presentation_gate_suggests_review_decision(self):
+        """At Evidence Presentation Gate, next_action must suggest /review-decision."""
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "phase": "6-PostFlight",
+            "active_gate": "Evidence Presentation Gate",
+            "status": "OK",
+            "next_gate_condition": "Awaiting final review decision.",
+            "plan_record_versions": 1,
+            "phase6_review_iterations": 3,
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "/review-decision", (
+            f"Evidence Presentation Gate must suggest /review-decision, got {action.command}"
+        )
+        assert "approve" in action.label.lower() or "decision" in action.label.lower(), (
+            f"Label must mention review decision, got {action.label}"
+        )
+
+    def test_workflow_complete_suggests_implement(self):
+        """At Workflow Complete, next_action must suggest /implement."""
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "phase": "6-PostFlight",
+            "active_gate": "Workflow Complete",
+            "status": "OK",
+            "next_gate_condition": "Workflow approved.",
+            "workflow_complete": True,
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "/implement", (
+            f"Workflow Complete must suggest /implement, got {action.command}"
+        )
+        assert action.kind == "terminal", (
+            f"Workflow Complete kind must be terminal, got {action.kind}"
+        )
+
+    def test_phase5_progress_suggests_continue(self):
+        """During Phase-5 progress, next_action must suggest /continue."""
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "phase": "5-ArchitectureReview",
+            "active_gate": "Plan Record Preparation Gate",
+            "status": "OK",
+            "next_gate_condition": "Persist plan record evidence.",
+            "plan_record_versions": 0,
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "/plan", (
+            f"Phase-5 with no plan record must suggest /plan, got {action.command}"
+        )
+
+    def test_rework_clarification_gate_no_input_is_blocked(self):
+        """Rework Clarification Gate without clarification input must be blocked."""
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "phase": "6-PostFlight",
+            "active_gate": "Rework Clarification Gate",
+            "status": "OK",
+            "next_gate_condition": "Describe requested changes in chat.",
+            "rework_clarification_input": "",
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "chat", (
+            f"Rework Clarification Gate without input must be blocked (chat), got {action.command}"
+        )
+        assert action.kind == "blocked", (
+            f"Rework Clarification Gate without input must have kind=blocked, got {action.kind}"
+        )
+
+    def test_implementation_blocked_suggests_implement_with_blocked_kind(self):
+        """Implementation Blocked must suggest /implement with blocked kind."""
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "phase": "6-PostFlight",
+            "active_gate": "Implementation Blocked",
+            "status": "OK",
+            "next_gate_condition": "Resolve blockers and rerun /implement.",
+            "implementation_blocked": True,
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "/implement", (
+            f"Implementation Blocked must suggest /implement, got {action.command}"
+        )
+        assert action.kind == "blocked", (
+            f"Implementation Blocked must have kind=blocked, got {action.kind}"
+        )
+
+    def test_error_status_suggests_continue_with_recovery(self):
+        """Status=error must suggest /continue with recovery label."""
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "phase": "6-PostFlight",
+            "active_gate": "Evidence Presentation Gate",
+            "status": "error",
+            "next_gate_condition": "Awaiting final review decision.",
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "/continue", (
+            f"Error status must suggest /continue, got {action.command}"
+        )
+        assert action.kind == "recovery", (
+            f"Error status must have kind=recovery, got {action.kind}"
+        )
+
+
 # ── K. PHASE-6 GOVERNANCE FAIL-CLOSED ───────────────────────────────────
 
 @pytest.mark.e2e_governance
