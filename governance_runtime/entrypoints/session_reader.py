@@ -116,11 +116,9 @@ from governance_runtime.application.services.phase6_review_orchestrator import (
 )
 
 # Import legacy compatibility helpers from dedicated module
-# Only read_plan_body and sync_phase6_completion_fields are used.
-# Other functions (load_mandates_schema, etc.) are defined locally in phase5_plan_record_persist.py.
+# Only read_plan_body is used.
 from governance_runtime.application.services.phase6_review_orchestrator.legacy_compat import (
     read_plan_body as _build_plan_body,
-    sync_phase6_completion_fields as _sync_phase6_completion_fields,
 )
 
 # Import TypedDict for typed snapshot
@@ -623,7 +621,6 @@ def get_canonical_active_gate(materialized: dict) -> str:
     )
 
     _sync_conditional_p5_gate_states(state_doc=materialized, gate_evaluators=_gate_evaluators)
-    _sync_phase6_completion_fields(state_doc=materialized)
     _normalize_phase6_p5_state(
         state_doc=materialized,
         events_path=session_path.parent / "events.jsonl",

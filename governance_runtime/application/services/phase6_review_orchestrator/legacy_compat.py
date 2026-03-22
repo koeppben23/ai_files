@@ -1,7 +1,7 @@
 """Legacy compatibility layer for Phase-6 review functions.
 
 This module provides backward-compatible helpers for session_reader.py.
-Only read_plan_body and sync_phase6_completion_fields are used.
+Only read_plan_body is used.
 
 New code should import directly from:
 - governance_runtime.application.services.phase6_review_orchestrator
@@ -34,12 +34,3 @@ def read_plan_body(session_path: Path, json_loader: Callable[[Path], dict] | Non
     except Exception:
         pass
     return "none"
-
-
-def sync_phase6_completion_fields(*, state_doc: dict) -> None:
-    """Synchronize Phase 6 completion fields (legacy no-op).
-
-    The orchestrator now handles completion status correctly in its result.
-    This function is kept for backward compatibility.
-    """
-    pass

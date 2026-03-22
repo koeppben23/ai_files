@@ -283,7 +283,6 @@ _ALIAS_RESOLUTION_ALLOWLIST: set[str] = {
     "governance_runtime/cli/bootstrap_executor.py",
     "governance_runtime/application/use_cases/bootstrap_persistence.py",
     "governance_runtime/application/use_cases/session_state_helpers.py",
-    "governance_runtime/entrypoints/errors/global_handler.py",
 }
 
 
@@ -322,6 +321,9 @@ def _find_alias_resolution_calls(file: Path) -> list[str]:
         stripped = line.strip()
         # Skip comments
         if stripped.startswith("#"):
+            continue
+        # Skip kwargs.get() patterns (function parameters, not session state)
+        if "kwargs.get(" in line or "**kwargs" in stripped:
             continue
         for pattern in alias_patterns:
             if pattern in line:
