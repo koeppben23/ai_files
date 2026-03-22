@@ -1,6 +1,6 @@
 # Sprint H: Legacy-Abbau
 
-**Status:** Phase 1 - Planung  
+**Status:** In Progress  
 **Erstellt:** 2026-03-22
 
 ## Ziel
