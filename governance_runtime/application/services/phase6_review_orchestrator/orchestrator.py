@@ -56,6 +56,9 @@ from governance_runtime.application.services.phase6_review_orchestrator.review_r
     ReviewResult,
 )
 from governance_runtime.shared.number_utils import coerce_int as _coerce_int
+
+# Import StateNormalizer for canonical state access
+from governance_runtime.application.services.state_normalizer import normalize_to_canonical
 from governance_runtime.shared.hash_utils import sha256_text as _sha256_text
 
 
@@ -196,9 +199,11 @@ def run_review_loop(
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
 
-    # Check phase
-    phase_raw = state.get("Phase") or state.get("phase") or ""
-    phase_text = str(phase_raw).strip()
+    # Use canonical state for field access
+    canonical = normalize_to_canonical(state)
+
+    # Check phase using canonical field
+    phase_text = str(canonical.get("phase") or "").strip()
     if not phase_text.startswith("6"):
         return ReviewResult(loop_result=None)
 
@@ -214,38 +219,28 @@ def run_review_loop(
         llm_caller = deps.llm_caller
         response_validator = deps.response_validator
 
-    # Get initial state values (read-only)
-    review_block_raw = state.get("ImplementationReview")
-    review_block = dict(review_block_raw) if isinstance(review_block_raw, dict) else {}
+    # Get initial state values using canonical fields
+    review_block = canonical.get("implementation_review") or {}
 
     iteration = _coerce_int(
         review_block.get("iteration")
-        or review_block.get("Iteration")
-        or state.get("phase6_review_iterations")
-        or state.get("phase6ReviewIterations")
+        or canonical.get("phase6_review_iterations")
     )
     iteration = min(max(iteration, 0), config.max_iterations)
 
     prev_digest = str(
         review_block.get("prev_impl_digest")
-        or review_block.get("PrevImplDigest")
-        or state.get("phase6_prev_impl_digest")
-        or state.get("phase6PrevImplDigest")
+        or canonical.get("phase6_prev_impl_digest")
         or ""
     ).strip()
     curr_digest = str(
         review_block.get("curr_impl_digest")
-        or review_block.get("CurrImplDigest")
-        or state.get("phase6_curr_impl_digest")
-        or state.get("phase6CurrImplDigest")
+        or canonical.get("phase6_curr_impl_digest")
         or ""
     ).strip()
 
     base_seed = str(
-        state.get("phase5_plan_record_digest")
-        or state.get("phase5PlanRecordDigest")
-        or state.get("TicketRecordDigest")
-        or state.get("ticket_record_digest")
+        canonical.get("phase5_plan_record_digest")
         or "phase6"
     )
     if not prev_digest:

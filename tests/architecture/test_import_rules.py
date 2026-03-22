@@ -37,7 +37,7 @@ _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
 _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
     # orchestrator.py: Composition-Root reads env for default dependencies
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py": {
-        "L80:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
+        "L83:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
     },
     # legacy_compat.py: Backward compatibility layer with default implementations
     # These are module-level defaults for legacy consumers
@@ -250,13 +250,15 @@ def test_bootstrap_persistence_does_not_import_entrypoints():
 # state_normalizer.py is the PRIMARY location for alias resolution
 # Other files are temporary - to be removed as migration progresses (Sprint E Phase 3+)
 _ALIAS_RESOLUTION_ALLOWLIST: set[str] = {
-    # PRIMARY: State normalizer
+    # PRIMARY: State normalizer (all alias resolution happens here)
     "governance_runtime/application/services/state_normalizer.py",
-    # LEGACY COMPATIBILITY: These files will be migrated in Phase 3
+    # NORMALIZER: Writes legacy fields for backward compatibility (by design)
     "governance_runtime/application/services/phase5_normalizer.py",
+    # MIGRATED IN PHASE 2: Now use normalize_to_canonical()
+    "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py",
+    # LEGACY COMPATIBILITY: To be migrated in Phase 3
     "governance_runtime/entrypoints/session_reader.py",
     "governance_runtime/application/services/phase6_review_orchestrator/legacy_compat.py",
-    "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py",
     "governance_runtime/application/services/phase6_review_orchestrator/policy_resolver.py",
     "governance_runtime/application/services/state_accessor.py",
     # ENTRYPOINTS: To be migrated in Phase 3

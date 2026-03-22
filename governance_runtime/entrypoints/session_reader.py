@@ -131,6 +131,15 @@ from governance_runtime.application.services.phase6_review_orchestrator.legacy_c
 # Import TypedDict for typed snapshot
 from governance_runtime.application.dto.session_state_types import Snapshot
 
+# Import StateNormalizer for canonical state access
+from governance_runtime.application.services.state_normalizer import (
+    normalize_to_canonical,
+    get_gate,
+    is_gate_passed,
+    is_gate_pending,
+)
+from governance_runtime.application.dto.canonical_state import CanonicalSessionState
+
 # Import from snapshot renderer (infrastructure layer)
 from governance_runtime.infrastructure.rendering.snapshot_renderer import (
     SNAPSHOT_SCHEMA,
@@ -262,8 +271,11 @@ def _build_plan_summary(*, state_view: Mapping[str, object], session_path: Path)
 def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> None:
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
-    phase = str(state.get("Phase") or state.get("phase") or "").strip()
-    gate = str(state.get("active_gate") or "").strip().lower()
+
+    # Use canonical state for field access
+    canonical = normalize_to_canonical(state)
+    phase = str(canonical.get("phase") or "").strip()
+    gate = str(canonical.get("active_gate") or "").strip().lower()
 
     if not phase.startswith("6") or gate != "evidence presentation gate":
         return
@@ -316,15 +328,19 @@ def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> N
 def _persist_implementation_package_markers(*, state_doc: dict) -> None:
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
-    phase = str(state.get("Phase") or state.get("phase") or "").strip()
-    gate = str(state.get("active_gate") or "").strip().lower()
+
+    # Use canonical state for field access
+    canonical = normalize_to_canonical(state)
+    phase = str(canonical.get("phase") or "").strip()
+    gate = str(canonical.get("active_gate") or "").strip().lower()
     if not phase.startswith("6") or gate != "implementation presentation gate":
         return
 
-    changed_files = state.get("implementation_package_changed_files") or state.get("implementation_changed_files") or []
-    findings_fixed = state.get("implementation_package_findings_fixed") or state.get("implementation_findings_fixed") or []
-    findings_open = state.get("implementation_package_findings_open") or state.get("implementation_open_findings") or []
-    checks = state.get("implementation_package_checks") or []
+    impl_pkg = canonical.get("implementation_package", {})
+    changed_files = impl_pkg.get("changed_files") or state.get("implementation_changed_files") or []
+    findings_fixed = impl_pkg.get("findings_fixed") or []
+    findings_open = impl_pkg.get("findings_open") or []
+    checks = impl_pkg.get("checks") or []
 
     receipt_source = "|".join(
         [
@@ -573,6 +589,35 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
         ss = materialized.get("SESSION_STATE")
         if isinstance(ss, dict):
             ss["phase_transition_evidence"] = True
+
+
+def get_canonical_state(materialized: dict) -> CanonicalSessionState:
+    """Get normalized canonical state from materialized state document.
+
+    This is the PRIMARY way to access state fields in kernel code.
+    All legacy field names are resolved here.
+
+    Args:
+        materialized: The materialized state document.
+
+    Returns:
+        CanonicalSessionState with only canonical field names.
+    """
+    state_obj = materialized.get("SESSION_STATE")
+    raw_state = state_obj if isinstance(state_obj, dict) else materialized
+    return normalize_to_canonical(raw_state)
+
+
+def get_canonical_phase(materialized: dict) -> str:
+    """Get canonical phase from materialized state."""
+    canonical = get_canonical_state(materialized)
+    return str(canonical.get("phase") or "")
+
+
+def get_canonical_active_gate(materialized: dict) -> str:
+    """Get canonical active_gate from materialized state."""
+    canonical = get_canonical_state(materialized)
+    return str(canonical.get("active_gate") or "")
 
     state_obj = materialized.get("SESSION_STATE")
     state_map = state_obj if isinstance(state_obj, dict) else materialized
