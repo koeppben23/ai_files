@@ -22,7 +22,7 @@ from governance_runtime.application.services.phase6_review_orchestrator import (
     run_review_loop,
     BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
 )
-from governance_runtime.infrastructure.text_utils import now_iso as _now_iso
+from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
 
 # Module-level instances for backward compatibility

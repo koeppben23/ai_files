@@ -7,14 +7,15 @@ Two main rendering modes:
 - format_snapshot: Debug/diagnostic key-value output
 - format_guided_snapshot: Guided operator-facing output with sections
 
-The rendering functions are stateless - they take a snapshot dict and
+The rendering functions are stateless - they take a typed Snapshot and
 return formatted strings without modifying the input.
 """
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any
 
+from governance_runtime.application.dto.session_state_types import Snapshot
 from governance_runtime.infrastructure.number_utils import coerce_int as _coerce_int
 from governance_runtime.infrastructure.number_utils import quote_if_needed as _quote_if_needed
 from governance_runtime.infrastructure.text_utils import format_list as _format_list
@@ -44,7 +45,7 @@ _GATE_PURPOSES: dict[str, str] = {
 }
 
 
-def _display_phase(phase: object) -> str:
+def _display_phase(phase: str | None) -> str:
     """Convert phase token to display name."""
     token = str(phase or "").strip()
     lower = token.lower()
@@ -72,9 +73,9 @@ def _section(lines: list[str], title: str) -> None:
     lines.append(title)
 
 
-def _append_list(lines: list[str], prefix: str, items: object) -> None:
+def _append_list(lines: list[str], prefix: str, items: list[str] | None) -> None:
     """Append a list item to the output lines."""
-    if not isinstance(items, list) or not items:
+    if not items:
         lines.append(f"- {prefix}: none")
         return
     lines.append(f"- {prefix}:")
@@ -82,7 +83,7 @@ def _append_list(lines: list[str], prefix: str, items: object) -> None:
         lines.append(f"  - {str(item)}")
 
 
-def _render_current_state(snapshot: dict) -> list[str]:
+def _render_current_state(snapshot: Snapshot) -> list[str]:
     """Render the current state section."""
     phase = _display_phase(snapshot.get("phase"))
     gate = str(snapshot.get("active_gate") or "none")
@@ -95,7 +96,7 @@ def _render_current_state(snapshot: dict) -> list[str]:
     ]
 
 
-def _render_what_now(snapshot: dict) -> list[str]:
+def _render_what_now(snapshot: Snapshot) -> list[str]:
     """Render the 'what this means now' section."""
     condition = str(snapshot.get("next_gate_condition") or "none")
     return [
@@ -104,7 +105,7 @@ def _render_what_now(snapshot: dict) -> list[str]:
     ]
 
 
-def _render_presented_review_content(snapshot: dict) -> list[str]:
+def _render_presented_review_content(snapshot: Snapshot) -> list[str]:
     """Render the presented review content section."""
     gate = str(snapshot.get("active_gate") or "").strip().lower()
     lines: list[str] = ["Presented review content"]
@@ -144,7 +145,7 @@ def _render_presented_review_content(snapshot: dict) -> list[str]:
     return lines
 
 
-def _render_execution_progress(snapshot: dict) -> list[str]:
+def _render_execution_progress(snapshot: Snapshot) -> list[str]:
     """Render the execution progress section."""
     lines = ["Execution progress"]
     gate = str(snapshot.get("active_gate") or "").strip().lower()
@@ -165,12 +166,12 @@ def _render_execution_progress(snapshot: dict) -> list[str]:
         lines.append(f"- Code candidates: {int(snapshot.get('p54_code_candidate_count') or 0)}")
         lines.append(f"- Code surfaces scanned: {int(snapshot.get('p54_code_surface_count') or 0)}")
         quality_codes = snapshot.get("p54_quality_reason_codes")
-        if isinstance(quality_codes, list) and quality_codes:
+        if quality_codes:
             lines.append(f"- Reason codes: {', '.join(str(code) for code in quality_codes)}")
         return lines
 
     changed_files = snapshot.get("implementation_changed_files")
-    if isinstance(changed_files, list) and changed_files:
+    if changed_files:
         _append_list(lines, "Changed files", changed_files)
     else:
         lines.append("- No file-level execution evidence is available for this gate.")
@@ -180,19 +181,19 @@ def _render_execution_progress(snapshot: dict) -> list[str]:
     return lines
 
 
-def _has_blocker(snapshot: dict) -> bool:
+def _has_blocker(snapshot: Snapshot) -> bool:
     """Check if the snapshot indicates a blocker."""
     status = str(snapshot.get("status") or "").strip().lower()
     if status in {"error", "blocked"}:
         return True
     gates_blocked = snapshot.get("gates_blocked")
-    if isinstance(gates_blocked, list) and gates_blocked:
+    if gates_blocked:
         return True
     next_condition = str(snapshot.get("next_gate_condition") or "").strip().lower()
     return "blocked" in next_condition or "error" in next_condition
 
 
-def _render_blocker(snapshot: dict) -> list[str]:
+def _render_blocker(snapshot: Snapshot) -> list[str]:
     """Render the blocker section."""
     lines = ["Blocker"]
     lines.append(f"- Status: {snapshot.get('status') or 'unknown'}")
@@ -207,7 +208,7 @@ def _render_blocker(snapshot: dict) -> list[str]:
         reason = str(snapshot.get("p54_reason_code") or "none")
         lines.append(f"- Reason code: {reason}")
         quality_codes = snapshot.get("p54_quality_reason_codes")
-        if isinstance(quality_codes, list) and quality_codes:
+        if quality_codes:
             lines.append(f"- Quality diagnostics: {', '.join(str(c) for c in quality_codes)}")
         lines.append(f"- Code extraction run: {'true' if bool(snapshot.get('p54_has_code_extraction')) else 'false'}")
         lines.append(
@@ -216,10 +217,10 @@ def _render_blocker(snapshot: dict) -> list[str]:
         lines.append(f"- Code candidates: {int(snapshot.get('p54_code_candidate_count') or 0)}")
         lines.append(f"- Code surfaces scanned: {int(snapshot.get('p54_code_surface_count') or 0)}")
         missing_surfaces = snapshot.get("p54_missing_code_surfaces")
-        if isinstance(missing_surfaces, list) and missing_surfaces:
+        if missing_surfaces:
             lines.append(f"- Missing code surfaces: {', '.join(str(s) for s in missing_surfaces)}")
     implementation_reasons = snapshot.get("implementation_reason_codes")
-    if isinstance(implementation_reasons, list) and implementation_reasons:
+    if implementation_reasons:
         lines.append(
             f"- Implementation Validation: {'FAILED' if str(snapshot.get('active_gate')).strip().lower() == 'implementation blocked' else 'PASSED'}"
         )
@@ -232,85 +233,12 @@ def _render_blocker(snapshot: dict) -> list[str]:
         )
         lines.append(f"- Reason codes: {', '.join(str(r) for r in implementation_reasons)}")
     gates_blocked = snapshot.get("gates_blocked")
-    if isinstance(gates_blocked, list) and gates_blocked:
+    if gates_blocked:
         lines.append(f"- Blocked gates: {', '.join(str(g) for g in gates_blocked)}")
     return lines
 
 
-def _should_emit_continue_next_action(snapshot: dict) -> bool:
-    """Determine whether to append 'Next action: run /continue.' to output.
-
-    The rule is symmetric across all phases (Fix 1.3):
-    1. Never emit when status is error/blocked.
-    2. Never emit when the kernel signals a user-input gate (ticket intake,
-       plan draft, rulebook load, etc.) — those require /ticket or manual action.
-    3. Always emit when the condition explicitly contains '/continue'.
-    4. Otherwise emit for any OK-status snapshot where the condition does
-       not match a known user-input or blocking pattern.
-    """
-    status = str(snapshot.get("status", "")).strip().lower()
-    if status in {"", "error", "blocked"}:
-        return False
-
-    next_condition = str(snapshot.get("next_gate_condition", "")).strip().lower()
-
-    # Explicit /continue mention is an unconditional yes.
-    if "/continue" in next_condition or "resume via /continue" in next_condition:
-        return True
-
-    # Evidence Presentation Gate directs user to /review-decision, not /continue.
-    if "/review-decision" in next_condition:
-        return False
-
-    # Conditions that require user-provided input or are explicitly blocked.
-    if any(
-        token in next_condition
-        for token in (
-            "provide ticket/task",
-            "collect ticket",
-            "create and persist",
-            "produce a plan draft",
-            "load required rulebooks",
-            "phase_blocked",
-            "blocked",
-            "wait for",
-            "run bootstrap",
-        )
-    ):
-        return False
-
-    # For any other non-error, non-blocked state the user should /continue
-    # to re-enter the kernel and advance.  This covers Phase 5 review loops,
-    # Phase 6 implementation loops, and all intermediate stay-strategy phases
-    # symmetrically without hardcoding specific phase/gate combinations.
-    return True
-
-
-# -- Blocking patterns that indicate the user should work in chat, not run /continue.
-_GATE_WORK_PATTERNS: tuple[str, ...] = (
-    "phase-transition-evidence-required",
-    "phase-5-self-review-required",
-    "implementation-review-pending",
-)
-
-
-def _resolve_next_action_line(snapshot: dict) -> str:
-    """Determine the next action line for guided output."""
-    from governance_runtime.engine.next_action_resolver import resolve_next_action
-
-    render = resolve_next_action(snapshot)
-    label = str(render.label or "").strip()
-    phase = str(snapshot.get("phase") or "").strip().lower()
-    gate = str(snapshot.get("active_gate") or "").strip().lower()
-    if (phase.startswith("4") or gate == "ticket input gate") and "/review" not in label.lower():
-        label = (
-            "run /ticket with the ticket/task details. "
-            "Alternative: run /review for read-only feedback (no state change)."
-        )
-    return f"Next action: {label}"
-
-
-def format_snapshot(snapshot: dict) -> str:
+def format_snapshot(snapshot: Snapshot) -> str:
     """Format debug/diagnostic key-value output (non-guided surface)."""
     lines = [f"# {SNAPSHOT_SCHEMA}"]
     for key, value in snapshot.items():
@@ -323,8 +251,11 @@ def format_snapshot(snapshot: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def format_guided_snapshot(snapshot: dict) -> str:
-    """Format guided operator-facing output with sections."""
+def render_guided_sections(snapshot: Snapshot, action_line: str) -> list[str]:
+    """Render the guided output sections based on snapshot state.
+
+    Returns list of lines for the main body sections (not including action line).
+    """
     lines: list[str] = []
     lines.extend(_render_current_state(snapshot))
     _section(lines, "What this means now")
@@ -341,7 +272,17 @@ def format_guided_snapshot(snapshot: dict) -> str:
         _section(lines, "Execution progress")
         lines.extend(_render_execution_progress(snapshot)[1:])
 
-    action_line = _resolve_next_action_line(snapshot)
+    return lines
+
+
+def format_guided_snapshot(snapshot: Snapshot, action_line: str) -> str:
+    """Format guided operator-facing output with sections.
+
+    Args:
+        snapshot: The typed snapshot to render.
+        action_line: The pre-computed next action line (from presentation assembly).
+    """
+    lines = render_guided_sections(snapshot, action_line)
     lines.append("")
     lines.append(action_line)
     return "\n".join(lines).rstrip() + "\n"

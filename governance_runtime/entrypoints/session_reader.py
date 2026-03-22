@@ -116,8 +116,11 @@ from governance_runtime.application.services.phase6_review_orchestrator.legacy_c
     sync_phase6_completion_fields as _sync_phase6_completion_fields,
 )
 
-# Import from snapshot renderer
-from governance_runtime.application.services.snapshot_renderer import (
+# Import TypedDict for typed snapshot
+from governance_runtime.application.dto.session_state_types import Snapshot
+
+# Import from snapshot renderer (infrastructure layer)
+from governance_runtime.infrastructure.rendering.snapshot_renderer import (
     SNAPSHOT_SCHEMA,
     _GATE_PURPOSES,
     _append_list,
@@ -128,12 +131,72 @@ from governance_runtime.application.services.snapshot_renderer import (
     _render_execution_progress,
     _render_presented_review_content,
     _render_what_now,
-    _resolve_next_action_line,
     _section,
-    _should_emit_continue_next_action,
     format_guided_snapshot,
     format_snapshot,
 )
+
+# -- Presentation assembly logic (moved from renderer for clean separation) --
+# This is ViewModel logic, not formatting, so it stays in the entrypoint.
+
+
+def _should_emit_continue_next_action(snapshot: Snapshot) -> bool:
+    """Determine whether to append 'Next action: run /continue.' to output.
+
+    The rule is symmetric across all phases (Fix 1.3):
+    1. Never emit when status is error/blocked.
+    2. Never emit when the kernel signals a user-input gate (ticket intake,
+       plan draft, rulebook load, etc.) — those require /ticket or manual action.
+    3. Always emit when the condition explicitly contains '/continue'.
+    4. Otherwise emit for any OK-status snapshot where the condition does
+       not match a known user-input or blocking pattern.
+    """
+    status = str(snapshot.get("status", "")).strip().lower()
+    if status in {"", "error", "blocked"}:
+        return False
+
+    next_condition = str(snapshot.get("next_gate_condition", "")).strip().lower()
+
+    # Explicit /continue mention is an unconditional yes.
+    if "/continue" in next_condition or "resume via /continue" in next_condition:
+        return True
+
+    # Evidence Presentation Gate directs user to /review-decision, not /continue.
+    if "/review-decision" in next_condition:
+        return False
+
+    # Conditions that require user-provided input or are explicitly blocked.
+    if any(
+        token in next_condition
+        for token in (
+            "provide ticket/task",
+            "collect ticket",
+            "create and persist",
+            "produce a plan draft",
+            "load required rulebooks",
+            "phase_blocked",
+            "blocked",
+            "wait for",
+            "run bootstrap",
+        )
+    ):
+        return False
+
+    return True
+
+
+def _resolve_next_action_line(snapshot: Snapshot) -> str:
+    """Determine the next action line (presentation assembly, not formatting)."""
+    render = resolve_next_action(snapshot)
+    label = str(render.label or "").strip()
+    phase = str(snapshot.get("phase") or "").strip().lower()
+    gate = str(snapshot.get("active_gate") or "").strip().lower()
+    if (phase.startswith("4") or gate == "ticket input gate") and "/review" not in label.lower():
+        label = (
+            "run /ticket with the ticket/task details. "
+            "Alternative: run /review for read-only feedback (no state change)."
+        )
+    return f"Next action: {label}"
 
 # Import Phase-5 normalizer functions
 from governance_runtime.application.services.phase5_normalizer import (
@@ -1040,9 +1103,13 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(json.dumps(payload, ensure_ascii=True, indent=2) + "\n")
         return 0
 
-    snapshot = read_session_snapshot(commands_home=commands_home, materialize=materialize_mode)
+    raw_snapshot = read_session_snapshot(commands_home=commands_home, materialize=materialize_mode)
+    # Cast to typed Snapshot for renderer contract
+    snapshot: Snapshot = {k: v for k, v in raw_snapshot.items()}
+
     if not audit_mode and not debug_mode and not diagnose_mode:
-        rendered = format_guided_snapshot(snapshot)
+        action_line = _resolve_next_action_line(snapshot)
+        rendered = format_guided_snapshot(snapshot, action_line)
     else:
         rendered = format_snapshot(snapshot)
         if materialize_mode:
