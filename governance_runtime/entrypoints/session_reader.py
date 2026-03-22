@@ -429,29 +429,19 @@ def _build_runtime_context(
     from governance_runtime.domain.phase_state_machine import normalize_phase_token
     from governance_runtime.kernel.phase_kernel import RuntimeContext
 
-    state_view = _session_state_view(state_doc)
-    persisted_phase = normalize_phase_token(
-        state_view.get("Phase")
-        or state_view.get("phase")
-        or state_doc.get("Phase")
-        or state_doc.get("phase")
-        or "4"
-    ) or "4"
+    canonical = get_canonical_state(state_doc)
+
+    persisted_phase = normalize_phase_token(canonical.get("phase") or "4") or "4"
 
     requested_phase = persisted_phase
-    next_token = normalize_phase_token(
-        state_view.get("Next")
-        or state_view.get("next")
-        or state_doc.get("Next")
-        or state_doc.get("next")
-        or ""
-    )
+    next_token = normalize_phase_token(canonical.get("next") or "")
 
     # Stay-strategy phases may advertise a next_token that differs from the
     # current persisted phase (e.g. Phase 5 → 5.3 forward, Phase 6 → 4 on
     # reject).  When phase_transition_evidence is present, honour the
     # advertised next_token as the execution target so the session actually
     # advances (or retreats) instead of looping on the same stay-phase.
+    state_view = _session_state_view(state_doc)
     if (
         next_token
         and next_token != persisted_phase
@@ -459,20 +449,11 @@ def _build_runtime_context(
     ):
         requested_phase = next_token
 
-    requested_active_gate = str(
-        state_view.get("active_gate")
-        or state_doc.get("active_gate")
-        or "Ticket Input Gate"
-    )
-    requested_next_gate_condition = str(
-        state_view.get("next_gate_condition")
-        or state_doc.get("next_gate_condition")
-        or "Continue automatic phase routing"
-    )
+    requested_active_gate = str(canonical.get("active_gate") or "Ticket Input Gate")
+    requested_next_gate_condition = str(canonical.get("next_gate_condition") or "Continue automatic phase routing")
     repo_fingerprint = str(
         pointer.get("activeRepoFingerprint")
-        or state_view.get("RepoFingerprint")
-        or state_view.get("repo_fingerprint")
+        or canonical.get("repo_fingerprint")
         or ""
     ).strip() or None
 
@@ -734,19 +715,20 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             kernel_result = None
 
     # --- 4. Extract canonical fields for guided and debug surfaces ---
-    # Canonical documents store runtime fields under "SESSION_STATE".
+    # Use canonical state for base values; kernel_result overrides for fresh eval.
+    canonical = get_canonical_state(state)
+
+    phase = canonical.get("phase") or "unknown"
+    next_phase = canonical.get("next") or "unknown"
+    mode = canonical.get("mode") or "unknown"
+    status = canonical.get("status") or "OK"
+    active_gate = canonical.get("active_gate") or "none"
+    next_gate_condition = canonical.get("next_gate_condition") or "none"
+    ticket_intake_ready = canonical.get("ticket_intake_ready", False)
+
     # Support both nested and top-level conventions while preferring nested.
     state_view = _session_state_view(state)
-
-    # Support both PascalCase and snake_case field conventions.
-    phase = state_view.get("Phase") or state_view.get("phase") or state.get("Phase") or state.get("phase") or "unknown"
-    next_phase = state_view.get("Next") or state_view.get("next") or state.get("Next") or state.get("next") or "unknown"
-    mode = state_view.get("Mode") or state_view.get("mode") or state.get("Mode") or state.get("mode") or "unknown"
-    status = state_view.get("status") or state.get("status") or "OK"
     output_mode = state_view.get("OutputMode") or state_view.get("output_mode") or state.get("OutputMode") or state.get("output_mode") or "unknown"
-    active_gate = state_view.get("active_gate") or state.get("active_gate") or "none"
-    next_gate_condition = state_view.get("next_gate_condition") or state.get("next_gate_condition") or "none"
-    ticket_intake_ready = state_view.get("ticket_intake_ready", state.get("ticket_intake_ready", False))
 
     # Override kernel-authoritative fields with fresh readonly eval when
     # available.  This ensures the readout always reflects the kernel's
