@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from governance_runtime.application.services.state_normalizer import normalize_to_canonical
 from governance_runtime.domain.phase_state_machine import (
     normalize_phase_token,
     phase_rank as _phase_rank,
@@ -45,21 +46,23 @@ def phase_requires_ticket_input(phase_token: str) -> bool:
 
 
 def _extract_phase(session_state: dict[str, object]) -> str:
-    for key in ("phase", "Phase"):
-        token = extract_phase_token(session_state.get(key))
-        if token:
-            return token
+    canonical = normalize_to_canonical(session_state)
+    token = extract_phase_token(canonical.get("phase"))
+    if token:
+        return token
     return ""
 
 
 def _extract_previous_phase_tokens(session_state: dict[str, object]) -> tuple[str, ...]:
+    canonical = normalize_to_canonical(session_state)
     tokens: list[str] = []
-    for key in ("previous_phase", "PreviousPhase", "phase_previous", "from_phase"):
-        token = extract_phase_token(session_state.get(key))
+
+    for key in ("previous_phase", "from_phase"):
+        token = extract_phase_token(canonical.get(key))
         if token:
             tokens.append(token)
 
-    history = session_state.get("phase_history")
+    history = canonical.get("phase_history")
     if isinstance(history, list):
         for entry in history:
             token = extract_phase_token(entry)
@@ -69,27 +72,27 @@ def _extract_previous_phase_tokens(session_state: dict[str, object]) -> tuple[st
 
 
 def _extract_next_gate_condition(session_state: dict[str, object]) -> str:
-    for key in ("next_gate_condition", "NextGateCondition", "nextGateCondition", "Next"):
-        value = session_state.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+    canonical = normalize_to_canonical(session_state)
+    value = canonical.get("next_gate_condition")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
     return ""
 
 
 def _workspace_ready(session_state: dict[str, object]) -> bool:
-    for key in ("workspace_ready", "WorkspaceReady"):
-        value = session_state.get(key)
-        if isinstance(value, bool):
-            return value
-    for key in ("repo_fingerprint", "RepoFingerprint"):
-        value = session_state.get(key)
-        if isinstance(value, str) and value.strip():
-            return True
+    canonical = normalize_to_canonical(session_state)
+    value = canonical.get("workspace_ready")
+    if isinstance(value, bool):
+        return value
+    fp = canonical.get("repo_fingerprint")
+    if isinstance(fp, str) and fp.strip():
+        return True
     return False
 
 
 def _openapi_signal_present(session_state: dict[str, object]) -> bool:
-    addons = session_state.get("AddonsEvidence")
+    canonical = normalize_to_canonical(session_state)
+    addons = canonical.get("addons_evidence")
     if isinstance(addons, dict):
         openapi = addons.get("openapi")
         if isinstance(openapi, dict) and openapi.get("detected") is True:
@@ -97,7 +100,7 @@ def _openapi_signal_present(session_state: dict[str, object]) -> bool:
         if openapi is True:
             return True
 
-    capabilities = session_state.get("repo_capabilities")
+    capabilities = canonical.get("repo_capabilities")
     if isinstance(capabilities, list):
         normalized = {str(item).strip().lower() for item in capabilities}
         if "openapi" in normalized:

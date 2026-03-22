@@ -281,11 +281,12 @@ _ALIAS_RESOLUTION_ALLOWLIST: set[str] = {
     "governance_runtime/infrastructure/rendering/snapshot_renderer.py",
     "governance_runtime/infrastructure/logging/global_error_handler.py",
     "governance_runtime/infrastructure/io_verify.py",
+    # OTHER: Migrated - uses normalize_to_canonical() but still needs .get() calls
+    "governance_runtime/application/dto/phase_next_action_contract.py",
     # OTHER: To be migrated later
     "governance_runtime/session_state/transitions.py",
     "governance_runtime/render/response_formatter.py",
     "governance_runtime/cli/bootstrap_executor.py",
-    "governance_runtime/application/dto/phase_next_action_contract.py",
     "governance_runtime/application/use_cases/bootstrap_persistence.py",
     "governance_runtime/application/use_cases/session_state_helpers.py",
     "governance_runtime/entrypoints/errors/global_handler.py",
