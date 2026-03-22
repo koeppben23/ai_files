@@ -244,3 +244,113 @@ def test_bootstrap_persistence_does_not_import_entrypoints():
     imports = _imports(module)
     bad = sorted(imp for imp in imports if imp.startswith("governance_runtime.entrypoints"))
     assert not bad, f"bootstrap persistence must not import entrypoint modules: {bad}"
+
+
+# Files allowed to do alias resolution
+# state_normalizer.py is the PRIMARY location for alias resolution
+# Other files are temporary - to be removed as migration progresses (Sprint E Phase 3+)
+_ALIAS_RESOLUTION_ALLOWLIST: set[str] = {
+    # PRIMARY: State normalizer
+    "governance_runtime/application/services/state_normalizer.py",
+    # LEGACY COMPATIBILITY: These files will be migrated in Phase 3
+    "governance_runtime/application/services/phase5_normalizer.py",
+    "governance_runtime/entrypoints/session_reader.py",
+    "governance_runtime/application/services/phase6_review_orchestrator/legacy_compat.py",
+    "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py",
+    "governance_runtime/application/services/phase6_review_orchestrator/policy_resolver.py",
+    "governance_runtime/application/services/state_accessor.py",
+    # ENTRYPOINTS: To be migrated in Phase 3
+    "governance_runtime/entrypoints/work_session_restore.py",
+    "governance_runtime/entrypoints/review_decision_persist.py",
+    "governance_runtime/entrypoints/implementation_decision_persist.py",
+    "governance_runtime/entrypoints/implement_start.py",
+    "governance_runtime/entrypoints/phase5_plan_record_persist.py",
+    "governance_runtime/entrypoints/phase4_intake_persist.py",
+    "governance_runtime/entrypoints/new_work_session.py",
+    "governance_runtime/entrypoints/bootstrap_preflight_readonly.py",
+    "governance_runtime/entrypoints/bootstrap_persistence_hook.py",
+    "governance_runtime/entrypoints/persist_workspace_artifacts_orchestrator.py",
+    # ENGINE: To be migrated later
+    "governance_runtime/engine/next_action_resolver.py",
+    "governance_runtime/engine/session_state_invariants.py",
+    "governance_runtime/kernel/phase_kernel.py",
+    # INFRASTRUCTURE: To be migrated later
+    "governance_runtime/infrastructure/work_run_archive.py",
+    "governance_runtime/infrastructure/run_audit_artifacts.py",
+    "governance_runtime/infrastructure/rendering/snapshot_renderer.py",
+    "governance_runtime/infrastructure/logging/global_error_handler.py",
+    "governance_runtime/infrastructure/io_verify.py",
+    # OTHER: To be migrated later
+    "governance_runtime/session_state/transitions.py",
+    "governance_runtime/render/response_formatter.py",
+    "governance_runtime/cli/bootstrap_executor.py",
+    "governance_runtime/application/dto/phase_next_action_contract.py",
+    "governance_runtime/application/use_cases/bootstrap_persistence.py",
+    "governance_runtime/application/use_cases/session_state_helpers.py",
+    "governance_runtime/entrypoints/errors/global_handler.py",
+}
+
+
+def _find_alias_resolution_calls(file: Path) -> list[str]:
+    """Find legacy field alias patterns like .get("Phase") or .get("phase")."""
+    content = file.read_text(encoding="utf-8")
+    lines = content.split("\n")
+    hits = []
+
+    # Pattern: .get("Phase") or .get("phase") or .get("Next") or .get("next")
+    # These are legacy alias patterns that should only be in state_normalizer.py
+    alias_patterns = [
+        '.get("Phase")',
+        '.get("phase")',  # This is OK as canonical, but flag for review
+        '.get("Next")',
+        '.get("next")',
+        '.get("WorkflowComplete")',
+        '.get("workflow_complete")',
+        '.get("Phase5State")',
+        '.get("phase5_state")',
+        '.get("PlanRecordStatus")',
+        '.get("plan_record_status")',
+        '.get("LoadedRulebooks")',
+        '.get("loaded_rulebooks")',
+        '.get("AddonsEvidence")',
+        '.get("addons_evidence")',
+        '.get("ActiveProfile")',
+        '.get("active_profile")',
+        '.get("Kernel")',
+        '.get("kernel")',
+        '.get("RepoFingerprint")',
+        '.get("repo_fingerprint")',
+    ]
+
+    for i, line in enumerate(lines, 1):
+        stripped = line.strip()
+        # Skip comments
+        if stripped.startswith("#"):
+            continue
+        for pattern in alias_patterns:
+            if pattern in line:
+                hits.append(f"L{i}:{pattern}")
+
+    return hits
+
+
+@pytest.mark.governance
+def test_alias_resolution_only_in_allowed_modules():
+    """Alias resolution (.get('Phase') etc.) only allowed in state_normalizer.py and legacy modules."""
+    governance_root = REPO_ROOT / "governance_runtime"
+    violations = []
+
+    for file in _iter_python_files(governance_root):
+        rel = file.relative_to(REPO_ROOT).as_posix()
+        if rel in _ALIAS_RESOLUTION_ALLOWLIST:
+            continue
+        hits = _find_alias_resolution_calls(file)
+        if hits:
+            violations.append(f"{file}: {hits}")
+
+    assert not violations, (
+        "Legacy alias resolution (.get('Phase'), .get('Next') etc.) must only happen in:\n"
+        "- state_normalizer.py (primary)\n"
+        "- legacy_compat.py (backward compatibility)\n"
+        "- Violations found:\n" + "\n".join(violations)
+    )

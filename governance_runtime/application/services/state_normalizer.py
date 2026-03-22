@@ -12,7 +12,6 @@ Usage:
 
 from __future__ import annotations
 
-from copy import deepcopy
 from typing import Any
 
 from governance_runtime.application.dto.canonical_state import (
@@ -26,7 +25,6 @@ from governance_runtime.application.dto.canonical_state import (
     CanonicalSessionState,
 )
 from governance_runtime.application.dto.field_aliases import (
-    CANONICAL_GATE_KEYS,
     FIELD_ALIASES,
     GATE_KEY_ALIASES,
     IMPLEMENTATION_PACKAGE_ALIASES,
