@@ -275,7 +275,6 @@ _ALIAS_RESOLUTION_ALLOWLIST: set[str] = {
     "governance_runtime/entrypoints/bootstrap_persistence_hook.py",
     "governance_runtime/entrypoints/persist_workspace_artifacts_orchestrator.py",
     # ENGINE: To be migrated later
-    "governance_runtime/engine/next_action_resolver.py",
     "governance_runtime/engine/session_state_invariants.py",
     "governance_runtime/kernel/phase_kernel.py",
     # INFRASTRUCTURE: To be migrated later
