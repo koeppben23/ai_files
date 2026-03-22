@@ -9,7 +9,7 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from governance_runtime.application.services.state_normalizer import (
     normalize_to_canonical,
@@ -19,8 +19,8 @@ from governance_runtime.application.services.state_normalizer import (
 def _to_canonical(state: Mapping[str, Any]) -> dict[str, Any]:
     """Convert raw state to canonical form via StateNormalizer."""
     if isinstance(state, dict):
-        return normalize_to_canonical(state)
-    return normalize_to_canonical(dict(state))
+        return cast(dict[str, Any], normalize_to_canonical(state))
+    return cast(dict[str, Any], normalize_to_canonical(dict(state)))
 
 
 def _get(state: Mapping, key: str) -> Any:

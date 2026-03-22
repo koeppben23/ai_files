@@ -257,11 +257,19 @@ def run_review_loop(
         if mandate_schema:
             mandate_text = mandate_schema.mandate_text
 
+        _clock = clock
+        _schema_resolver = schema_path_resolver
+        if _clock is None:
+            from datetime import datetime, timezone
+            _clock = lambda: datetime.now(timezone.utc).isoformat()
+        if _schema_resolver is None:
+            _schema_resolver = lambda p: p
+
         policy_result = policy_resolver.load_effective_review_policy(
             state=state,
             commands_home=config.commands_home,
-            clock=clock,
-            schema_path_resolver=schema_path_resolver,
+            clock=_clock,
+            schema_path_resolver=_schema_resolver,
         )
         if not policy_result.is_available and llm_caller.is_configured:
             return ReviewResult(

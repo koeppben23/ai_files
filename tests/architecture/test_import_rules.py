@@ -24,8 +24,7 @@ _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance_runtime/entrypoints/implement_start.py",
     "governance_runtime/entrypoints/phase5_plan_record_persist.py",
     "governance_runtime/install/install.py",
-    # legacy_compat.py: Backward compatibility layer
-    "governance_runtime/application/services/phase6_review_orchestrator/legacy_compat.py",
+    "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py",
 }
 
 _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
@@ -38,6 +37,7 @@ _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
     # orchestrator.py: Composition-Root reads env for default dependencies
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py": {
         "L84:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
+        "L264:datetime.now",    # Composition-Root: default clock for load_effective_review_policy
     },
 }
 
