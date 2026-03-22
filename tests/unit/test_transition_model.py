@@ -92,11 +92,22 @@ class TestResolveNextAction:
         assert result.command == "/ticket"
         assert result.kind == NextActionKind.NORMAL
 
-    def test_phase4_plan_record_preparation_gate(self):
+    def test_phase4_plan_record_preparation_gate_no_plan(self):
         state = {
             "phase": "4",
             "active_gate": "Plan Record Preparation Gate",
             "plan_record_versions": 0,
+        }
+        result = resolve_next_action(state)
+        assert result.command == "/plan"
+        assert result.kind == NextActionKind.NORMAL
+        assert result.reason == "plan-record-missing"
+
+    def test_phase4_plan_record_preparation_gate_has_plan(self):
+        state = {
+            "phase": "4",
+            "active_gate": "Plan Record Preparation Gate",
+            "plan_record_versions": 2,
         }
         result = resolve_next_action(state)
         assert result.command == "/continue"
@@ -164,3 +175,19 @@ class TestTransitionTables:
             "unknown gate"
         )
         assert t is None
+
+    def test_wildcard_matches_any_gate(self):
+        t = PHASE5_TRANSITIONS.find_matching(
+            {"phase": "5"},
+            "some gate"
+        )
+        assert t is not None
+        assert t.command == "/continue"
+
+    def test_wildcard_matches_another_gate(self):
+        t = PHASE5_TRANSITIONS.find_matching(
+            {"phase": "5"},
+            "different gate"
+        )
+        assert t is not None
+        assert t.command == "/continue"

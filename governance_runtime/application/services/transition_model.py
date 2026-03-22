@@ -78,10 +78,10 @@ def _has_rework_clarification_input(state: Mapping) -> GuardResult:
     return GuardResult(passed=bool(text), reason="rework clarification input present" if text else "no rework clarification")
 
 
-def _plan_versions_available(state: Mapping) -> GuardResult:
+def _plan_missing(state: Mapping) -> GuardResult:
     versions = state.get("plan_record_versions", 0)
     return GuardResult(
-        passed=int(versions or 0) >= 1,
+        passed=int(versions or 0) < 1,
         reason=f"plan versions: {versions}",
     )
 
@@ -155,7 +155,7 @@ class TransitionTable:
     ) -> Transition | None:
         """Find first matching transition for the given gate."""
         for t in self.transitions:
-            if t.source_gate.lower() != source_gate.lower():
+            if t.source_gate != "*" and t.source_gate.lower() != source_gate.lower():
                 continue
             if t.condition is not None and not t.condition(state):
                 continue
@@ -183,8 +183,7 @@ PHASE4_TRANSITIONS = TransitionTable(
             command="/plan",
             kind=NextActionKind.NORMAL,
             reason="plan-record-missing",
-            guard=_plan_versions_available,
-            condition=lambda s: _is_phase4(s),
+            guard=_plan_missing,
             label_template="run /plan.",
         ),
     )
