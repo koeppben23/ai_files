@@ -252,10 +252,9 @@ def test_bootstrap_persistence_does_not_import_entrypoints():
 _ALIAS_RESOLUTION_ALLOWLIST: set[str] = {
     # PRIMARY: State normalizer (all alias resolution happens here)
     "governance_runtime/application/services/state_normalizer.py",
-    # NORMALIZER: Writes legacy fields for backward compatibility (by design)
-    "governance_runtime/application/services/phase5_normalizer.py",
-    # MIGRATED IN PHASE 2: Now use normalize_to_canonical()
+    # MIGRATED IN PHASE 2: Now use normalize_to_canonical() for reads
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py",
+    "governance_runtime/application/services/phase5_normalizer.py",
     # LEGACY COMPATIBILITY: To be migrated in Phase 3
     "governance_runtime/entrypoints/session_reader.py",
     "governance_runtime/application/services/phase6_review_orchestrator/legacy_compat.py",

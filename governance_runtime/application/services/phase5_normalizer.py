@@ -17,6 +17,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from governance_runtime.application.services.state_normalizer import (
+    normalize_to_canonical,
+)
+
 
 @dataclass(frozen=True)
 class GateEvaluators:
@@ -56,13 +60,15 @@ def canonicalize_legacy_p5x_surface(*, state_doc: dict) -> None:
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
 
-    phase_text = str(state.get("Phase") or state.get("phase") or "").strip()
+    canonical = normalize_to_canonical(state)
+
+    phase_text = str(canonical.get("phase") or "").strip()
     if phase_text != "5-ArchitectureReview":
         return
 
-    next_token = str(state.get("Next") or state.get("next") or "").strip()
-    active_gate = str(state.get("active_gate") or "").strip().lower()
-    ngc = str(state.get("next_gate_condition") or "").strip().upper()
+    next_token = str(canonical.get("next") or "").strip()
+    active_gate = str(canonical.get("active_gate") or "").strip().lower()
+    ngc = str(canonical.get("next_gate_condition") or "").strip().upper()
 
     target: tuple[str, str, str] | None = None
 
@@ -120,6 +126,8 @@ def sync_conditional_p5_gate_states(
     """
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
+
+    canonical = normalize_to_canonical(state)
     gates = state.get("Gates")
     if not isinstance(gates, dict):
         return
@@ -144,7 +152,8 @@ def sync_conditional_p5_gate_states(
         }:
             gates["P5.4-BusinessRules"] = p54_eval.status
     if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable", "gap-detected"}:
-        if str(state.get("phase5_completed") or "").strip().lower() in {"true", "1"} or state.get("phase5_completed") is True:
+        phase5_completed = canonical.get("phase5_completed")
+        if str(phase5_completed or "").strip().lower() in {"true", "1"} or phase5_completed is True:
             state["phase5_completed"] = False
             state["phase5_state"] = "phase5-in-progress"
             state["Phase5State"] = "phase5-in-progress"
@@ -199,8 +208,9 @@ def normalize_phase6_p5_state(
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
 
-    phase_raw = state.get("Phase") or state.get("phase") or ""
-    phase_text = str(phase_raw).strip()
+    canonical = normalize_to_canonical(state)
+
+    phase_text = str(canonical.get("phase") or "").strip()
     if not phase_text.startswith("6"):
         return
 
@@ -223,7 +233,7 @@ def normalize_phase6_p5_state(
 
     # Fail-closed: even with stale terminal gate states, force-open P5.4 when
     # the evaluator reports non-compliant business-rules validation.
-    active_gate_text = str(state.get("active_gate") or "").strip().lower()
+    active_gate_text = str(canonical.get("active_gate") or "").strip().lower()
     if gate_evaluators.phase_1_5_executed(state) and active_gate_text == "rework clarification gate":
         p54_eval = gate_evaluators.evaluate_p54(
             session_state=state,
@@ -253,8 +263,8 @@ def normalize_phase6_p5_state(
         ("5-ArchitectureReview", "5", "Architecture Review Gate"),
     )
 
-    original_phase = str(state.get("Phase") or state.get("phase") or "")
-    original_next = str(state.get("Next") or state.get("next") or "")
+    original_phase = str(canonical.get("phase") or "")
+    original_next = str(canonical.get("next") or "")
 
     # ── Fail-closed reset: bring the document back to a P5-consistent
     #    snapshot so no mixed Phase-6 / open-P5 state is visible.  ──
