@@ -94,20 +94,34 @@ validate_plan_payload(payload)      # Wirft bei ungültigem Plan
 
 ## Allowlist
 
-**31 Allowlist-Einträge** für Alias-Zugriff (Stand: Sprint K).
+**31 Allowlist-Einträge** für Alias-Zugriff (Stand: Sprint K/M).
 
-### Dauerhaft legitim (14)
+### Permanent legitim
 
-- `state_normalizer.py` — PRIMÄR
+- `state_normalizer.py` — PRIMÄR (einzige Alias-Quelle)
 - `orchestrator.py`, `phase5_normalizer.py`, `state_accessor.py`, `policy_resolver.py`, `transition_model.py` — MIGRATED
 - `state_document_validator.py` — SCHEMA
 - `session_state_invariants.py`, `phase_kernel.py` — ENGINE/KERNEL
 - 5 INFRA-Files
 
-### Review erforderlich (15)
+### Review/Migration erforderlich
 
 - 10 ENTRYPOINT-Files
 - 5 OTHER-Files
+
+## Services
+
+### plan_reader.py
+
+Dedizierter Service für das Lesen von Plan-Content:
+
+```python
+from governance_runtime.application.services.plan_reader import read_plan_body
+
+body = read_plan_body(session_path, json_loader=_read_json)
+```
+
+Enthält Legacy-Kompatibilität für `body`/`planBody`/`plan_body` Felder.
 
 ## Performance
 
