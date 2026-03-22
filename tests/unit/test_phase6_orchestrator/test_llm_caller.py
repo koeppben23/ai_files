@@ -1,0 +1,131 @@
+"""Tests for LLMCaller subsystem."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from governance_runtime.application.services.phase6_review_orchestrator.llm_caller import (
+    LLMCaller,
+    LLMResponse,
+)
+
+
+class TestLLMCaller:
+    """Tests for LLMCaller class."""
+
+    @pytest.fixture
+    def caller_no_executor(self):
+        """Create LLMCaller without executor configured."""
+        return LLMCaller(executor_cmd="")
+
+    @pytest.fixture
+    def caller_with_executor(self):
+        """Create LLMCaller with mock executor."""
+        return LLMCaller(executor_cmd="mock-command {context_file}")
+
+    def test_is_configured_false_when_no_cmd(self, caller_no_executor):
+        """is_configured returns False when no executor command."""
+        assert caller_no_executor.is_configured is False
+
+    def test_is_configured_true_when_cmd_set(self, caller_with_executor):
+        """is_configured returns True when executor command is set."""
+        assert caller_with_executor.is_configured is True
+
+    def test_invoke_returns_error_when_not_configured(self, caller_no_executor):
+        """invoke returns error response when executor not configured."""
+        result = caller_no_executor.invoke(
+            context={"test": "data"},
+            context_file=Path("/tmp/context.json"),
+        )
+        assert result.invoked is False
+        assert "No LLM executor configured" in result.error
+
+    def test_build_context(self, caller_with_executor):
+        """build_context creates proper context dict."""
+        context = caller_with_executor.build_context(
+            ticket="TICKET-1",
+            task="Implement feature",
+            plan_text="Plan body",
+            implementation_summary="Changed files: foo.py",
+            mandate="Review mandate",
+            effective_review_policy="Policy text",
+            output_schema_text='{"type": "object"}',
+        )
+        assert context["schema"] == "opencode.impl-review.llm-context.v2"
+        assert context["ticket"] == "TICKET-1"
+        assert context["task"] == "Implement feature"
+        assert context["approved_plan"] == "Plan body"
+        assert context["implementation_summary"] == "Changed files: foo.py"
+        assert context["review_mandate"] == "Review mandate"
+        assert context["effective_review_policy"] == "Policy text"
+        assert context["effective_policy_loaded"] is True
+        assert "instruction" in context
+        assert "Output schema" in context["instruction"]
+
+    def test_build_context_without_mandate(self, caller_with_executor):
+        """build_context omits mandate fields when not provided."""
+        context = caller_with_executor.build_context(
+            ticket="TICKET-1",
+            task="Task",
+            plan_text="Plan",
+            implementation_summary="Summary",
+        )
+        assert "review_mandate" not in context
+        assert "effective_review_policy" not in context
+
+    @patch("subprocess.run")
+    def test_invoke_success(self, mock_run, caller_with_executor):
+        """invoke returns success when subprocess succeeds."""
+        mock_result = MagicMock()
+        mock_result.stdout = '{"verdict": "approve"}'
+        mock_result.stderr = ""
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        with patch("governance_runtime.infrastructure.json_store.write_json_atomic"):
+            result = caller_with_executor.invoke(
+                context={"test": "data"},
+                context_file=Path("/tmp/context.json"),
+            )
+
+        assert result.invoked is True
+        assert result.stdout == '{"verdict": "approve"}'
+        assert result.return_code == 0
+
+
+class TestLLMResponse:
+    """Tests for LLMResponse dataclass."""
+
+    def test_has_output_true_when_stdout(self):
+        """has_output returns True when stdout is non-empty."""
+        response = LLMResponse(
+            invoked=True,
+            stdout="response",
+            stderr="",
+            return_code=0,
+        )
+        assert response.has_output is True
+
+    def test_has_output_false_when_empty(self):
+        """has_output returns False when stdout is empty."""
+        response = LLMResponse(
+            invoked=True,
+            stdout="",
+            stderr="",
+            return_code=0,
+        )
+        assert response.has_output is False
+
+    def test_has_output_false_when_whitespace_only(self):
+        """has_output returns False when stdout is whitespace only."""
+        response = LLMResponse(
+            invoked=True,
+            stdout="   \n  ",
+            stderr="",
+            return_code=0,
+        )
+        assert response.has_output is False

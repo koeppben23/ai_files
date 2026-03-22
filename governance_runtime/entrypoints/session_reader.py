@@ -97,18 +97,125 @@ from governance_runtime.infrastructure.text_utils import sha256_text as _sha256_
 from governance_runtime.infrastructure.text_utils import truncate_text as _truncate_text
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.application.services.phase6_review_orchestrator import (
+    run_review_loop,
+    ReviewLoopConfig,
+    ReviewResult,
+    PolicyResolver,
+    LLMCaller,
+    ResponseValidator,
     BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
-    call_llm_impl_review as _call_llm_impl_review,
-    get_review_output_schema_text as _get_review_output_schema_text,
-    has_any_llm_executor as _has_any_llm_executor,
-    load_effective_review_policy_text as _load_effective_review_policy_text,
-    load_mandates_schema as _load_mandates_schema,
-    build_review_mandate_text as _build_review_mandate_text,
-    parse_llm_review_response as _parse_llm_review_response,
-    read_plan_body as _build_plan_body,
-    run_phase6_internal_review_loop as _run_phase6_internal_review_loop,
-    sync_phase6_completion_fields as _sync_phase6_completion_fields,
 )
+
+# Legacy compatibility aliases for functions still used elsewhere
+# These use the orchestrator's module hooks so they can be mocked in tests
+
+def _load_mandates_schema() -> dict[str, object] | None:
+    from governance_runtime.application.services.phase6_review_orchestrator import _get_policy_resolver
+    result = _get_policy_resolver().load_mandate_schema()
+    return result.raw_schema if result else None
+
+def _get_review_output_schema_text() -> str:
+    from governance_runtime.application.services.phase6_review_orchestrator import _get_policy_resolver
+    result = _get_policy_resolver().load_mandate_schema()
+    return result.review_output_schema_text if result else ""
+
+def _build_review_mandate_text(schema: dict[str, object]) -> str:
+    from governance_runtime.application.services.phase6_review_orchestrator import _get_policy_resolver
+    result = _get_policy_resolver().load_mandate_schema()
+    return result.mandate_text if result else ""
+
+def _load_effective_review_policy_text(state, commands_home) -> tuple[str, str]:
+    from governance_runtime.application.services.phase6_review_orchestrator import _get_policy_resolver
+    result = _get_policy_resolver().load_effective_review_policy(state=state, commands_home=commands_home)
+    return result.policy_text, result.error_code or ""
+
+def _has_any_llm_executor() -> bool:
+    from governance_runtime.application.services.phase6_review_orchestrator import _get_llm_caller
+    return _get_llm_caller().is_configured
+
+def _parse_llm_review_response(response_text: str, mandates_schema=None) -> dict:
+    from governance_runtime.application.services.phase6_review_orchestrator import _get_response_validator
+    result = _get_response_validator().validate(response_text, mandates_schema=mandates_schema)
+    return {
+        "llm_invoked": True,
+        "validation_valid": result.valid,
+        "verdict": result.verdict,
+        "findings": result.findings,
+        "validation_violations": result.violations,
+        "raw_response": result.raw_response,
+    }
+
+def _build_plan_body(session_path: Path) -> str:
+    """Read the plan body from plan-record.json."""
+    try:
+        plan_record_path = session_path.parent / "plan-record.json"
+        if plan_record_path.is_file():
+            from governance_runtime.infrastructure.json_store import load_json
+            payload = load_json(plan_record_path)
+            if isinstance(payload, dict):
+                body = payload.get("body") or payload.get("planBody") or payload.get("plan_body")
+                if isinstance(body, str) and body.strip():
+                    return body.strip()
+    except Exception:
+        pass
+    return "none"
+
+def _sync_phase6_completion_fields(*, state_doc: dict) -> None:
+    """Synchronize Phase 6 completion fields (now handled by orchestrator result)."""
+    # The orchestrator now returns proper completion status in its result.
+    # This function is kept for backward compatibility but is now a no-op
+    # since the orchestrator handles this correctly.
+    pass
+
+
+def _run_phase6_internal_review_loop(
+    *, state_doc: dict, session_path: Path, commands_home: Path | None = None
+) -> dict | None:
+    """Backward compatibility wrapper for the orchestrator.
+
+    This function calls the new orchestrator and applies the result to state_doc
+    for backward compatibility with existing code that expects state mutation.
+    """
+    from governance_runtime.infrastructure.json_store import append_jsonl
+
+    state_obj = state_doc.get("SESSION_STATE")
+    state = state_obj if isinstance(state_obj, dict) else state_doc
+
+    resolved_commands_home = commands_home
+    if resolved_commands_home is None:
+        resolved_commands_home = _derive_commands_home()
+
+    config = ReviewLoopConfig.from_state(
+        state=state,
+        session_path=session_path,
+        commands_home=resolved_commands_home,
+    )
+    review_result = run_review_loop(state_doc=state_doc, config=config)
+
+    # Apply result to state for backward compatibility
+    if review_result.success and review_result.loop_result:
+        updates = review_result.loop_result.to_state_updates()
+        state.update(updates)
+
+        # Persist audit events
+        events = review_result.loop_result.to_audit_events()
+        if events:
+            events_path = session_path.parent / "events.jsonl"
+            for row in events:
+                row["observed_at"] = _now_iso()
+                append_jsonl(events_path, row)
+
+        return updates
+    elif review_result.is_blocked and review_result.loop_result:
+        # Return blocked format for backward compatibility
+        lr = review_result.loop_result
+        return {
+            "blocked": True,
+            "reason": lr.block_reason,
+            "reason_code": lr.block_reason_code,
+            "recovery_action": lr.recovery_action,
+        }
+    return None
 
 
 def _canonicalize_legacy_p5x_surface(*, state_doc: dict) -> None:
@@ -633,6 +740,7 @@ def _build_runtime_context(
 def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, pointer: dict, session_path: Path, state_doc: dict) -> dict:
     from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
     from governance_runtime.kernel.phase_kernel import execute
+    from governance_runtime.infrastructure.json_store import append_jsonl
 
     _canonicalize_legacy_p5x_surface(state_doc=state_doc)
 
@@ -643,8 +751,29 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
         state_doc=state_doc,
     )
 
+    # Run Phase-6 review loop (orchestrator returns result, doesn't mutate state)
     if requested_phase.startswith("6"):
-        _run_phase6_internal_review_loop(state_doc=state_doc, session_path=session_path, commands_home=commands_home)
+        state_obj = state_doc.get("SESSION_STATE")
+        state = state_obj if isinstance(state_obj, dict) else state_doc
+        config = ReviewLoopConfig.from_state(
+            state=state,
+            session_path=session_path,
+            commands_home=commands_home,
+        )
+        review_result = run_review_loop(state_doc=state_doc, config=config)
+
+        # Apply result to state (entrypoint's responsibility)
+        if review_result.success and review_result.loop_result:
+            updates = review_result.loop_result.to_state_updates()
+            state.update(updates)
+
+            # Persist audit events (entrypoint's responsibility)
+            events = review_result.loop_result.to_audit_events()
+            if events:
+                events_path = session_path.parent / "events.jsonl"
+                for row in events:
+                    row["observed_at"] = _now_iso()
+                    append_jsonl(events_path, row)
 
     result = execute(
         current_token=requested_phase,
