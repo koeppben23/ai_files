@@ -5,7 +5,6 @@ import argparse
 import json
 import sys
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Mapping
 
@@ -17,23 +16,14 @@ from governance_runtime.domain.access_control import Action, AccessDecision, Rol
 from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.session_pointer import (
     parse_session_pointer_document,
     resolve_active_session_state_path,
 )
+from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
 VALID_DECISIONS = frozenset({"approve", "reject", "reset"})
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def _load_json(path: Path) -> dict[str, object]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("json root must be object")
-    return payload
 
 
 def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:

@@ -30,7 +30,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 from governance_runtime.domain.access_control import Role
@@ -41,10 +40,7 @@ from governance_runtime.infrastructure.governance_orchestrator import (
     build_governance_summary,
     governance_export,
 )
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
 
 def _parse_role(value: str) -> Role:

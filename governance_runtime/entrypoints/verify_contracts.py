@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
@@ -15,17 +14,8 @@ from governance_runtime.infrastructure.session_pointer import (
     resolve_active_session_state_path,
 )
 from governance_runtime.verification.runner import run_contract_verification
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def _load_json(path: Path) -> dict[str, object]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("json root must be object")
-    return payload
+from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
+from governance_runtime.infrastructure.json_store import load_json as _load_json
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

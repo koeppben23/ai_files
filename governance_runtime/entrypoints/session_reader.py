@@ -17,13 +17,11 @@ Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import shlex
 import subprocess
 import sys
-import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -88,67 +86,16 @@ def _ensure_commands_home_on_syspath(commands_home: Path) -> None:
         sys.path.insert(0, root)
 
 
-def _read_json(path: Path) -> dict:
-    """Read and parse a JSON file. Raises on any failure."""
-    raw = path.read_text(encoding="utf-8")
-    data = json.loads(raw)
-    if not isinstance(data, dict):
-        raise ValueError(f"Expected JSON object in {path}, got {type(data).__name__}")
-    return data
-
-
-def _write_json_atomic(path: Path, payload: dict) -> None:
-    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        os.replace(temp_path, path)
-    finally:
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
-
-
-def _append_jsonl(path: Path, event: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n")
-
-
-def _safe_str(value: object) -> str:
-    """Coerce a value to a stable scalar string for machine-readable output."""
-    if value is None:
-        return "null"
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
-
-
-def _format_list(items: list) -> str:
-    """Format a list as an inline sequence for debug/diagnostic output."""
-    if not items:
-        return "[]"
-    return "[" + ", ".join(_safe_str(i) for i in items) + "]"
-
-
-def _coerce_int(value: object) -> int:
-    """Coerce a value to a non-negative int, defaulting to 0."""
-    if value is None:
-        return 0
-    try:
-        result = int(value)  # type: ignore[arg-type]
-        return max(0, result)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _sha256_text(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
+from governance_runtime.infrastructure.json_store import load_json as _read_json
+from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
+from governance_runtime.infrastructure.number_utils import coerce_int as _coerce_int
+from governance_runtime.infrastructure.number_utils import quote_if_needed as _quote_if_needed
+from governance_runtime.infrastructure.text_utils import format_list as _format_list
+from governance_runtime.infrastructure.text_utils import safe_str as _safe_str
+from governance_runtime.infrastructure.text_utils import sha256_text as _sha256_text
+from governance_runtime.infrastructure.text_utils import truncate_text as _truncate_text
+from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
 
 _SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
@@ -480,16 +427,6 @@ def _parse_llm_review_response(
         "raw_response": raw_text[:1000],
         "validation_valid": True,
     }
-
-
-def _truncate_text(value: object, *, limit: int = 180) -> str:
-    text = str(value or "").strip().replace("\n", " ")
-    text = " ".join(text.split())
-    if not text:
-        return "none"
-    if len(text) <= limit:
-        return text
-    return text[: limit - 3].rstrip() + "..."
 
 
 def _public_next_token(value: object) -> str:
@@ -1231,14 +1168,6 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
                 "action": "fail-closed-reset-to-p5",
             },
         )
-
-
-def _quote_if_needed(value: str) -> str:
-    """Wrap value in double quotes when it includes key-value delimiters."""
-    if any(c in value for c in (":", "#", "'", '"', "{", "}", "[", "]", ",", "&", "*", "?", "|", "-", "<", ">", "=", "!", "%", "@", "`")):
-        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-        return f'"{escaped}"'
-    return value
 
 
 def _resolve_session_document(commands_home: Path) -> tuple[Path, dict, Path, dict]:

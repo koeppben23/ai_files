@@ -26,6 +26,9 @@ from governance_runtime.infrastructure.session_pointer import (
 )
 from governance_runtime.infrastructure.work_run_archive import archive_active_run
 from governance_runtime.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
+from governance_runtime.infrastructure.json_store import load_json as _load_json
+from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 
 try:
     from governance_runtime.infrastructure.governance_hooks import run_post_archive_governance as _run_post_archive_governance
@@ -39,27 +42,9 @@ except Exception:
     from workspace_lock import acquire_workspace_lock  # type: ignore
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
 def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
     text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
     atomic_write_text(path, text)
-
-
-def _append_jsonl(path: Path, event: Mapping[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(dict(event), ensure_ascii=True, separators=(",", ":")) + "\n")
-
-
-def _load_json(path: Path) -> dict[str, object]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("json root must be object")
-    return payload
-
 
 def _resolve_active_session_path() -> tuple[Path, str, Path]:
     resolver = BindingEvidenceResolver()

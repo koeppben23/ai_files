@@ -7,7 +7,6 @@ import hashlib
 import json
 import os
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -20,10 +19,13 @@ from governance_runtime.application.use_cases.session_state_helpers import with_
 from governance_runtime.domain.phase_state_machine import normalize_phase_token
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.session_pointer import (
     parse_session_pointer_document,
     resolve_active_session_state_path,
 )
+from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
+from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 
 
 BLOCKED_P4_INTAKE_MISSING_EVIDENCE = "BLOCKED-P4-INTAKE-MISSING-EVIDENCE"
@@ -48,27 +50,9 @@ def _digest(payload: str, *, kind: str) -> str:
     return hashlib.sha256(material).hexdigest()
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def _load_json(path: Path) -> dict[str, object]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("json root must be object")
-    return payload
-
-
 def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
     text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
     atomic_write_text(path, text)
-
-
-def _append_jsonl(path: Path, event: Mapping[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(dict(event), ensure_ascii=True, separators=(",", ":")) + "\n")
-
 
 def _resolve_active_session_path() -> tuple[Path, str]:
     resolver = BindingEvidenceResolver(env=os.environ)
