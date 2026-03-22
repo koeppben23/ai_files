@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from governance_runtime.application.services.state_normalizer import normalize_to_canonical
+
 
 def _coerce_non_negative_int(value: object) -> int | None:
     if isinstance(value, bool):
@@ -107,26 +109,18 @@ def phase_token(value: str) -> str:
 def extract_repo_identity(session_state_document: Mapping[str, object] | None) -> str:
     """Extract stable repo identity (repo_fingerprint) from SESSION_STATE.
     
-    Reads multiple key variants for compatibility:
-    - SESSION_STATE.RepoFingerprint (canonical)
-    - SESSION_STATE.repo_fingerprint (legacy)
-    - root-level RepoFingerprint
-    - root-level repo_fingerprint
+    Uses canonical state model for field access.
     """
     if session_state_document is None:
         return ""
     session_state = session_state_document.get("SESSION_STATE")
     root = session_state if isinstance(session_state, Mapping) else session_state_document
     
-    for key in ("RepoFingerprint", "repo_fingerprint"):
-        value = root.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+    canonical = normalize_to_canonical(dict(root) if isinstance(root, Mapping) else dict(session_state_document))
     
-    for key in ("RepoFingerprint", "repo_fingerprint"):
-        value = session_state_document.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+    value = canonical.get("repo_fingerprint")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
     
     return ""
 
