@@ -33,10 +33,6 @@ except Exception:
     from workspace_lock import acquire_workspace_lock  # type: ignore
 
 
-
-def _resolve_active_session_path() -> tuple[Path, str, Path]:
-    session_path, fingerprint, workspace_dir = resolve_active_session_paths()
-    return session_path, fingerprint, workspace_dir
 def _extract_state_view(document: Mapping[str, object]) -> Mapping[str, object]:
     nested = document.get("SESSION_STATE")
     if isinstance(nested, Mapping):
@@ -90,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        session_path, repo_fingerprint, workspaces_home = _resolve_active_session_path()
+        session_path, repo_fingerprint, workspace_dir = resolve_active_session_paths()
     except Exception as exc:
         print(
             json.dumps(

@@ -47,11 +47,6 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     out.update(kwargs)
     return out
 
-
-def _resolve_active_session_path() -> tuple[Path, Path]:
-    session_path, _, workspace_dir = resolve_active_session_paths()
-    events_path = workspace_dir / "events.jsonl"
-    return session_path, events_path
 def _in_implementation_presentation_gate(state: Mapping[str, object]) -> bool:
     gate = str(state.get("active_gate") or state.get("ActiveGate") or "").strip().lower()
     return gate == "implementation presentation gate"
@@ -321,7 +316,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        session_path, events_path = _resolve_active_session_path()
+        session_path, _, workspace_dir = resolve_active_session_paths()
+        events_path = workspace_dir / "events.jsonl"
         payload = apply_implementation_decision(
             decision=str(args.decision),
             session_path=session_path,

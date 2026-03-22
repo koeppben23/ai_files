@@ -42,10 +42,6 @@ except Exception:
     from workspace_lock import acquire_workspace_lock  # type: ignore
 
 
-
-def _resolve_active_session_path() -> tuple[Path, str, Path]:
-    session_path, fingerprint, workspace_dir = resolve_active_session_paths()
-    return session_path, fingerprint, workspace_dir
 def _new_run_id() -> str:
     return f"work-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
 
@@ -226,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
     observed_at = _now_iso()
 
     try:
-        session_path, repo_fingerprint, workspaces_home = _resolve_active_session_path()
+        session_path, repo_fingerprint, workspace_dir = resolve_active_session_paths()
     except Exception as exc:
         payload = _payload(
             "blocked",

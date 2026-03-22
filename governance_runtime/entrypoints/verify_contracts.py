@@ -21,11 +21,6 @@ from governance_runtime.infrastructure.session_locator import resolve_active_ses
 def _write_json(path: Path, payload: dict[str, object]) -> None:
     atomic_write_text(path, json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n")
 
-
-def _resolve_active_session_path() -> tuple[Path, Path]:
-    session_path, _, workspace_dir = resolve_active_session_paths()
-    events_path = workspace_dir / "events.jsonl"
-    return session_path, events_path
 def _append_event(path: Path, event: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
@@ -44,7 +39,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        session_path, events_path = _resolve_active_session_path()
+        session_path, _, workspace_dir = resolve_active_session_paths()
+        events_path = workspace_dir / "events.jsonl"
         state_doc = _load_json(session_path)
         state_obj = state_doc.get("SESSION_STATE")
         state = state_obj if isinstance(state_obj, dict) else state_doc

@@ -32,17 +32,14 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 from governance_runtime.domain import reason_codes
+from governance_runtime.application.services.state_accessor import get_active_gate, get_phase
 from governance_runtime.contracts.enforcement import require_complete_contracts
 from governance_runtime.receipts.match import ReceiptMatchContext, validate_receipt_match
 from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
-from governance_runtime.infrastructure.session_pointer import (
-    parse_session_pointer_document,
-    resolve_active_session_state_path,
-)
-from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
+from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
 VALID_DECISIONS = frozenset({"approve", "changes_requested", "reject"})
 
@@ -68,17 +65,7 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
 
 def _is_evidence_presentation_gate(state: Mapping[str, object]) -> bool:
     """Return True when Phase-6 Evidence Presentation Gate is active."""
-
-    candidates = (
-        state.get("active_gate"),
-        state.get("ActiveGate"),
-        state.get("Gate"),
-    )
-    for value in candidates:
-        text = str(value or "").strip().lower()
-        if text == "evidence presentation gate":
-            return True
-    return False
+    return get_active_gate(state).strip().lower() == "evidence presentation gate"
 
 
 def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
@@ -177,10 +164,6 @@ def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
     return True, "ready"
 
 
-def _resolve_active_session_path() -> tuple[Path, Path]:
-    session_path, _, workspace_dir = resolve_active_session_paths()
-    events_path = workspace_dir / "events.jsonl"
-    return session_path, events_path
 def apply_review_decision(
     *,
     decision: str,
@@ -233,8 +216,7 @@ def apply_review_decision(
         )
 
     # Validate we are in Phase 6
-    phase_raw = state.get("Phase") or state.get("phase") or ""
-    phase_text = str(phase_raw).strip()
+    phase_text = get_phase(state)
     if not phase_text.startswith("6"):
         return _payload(
             "error",
@@ -413,7 +395,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        session_path, events_path = _resolve_active_session_path()
+        session_path, _, workspace_dir = resolve_active_session_paths()
+        events_path = workspace_dir / "events.jsonl"
         payload = apply_review_decision(
             decision=str(args.decision),
             session_path=session_path,

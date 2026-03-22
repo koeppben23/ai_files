@@ -832,10 +832,6 @@ def _persist_compiled_contracts(
     digest = _digest(text)
     return digest, len(compiled)
 
-
-def _resolve_active_session_path() -> tuple[Path, str]:
-    session_path, fingerprint, _ = resolve_active_session_paths()
-    return session_path, fingerprint
 def _payload(status: str, **kwargs: object) -> dict[str, object]:
     out: dict[str, object] = {"status": status}
     out.update(kwargs)
@@ -1149,7 +1145,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Load session state early (needed for auto-generation) ──
     try:
-        session_path, repo_fingerprint = _resolve_active_session_path()
+        session_path, repo_fingerprint, _ = resolve_active_session_paths()
         document = _load_json(session_path)
         state = document.get("SESSION_STATE")
         if not isinstance(state, dict):

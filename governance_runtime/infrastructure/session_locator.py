@@ -43,7 +43,6 @@ def resolve_active_session_paths(
     if not fingerprint:
         raise RuntimeError("activeRepoFingerprint missing in pointer")
 
-    workspaces_home = evidence.config_root / "workspaces"
-    workspace_dir = workspaces_home / fingerprint
+    workspace_dir = evidence.workspaces_home / fingerprint
 
     return session_path, fingerprint, workspace_dir

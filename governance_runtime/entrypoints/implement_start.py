@@ -25,6 +25,7 @@ from typing import Mapping
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
+from governance_runtime.application.services.state_accessor import get_active_gate
 from governance_runtime.contracts.enforcement import require_complete_contracts
 from governance_runtime.engine.implementation_validation import (
     CheckResult,
@@ -44,10 +45,7 @@ from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.plan_record_state import resolve_plan_record_signal
-from governance_runtime.infrastructure.session_pointer import (
-    parse_session_pointer_document,
-    resolve_active_session_state_path,
-)
+from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
 BLOCKED_IMPLEMENT_START_INVALID = "BLOCKED-UNSPECIFIED"
@@ -580,25 +578,6 @@ def _run_targeted_checks(repo_root: Path, requirements: list[dict[str, object]])
     return check_results, True
 
 
-def _resolve_active_session_path() -> tuple[Path, Path]:
-    resolver = BindingEvidenceResolver(env=os.environ)
-    evidence = getattr(resolver, "resolve")(mode="user")
-    if evidence.config_root is None or evidence.workspaces_home is None:
-        raise RuntimeError("binding unavailable")
-
-    pointer_path = evidence.config_root / "SESSION_STATE.json"
-    pointer = parse_session_pointer_document(_load_json(pointer_path))
-    session_path = resolve_active_session_state_path(pointer, config_root=evidence.config_root)
-    fingerprint = str(pointer.get("activeRepoFingerprint") or "").strip()
-    if not fingerprint:
-        raise RuntimeError("activeRepoFingerprint missing")
-    if not session_path.exists():
-        raise RuntimeError("active session missing")
-
-    events_path = session_path.parent / "events.jsonl"
-    return session_path, events_path
-
-
 def _user_review_decision(state: Mapping[str, object]) -> str:
     decision = state.get("UserReviewDecision")
     if isinstance(decision, Mapping):
@@ -657,7 +636,7 @@ def start_implementation(
             message="/implement requires an approved final review decision at Workflow Complete.",
         )
 
-    active_gate = str(state.get("active_gate") or "").strip().lower()
+    active_gate = get_active_gate(state).strip().lower()
     if active_gate == "rework clarification gate":
         return _payload(
             "error",
@@ -904,7 +883,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        session_path, events_path = _resolve_active_session_path()
+        session_path, _, workspace_dir = resolve_active_session_paths()
+        events_path = workspace_dir / "events.jsonl"
         payload = start_implementation(
             session_path=session_path,
             events_path=events_path,

@@ -42,11 +42,6 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     out.update(kwargs)
     return out
 
-
-def _resolve_active_session_path() -> tuple[Path, Path]:
-    session_path, _, workspace_dir = resolve_active_session_paths()
-    events_path = workspace_dir / "events.jsonl"
-    return session_path, events_path
 def apply_human_approval(
     *,
     decision: str,
@@ -157,7 +152,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        session_path, events_path = _resolve_active_session_path()
+        session_path, _, workspace_dir = resolve_active_session_paths()
+        events_path = workspace_dir / "events.jsonl"
         payload = apply_human_approval(
             decision=str(args.decision),
             session_path=session_path,
