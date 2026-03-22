@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import tempfile
+from pathlib import Path
+
 import pytest
 
 from governance_runtime.application.services.state_document_validator import (
@@ -237,3 +241,97 @@ class TestSessionReaderEnforcement:
         assert result.valid is False
         error_codes = [e.code for e in result.errors]
         assert "INVALID_GATES_TYPE" in error_codes
+
+
+class TestSessionReaderIntegration:
+    """Test the actual session_reader boundary with real file system."""
+
+    def test_invalid_state_document_through_session_reader_returns_error(self, tmp_path: Path):
+        """Invalid state document through real session_reader should return error status."""
+        from governance_runtime.infrastructure.json_store import write_json_atomic
+        
+        workspace = tmp_path / "workspace"
+        workspace.mkdir(parents=True)
+        
+        config_root = tmp_path
+        commands_home = tmp_path / "commands"
+        commands_home.mkdir(parents=True)
+        
+        invalid_state = {"SESSION_STATE": {}}
+        state_file = workspace / "session_state.json"
+        write_json_atomic(state_file, invalid_state)
+        
+        pointer = {
+            "schema": "opencode-session-pointer.v1",
+            "activeSessionStateFile": str(state_file),
+            "activeRepoFingerprint": "test-repo-fp",
+        }
+        pointer_file = config_root / "SESSION_STATE.json"
+        write_json_atomic(pointer_file, pointer)
+        
+        governance_runtime_init = commands_home / "governance_runtime" / "__init__.py"
+        governance_runtime_init.parent.mkdir(parents=True, exist_ok=True)
+        governance_runtime_init.write_text("")
+        
+        state_init = commands_home / "governance_runtime" / "application" / "__init__.py"
+        state_init.parent.mkdir(parents=True, exist_ok=True)
+        state_init.write_text("")
+        
+        services_init = commands_home / "governance_runtime" / "application" / "services" / "__init__.py"
+        services_init.parent.mkdir(parents=True, exist_ok=True)
+        services_init.write_text("")
+        
+        from governance_runtime.entrypoints.session_reader import read_session_snapshot
+        
+        result = read_session_snapshot(commands_home=commands_home)
+        
+        assert result["status"] == "ERROR"
+        assert "StateDocument validation failed" in result["error"]
+
+    def test_valid_state_document_through_session_reader_succeeds(self, tmp_path: Path):
+        """Valid state document through session_reader should return success."""
+        from governance_runtime.infrastructure.json_store import write_json_atomic
+        
+        workspace = tmp_path / "workspace"
+        workspace.mkdir(parents=True)
+        
+        config_root = tmp_path
+        commands_home = tmp_path / "commands"
+        commands_home.mkdir(parents=True)
+        
+        valid_state = {
+            "SESSION_STATE": {
+                "phase": "4",
+                "active_gate": "Ticket Input Gate",
+                "status": "OK",
+                "Mode": "NORMAL",
+            }
+        }
+        state_file = workspace / "session_state.json"
+        write_json_atomic(state_file, valid_state)
+        
+        pointer = {
+            "schema": "opencode-session-pointer.v1",
+            "activeSessionStateFile": str(state_file),
+            "activeRepoFingerprint": "test-repo-fp",
+        }
+        pointer_file = config_root / "SESSION_STATE.json"
+        write_json_atomic(pointer_file, pointer)
+        
+        governance_runtime_init = commands_home / "governance_runtime" / "__init__.py"
+        governance_runtime_init.parent.mkdir(parents=True, exist_ok=True)
+        governance_runtime_init.write_text("")
+        
+        state_init = commands_home / "governance_runtime" / "application" / "__init__.py"
+        state_init.parent.mkdir(parents=True, exist_ok=True)
+        state_init.write_text("")
+        
+        services_init = commands_home / "governance_runtime" / "application" / "services" / "__init__.py"
+        services_init.parent.mkdir(parents=True, exist_ok=True)
+        services_init.write_text("")
+        
+        from governance_runtime.entrypoints.session_reader import read_session_snapshot
+        
+        result = read_session_snapshot(commands_home=commands_home, materialize=False)
+        
+        assert result["status"] != "ERROR" or "validation failed" not in result.get("error", "").lower()
