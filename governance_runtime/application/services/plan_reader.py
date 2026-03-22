@@ -1,11 +1,4 @@
-"""Legacy compatibility layer for Phase-6 review functions.
-
-This module provides backward-compatible helpers for session_reader.py.
-Only read_plan_body is used.
-
-New code should import directly from:
-- governance_runtime.application.services.phase6_review_orchestrator
-"""
+"""Plan reader service for reading plan content from plan-record files."""
 
 from __future__ import annotations
 
@@ -15,7 +8,7 @@ from typing import Callable
 
 def read_plan_body(session_path: Path, json_loader: Callable[[Path], dict] | None = None) -> str:
     """Read plan body from plan-record.json.
-    
+
     Args:
         session_path: Path to the session file.
         json_loader: Injectable JSON loader (for testing). If None,

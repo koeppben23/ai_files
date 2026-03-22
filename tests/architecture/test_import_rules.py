@@ -254,7 +254,6 @@ _ALIAS_RESOLUTION_ALLOWLIST: set[str] = {
     "governance_runtime/application/services/state_document_validator.py",
     # LEGACY COMPATIBILITY: To be migrated later
     "governance_runtime/entrypoints/session_reader.py",
-    "governance_runtime/application/services/phase6_review_orchestrator/legacy_compat.py",
     # ENTRYPOINTS: To be migrated later
     "governance_runtime/entrypoints/work_session_restore.py",
     "governance_runtime/entrypoints/review_decision_persist.py",

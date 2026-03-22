@@ -115,9 +115,8 @@ from governance_runtime.application.services.phase6_review_orchestrator import (
     BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
 )
 
-# Import legacy compatibility helpers from dedicated module
-# Only read_plan_body is used.
-from governance_runtime.application.services.phase6_review_orchestrator.legacy_compat import (
+# Import plan reader service
+from governance_runtime.application.services.plan_reader import (
     read_plan_body as _build_plan_body,
 )
 
