@@ -99,12 +99,15 @@ phase = get_phase(state)
 ## Testing
 
 - Unit tests: `tests/unit/test_state_normalizer.py`, `tests/unit/test_state_accessor.py`
+- Integration tests: `tests/integration/test_canonical_state_integration.py` (27 tests covering round-trip scenarios, edge cases, gate helpers)
 - Architecture tests: `tests/architecture/test_import_rules.py`
-- All 61 tests pass
+- **All 88 Sprint E tests pass**
 
 ## Commits
 
 ```
+bb1f6fa test(sprint-e): add comprehensive integration tests for canonical state model
+6355b60 docs(sprint-e): update CHANGELOG and add architecture documentation
 d5acc58 feat(sprint-e): migrate session_reader to use canonical state helpers (Phase 4)
 c2854f3 fix(sprint-e): remove dead phase6_max_iterations fallback
 630a0db feat(sprint-e): migrate state_accessor to use normalize_to_canonical() (Phase 3)
