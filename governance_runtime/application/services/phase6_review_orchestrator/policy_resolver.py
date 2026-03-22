@@ -15,7 +15,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping
+from typing import Any, Callable, Mapping
+
+from governance_runtime.application.services.state_normalizer import normalize_to_canonical
 
 BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE = "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
 BLOCKED_EFFECTIVE_POLICY_EMPTY = "BLOCKED-EFFECTIVE-POLICY-EMPTY"
@@ -194,27 +196,26 @@ class PolicyResolver:
             format_review_policy_for_llm,
         )
 
+        state_dict: dict[str, Any] = dict(state)
+        nested = state_dict.get("SESSION_STATE")
+        if isinstance(nested, dict):
+            state_dict = nested
+
+        canonical = normalize_to_canonical(state_dict)
+
         lrb: dict[str, object] = {}
         addons_ev: dict[str, object] = {}
         active_profile = "profile.fallback-minimum"
 
-        state_obj = state
-        if isinstance(state, dict):
-            nested = state.get("SESSION_STATE")
-            if isinstance(nested, dict):
-                state_obj = nested
-        if isinstance(state_obj, dict):
-            lrb_raw = state_obj.get("LoadedRulebooks")
-            if isinstance(lrb_raw, dict):
-                lrb = lrb_raw
-            addons_ev_raw = state_obj.get("AddonsEvidence")
-            if isinstance(addons_ev_raw, dict):
-                addons_ev = addons_ev_raw
-            active_profile = str(
-                state_obj.get("ActiveProfile")
-                or state_obj.get("active_profile")
-                or "profile.fallback-minimum"
-            ).strip()
+        loaded_rulebooks = canonical.get("loaded_rulebooks")
+        if isinstance(loaded_rulebooks, dict):
+            lrb = loaded_rulebooks
+        addons_evidence = canonical.get("addons_evidence")
+        if isinstance(addons_evidence, dict):
+            addons_ev = addons_evidence
+        profile_val = canonical.get("active_profile")
+        if profile_val:
+            active_profile = str(profile_val).strip() or "profile.fallback-minimum"
 
         if not lrb:
             return ReviewPolicy(
