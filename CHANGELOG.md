@@ -15,6 +15,16 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Consolidate legacy `application/`, `infrastructure/`, and `kernel/` bridges; export private compatibility symbols for full-suite imports
 - Freeze compatibility surface via R10 proof authority; harden final-state proof with frozen compatibility surface and no-planned-contract invariants
 
+### Architecture — Canonical State Model (Sprint E)
+
+- Introduce canonical state model with `CanonicalSessionState` TypedDict in `governance_runtime/application/dto/canonical_state.py`
+- Centralize alias resolution in `state_normalizer.py` with `normalize_to_canonical()` function
+- Migrate kernel code (`phase5_normalizer.py`, `phase6_review_orchestrator/orchestrator.py`) to read state via canonical model
+- Refactor `state_accessor.py` to delegate alias resolution to `state_normalizer` instead of own chains
+- Migrate `session_reader.py` critical paths to use canonical state helpers
+- Add architecture test `test_alias_resolution_only_in_allowed_modules` to enforce alias resolution policy
+- Legacy state fields still supported via alias mappings; entrypoints and legacy compat modules remain in allowlist for gradual migration
+
 ### Installer / Runtime — Dual-Root Contracts
 
 - Dual-root contracts established: `CONFIG_ROOT` for user-owned config, `LOCAL_ROOT` for payload
