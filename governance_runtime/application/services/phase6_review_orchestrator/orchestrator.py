@@ -59,6 +59,7 @@ from governance_runtime.shared.number_utils import coerce_int as _coerce_int
 
 # Import StateNormalizer for canonical state access
 from governance_runtime.application.services.state_normalizer import normalize_to_canonical
+from governance_runtime.application.services.plan_reader import read_plan_body
 from governance_runtime.shared.hash_utils import sha256_text as _sha256_text
 
 
@@ -285,7 +286,7 @@ def run_review_loop(
     # Get implementation context
     ticket = str(state.get("Ticket") or state.get("ticket") or "").strip()
     task = str(state.get("Task") or state.get("task") or "").strip()
-    plan_text = _read_plan_body(config.session_path, json_loader=json_loader)
+    plan_text = read_plan_body(config.session_path, json_loader=json_loader)
     impl_summary = _build_implementation_summary(state)
 
     # Get review output schema
@@ -366,27 +367,6 @@ def run_review_loop(
     )
 
     return ReviewResult(loop_result=loop_result)
-
-
-def _read_plan_body(session_path: Path, json_loader: Callable[[Path], dict] | None = None) -> str:
-    """Read the plan body from plan-record.json.
-    
-    Requires json_loader to be injected. This enforces the architecture rule
-    that application services must not perform IO directly.
-    """
-    if json_loader is None:
-        raise ValueError("json_loader is required for _read_plan_body (inject load_json from infrastructure)")
-    try:
-        plan_record_path = session_path.parent / "plan-record.json"
-        if plan_record_path.is_file():
-            payload = json_loader(plan_record_path)
-            if isinstance(payload, dict):
-                body = payload.get("body") or payload.get("planBody") or payload.get("plan_body")
-                if isinstance(body, str) and body.strip():
-                    return body.strip()
-    except Exception:
-        pass
-    return "none"
 
 
 def _build_implementation_summary(state: dict) -> str:

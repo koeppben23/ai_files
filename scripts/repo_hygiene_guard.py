@@ -36,6 +36,8 @@ README_BASELINE = {
 INIT_MARKER_BASELINE = {
     "tests/__init__.py",
     "tests/conformance/__init__.py",
+    "governance_runtime/infrastructure/rendering/__init__.py",
+    "tests/unit/__init__.py",
 }
 
 PSEUDO_EMPTY_DIR_BASELINE: set[str] = set()

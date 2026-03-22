@@ -37,7 +37,7 @@ _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
 _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
     # orchestrator.py: Composition-Root reads env for default dependencies
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py": {
-        "L83:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
+        "L84:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
     },
 }
 
