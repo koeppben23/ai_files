@@ -70,10 +70,9 @@ def get_review_iterations(state: Mapping) -> int:
 
 def get_max_review_iterations(state: Mapping) -> int:
     """Return the maximum Phase-6 review iterations."""
-    for key in ("phase6_max_review_iterations", "phase6_max_iterations"):
-        val = _get(state, key)
-        if isinstance(val, int) and val >= 0:
-            return val
+    val = _get(state, "phase6_max_review_iterations")
+    if isinstance(val, int) and val >= 0:
+        return val
     return 0
 
 
