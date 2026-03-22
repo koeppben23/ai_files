@@ -25,10 +25,6 @@ from governance_runtime.domain.phase_state_machine import normalize_phase_token
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.plan_record_repository import PlanRecordRepository
-from governance_runtime.infrastructure.session_pointer import (
-    parse_session_pointer_document,
-    resolve_active_session_state_path,
-)
 from governance_runtime.infrastructure.workspace_paths import plan_record_archive_dir, plan_record_path
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import load_json as _load_json
@@ -314,24 +310,6 @@ def _load_effective_review_policy_text(
         return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
     except Exception:
         return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
-
-
-def _has_active_desktop_llm_binding() -> bool:
-    """Check if active OpenCode Desktop LLM binding is available."""
-    if str(os.environ.get("OPENCODE") or "").strip() == "1":
-        return True
-    binding_tokens = (
-        "OPENCODE_MODEL",
-        "OPENCODE_MODEL_ID",
-        "OPENCODE_MODEL_PROVIDER",
-        "OPENCODE_MODEL_CONTEXT_LIMIT",
-        "OPENCODE_CLIENT_MODEL",
-        "OPENCODE_CLIENT_PROVIDER",
-    )
-    for key in binding_tokens:
-        if str(os.environ.get(key) or "").strip():
-            return True
-    return False
 
 
 def _get_review_output_schema_text() -> str:

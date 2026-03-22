@@ -92,7 +92,6 @@ from governance_runtime.infrastructure.number_utils import coerce_int as _coerce
 from governance_runtime.infrastructure.number_utils import quote_if_needed as _quote_if_needed
 from governance_runtime.infrastructure.text_utils import format_list as _format_list
 from governance_runtime.infrastructure.text_utils import safe_str as _safe_str
-from governance_runtime.infrastructure.text_utils import sha256_text as _sha256_text
 from governance_runtime.infrastructure.text_utils import truncate_text as _truncate_text
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
@@ -117,13 +116,9 @@ from governance_runtime.application.services.phase6_review_orchestrator import (
 )
 
 # Import legacy compatibility helpers from dedicated module
+# Only read_plan_body and sync_phase6_completion_fields are used.
+# Other functions (load_mandates_schema, etc.) are defined locally in phase5_plan_record_persist.py.
 from governance_runtime.application.services.phase6_review_orchestrator.legacy_compat import (
-    load_mandates_schema as _load_mandates_schema,
-    get_review_output_schema_text as _get_review_output_schema_text,
-    build_review_mandate_text as _build_review_mandate_text,
-    load_effective_review_policy_text as _load_effective_review_policy_text,
-    has_any_llm_executor as _has_any_llm_executor,
-    parse_llm_review_response as _parse_llm_review_response,
     read_plan_body as _build_plan_body,
     sync_phase6_completion_fields as _sync_phase6_completion_fields,
 )

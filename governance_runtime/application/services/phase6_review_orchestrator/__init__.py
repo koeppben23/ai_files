@@ -90,24 +90,3 @@ def _set_response_validator(validator):
     """Set the response validator instance (for testing)."""
     global _response_validator_instance
     _response_validator_instance = validator
-
-
-# Callable hooks that session_reader can mock at module level
-# These call the module-level functions that can be mocked
-def _load_effective_review_policy_hook(state, commands_home):
-    """Hook for loading effective review policy (can be mocked)."""
-    return _get_policy_resolver().load_effective_review_policy(
-        state=state, commands_home=commands_home
-    )
-
-
-def _has_executor_hook():
-    """Hook for checking LLM executor (can be mocked)."""
-    return _get_llm_caller().is_configured
-
-
-def _validate_response_hook(response_text, mandates_schema=None):
-    """Hook for validating LLM response (can be mocked)."""
-    return _get_response_validator().validate(
-        response_text, mandates_schema=mandates_schema
-    )

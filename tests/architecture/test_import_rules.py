@@ -39,14 +39,6 @@ _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py": {
         "L83:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
     },
-    # legacy_compat.py: Backward compatibility layer with default implementations
-    # These are module-level defaults for legacy consumers
-    "governance_runtime/application/services/phase6_review_orchestrator/legacy_compat.py": {
-        "L30:os.environ",       # _default_env_reader
-        "L34:subprocess.run",   # _default_subprocess_runner
-        "L39:datetime.now",     # _default_clock
-        "L42:Path.resolve",     # _default_schema_path_resolver
-    },
 }
 
 

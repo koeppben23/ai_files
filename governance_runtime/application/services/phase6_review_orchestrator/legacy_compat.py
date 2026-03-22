@@ -1,8 +1,7 @@
 """Legacy compatibility layer for Phase-6 review functions.
 
-This module provides backward-compatible aliases for functions that were
-previously defined in session_reader.py. These are used by existing tests
-and should be migrated over time.
+This module provides backward-compatible helpers for session_reader.py.
+Only read_plan_body and sync_phase6_completion_fields are used.
 
 New code should import directly from:
 - governance_runtime.application.services.phase6_review_orchestrator
@@ -11,88 +10,7 @@ New code should import directly from:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable
-
-from governance_runtime.application.services.phase6_review_orchestrator import (
-    PolicyResolver,
-    LLMCaller,
-    ResponseValidator,
-    BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
-)
-
-
-# Module-level instances for backward compatibility
-import os
-import subprocess
-from pathlib import Path
-
-def _default_env_reader(key: str) -> str | None:
-    return os.environ.get(key)
-
-def _default_subprocess_runner(cmd: str):
-    from governance_runtime.application.services.phase6_review_orchestrator.llm_caller import SubprocessResult
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=False, timeout=120)
-    return SubprocessResult(stdout=result.stdout or "", stderr=result.stderr or "", returncode=result.returncode)
-
-def _default_clock() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-def _default_schema_path_resolver(p: Path) -> Path:
-    return p.resolve()
-
-_policy_resolver = PolicyResolver()
-_llm_caller = LLMCaller(env_reader=_default_env_reader, subprocess_runner=_default_subprocess_runner)
-_response_validator = ResponseValidator()
-
-
-def load_mandates_schema() -> dict[str, object] | None:
-    """Load mandates schema (legacy alias)."""
-    result = _policy_resolver.load_mandate_schema()
-    return result.raw_schema if result else None
-
-
-def get_review_output_schema_text() -> str:
-    """Get review output schema text (legacy alias)."""
-    result = _policy_resolver.load_mandate_schema()
-    return result.review_output_schema_text if result else ""
-
-
-def build_review_mandate_text(schema: dict[str, object]) -> str:
-    """Build mandate text (legacy alias)."""
-    result = _policy_resolver.load_mandate_schema()
-    return result.mandate_text if result else ""
-
-
-def load_effective_review_policy_text(state: Any, commands_home: Path) -> tuple[str, str]:
-    """Load effective review policy (legacy alias)."""
-    result = _policy_resolver.load_effective_review_policy(
-        state=state,
-        commands_home=commands_home,
-        clock=_default_clock,
-        schema_path_resolver=_default_schema_path_resolver,
-    )
-    return result.policy_text, result.error_code or ""
-
-
-def has_any_llm_executor() -> bool:
-    """Check if LLM executor is configured (legacy alias)."""
-    return _llm_caller.is_configured
-
-
-def parse_llm_review_response(
-    response_text: str, mandates_schema: dict[str, object] | None = None
-) -> dict:
-    """Parse LLM review response (legacy alias)."""
-    result = _response_validator.validate(response_text, mandates_schema=mandates_schema)
-    return {
-        "llm_invoked": True,
-        "validation_valid": result.valid,
-        "verdict": result.verdict,
-        "findings": result.findings,
-        "validation_violations": result.violations,
-        "raw_response": result.raw_response,
-    }
+from typing import Callable
 
 
 def read_plan_body(session_path: Path, json_loader: Callable[[Path], dict] | None = None) -> str:
@@ -125,7 +43,3 @@ def sync_phase6_completion_fields(*, state_doc: dict) -> None:
     This function is kept for backward compatibility.
     """
     pass
-
-
-# Re-export for backward compatibility
-BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE_ALIAS = BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE

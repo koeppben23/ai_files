@@ -37,6 +37,11 @@ def get_phase(state: Mapping) -> str:
     return str(_get(state, "phase") or "")
 
 
+def get_next(state: Mapping) -> str:
+    """Return the next phase token (e.g. '5', '6', '5.3')."""
+    return str(_get(state, "next") or "")
+
+
 def get_active_gate(state: Mapping) -> str:
     """Return the active gate name."""
     return str(_get(state, "active_gate") or "")
