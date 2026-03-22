@@ -11,6 +11,7 @@ import pytest
 from governance_runtime.application.services.phase6_review_orchestrator.llm_caller import (
     LLMCaller,
     LLMResponse,
+    SubprocessResult,
 )
 
 
@@ -20,12 +21,20 @@ class TestLLMCaller:
     @pytest.fixture
     def caller_no_executor(self):
         """Create LLMCaller without executor configured."""
-        return LLMCaller(executor_cmd="")
+        return LLMCaller(
+            executor_cmd="",
+            env_reader=lambda key: None,
+            subprocess_runner=lambda cmd: SubprocessResult(stdout="", stderr="", returncode=0),
+        )
 
     @pytest.fixture
     def caller_with_executor(self):
         """Create LLMCaller with mock executor."""
-        return LLMCaller(executor_cmd="mock-command {context_file}")
+        return LLMCaller(
+            executor_cmd="mock-command {context_file}",
+            env_reader=lambda key: None,
+            subprocess_runner=lambda cmd: SubprocessResult(stdout="", stderr="", returncode=0),
+        )
 
     def test_is_configured_false_when_no_cmd(self, caller_no_executor):
         """is_configured returns False when no executor command."""
@@ -77,20 +86,25 @@ class TestLLMCaller:
         assert "review_mandate" not in context
         assert "effective_review_policy" not in context
 
-    @patch("subprocess.run")
-    def test_invoke_success(self, mock_run, caller_with_executor):
+    def test_invoke_success(self, caller_with_executor):
         """invoke returns success when subprocess succeeds."""
-        mock_result = MagicMock()
-        mock_result.stdout = '{"verdict": "approve"}'
-        mock_result.stderr = ""
-        mock_result.returncode = 0
-        mock_run.return_value = mock_result
+        # Create caller with mock subprocess_runner
+        mock_runner = lambda cmd: SubprocessResult(
+            stdout='{"verdict": "approve"}',
+            stderr="",
+            returncode=0,
+        )
+        caller = LLMCaller(
+            executor_cmd="mock-command {context_file}",
+            env_reader=lambda key: None,
+            subprocess_runner=mock_runner,
+        )
 
         # Mock context_writer
         def mock_context_writer(path, data):
             pass
 
-        result = caller_with_executor.invoke(
+        result = caller.invoke(
             context={"test": "data"},
             context_file=Path("/tmp/context.json"),
             context_writer=mock_context_writer,

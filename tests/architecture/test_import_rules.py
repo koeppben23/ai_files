@@ -24,6 +24,8 @@ _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance_runtime/entrypoints/implement_start.py",
     "governance_runtime/entrypoints/phase5_plan_record_persist.py",
     "governance_runtime/install/install.py",
+    # legacy_compat.py: Backward compatibility layer
+    "governance_runtime/application/services/phase6_review_orchestrator/legacy_compat.py",
 }
 
 _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
@@ -33,16 +35,17 @@ _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
 # Side-effect calls allowlist for application layer
 # All application→infrastructure side effects must be injected via dependency injection
 _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
-    # llm_caller.py: Fallback codepaths for backward compatibility
-    # These are only used when subprocess_runner/env_reader are not injected
-    # Will be removed in Sprint D when fallbacks are removed
-    "governance_runtime/application/services/phase6_review_orchestrator/llm_caller.py": {
-        "L200:subprocess.run",  # Fallback when subprocess_runner is None
-        "L76:os.environ",       # Fallback when env_reader is None
-    },
     # orchestrator.py: Composition-Root reads env for default dependencies
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py": {
         "L80:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
+    },
+    # legacy_compat.py: Backward compatibility layer with default implementations
+    # These are module-level defaults for legacy consumers
+    "governance_runtime/application/services/phase6_review_orchestrator/legacy_compat.py": {
+        "L30:os.environ",       # _default_env_reader
+        "L34:subprocess.run",   # _default_subprocess_runner
+        "L39:datetime.now",     # _default_clock
+        "L42:Path.resolve",     # _default_schema_path_resolver
     },
 }
 

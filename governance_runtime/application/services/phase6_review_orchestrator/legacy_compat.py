@@ -22,8 +22,27 @@ from governance_runtime.application.services.phase6_review_orchestrator import (
 
 
 # Module-level instances for backward compatibility
+import os
+import subprocess
+from pathlib import Path
+
+def _default_env_reader(key: str) -> str | None:
+    return os.environ.get(key)
+
+def _default_subprocess_runner(cmd: str):
+    from governance_runtime.application.services.phase6_review_orchestrator.llm_caller import SubprocessResult
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=False, timeout=120)
+    return SubprocessResult(stdout=result.stdout or "", stderr=result.stderr or "", returncode=result.returncode)
+
+def _default_clock() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+def _default_schema_path_resolver(p: Path) -> Path:
+    return p.resolve()
+
 _policy_resolver = PolicyResolver()
-_llm_caller = LLMCaller()
+_llm_caller = LLMCaller(env_reader=_default_env_reader, subprocess_runner=_default_subprocess_runner)
 _response_validator = ResponseValidator()
 
 
@@ -48,7 +67,10 @@ def build_review_mandate_text(schema: dict[str, object]) -> str:
 def load_effective_review_policy_text(state: Any, commands_home: Path) -> tuple[str, str]:
     """Load effective review policy (legacy alias)."""
     result = _policy_resolver.load_effective_review_policy(
-        state=state, commands_home=commands_home
+        state=state,
+        commands_home=commands_home,
+        clock=_default_clock,
+        schema_path_resolver=_default_schema_path_resolver,
     )
     return result.policy_text, result.error_code or ""
 
