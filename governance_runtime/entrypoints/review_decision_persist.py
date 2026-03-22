@@ -333,6 +333,22 @@ def apply_review_decision(
         state.pop("rework_clarification_consumed_by", None)
         state.pop("rework_clarification_consumed_at", None)
 
+    # Validate review payload before persist (fail-closed)
+    from governance_runtime.application.services.state_document_validator import validate_review_payload
+    review_payload = {
+        "verdict": normalized,
+        "rationale": rationale,
+        "timestamp": ts,
+    }
+    payload_validation = validate_review_payload(review_payload)
+    if not payload_validation.valid:
+        error_messages = [e.message for e in payload_validation.errors]
+        return _payload(
+            "error",
+            reason_code=BLOCKED_REVIEW_DECISION_INVALID,
+            message=f"Review payload validation failed: {'; '.join(error_messages)}",
+        )
+
     # Persist
     _write_json_atomic(session_path, state_doc)
 

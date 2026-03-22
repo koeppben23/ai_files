@@ -1371,6 +1371,24 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         workspace_home = session_path.parent
+
+        from governance_runtime.application.services.state_document_validator import validate_plan_payload
+        plan_payload = {
+            "body": plan_text,
+            "status": "draft",
+        }
+        payload_validation = validate_plan_payload(plan_payload)
+        if not payload_validation.valid:
+            error_messages = [e.message for e in payload_validation.errors]
+            payload = _payload(
+                "blocked",
+                reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+                reason=f"Plan payload validation failed: {'; '.join(error_messages)}",
+                recovery_action="verify plan has non-empty body and valid status",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+
         repo = PlanRecordRepository(
             path=plan_record_path(workspace_home.parent, repo_fingerprint),
             archive_dir=plan_record_archive_dir(workspace_home.parent, repo_fingerprint),
