@@ -48,8 +48,8 @@ _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
     },
     # llm_caller.py uses subprocess.run and os.environ for LLM executor
     "governance_runtime/application/services/phase6_review_orchestrator/llm_caller.py": {
-        "L157:subprocess.run",
-        "L54:os.environ",
+        "L156:subprocess.run",
+        "L53:os.environ",
     },
 }
 

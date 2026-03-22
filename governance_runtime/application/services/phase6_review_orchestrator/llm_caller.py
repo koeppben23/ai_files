@@ -12,7 +12,6 @@ The caller does NOT validate the response - that's the ResponseValidator's job.
 
 from __future__ import annotations
 
-import json
 import os
 import shlex
 import subprocess

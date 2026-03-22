@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable
 
 
 @dataclass(frozen=True)
@@ -53,8 +53,6 @@ def canonicalize_legacy_p5x_surface(*, state_doc: dict) -> None:
 
     Modifies state_doc in place.
     """
-    from governance_runtime.shared.string_utils import safe_str as _safe_str
-
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
 
