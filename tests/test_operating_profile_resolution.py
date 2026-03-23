@@ -130,7 +130,7 @@ def test_resolve_effective_operating_mode_uses_profile_inputs_from_env():
         },
         default_mode="user",
     )
-    assert resolve_effective_operating_mode(adapter, requested=None) == "pipeline"  # type: ignore[arg-type]
+    assert resolve_effective_operating_mode(adapter, requested=None) == "agents_strict"  # type: ignore[arg-type]
 
 
 @pytest.mark.governance
