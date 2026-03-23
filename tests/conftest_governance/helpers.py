@@ -166,15 +166,14 @@ def _mock_llm_cmd(json_data: str) -> str:
     """Create a platform-specific mock LLM command that outputs JSON.
 
     On Unix: uses echo with single quotes
-    On Windows: uses python -c with print to avoid cmd.exe quoting issues
+    On Windows: uses python -c with single quotes (works in cmd.exe)
     """
     import platform
     if platform.system() == "Windows":
         # On Windows, subprocess.run with shell=True uses cmd.exe
-        # Use python to print the JSON to avoid quoting issues
-        # Replace double quotes with escaped version for the python command
-        escaped = json_data.replace('"', '\\"')
-        return f'python -c "print(\\"{escaped}\\")"'
+        # Use python -c with single quotes to avoid quoting issues
+        # Python accepts both single and double quotes for strings
+        return f"python -c 'print({repr(json_data)})'"
     else:
         return f"echo '{json_data}'"
 
