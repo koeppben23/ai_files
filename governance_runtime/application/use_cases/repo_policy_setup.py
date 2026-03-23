@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from governance_runtime.application.repo_identity_service import derive_repo_identity
+from governance_runtime.domain.regulated_mode import get_minimum_retention_days
 
 
 def write_governance_mode_config(
@@ -17,7 +18,7 @@ def write_governance_mode_config(
 
     Creates governance-mode.json in repo_root when profile is 'regulated'.
     This file is read by detect_regulated_mode() to activate regulated constraints:
-    - Retention lock (minimum_retention_days)
+    - Retention lock (minimum_retention_days based on framework)
     - Four-eyes approval for archive operations
     - Immutable archives
     - Tamper-evident export
@@ -53,11 +54,14 @@ def write_governance_mode_config(
     if not activated_at:
         raise ValueError("now_utc must be non-empty")
 
+    framework = str(compliance_framework or "DEFAULT").strip()
+    min_retention = get_minimum_retention_days(framework)
+
     payload = {
         "schema": "governance-mode.v1",
         "state": "active",
-        "compliance_framework": str(compliance_framework or "DEFAULT").strip(),
-        "minimum_retention_days": 3650,
+        "compliance_framework": framework,
+        "minimum_retention_days": min_retention,
         "activated_at": activated_at,
         "activated_by": "bootstrap-cli",
     }

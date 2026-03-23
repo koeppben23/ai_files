@@ -8,7 +8,10 @@ import sys
 from datetime import datetime, timezone
 from typing import Optional
 
-from governance_runtime.application.use_cases.repo_policy_setup import write_repo_operating_mode_policy
+from governance_runtime.application.use_cases.repo_policy_setup import (
+    write_governance_mode_config,
+    write_repo_operating_mode_policy,
+)
 
 try:
     from governance_runtime.infrastructure.path_contract import normalize_absolute_path
@@ -104,6 +107,11 @@ def main() -> int:
         choices=("solo", "team", "regulated"),
         help="Alias for setting repo operating mode (admin alternative)",
     )
+    parser.add_argument(
+        "--compliance-framework",
+        default="DEFAULT",
+        help="Compliance framework for regulated mode (default: DEFAULT)",
+    )
     parser.add_argument("--verbose", action="store_true", help="Show step-by-step bootstrap flow details")
     args = parser.parse_args()
 
@@ -131,11 +139,12 @@ def main() -> int:
 
     env["OPENCODE_REPO_ROOT"] = str(repo_root)
     if selected_profile is not None:
+        now_utc = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         try:
             policy_path = write_repo_operating_mode_policy(
                 repo_root=repo_root,
                 profile=selected_profile,
-                now_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+                now_utc=now_utc,
             )
         except Exception as exc:
             print(f"failed to set repo operating mode: {exc}", file=sys.stderr)
@@ -143,6 +152,21 @@ def main() -> int:
         print(f"repoOperatingMode = {selected_profile}")
         print(f"resolvedOperatingMode default = {selected_profile}")
         print(f"policyPath = {policy_path}")
+
+        if selected_profile == "regulated":
+            try:
+                mode_path = write_governance_mode_config(
+                    repo_root=repo_root,
+                    profile=selected_profile,
+                    now_utc=now_utc,
+                    compliance_framework=args.compliance_framework,
+                )
+                if mode_path:
+                    print(f"governanceModeState = active")
+                    print(f"governanceModePath = {mode_path}")
+            except Exception as exc:
+                print(f"failed to set regulated mode: {exc}", file=sys.stderr)
+                return 2
     if args.verbose:
         env["OPENCODE_BOOTSTRAP_VERBOSE"] = "1"
         env["OPENCODE_BOOTSTRAP_OUTPUT"] = "full"

@@ -119,7 +119,7 @@ When `--profile regulated` is specified during bootstrap:
 1. `.opencode/governance-repo-policy.json` is created with `operatingMode: "regulated"`
 2. `governance-mode.json` is created at repo root with `state: "active"`
 3. `detect_regulated_mode()` reads `governance-mode.json` to enforce constraints:
-   - Retention lock (3650 days default)
+   - Retention lock (framework-specific minimum retention)
    - Four-eyes approval for archive operations
    - Immutable archives
    - Tamper-evident export

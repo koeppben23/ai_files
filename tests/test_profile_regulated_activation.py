@@ -20,8 +20,8 @@ from governance_runtime.application.use_cases.repo_policy_setup import (
 )
 from governance_runtime.domain.regulated_mode import (
     DEFAULT_CONFIG,
-    RegulatedModeConfig,
     RegulatedModeState,
+    get_minimum_retention_days,
 )
 from governance_runtime.infrastructure.governance_hooks import detect_regulated_mode
 
@@ -41,8 +41,8 @@ _NOW_UTC = "2026-03-23T12:00:00Z"
 class TestRegulatedProfileMapping:
     """Tests for Bug #1: regulated profile should map to agents_strict."""
 
-    def test_regulated_profile_maps_to_agents_strict_in_resolution(self):
-        """regulated profile resolves to agents_strict runtime mode, not pipeline."""
+    def test_regulated_profile_maps_to_agents_strict(self):
+        """regulated profile resolves to agents_strict runtime mode."""
         from governance_runtime.application.use_cases.resolve_operating_mode import (
             _PROFILE_TO_RUNTIME_MODE,
         )
@@ -94,8 +94,8 @@ class TestGovernanceModeJsonCreation:
         assert payload["schema"] == "governance-mode.v1"
         assert payload["activated_by"] == "bootstrap-cli"
 
-    def test_regulated_init_sets_correct_minimum_retention_days(self, tmp_path: Path):
-        """governance-mode.json uses existing default 3650, not 365."""
+    def test_regulated_init_derives_minimum_retention_from_framework(self, tmp_path: Path):
+        """governance-mode.json derives minimum_retention_days from compliance framework."""
         repo_root = tmp_path / "repo"
         repo_root.mkdir()
 
@@ -108,10 +108,11 @@ class TestGovernanceModeJsonCreation:
         mode_path = repo_root / "governance-mode.json"
         payload = json.loads(mode_path.read_text(encoding="utf-8"))
 
-        assert payload["minimum_retention_days"] == 3650
+        expected = get_minimum_retention_days("DEFAULT")
+        assert payload["minimum_retention_days"] == expected
 
-    def test_regulated_init_with_custom_compliance_framework(self, tmp_path: Path):
-        """governance-mode.json respects --compliance-framework parameter."""
+    def test_regulated_init_with_datev_framework(self, tmp_path: Path):
+        """governance-mode.json with DATEV framework uses 3650 days."""
         repo_root = tmp_path / "repo"
         repo_root.mkdir()
 
@@ -126,6 +127,7 @@ class TestGovernanceModeJsonCreation:
         payload = json.loads(mode_path.read_text(encoding="utf-8"))
 
         assert payload["compliance_framework"] == "DATEV"
+        assert payload["minimum_retention_days"] == 3650
 
     def test_regulated_init_preserves_existing_activated_at(self, tmp_path: Path):
         """Re-running regulated init preserves original activated_at timestamp."""
@@ -201,7 +203,7 @@ class TestDetectRegulatedMode:
         config = detect_regulated_mode(repo_root)
 
         assert config.state == RegulatedModeState.ACTIVE
-        assert config.minimum_retention_days == 3650
+        assert config.minimum_retention_days == get_minimum_retention_days("DEFAULT")
 
     def test_detect_returns_inactive_when_no_file(self, tmp_path: Path):
         """Missing governance-mode.json defaults to inactive (fail-safe)."""
@@ -260,31 +262,31 @@ class TestDetectRegulatedMode:
 
 
 # ---------------------------------------------------------------------------
-# Round-trip: write -> read consistency
+# Round-trip: write -> read consistency with framework-specific retention
 # ---------------------------------------------------------------------------
 
 @pytest.mark.governance
-class TestRoundTripWriteRead:
-    """Tests for write -> detect round-trip consistency."""
+class TestRoundTripFrameworkRetention:
+    """Tests for write -> detect round-trip with framework-specific retention."""
 
     @pytest.mark.parametrize(
-        "compliance_framework,expected_min_retention",
+        "framework,expected_min_retention",
         [
-            ("DEFAULT", 3650),
+            ("DEFAULT", 365),
             ("DATEV", 3650),
             ("GoBD", 3650),
-            ("BaFin", 3650),
-            ("SOX", 3650),
-            ("GDPR", 3650),
+            ("BaFin", 1825),
+            ("SOX", 2555),
+            ("GDPR", 365),
         ],
     )
     def test_round_trip_with_various_frameworks(
         self,
         tmp_path: Path,
-        compliance_framework: str,
+        framework: str,
         expected_min_retention: int,
     ):
-        """Write governance-mode.json and detect_regulated_mode returns correct config."""
+        """Write governance-mode.json and detect returns framework-specific retention."""
         repo_root = tmp_path / "repo"
         repo_root.mkdir()
 
@@ -292,11 +294,11 @@ class TestRoundTripWriteRead:
             repo_root=repo_root,
             profile="regulated",
             now_utc=_NOW_UTC,
-            compliance_framework=compliance_framework,
+            compliance_framework=framework,
         )
 
         config = detect_regulated_mode(repo_root)
 
         assert config.state == RegulatedModeState.ACTIVE
-        assert config.compliance_framework == compliance_framework
+        assert config.compliance_framework == framework
         assert config.minimum_retention_days == expected_min_retention
