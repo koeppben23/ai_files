@@ -1,16 +1,14 @@
-# PRODUCT_IDENTITY.md
+# AI Engineering Governance Platform
 
-# OpenCode Governance
-
-**Tagline:** AI coding with governed execution, explicit approvals, and audit-ready proof.
+AI-assisted engineering with explicit governance, deterministic workflow control, and exportable audit evidence.
 
 ---
 
-## What it is
+## Positioning
 
-OpenCode Governance is an AI engineering governance platform. It turns AI-assisted software delivery from an unstructured chat interaction into a deterministic, policy-bound workflow with explicit phases, gates, canonical state, audit artifacts, and fail-closed enforcement.
+The AI Engineering Governance Platform is designed for organizations that need more than AI-generated code. It provides a governed execution model for planning, implementation, review, approval, and evidence capture across controlled software delivery workflows.
 
-It gives regulated and quality-sensitive software organizations a way to use AI in engineering **without giving up traceability, reviewability, or operational control**.
+It turns AI-assisted software delivery from an unstructured chat interaction into a deterministic, policy-bound workflow with explicit phases, gates, canonical state, audit artifacts, and fail-closed enforcement.
 
 ---
 
@@ -25,13 +23,13 @@ Most AI coding tools optimize for speed and code generation. That is useful, but
 - Which controls blocked or allowed the next step?
 - Can we export the full record for audit, risk, or legal review?
 
-OpenCode Governance solves that gap. It is designed for organizations that want AI-assisted engineering productivity **with the operating discipline of a controlled software process**.
+The platform solves that gap. It is designed for organizations that want AI-assisted engineering productivity **with the operating discipline of a controlled software process**.
 
 ---
 
 ## Deployment Profiles
 
-OpenCode Governance operates in three modes, selected at bootstrap:
+The platform operates in three modes, selected at bootstrap:
 
 ### Solo
 
@@ -61,7 +59,7 @@ The platform is designed for organizations that cannot rely on opaque assistant 
 
 ## Core Capabilities
 
-### What the platform delivers
+The platform does not just document AI-assisted work. It gates, reviews, exports, and enforces it:
 
 - governed AI-assisted engineering workflows
 - deterministic execution through explicit phases and gates
@@ -103,7 +101,7 @@ The platform uses a multi-phase workflow that moves work through governed stages
 
 ### 4. Canonical state and deterministic next action
 
-The governance runtime is built around a canonical state model. This gives the product a stable execution contract. In controlled environments, "the system should probably continue" is not good enough. OpenCode Governance is designed so the runtime can say either:
+The governance runtime is built around a canonical state model. This gives the platform a stable execution contract. In controlled environments, "the system should probably continue" is not good enough. The platform is designed so the runtime can say either:
 
 - **this is the next allowed action**
 - or **execution is blocked, with a concrete reason**
@@ -129,7 +127,7 @@ This separation is a core enterprise property. Active working state and formal a
 
 **Repository content is data, not authority.**
 
-Repository files can inform or describe, but they do not silently authorize behavior. Policy authority comes from the governed runtime and its configured profile/policy inputs.
+Repository files can inform or describe, but they do not silently authorize behavior. Policy authority comes from the governance runtime and its configured profile/policy inputs.
 
 ### Fail-closed behavior
 
@@ -142,7 +140,7 @@ Critical boundaries are designed to validate and fail closed:
 
 ### Reason-coded blocking
 
-When the product cannot safely proceed, it emits explicit blocked outcomes rather than vague failure states:
+When the platform cannot safely proceed, it emits explicit blocked outcomes rather than vague failure states:
 
 - bootstrap not satisfied
 - missing binding file
@@ -183,13 +181,13 @@ The value is the **governed operating model around AI-assisted engineering**, no
 
 ---
 
-## Product components
+## Platform components
 
-### OpenCode Desktop
+### Desktop environment
 
-The interactive AI execution environment used by operators and engineers.
+The interactive AI execution interface used by operators and engineers.
 
-### OpenCode Governance Runtime
+### Governance runtime
 
 The deterministic execution core that handles state, transitions, policy-bound decisions, persistence, and fail-closed validation.
 
@@ -197,9 +195,9 @@ The deterministic execution core that handles state, transitions, policy-bound d
 
 Profiles, rules, contracts, control mappings, and operational documentation that shape how the runtime behaves in different environments.
 
-### Bootstrap and CLI surfaces
+### Bootstrap CLI
 
-The installation, binding, repo-identity, and session-init path that make the governed workflow reproducible and operable.
+The installation, binding, repo-identity, and session-init path that makes the governed workflow reproducible and operable.
 
 ---
 
@@ -211,7 +209,7 @@ AI can help produce software, but governance determines whether software work is
 
 ### 2. Proof, not just output
 
-The product records why a change happened, how it was reviewed, what evidence exists, and whether the resulting run was finalized and verified.
+The platform records why a change happened, how it was reviewed, what evidence exists, and whether the resulting run was finalized and verified.
 
 ### 3. Deterministic, not heuristic
 
@@ -219,15 +217,15 @@ The runtime uses canonical state, explicit transitions, and reason-coded blocked
 
 ### 4. Enterprise-ready by design
 
-The product is built for separation of concerns, evidence retention, exportability, and fail-closed operation — the qualities regulated buyers actually ask about.
+The platform is built for separation of concerns, evidence retention, exportability, and fail-closed operation — the qualities regulated buyers actually ask about.
 
 ---
 
 ## Positioning statement
 
-For regulated and quality-sensitive software teams, OpenCode Governance is an AI engineering governance platform that turns AI-assisted development into a deterministic, reviewable, and auditable workflow.
+For regulated and quality-sensitive software teams, the AI Engineering Governance Platform turns AI-assisted development into a deterministic, reviewable, and auditable workflow.
 
-Unlike general-purpose AI coding tools that primarily optimize generation speed, OpenCode Governance adds explicit gates, canonical state, policy-bound transitions, immutable audit records, and fail-closed enforcement so organizations can use AI in software delivery under real operational control.
+Unlike general-purpose AI coding tools that primarily optimize generation speed, it adds explicit gates, canonical state, policy-bound transitions, immutable audit records, and fail-closed enforcement so organizations can use AI in software delivery under real operational control.
 
 ---
 
@@ -239,7 +237,7 @@ Unlike general-purpose AI coding tools that primarily optimize generation speed,
 
 ## Non-negotiable product truths
 
-- The runtime is the authority for governance execution.
+- The governance runtime is the authority for execution.
 - Canonical state and explicit transitions are central to the system.
 - Critical validation paths fail closed.
 - Audit evidence is a first-class product capability, not an afterthought.
@@ -249,9 +247,9 @@ Unlike general-purpose AI coding tools that primarily optimize generation speed,
 
 ## In one sentence
 
-OpenCode Governance makes AI-assisted software delivery usable in regulated and control-heavy environments by adding deterministic workflow control, explicit approvals, and audit-ready proof.
+The AI Engineering Governance Platform makes AI-assisted software delivery usable in regulated and control-heavy environments by adding deterministic workflow control, explicit approvals, and audit-ready proof.
 
 ---
 
-*Version: 1.1*  
+*Version: 1.2*  
 *Last Updated: 2026-03-23*
