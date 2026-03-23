@@ -215,6 +215,96 @@ class TestApplyPipelineAutoApprove:
 
 
 # ---------------------------------------------------------------------------
+# Integration Tests: review_decision_persist integration
+# ---------------------------------------------------------------------------
+
+@pytest.mark.governance
+class TestPipelineAutoApproveIntegration:
+    """Integration tests for pipeline auto-approve in review_decision_persist."""
+
+    def test_review_decision_auto_approves_in_pipeline_mode(self, tmp_path: Path):
+        """apply_review_decision with empty decision auto-approves in pipeline mode."""
+        from governance_runtime.entrypoints.review_decision_persist import apply_review_decision
+
+        session_path = tmp_path / "SESSION_STATE.json"
+        events_path = tmp_path / "events.jsonl"
+        state = _make_state()
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="",
+            session_path=session_path,
+            events_path=events_path,
+        )
+
+        assert result["status"] == "ok"
+        updated = json.loads(session_path.read_text(encoding="utf-8"))
+        state_section = updated.get("SESSION_STATE", {})
+        canonical = state_section.get("canonical", state_section)
+        assert canonical.get("workflow_complete") is True
+        assert canonical.get("implementation_authorized") is True
+        assert canonical.get("active_gate") == "Workflow Complete"
+
+        assert events_path.exists()
+        audit_lines = events_path.read_text(encoding="utf-8").strip().split("\n")
+        assert len(audit_lines) == 1
+        audit_event = json.loads(audit_lines[0])
+        assert audit_event["event"] == "pipeline_auto_approve"
+        assert audit_event["result"] == "approved"
+
+    def test_review_decision_blocks_in_user_mode_with_empty_decision(self, tmp_path: Path):
+        """apply_review_decision with empty decision returns error in user mode."""
+        from governance_runtime.entrypoints.review_decision_persist import apply_review_decision
+
+        session_path = tmp_path / "SESSION_STATE.json"
+        state = _make_state(effective_operating_mode="user")
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="",
+            session_path=session_path,
+        )
+
+        assert result["status"] == "error"
+
+    def test_review_decision_blocks_in_agents_strict_mode(self, tmp_path: Path):
+        """apply_review_decision with empty decision blocks in agents_strict mode."""
+        from governance_runtime.entrypoints.review_decision_persist import apply_review_decision
+
+        session_path = tmp_path / "SESSION_STATE.json"
+        state = _make_state(effective_operating_mode="agents_strict")
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="",
+            session_path=session_path,
+        )
+
+        assert result["status"] == "error"
+
+    def test_review_decision_still_works_with_explicit_decision(self, tmp_path: Path):
+        """apply_review_decision with explicit 'approve' follows normal path (contract enforced)."""
+        from governance_runtime.entrypoints.review_decision_persist import apply_review_decision
+
+        session_path = tmp_path / "SESSION_STATE.json"
+        state = _make_state()
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+
+        assert result["status"] in ("ok", "error")
+        if result["status"] == "ok":
+            updated = json.loads(session_path.read_text(encoding="utf-8"))
+            assert updated["SESSION_STATE"]["workflow_complete"] is True
+
+
+# ---------------------------------------------------------------------------
 # Edge Cases
 # ---------------------------------------------------------------------------
 
