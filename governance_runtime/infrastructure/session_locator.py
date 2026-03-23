@@ -19,21 +19,23 @@ from governance_runtime.infrastructure.session_pointer import (
 
 def resolve_active_session_paths(
     *, env: Mapping[str, str] | None = None,
-) -> tuple[Path, str, Path]:
+) -> tuple[Path, str, Path, Path]:
     """Resolve the active session path, fingerprint, and workspace directory.
 
-    Returns (session_path, fingerprint, workspace_dir).
+    Returns (session_path, fingerprint, workspaces_home, workspace_dir).
     Raises RuntimeError when binding evidence is unavailable.
 
     Callers that need events_path can derive it as workspace_dir / "events.jsonl".
     Callers that need only (session_path, events_path) can unpack:
-        session_path, _, workspace_dir = resolve_active_session_paths(...)
+        session_path, _, _, workspace_dir = resolve_active_session_paths(...)
         events_path = workspace_dir / "events.jsonl"
     """
     resolver = BindingEvidenceResolver(env=dict(env) if env is not None else os.environ)
     evidence = getattr(resolver, "resolve")(mode="user")
     if evidence.config_root is None or evidence.workspaces_home is None:
         raise RuntimeError("binding unavailable")
+
+    workspaces_home = evidence.workspaces_home
 
     pointer_path = evidence.config_root / "SESSION_STATE.json"
     pointer = parse_session_pointer_document(load_json(pointer_path))
@@ -43,6 +45,6 @@ def resolve_active_session_paths(
     if not fingerprint:
         raise RuntimeError("activeRepoFingerprint missing in pointer")
 
-    workspace_dir = evidence.workspaces_home / fingerprint
+    workspace_dir = workspaces_home / fingerprint
 
-    return session_path, fingerprint, workspace_dir
+    return session_path, fingerprint, workspaces_home, workspace_dir

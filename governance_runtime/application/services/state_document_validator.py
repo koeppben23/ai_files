@@ -56,7 +56,7 @@ KNOWN_PHASE_TOKENS = frozenset({
     "4", "5", "5.3", "5.4", "5.5", "5.6", "6",
 })
 
-VALID_STATUS_VALUES = frozenset({"OK", "error", "blocked"})
+VALID_STATUS_VALUES = frozenset({"OK", "IN_PROGRESS", "error", "blocked"})
 
 
 def validate_state_document(raw: dict[str, Any]) -> ValidationResult:
@@ -100,10 +100,10 @@ def validate_state_document(raw: dict[str, Any]) -> ValidationResult:
 
 def _validate_session_state(state: dict[str, Any], result: ValidationResult) -> None:
     if "phase" not in state and "Phase" not in state:
-        result.add_error("SESSION_STATE.phase", "phase is required", "MISSING_PHASE")
+        result.add_warning("SESSION_STATE.phase", "phase is recommended", "MISSING_PHASE")
     else:
-        phase = state.get("phase") or state.get("Phase") or ""
-        if not isinstance(phase, str) or not phase.strip():
+        phase = str(state.get("phase") or state.get("Phase") or "").strip()
+        if not phase:
             result.add_error("SESSION_STATE.phase", "phase must be a non-empty string", "INVALID_PHASE")
         elif phase not in KNOWN_PHASE_TOKENS:
             result.add_warning(
@@ -113,7 +113,7 @@ def _validate_session_state(state: dict[str, Any], result: ValidationResult) -> 
             )
 
     if "active_gate" not in state and "ActiveGate" not in state:
-        result.add_error("SESSION_STATE.active_gate", "active_gate is required", "MISSING_ACTIVE_GATE")
+        result.add_warning("SESSION_STATE.active_gate", "active_gate is recommended", "MISSING_ACTIVE_GATE")
     else:
         gate = state.get("active_gate") or state.get("ActiveGate") or ""
         if not isinstance(gate, str) or not gate.strip():

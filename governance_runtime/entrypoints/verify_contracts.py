@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        session_path, _, workspace_dir = resolve_active_session_paths()
+        session_path, _, _, workspace_dir = resolve_active_session_paths()
         events_path = workspace_dir / "events.jsonl"
         state_doc = _load_json(session_path)
         state_obj = state_doc.get("SESSION_STATE")

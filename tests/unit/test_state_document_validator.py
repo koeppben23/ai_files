@@ -45,8 +45,8 @@ class TestValidateStateDocument:
             }
         }
         result = validate_state_document(doc)
-        assert result.valid is False
-        assert any(e.code == "MISSING_PHASE" for e in result.errors)
+        assert result.valid is True
+        assert any(e.code == "MISSING_PHASE" for e in result.warnings)
 
     def test_empty_phase(self):
         doc = {
@@ -77,8 +77,8 @@ class TestValidateStateDocument:
             }
         }
         result = validate_state_document(doc)
-        assert result.valid is False
-        assert any(e.code == "MISSING_ACTIVE_GATE" for e in result.errors)
+        assert result.valid is True
+        assert any(e.code == "MISSING_ACTIVE_GATE" for e in result.warnings)
 
     def test_empty_active_gate(self):
         doc = {

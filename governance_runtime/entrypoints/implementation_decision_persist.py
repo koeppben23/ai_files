@@ -27,6 +27,13 @@ from governance_runtime.infrastructure.session_pointer import (
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 
+
+def _resolve_active_session_path() -> tuple[Path, Path]:
+    session_path, _, _, workspace_dir = resolve_active_session_paths()
+    events_path = workspace_dir / "events.jsonl"
+    return session_path, events_path
+
+
 VALID_DECISIONS = frozenset({"approve", "changes_requested", "reject"})
 BLOCKED_IMPLEMENTATION_DECISION_INVALID = reason_codes.BLOCKED_REVIEW_DECISION_INVALID
 
@@ -316,8 +323,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        session_path, _, workspace_dir = resolve_active_session_paths()
-        events_path = workspace_dir / "events.jsonl"
+        session_path, events_path = _resolve_active_session_path()
         payload = apply_implementation_decision(
             decision=str(args.decision),
             session_path=session_path,

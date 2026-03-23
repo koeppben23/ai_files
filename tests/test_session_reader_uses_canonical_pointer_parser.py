@@ -25,7 +25,7 @@ def test_happy_session_reader_uses_canonical_pointer_parser(tmp_path: Path, monk
     commands_home = config_root / "commands"
     workspace = config_root / "workspaces" / "abc123"
     commands_home.mkdir(parents=True)
-    _write_json(workspace / "SESSION_STATE.json", {"Phase": "4", "status": "OK"})
+    _write_json(workspace / "SESSION_STATE.json", {"SESSION_STATE": {"Phase": "4", "status": "OK"}})
     _write_json(
         config_root / "SESSION_STATE.json",
         {
@@ -74,7 +74,7 @@ def test_corner_session_reader_prefers_canonical_parser_output_over_raw_keys(tmp
     commands_home = config_root / "commands"
     workspace = config_root / "workspaces" / "abc123"
     commands_home.mkdir(parents=True)
-    _write_json(workspace / "SESSION_STATE.json", {"Phase": "2", "status": "OK"})
+    _write_json(workspace / "SESSION_STATE.json", {"SESSION_STATE": {"Phase": "2", "status": "OK"}})
     _write_json(
         config_root / "SESSION_STATE.json",
         {
@@ -109,7 +109,7 @@ def test_edge_session_reader_accepts_relative_only_pointer_via_canonical_parser(
     commands_home = config_root / "commands"
     workspace = config_root / "workspaces" / "abc123"
     commands_home.mkdir(parents=True)
-    _write_json(workspace / "SESSION_STATE.json", {"Phase": "3", "status": "OK"})
+    _write_json(workspace / "SESSION_STATE.json", {"SESSION_STATE": {"Phase": "3", "status": "OK"}})
     _write_json(
         config_root / "SESSION_STATE.json",
         {

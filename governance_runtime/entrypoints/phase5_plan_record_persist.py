@@ -1123,7 +1123,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Load session state early (needed for auto-generation) ──
     try:
-        session_path, repo_fingerprint, _ = resolve_active_session_paths()
+        session_path, repo_fingerprint, _, _ = resolve_active_session_paths()
         document = _load_json(session_path)
         state = document.get("SESSION_STATE")
         if not isinstance(state, dict):

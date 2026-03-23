@@ -80,8 +80,15 @@ def _write_pointer(config_root: Path, *, workspace_fp: str = "abc123") -> Path:
 
 
 def _write_workspace_state(ws_state: Path, state: dict) -> None:
-    """Write workspace SESSION_STATE.json."""
-    ws_state.write_text(json.dumps(state), encoding="utf-8")
+    """Write workspace SESSION_STATE.json with proper nested structure.
+    
+    Handles both flat state (wraps in SESSION_STATE) and pre-wrapped state (uses as-is).
+    """
+    if "SESSION_STATE" in state:
+        doc = state
+    else:
+        doc = {"SESSION_STATE": state}
+    ws_state.write_text(json.dumps(doc), encoding="utf-8")
 
 
 def _mock_readonly_unavailable():
@@ -315,7 +322,7 @@ class TestReadSessionSnapshotSuccess:
         (ws_state.parent / "plan-record.json").write_text(
             json.dumps({
                 "status": "active",
-                "versions": [{"version": 1}, {"version": 2, "plan_record_text": "Plan summary example"}],
+                "versions": [{"version": 1}, {"version": 2, "plan_record_text": "Plan body example"}],
             }),
             encoding="utf-8",
         )
@@ -323,8 +330,8 @@ class TestReadSessionSnapshotSuccess:
             result = read_session_snapshot(commands_home=fake_config / "commands")
         assert result["review_package_review_object"]
         assert result["review_package_ticket"] == "Ticket summary example"
-        assert "Plan summary example" in result["review_package_approved_plan_summary"]
-        assert "Plan summary example" in result["review_package_plan_body"]
+        assert "Plan body example" in result["review_package_approved_plan_summary"]
+        assert "Plan body example" in result["review_package_plan_body"]
         assert result["review_package_evidence_summary"]
         assert result["review_package_loop_status"]
         assert result["review_package_decision_semantics"]
@@ -1388,6 +1395,11 @@ class TestMain:
                     "ActiveProfile": "profile.fallback-minimum",
                     "TicketRecordDigest": "sha256:ticket-v1",
                     "phase5_plan_record_digest": "sha256:plan-v1",
+                    "ImplementationReview": {
+                        "iteration": 0,
+                        "max_iterations": 3,
+                        "min_self_review_iterations": 1,
+                    },
                     "PersistenceCommitted": True,
                     "WorkspaceReadyGateCommitted": True,
                     "WorkspaceArtifactsCommitted": True,
@@ -1460,6 +1472,16 @@ class TestMain:
                 "_load_effective_review_policy_text",
                 lambda **_kwargs: ("[EFFECTIVE REVIEW POLICY]\n- baseline", ""),
             )
+            from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver
+            mock_policy_resolver = type("MockPolicyResolver", (), {
+                "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                    "is_available": True,
+                    "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
+                    "error_code": "",
+                })(),
+                "load_mandate_schema": lambda self, **kw: None,
+            })()
+            _set_policy_resolver(mock_policy_resolver)
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
@@ -1555,9 +1577,9 @@ class TestMain:
         })
 
         import subprocess
+
         def mock_subprocess_run(*args, **kwargs):
-            result = type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
-            return result
+            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
 
         monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
         with monkeypatch.context() as m:
@@ -1567,6 +1589,16 @@ class TestMain:
                 "_load_effective_review_policy_text",
                 lambda **_kwargs: ("[EFFECTIVE REVIEW POLICY]\n- baseline", ""),
             )
+            from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver
+            mock_policy_resolver = type("MockPolicyResolver", (), {
+                "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                    "is_available": True,
+                    "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
+                    "error_code": "",
+                })(),
+                "load_mandate_schema": lambda self, **kw: None,
+            })()
+            _set_policy_resolver(mock_policy_resolver)
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
@@ -3652,6 +3684,16 @@ class TestPhase6LLMReviewLoopGatingEvals:
                 "_load_effective_review_policy_text",
                 lambda **_kwargs: ("[EFFECTIVE REVIEW POLICY]\n- baseline", ""),
             )
+            from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver
+            mock_policy_resolver = type("MockPolicyResolver", (), {
+                "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                    "is_available": True,
+                    "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
+                    "error_code": "",
+                })(),
+                "load_mandate_schema": lambda self, **kw: None,
+            })()
+            _set_policy_resolver(mock_policy_resolver)
             rc = main(["--commands-home", str(commands_home), "--materialize"])
 
         assert rc == 0
@@ -3753,6 +3795,16 @@ class TestPhase6LLMReviewLoopGatingEvals:
         monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
+            from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver
+            mock_policy_resolver = type("MockPolicyResolver", (), {
+                "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                    "is_available": True,
+                    "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
+                    "error_code": "",
+                })(),
+                "load_mandate_schema": lambda self, **kw: None,
+            })()
+            _set_policy_resolver(mock_policy_resolver)
             rc = main(["--commands-home", str(commands_home), "--materialize"])
 
         assert rc == 0
@@ -3845,11 +3897,27 @@ class TestPhase6LLMReviewLoopGatingEvals:
         monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
-            m.setattr(
-                sys.modules["governance_runtime.entrypoints.session_reader"],
-                "_load_mandates_schema",
-                lambda: None,
-            )
+            from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver, _set_response_validator
+            mock_policy_resolver = type("MockPolicyResolver", (), {
+                "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                    "is_available": True,
+                    "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
+                    "error_code": "",
+                })(),
+                "load_mandate_schema": lambda self, **kw: None,
+            })()
+            _set_policy_resolver(mock_policy_resolver)
+            mock_response_validator = type("MockResponseValidator", (), {
+                "validate": lambda self, response_text, mandates_schema=None: type("V", (), {
+                    "valid": False,
+                    "verdict": "changes_requested",
+                    "findings": ["validator-not-available: llm_response_validator could not be imported"],
+                    "violations": ["validator-not-available"],
+                    "is_approve": False,
+                    "is_changes_requested": True,
+                })(),
+            })()
+            _set_response_validator(mock_response_validator)
             rc = main(["--commands-home", str(commands_home), "--materialize"])
 
         assert rc == 0
@@ -3861,6 +3929,14 @@ class TestPhase6LLMReviewLoopGatingEvals:
         fake_config: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        from governance_runtime.application.services.phase6_review_orchestrator import (
+            run_review_loop,
+            ReviewLoopConfig,
+            ReviewResult,
+            BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+        )
+        from governance_runtime.infrastructure.json_store import load_json as _read_json, write_json_atomic as _write_json_atomic
+
         ws_state = _write_pointer(fake_config)
         state_doc = {
             "SESSION_STATE": {
@@ -3877,24 +3953,47 @@ class TestPhase6LLMReviewLoopGatingEvals:
         }
         _write_workspace_state(ws_state, state_doc)
 
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
-        monkeypatch.setattr(
-            session_reader_entrypoint,
-            "_derive_commands_home",
-            lambda: fake_config / "commands",
-        )
-        monkeypatch.setattr(
-            session_reader_entrypoint,
-            "_load_effective_review_policy_text",
-            lambda **_kwargs: ("", "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"),
-        )
-
-        result = session_reader_entrypoint._run_phase6_internal_review_loop(
-            state_doc=state_doc,
+        commands_home = fake_config / "commands"
+        config = ReviewLoopConfig(
+            commands_home=commands_home,
             session_path=ws_state,
+            max_iterations=3,
+            min_iterations=1,
         )
 
-        assert isinstance(result, dict)
-        assert result.get("blocked") is True
-        assert result.get("reason") == "effective-review-policy-unavailable"
-        assert result.get("reason_code") == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+        mock_policy_resolver = type("MockPolicyResolver", (), {
+            "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                "is_available": False,
+                "policy_text": "",
+                "error_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+            })(),
+            "load_mandate_schema": lambda self, **kw: None,
+        })()
+
+        from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver, _set_llm_caller
+        _set_policy_resolver(mock_policy_resolver)
+
+        mock_llm_caller = type("MockLLMCaller", (), {
+            "is_configured": True,
+            "build_context": lambda self, **kw: {},
+            "invoke": lambda self, **kw: type("R", (), {
+                "invoked": False,
+                "stdout": "",
+                "stderr": "",
+                "return_code": 0,
+            })(),
+        })()
+        _set_llm_caller(mock_llm_caller)
+
+        result = run_review_loop(
+            state_doc=state_doc,
+            config=config,
+            json_loader=_read_json,
+            context_writer=_write_json_atomic,
+        )
+
+        assert isinstance(result, ReviewResult)
+        assert result.loop_result is not None
+        assert result.loop_result.blocked is True
+        assert result.loop_result.block_reason == "effective-review-policy-unavailable"
+        assert result.loop_result.block_reason_code == BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE

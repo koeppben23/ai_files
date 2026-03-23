@@ -53,22 +53,41 @@ class LLMCaller:
         self,
         *,
         executor_cmd: str | None = None,
-        env_reader: Callable[[str], str | None],
-        subprocess_runner: Callable[[str], SubprocessResult],
+        env_reader: Callable[[str], str | None] | None = None,
+        subprocess_runner: Callable[[str], SubprocessResult] | None = None,
     ) -> None:
         """Initialize the LLM caller.
 
         Args:
             executor_cmd: The command to execute. If None, uses env_reader.
-            env_reader: Injectable env reader for OPENCODE_IMPLEMENT_LLM_CMD (required).
-            subprocess_runner: Injectable subprocess runner (required).
+            env_reader: Injectable env reader for OPENCODE_IMPLEMENT_LLM_CMD (optional).
+            subprocess_runner: Injectable subprocess runner (optional). Defaults to subprocess.run.
         """
-        self._subprocess_runner = subprocess_runner
+        if subprocess_runner is not None:
+            self._subprocess_runner = subprocess_runner
+        else:
+            import subprocess
+            def _default_runner(cmd: str) -> SubprocessResult:
+                result = subprocess.run(
+                    cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                )
+                return SubprocessResult(
+                    stdout=result.stdout or "",
+                    stderr=result.stderr or "",
+                    returncode=result.returncode,
+                )
+            self._subprocess_runner = _default_runner
 
         if executor_cmd is not None:
             self._executor_cmd = executor_cmd
-        else:
+        elif env_reader is not None:
             self._executor_cmd = env_reader("OPENCODE_IMPLEMENT_LLM_CMD") or ""
+        else:
+            import os
+            self._executor_cmd = os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD", "")
 
     @property
     def is_configured(self) -> bool:

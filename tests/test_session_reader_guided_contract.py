@@ -18,15 +18,15 @@ def test_guided_happy_evidence_presentation_contains_full_review_blocks() -> Non
         "review_package_plan_body": "Line 1\nLine 2",
         "review_package_evidence_summary": "plan_record_versions=2",
     }
-
-    out = format_guided_snapshot(snapshot)
+    action_line = "Next action: run /review-decision <approve|changes_requested|reject>."
+    out = format_guided_snapshot(snapshot, action_line)
 
     assert "Current state" in out
     assert "What this means now" in out
     assert "Presented review content" in out
     assert "Approved plan for review:" in out
     assert "Line 1" in out and "Line 2" in out
-    assert out.strip().endswith("Next action: run /review-decision <approve|changes_requested|reject>.")
+    assert out.strip().endswith(action_line)
 
 
 def test_guided_bad_blocker_contains_blocker_section_and_single_next_action() -> None:
@@ -37,8 +37,8 @@ def test_guided_bad_blocker_contains_blocker_section_and_single_next_action() ->
         "next_gate_condition": "Implementation blocked by unresolved critical findings.",
         "gates_blocked": ["P6-Implementation"],
     }
-
-    out = format_guided_snapshot(snapshot)
+    action_line = "Next action: consult next-step."
+    out = format_guided_snapshot(snapshot, action_line)
 
     assert "Blocker" in out
     assert "P6-Implementation" in out
@@ -61,14 +61,14 @@ def test_guided_corner_implementation_presentation_renders_result_blocks() -> No
         "implementation_package_stability": "stable",
         "completion_matrix_overall_status": "PASS",
     }
-
-    out = format_guided_snapshot(snapshot)
+    action_line = "Next action: run /implementation-decision <approve|changes_requested|reject>."
+    out = format_guided_snapshot(snapshot, action_line)
 
     assert "Changed files / artifact summary" in out
     assert "src/review.py" in out
     assert "Findings fixed" in out
     assert "Verification evidence" in out
-    assert out.strip().endswith("Next action: run /implementation-decision <approve|changes_requested|reject>.")
+    assert out.strip().endswith(action_line)
 
 
 def test_guided_corner_implementation_presentation_routes_to_decision_when_matrix_missing() -> None:
@@ -78,9 +78,9 @@ def test_guided_corner_implementation_presentation_routes_to_decision_when_matri
         "active_gate": "Implementation Presentation Gate",
         "next_gate_condition": "Implementation package is ready.",
     }
-
-    out = format_guided_snapshot(snapshot)
-    assert out.strip().endswith("Next action: run /implementation-decision <approve|changes_requested|reject>.")
+    action_line = "Next action: run /implementation-decision <approve|changes_requested|reject>."
+    out = format_guided_snapshot(snapshot, action_line)
+    assert out.strip().endswith(action_line)
 
 
 def test_guided_edge_phase_display_hides_internal_token_labels() -> None:
@@ -90,8 +90,8 @@ def test_guided_edge_phase_display_hides_internal_token_labels() -> None:
         "active_gate": "Business Rules Validation",
         "next_gate_condition": "Phase 1.5 executed; Phase 5.4 is mandatory before proceeding",
     }
-
-    out = format_guided_snapshot(snapshot)
+    action_line = "Next action: consult next-step."
+    out = format_guided_snapshot(snapshot, action_line)
 
     assert "- Phase: Phase 5 - Business Rules" in out
     assert "5.4-BusinessRules" not in out

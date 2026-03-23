@@ -78,6 +78,53 @@ def _has_rework_clarification_input(state: Mapping) -> GuardResult:
     return GuardResult(passed=bool(text), reason="rework clarification input present" if text else "no rework clarification")
 
 
+def _has_impl_rework_clarification_input(state: Mapping) -> GuardResult:
+    text = str(
+        state.get("implementation_rework_clarification_input") or
+        state.get("ImplementationReworkClarificationInput") or
+        ""
+    ).strip()
+    return GuardResult(passed=bool(text), reason="impl rework clarification input present" if text else "no impl rework clarification")
+
+
+def _rework_scope_change_input(state: Mapping) -> GuardResult:
+    from governance_runtime.application.use_cases.rework_clarification import (
+        classify_rework_clarification,
+    )
+    text = str(
+        state.get("rework_clarification_input") or
+        state.get("rework_clarification_text") or
+        state.get("rework_clarification_note") or
+        ""
+    ).strip()
+    if not text:
+        return GuardResult(passed=False, reason="no rework clarification input")
+    classification = classify_rework_clarification(text)
+    return GuardResult(
+        passed=classification == "scope_change",
+        reason=f"rework classification: {classification}",
+    )
+
+
+def _rework_plan_change_input(state: Mapping) -> GuardResult:
+    from governance_runtime.application.use_cases.rework_clarification import (
+        classify_rework_clarification,
+    )
+    text = str(
+        state.get("rework_clarification_input") or
+        state.get("rework_clarification_text") or
+        state.get("rework_clarification_note") or
+        ""
+    ).strip()
+    if not text:
+        return GuardResult(passed=False, reason="no rework clarification input")
+    classification = classify_rework_clarification(text)
+    return GuardResult(
+        passed=classification == "plan_change",
+        reason=f"rework classification: {classification}",
+    )
+
+
 def _plan_missing(state: Mapping) -> GuardResult:
     versions = state.get("plan_record_versions", 0)
     return GuardResult(
@@ -116,20 +163,20 @@ def _status_blocked(state: Mapping) -> bool:
 
 def _is_phase4(state: Mapping) -> bool:
     canonical = normalize_to_canonical(dict(state))
-    phase = str(canonical.get("phase") or "").strip()
-    return phase.startswith("4") or phase.lower() == "ticket input gate"
+    phase = str(canonical.get("phase") or "").strip().lower()
+    return phase.startswith("4") or phase.startswith("phase 4") or phase.lower() == "ticket input gate"
 
 
 def _is_phase5(state: Mapping) -> bool:
     canonical = normalize_to_canonical(dict(state))
-    phase = str(canonical.get("phase") or "").strip()
-    return phase.startswith("5")
+    phase = str(canonical.get("phase") or "").strip().lower()
+    return phase.startswith("5") or phase.startswith("phase 5")
 
 
 def _is_phase6(state: Mapping) -> bool:
     canonical = normalize_to_canonical(dict(state))
-    phase = str(canonical.get("phase") or "").strip()
-    return phase.startswith("6")
+    phase = str(canonical.get("phase") or "").strip().lower()
+    return phase.startswith("6") or phase.startswith("phase 6")
 
 
 def _gate_equals(state: Mapping, expected: str) -> bool:
@@ -192,6 +239,16 @@ PHASE4_TRANSITIONS = TransitionTable(
 PHASE5_TRANSITIONS = TransitionTable(
     transitions=(
         Transition(
+            source_gate="plan record preparation gate",
+            target_gate="plan record preparation gate",
+            command="/plan",
+            kind=NextActionKind.NORMAL,
+            reason="plan-record-missing",
+            guard=_plan_missing,
+            condition=_is_phase5,
+            label_template="run /plan.",
+        ),
+        Transition(
             source_gate="*",
             target_gate=None,
             command="/continue",
@@ -206,12 +263,52 @@ PHASE5_TRANSITIONS = TransitionTable(
 PHASE6_TRANSITIONS = TransitionTable(
     transitions=(
         Transition(
+            source_gate="rework clarification gate",
+            target_gate=None,
+            command="chat",
+            kind=NextActionKind.BLOCKED,
+            reason="rework-clarification-required",
+            condition=_is_phase6,
+            guard=lambda state: GuardResult(passed=not _has_rework_clarification_input(state).passed, reason="rework clarification input required"),
+            label_template="provide clarification in chat.",
+        ),
+        Transition(
+            source_gate="rework clarification gate",
+            target_gate=None,
+            command="/ticket",
+            kind=NextActionKind.NORMAL,
+            reason="rework-scope-change",
+            condition=_is_phase6,
+            guard=_rework_scope_change_input,
+            label_template="run /ticket.",
+        ),
+        Transition(
+            source_gate="rework clarification gate",
+            target_gate=None,
+            command="/plan",
+            kind=NextActionKind.NORMAL,
+            reason="rework-plan-change",
+            condition=_is_phase6,
+            guard=_rework_plan_change_input,
+            label_template="run /plan.",
+        ),
+        Transition(
             source_gate="workflow complete",
             target_gate="workflow complete",
             command="/implement",
             kind=NextActionKind.TERMINAL,
             reason="workflow-approved",
             condition=_is_phase6,
+            label_template="run /implement.",
+        ),
+        Transition(
+            source_gate="implementation rework clarification gate",
+            target_gate=None,
+            command="/implement",
+            kind=NextActionKind.NORMAL,
+            reason="impl-rework-clarified",
+            condition=_is_phase6,
+            guard=_has_impl_rework_clarification_input,
             label_template="run /implement.",
         ),
         Transition(
@@ -366,6 +463,11 @@ def resolve_next_action(state: Mapping) -> ResolvedNextAction:
         match = PHASE4_TRANSITIONS.find_matching(state, gate)
         if match:
             label = match.label_template.format(command=match.command)
+            if "/review" not in label.lower():
+                label = (
+                    "run /ticket with the ticket/task details. "
+                    "Alternative: run /review for read-only feedback (no state change)."
+                )
             return ResolvedNextAction(
                 command=match.command,
                 label=label,

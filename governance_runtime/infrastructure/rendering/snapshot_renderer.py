@@ -275,13 +275,16 @@ def render_guided_sections(snapshot: Snapshot, action_line: str) -> list[str]:
     return lines
 
 
-def format_guided_snapshot(snapshot: Snapshot, action_line: str) -> str:
+def format_guided_snapshot(snapshot: Snapshot, action_line: str | None = None) -> str:
     """Format guided operator-facing output with sections.
 
     Args:
         snapshot: The typed snapshot to render.
         action_line: The pre-computed next action line (from presentation assembly).
+                   If None, a default will be generated.
     """
+    if action_line is None:
+        action_line = "Next action: consult next-step."
     lines = render_guided_sections(snapshot, action_line)
     lines.append("")
     lines.append(action_line)

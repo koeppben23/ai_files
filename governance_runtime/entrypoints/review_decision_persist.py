@@ -41,6 +41,13 @@ from governance_runtime.infrastructure.json_store import write_json_atomic as _w
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
+
+def _resolve_active_session_path() -> tuple[Path, Path]:
+    session_path, _, _, workspace_dir = resolve_active_session_paths()
+    events_path = workspace_dir / "events.jsonl"
+    return session_path, events_path
+
+
 VALID_DECISIONS = frozenset({"approve", "changes_requested", "reject"})
 
 BLOCKED_REVIEW_DECISION_INVALID = reason_codes.BLOCKED_REVIEW_DECISION_INVALID
@@ -411,8 +418,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        session_path, _, workspace_dir = resolve_active_session_paths()
-        events_path = workspace_dir / "events.jsonl"
+        session_path, events_path = _resolve_active_session_path()
         payload = apply_review_decision(
             decision=str(args.decision),
             session_path=session_path,

@@ -35,6 +35,16 @@ def _isolate_error_context():
 
 
 @pytest.fixture(autouse=True)
+def _reset_phase6_review_orchestrator():
+    """Reset Phase 6 review orchestrator module-level instances between tests."""
+    from governance_runtime.application.services.phase6_review_orchestrator import _reset_instances
+
+    _reset_instances()
+    yield
+    _reset_instances()
+
+
+@pytest.fixture(autouse=True)
 def _remove_root_rulesets_bridge():
     """Keep root rulesets/ bridge absent throughout tests.
 

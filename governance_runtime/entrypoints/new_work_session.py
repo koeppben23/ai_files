@@ -222,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
     observed_at = _now_iso()
 
     try:
-        session_path, repo_fingerprint, workspace_dir = resolve_active_session_paths()
+        session_path, repo_fingerprint, workspaces_home, workspace_dir = resolve_active_session_paths()
     except Exception as exc:
         payload = _payload(
             "blocked",

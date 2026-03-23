@@ -303,14 +303,18 @@ def run_review_loop(
 
     # Run the loop
     iterations: list[ReviewIteration] = []
-    revision_delta = "none" if (prev_digest and curr_digest and prev_digest == curr_digest) else "changed"
+    initial_digest_stable = bool(prev_digest and curr_digest and prev_digest == curr_digest)
+    revision_delta = "none" if initial_digest_stable else "changed"
     llm_approve = False
     complete = False
 
     while iteration < config.max_iterations and not complete:
         iteration += 1
         previous = curr_digest
-        if config.force_stable_digest and iteration >= 2:
+        # Keep digest stable if force_stable_digest is set AND either:
+        # - We're past iteration 1, OR
+        # - The initial state had stable digests (prev == curr)
+        if config.force_stable_digest and (iteration >= 2 or initial_digest_stable):
             curr_digest = previous
         else:
             curr_digest = f"sha256:{_sha256_text(base_seed + ':' + str(iteration))}"
@@ -342,6 +346,10 @@ def run_review_loop(
                     complete = True
                 elif iteration >= config.min_iterations and revision_delta == "none":
                     complete = True
+
+        # Complete if digest is stable and we've met minimum iterations (even without LLM)
+        if not complete and iteration >= config.min_iterations and revision_delta == "none":
+            complete = True
 
         # Create iteration result
         it = ReviewIteration(

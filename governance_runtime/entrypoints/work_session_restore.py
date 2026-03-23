@@ -86,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        session_path, repo_fingerprint, workspace_dir = resolve_active_session_paths()
+        session_path, repo_fingerprint, workspaces_home, _ = resolve_active_session_paths()
     except Exception as exc:
         print(
             json.dumps(

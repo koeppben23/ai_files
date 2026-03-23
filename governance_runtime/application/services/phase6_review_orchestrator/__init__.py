@@ -90,3 +90,11 @@ def _set_response_validator(validator):
     """Set the response validator instance (for testing)."""
     global _response_validator_instance
     _response_validator_instance = validator
+
+
+def _reset_instances():
+    """Reset all module-level instances (for testing cleanup)."""
+    global _policy_resolver_instance, _llm_caller_instance, _response_validator_instance
+    _policy_resolver_instance = None
+    _llm_caller_instance = None
+    _response_validator_instance = None

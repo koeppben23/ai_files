@@ -21,6 +21,8 @@ FIELD_ALIASES: dict[str, list[str]] = {
     "status": [],
     "workflow_complete": ["WorkflowComplete"],
     "gates_blocked": [],
+    "ticket_intake_ready": [],
+    "workspace_ready": [],
     # Mode
     "mode": ["Mode"],
     "effective_operating_mode": [],
@@ -66,6 +68,9 @@ FIELD_ALIASES: dict[str, list[str]] = {
     "session_materialization_event_id": [],
     "repo_fingerprint": ["RepoFingerprint"],
     "phase_transition_evidence": [],
+    "previous_phase": ["PreviousPhase", "phase_previous"],
+    "phase_history": [],
+    "repo_capabilities": [],
 }
 
 # Gate key aliases: persisted format -> canonical format

@@ -28,6 +28,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from governance_runtime.engine.next_action_resolver import resolve_next_action
+from governance_runtime.entrypoints.phase5_plan_record_persist import (
+    _parse_llm_review_response,
+    _load_effective_review_policy_text,
+)
 from governance_runtime.infrastructure.session_pointer import (
     CANONICAL_POINTER_SCHEMA,
     is_session_pointer_document,
@@ -204,6 +208,41 @@ def _resolve_next_action_line(snapshot: Snapshot) -> str:
     label = str(render.label or "").strip()
     phase = str(snapshot.get("phase") or "").strip().lower()
     gate = str(snapshot.get("active_gate") or "").strip().lower()
+    next_condition = str(snapshot.get("next_gate_condition") or "").strip().lower()
+    
+    if gate == "rework clarification gate" and "chat" in next_condition:
+        import re
+        match = re.search(r"clarif(?:y|ying)\s+(?:the\s+)?requested\s+changes\s+(?:in\s+)?chat[,\s]*", next_condition)
+        if match:
+            return "Next action: describe the requested changes in chat."
+    
+    rework_input = str(snapshot.get("rework_clarification_input") or "").strip().lower()
+    if gate == "rework clarification gate" and rework_input:
+        from governance_runtime.application.use_cases.rework_clarification import (
+            classify_rework_clarification,
+            derive_next_rail,
+        )
+        classification = classify_rework_clarification(rework_input)
+        rail = derive_next_rail(classification)
+        if rail == "/ticket":
+            return "Next action: run /ticket with the revised task details."
+        elif rail == "/plan":
+            return "Next action: run /plan with the updated plan details."
+        elif rail == "/continue":
+            return "Next action: run /continue."
+    
+    p54_status = str(snapshot.get("p54_evaluated_status") or "").strip().lower()
+    if p54_status == "gap-detected":
+        return "Next action: complete the active business-rules validation work in chat."
+    
+    p55_status = str(snapshot.get("p55_evaluated_status") or "").strip().lower()
+    if p55_status == "pending":
+        return "Next action: complete the active technical-debt validation work in chat."
+    
+    p56_status = str(snapshot.get("p56_evaluated_status") or "").strip().lower()
+    if p56_status == "pending":
+        return "Next action: complete the active rollback-safety validation work in chat."
+    
     if (phase.startswith("4") or gate == "ticket input gate") and "/review" not in label.lower():
         label = (
             "run /ticket with the ticket/task details. "
@@ -272,7 +311,7 @@ def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> N
     if not phase.startswith("6") or gate != "evidence presentation gate":
         return
 
-    plan_body = _build_plan_body(session_path=session_path)
+    plan_body = _build_plan_body(session_path=session_path, json_loader=_read_json)
     state["review_package_review_object"] = "Final Phase-6 implementation review decision"
     state["review_package_ticket"] = _build_ticket_summary(state)
     state["review_package_approved_plan_summary"] = _build_plan_summary(
@@ -426,7 +465,7 @@ def _build_runtime_context(
     persisted_phase = normalize_phase_token(canonical.get("phase") or "4") or "4"
 
     requested_phase = persisted_phase
-    next_token = normalize_phase_token(canonical.get("next") or "")
+    next_token = normalize_phase_token(canonical.get("next_action") or "")
 
     # Stay-strategy phases may advertise a next_token that differs from the
     # current persisted phase (e.g. Phase 5 → 5.3 forward, Phase 6 → 4 on
@@ -562,6 +601,47 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
         ss = materialized.get("SESSION_STATE")
         if isinstance(ss, dict):
             ss["phase_transition_evidence"] = True
+
+    state_obj = materialized.get("SESSION_STATE")
+    state_map = state_obj if isinstance(state_obj, dict) else materialized
+    if not str(state_map.get("session_run_id") or "").strip():
+        state_map["session_run_id"] = f"session-{uuid.uuid4().hex[:12]}"
+    current_revision = 0
+    try:
+        current_revision = int(str(state_map.get("session_state_revision") or "0").strip())
+    except ValueError:
+        current_revision = 0
+    state_map["session_state_revision"] = current_revision + 1
+    state_map["session_materialization_event_id"] = f"mat-{uuid.uuid4().hex}"
+    state_map["session_materialized_at"] = _now_iso()
+
+    _gate_evaluators = GateEvaluators(
+        evaluate_p53=evaluate_p53_test_quality_gate,
+        evaluate_p54=evaluate_p54_business_rules_gate,
+        evaluate_p55=evaluate_p55_technical_debt_gate,
+        evaluate_p56=evaluate_p56_rollback_safety_gate,
+        phase_1_5_executed=_phase_1_5_executed,
+    )
+    _gate_constants = GateConstants(
+        priority_order=P5_GATE_PRIORITY_ORDER,
+        terminal_values=P5_GATE_TERMINAL_VALUES,
+        reason_code_for_gate=reason_code_for_gate,
+    )
+
+    _sync_conditional_p5_gate_states(state_doc=materialized, gate_evaluators=_gate_evaluators)
+    _normalize_phase6_p5_state(
+        state_doc=materialized,
+        events_path=session_path.parent / "events.jsonl",
+        clock=_now_iso,
+        audit_sink=_append_jsonl,
+        gate_constants=_gate_constants,
+        gate_evaluators=_gate_evaluators,
+    )
+    _persist_review_package_markers(state_doc=materialized, session_path=session_path)
+    _persist_implementation_package_markers(state_doc=materialized)
+
+    _write_json_atomic(session_path, materialized)
+    return materialized
 
 
 def get_canonical_state(materialized: dict) -> CanonicalSessionState:
@@ -729,7 +809,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     canonical = get_canonical_state(state)
 
     phase = canonical.get("phase") or "unknown"
-    next_phase = canonical.get("next") or "unknown"
+    next_phase = canonical.get("next_action") or "unknown"
     mode = canonical.get("mode") or "unknown"
     status = canonical.get("status") or "OK"
     active_gate = canonical.get("active_gate") or "none"

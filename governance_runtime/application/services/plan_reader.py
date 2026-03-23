@@ -21,9 +21,13 @@ def read_plan_body(session_path: Path, json_loader: Callable[[Path], dict] | Non
         if plan_record_path.is_file():
             payload = json_loader(plan_record_path)
             if isinstance(payload, dict):
-                body = payload.get("body") or payload.get("planBody") or payload.get("plan_body")
-                if isinstance(body, str) and body.strip():
-                    return body.strip()
+                versions = payload.get("versions")
+                if isinstance(versions, list) and versions:
+                    latest = versions[-1] if isinstance(versions[-1], dict) else {}
+                    if isinstance(latest, dict):
+                        body = latest.get("plan_record_text")
+                        if isinstance(body, str) and body.strip():
+                            return body.strip()
     except Exception:
         pass
     return "none"
