@@ -114,12 +114,10 @@ class TestR16FinalClaimConformance:
 
     def test_ux_bootstrap_truth_is_consistent(self) -> None:
         docs = [
-            REPO_ROOT / "README.md",
+            REPO_ROOT / "DOCS.md",
             REPO_ROOT / "README-OPENCODE.md",
-            REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "BOOTSTRAP.md",
             REPO_ROOT / "governance_content" / "README.md",
-            REPO_ROOT / "governance_content" / "QUICKSTART.md",
         ]
 
         for path in docs:

@@ -1,13 +1,12 @@
-## What this bundle provides
+## What this project provides
 
-- Deterministic governance workflow (Phases 1-6) with explicit gate outcomes.
-- Canonical runtime authority under `governance_runtime/`.
-- Canonical docs and operator rails under `governance_content/`.
-- Canonical policy/spec artifacts under `governance_spec/`.
-- OpenCode launcher and command surfaces for governed session execution.
-- No legacy `governance/` compatibility surface is installed.
+- Deterministic governance workflow (Phases 1-6) with explicit gate outcomes
+- Canonical runtime authority under `governance_runtime/`
+- Canonical docs and operator rails under `governance_content/`
+- Canonical policy/spec artifacts under `governance_spec/`
+- OpenCode launcher and command surfaces for governed session execution
 
-## Install
+## Quick Install
 
 ```bash
 unzip customer-install-bundle-v1.zip
@@ -33,166 +32,14 @@ cd customer-install-bundle-v1
 .\install\install.ps1 --smoketest
 ```
 
-`governance.paths.json` under `<config_root>/` is required for canonical bootstrap behavior.
+## Next Steps
 
-## Architecture snapshot (final state)
+**Full documentation:** [DOCS.md](DOCS.md)
 
-Source-repo canonical surfaces:
+## Repository Layout
 
-```text
+```
 governance_runtime/  # runtime authority (kernel, application, infrastructure)
 governance_content/  # operator docs and command rails
 governance_spec/     # policy/spec source of truth
 ```
-
-Post-install directory layout (`<config_root>`):
-
-```text
-<config_root>/
-  bin/
-    opencode-governance-bootstrap
-    opencode-governance-bootstrap.cmd
-  commands/
-    audit-readout.md
-    continue.md
-    implement.md
-    implementation-decision.md
-    plan.md
-    review-decision.md
-    review.md
-    ticket.md
-  plugins/
-    audit-new-session.mjs
-  workspaces/
-    <repo_fingerprint>/
-      SESSION_STATE.json
-      logs/
-        error.log.jsonl
-        flow.log.jsonl
-        boot.log.jsonl
-    _global/
-      logs/
-  opencode.json
-  INSTALL_HEALTH.json
-  INSTALL_MANIFEST.json
-  governance.paths.json
-  SESSION_STATE.json
-  governance.activation_intent.json
-```
-
-```text
-<local_root>/
-  governance_runtime/
-  governance_content/
-  governance_spec/
-  VERSION
-```
-
-## Canonical operator truth
-
-- Install root (config): `~/.config/opencode`
-- Install root (local payload): `~/.local/opencode`
-- Canonical bin directory: `~/.config/opencode/bin`
-- Canonical bootstrap entrypoint: `opencode-governance-bootstrap init --profile <solo|team|regulated> --repo-root <repo-root>`
-- Commands/plugins/workspaces live under config root; runtime/content/spec live under local root.
-- `python -m ...` invocation is internal/debug/compatibility only and is not the primary operator path.
-
-## Start a governed session
-
-### Prerequisites: make the launcher reachable
-
-The installer places the launcher at `~/.config/opencode/bin/` (macOS/Linux) or
-`%USERPROFILE%\.config\opencode\bin\` (Windows). It is **not** added to PATH automatically.
-
-Either add the directory to PATH once per shell session, or invoke the launcher by its full path.
-
-**Add to PATH (run once per shell session):**
-
-```bash
-# macOS / Linux (bash / zsh)
-export PATH="$HOME/.config/opencode/bin:$PATH"
-```
-
-```powershell
-# Windows (PowerShell)
-$env:Path = "$env:USERPROFILE\.config\opencode\bin;" + $env:Path
-```
-
-```cmd
-:: Windows (cmd.exe)
-set "PATH=%USERPROFILE%\.config\opencode\bin;%PATH%"
-```
-
-### Run bootstrap
-
-After PATH is set (or using the full path), run the canonical setup command:
-
-```bash
-# macOS / Linux
-opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
-```
-
-```powershell
-# Windows (PowerShell)
-opencode-governance-bootstrap init --profile solo --repo-root C:\path\to\repo
-```
-
-```cmd
-:: Windows (cmd.exe)
-opencode-governance-bootstrap.cmd init --profile solo --repo-root C:\path\to\repo
-```
-
-Profiles: `solo`, `team`, `regulated`.
-
-Optional administrative alias (same behavior):
-
-```bash
-opencode-governance-bootstrap --set-operating-mode solo --repo-root /path/to/repo
-```
-
-**Without PATH — invoke by full path:**
-
-```bash
-~/.config/opencode/bin/opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
-```
-
-```powershell
-& "$env:USERPROFILE\.config\opencode\bin\opencode-governance-bootstrap.cmd" init --profile solo --repo-root C:\path\to\repo
-```
-
-```cmd
-"%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd" init --profile solo --repo-root C:\path\to\repo
-```
-
-### Continue in OpenCode
-
-1. Open OpenCode Desktop in the same repository and run `/continue`.
-2. For new work at Phase 4, run `/ticket` to persist the ticket/task.
-3. Run `/plan` — this auto-generates a plan from the persisted ticket via Desktop LLM, runs self-review, and persists the plan record. Alternatively provide explicit plan text via `/plan --plan-text "..."`.
-4. Use `/review` as a read-only rail entrypoint for review-depth feedback.
-5. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` (for example `/review-decision approve`).
-6. If you choose `changes_requested`, the workflow enters `Rework Clarification Gate`; clarify requested changes in chat first, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
-7. If you choose `reject`, the workflow returns to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
-8. If you choose `approve`, run `/implement` to start authorized implementation execution (default executor: active OpenCode Desktop LLM; optional override executor supported).
-
-## Docs and troubleshooting
-
-- Quickstarts: `QUICKSTART.md`, `README-OPENCODE.md`
-- OpenCode lifecycle details: `README-OPENCODE.md`
-- Rules overview: `README-RULES.md`
-- Install path binding details: `docs/install-layout.md`
-
-## Uninstall
-
-Current stable public uninstall surface:
-
-```bash
-python install.py --uninstall --force
-```
-
-This is the currently supported remove operation until bundle-level uninstall surface is explicitly marked stable.
-
-Uninstall removes installer-owned governance files and runtime state, and preserves:
-- opencode.json
-- `governance.paths.json` (unless `--purge-paths-file` is passed)
-- Non-governance user-owned files

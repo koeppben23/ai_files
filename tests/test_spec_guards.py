@@ -72,8 +72,8 @@ def test_governance_version_present_in_version_file():
 
 @pytest.mark.spec
 def test_readme_consistency_no_obsolete_opencode_refs():
-    # Check both README.md and README-OPENCODE.md if present
-    readmes = [REPO_ROOT / "README.md", REPO_ROOT / "README-OPENCODE.md"]
+    # Check README.md, DOCS.md, and README-OPENCODE.md if present
+    readmes = [REPO_ROOT / "README.md", REPO_ROOT / "DOCS.md", REPO_ROOT / "README-OPENCODE.md"]
     texts = []
     for rp in readmes:
         if rp.exists():

@@ -125,7 +125,7 @@ def test_install_layout_doc_has_required_structure() -> None:
 def test_desktop_phase4_plan_mode_guidance_is_present() -> None:
     root = REPO_ROOT
     required = {
-        "README.md": "Phase 4",
+        "DOCS.md": "Phase 4",
         "README-OPENCODE.md": "Plan Mode",
         "QUICKSTART.md": "Phase 4",
     }

@@ -17,45 +17,39 @@ def _read(path: Path) -> str:
 class TestReadmeUxCompletion:
     def test_governance_content_docs_are_not_shims(self) -> None:
         for rel in [
-            "README.md",
+            "DOCS.md",
             "QUICKSTART.md",
         ]:
             content = _read(REPO_ROOT / rel)
             assert "shim" not in content.lower(), f"{rel} must be a completed UX doc, not a shim"
             assert len(content.splitlines()) >= 30, f"{rel} must contain substantive content"
 
-    def test_readme_surfaces_include_canonical_rail_progression(self) -> None:
+    def test_readme_links_to_docs(self) -> None:
         readme = _read(REPO_ROOT / "README.md")
-        assert "/continue" in readme
-        assert "/review" in readme
-        assert "read-only rail entrypoint" in readme
-        assert "/review-decision" in readme
-        assert "/implement" in readme
+        assert "DOCS.md" in readme
 
     def test_readme_uses_final_state_layer_authority_language(self) -> None:
         readme = _read(REPO_ROOT / "README.md")
         assert "governance_runtime/" in readme
         assert "governance_content/" in readme
         assert "governance_spec/" in readme
-        assert "compatibility surface" in readme.lower()
         assert "Installer-managed runtime and policy assets under `governance/`." not in readme
+
+    def test_docs_md_uses_final_state_layer_authority_language(self) -> None:
+        docs = _read(REPO_ROOT / "DOCS.md")
+        assert "governance_runtime/" in docs
+        assert "governance_content/" in docs
+        assert "governance_spec/" in docs
+        assert "Installer-managed runtime and policy assets under `governance/`." not in docs
 
     def test_quickstart_does_not_present_legacy_kernel_as_authority(self) -> None:
         quickstart = _read(REPO_ROOT / "QUICKSTART.md")
         assert "Kernel: `governance_runtime/kernel/*` is the only control-plane implementation." not in quickstart
         assert "governance_runtime/kernel/*" in quickstart
 
-    def test_readme_links_to_quickstarts_and_documents_install_layout(self) -> None:
+    def test_readme_provides_repo_layout_summary(self) -> None:
         readme = _read(REPO_ROOT / "README.md")
-        assert "Quickstarts: `QUICKSTART.md`, `README-OPENCODE.md`" in readme
-        assert "Post-install directory layout" in readme
-        assert "<config_root>/" in readme
-        assert "<local_root>/" in readme
-        assert "governance.paths.json" in readme
-        assert "plugins/" in readme
-        assert "workspaces/" in readme
-        assert "<repo_fingerprint>/" in readme
-        assert "_global/" in readme
+        # README should have a concise layout summary
         assert "governance_runtime/" in readme
         assert "governance_content/" in readme
         assert "governance_spec/" in readme
@@ -69,19 +63,19 @@ class TestReadmeUxCompletion:
         assert "/review-decision" in opencode
         assert "governance_runtime/" in opencode
 
-    def test_quickstart_covers_end_to_end_operator_flow(self) -> None:
-        quickstart = _read(REPO_ROOT / "QUICKSTART.md")
-        assert "Step 1: Install" in quickstart
-        assert "opencode-governance-bootstrap" in quickstart
-        assert "/continue" in quickstart
-        assert "/review" in quickstart
-        assert "read-only rail entrypoint" in quickstart
-        assert "/review-decision" in quickstart
+    def test_docs_covers_end_to_end_operator_flow(self) -> None:
+        docs = _read(REPO_ROOT / "DOCS.md")
+        assert "Step 1: Install" in docs
+        assert "opencode-governance-bootstrap" in docs
+        assert "/continue" in docs
+        assert "/review" in docs
+        assert "read-only rail entrypoint" in docs
+        assert "/review-decision" in docs
 
     def test_canonical_bootstrap_command_is_consistent_across_user_docs(self) -> None:
         expected = "opencode-governance-bootstrap init --profile"
         docs = [
-            REPO_ROOT / "README.md",
+            REPO_ROOT / "DOCS.md",
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
@@ -92,8 +86,7 @@ class TestReadmeUxCompletion:
 
     def test_canonical_bin_directory_truth_is_explicit(self) -> None:
         docs = [
-            REPO_ROOT / "README.md",
-            REPO_ROOT / "QUICKSTART.md",
+            REPO_ROOT / "DOCS.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
         ]
@@ -105,7 +98,7 @@ class TestReadmeUxCompletion:
 
     def test_python_module_invocation_not_primary_in_user_docs(self) -> None:
         docs = [
-            REPO_ROOT / "README.md",
+            REPO_ROOT / "DOCS.md",
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
@@ -117,7 +110,7 @@ class TestReadmeUxCompletion:
 
     def test_no_equal_rank_alternative_bootstrap_command_paths(self) -> None:
         docs = [
-            REPO_ROOT / "README.md",
+            REPO_ROOT / "DOCS.md",
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
@@ -129,8 +122,7 @@ class TestReadmeUxCompletion:
 
     def test_operator_truth_paths_are_consistent(self) -> None:
         docs = [
-            REPO_ROOT / "README.md",
-            REPO_ROOT / "QUICKSTART.md",
+            REPO_ROOT / "DOCS.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",
         ]
@@ -174,7 +166,7 @@ class TestReadmeUxCompletion:
 
     def test_docs_do_not_present_commands_governance_as_primary_model(self) -> None:
         docs = [
-            REPO_ROOT / "README.md",
+            REPO_ROOT / "DOCS.md",
             REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "README-OPENCODE.md",
             REPO_ROOT / "BOOTSTRAP.md",

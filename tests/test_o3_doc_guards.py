@@ -177,9 +177,14 @@ class TestQuickstartEdge:
     def test_bootstrap_step_has_launcher(self) -> None:
         """Step 3 bootstrap section must reference the launcher."""
         content = _read("QUICKSTART.md")
+        # Try both "## Step 3:" and "## Step 3 " formats
         start = content.find("## Step 3:")
-        assert start >= 0
+        if start < 0:
+            start = content.find("## Step 3 ")
+        assert start >= 0, "QUICKSTART.md must contain Step 3"
         next_section = content.find("## Step 4:", start)
+        if next_section < 0:
+            next_section = content.find("## Step 4 ", start)
         if next_section < 0:
             next_section = len(content)
         section = content[start:next_section]
@@ -231,20 +236,20 @@ class TestAuditReadoutFallbackCorner:
 
 
 # ===================================================================
-# 4. README.md — authority language guard
+# 4. DOCS.md — authority language guard
 # ===================================================================
 
 
-class TestReadmeAuthorityHappy:
-    """README.md /review line must not contain authority language."""
+class TestDocsAuthorityHappy:
+    """DOCS.md /review line must not contain authority language."""
 
     def test_review_line_no_authoritative(self) -> None:
-        """README.md /review description must not use 'authoritative'."""
-        content = _read("README.md")
+        """DOCS.md /review description must not use 'authoritative'."""
+        content = _read("DOCS.md")
         for line in content.split("\n"):
             if "/review" in line and "read-only rail entrypoint" in line:
                 assert "authoritative" not in line.lower(), (
-                    f"README.md /review line must not contain 'authoritative' — "
+                    f"DOCS.md /review line must not contain 'authoritative' — "
                     f"authority language removed in O3-F3: {line.strip()}"
                 )
 
@@ -257,7 +262,7 @@ class TestReadmeAuthorityHappy:
 class TestO3SurfaceBad:
     """Prevent regression to deprecated command and entrypoint surfaces."""
 
-    _DOCS = ["README-OPENCODE.md", "QUICKSTART.md", "README.md", "docs/operator-runbook.md"]
+    _DOCS = ["README-OPENCODE.md", "QUICKSTART.md", "DOCS.md", "docs/operator-runbook.md"]
 
     @pytest.mark.parametrize("relpath", _DOCS)
     def test_no_direct_governance_entrypoint_calls(self, relpath: str) -> None:
@@ -290,7 +295,7 @@ class TestO3SurfaceEdge:
         assert "%USERPROFILE%\\.config\\opencode\\bin\\" not in combined
 
     def test_launcher_command_present(self) -> None:
-        combined = "\n".join(_read(p) for p in ["README-OPENCODE.md", "QUICKSTART.md", "README.md"])
+        combined = "\n".join(_read(p) for p in ["README-OPENCODE.md", "QUICKSTART.md", "DOCS.md"])
         assert "opencode-governance-bootstrap" in combined
 
 
@@ -339,7 +344,7 @@ class TestLauncherSurfaceBad:
     """Bad: active paths must not expose module-name launcher surface."""
 
     _ACTIVE_PATHS = [
-        "README.md",
+        "DOCS.md",
         "README-OPENCODE.md",
         "QUICKSTART.md",
         "ticket.md",

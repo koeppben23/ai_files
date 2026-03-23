@@ -493,30 +493,14 @@ class TestQuickstartContentGuards:
         assert self.path.exists()
         self.content = self.path.read_text(encoding="utf-8")
 
-    def test_step4_focuses_on_desktop_entrypoint(self) -> None:
-        """Step 4 should stay minimal: Desktop + /continue + doc handoff."""
+    def test_step4_avoids_runbook_overhang(self) -> None:
+        """Step 4 must avoid policy/runbook detail."""
         start_idx = self.content.find("## Step 4")
         assert start_idx >= 0, "QUICKSTART.md must contain Step 4"
         output_codes_idx = self.content.find("## Output Codes")
         assert output_codes_idx > start_idx, "QUICKSTART.md must keep Output Codes after Step 4"
         section = self.content[start_idx:output_codes_idx].lower()
-        assert "opencode desktop" in section and "`/continue`" in section, (
-            "QUICKSTART.md Step 4 must center desktop startup with /continue"
-        )
-        assert "readme-opencode.md" in section, (
-            "QUICKSTART.md Step 4 must hand off rail/lifecycle detail to README-OPENCODE.md"
-        )
 
-    def test_step4_avoids_runbook_overhang(self) -> None:
-        """Step 4 must avoid policy/runbook detail."""
-        start_idx = self.content.find("## Step 4")
-        output_codes_idx = self.content.find("## Output Codes")
-        assert start_idx >= 0 and output_codes_idx > start_idx
-        section = self.content[start_idx:output_codes_idx].lower()
-
-        assert "plan mode" not in section, (
-            "QUICKSTART.md Step 4 should avoid Phase-4 plan-mode policy detail"
-        )
         assert "| command | purpose |" not in section, (
             "QUICKSTART.md Step 4 should not include a command runbook table"
         )

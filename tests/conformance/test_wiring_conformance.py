@@ -612,6 +612,7 @@ class TestNoRoguePaths:
         "ADR.md",
         "CHANGELOG.md",
         "CONFLICT_RESOLUTION.md",
+        "DOCS.md",
         "HowTo_Release.txt",
         "QUALITY_INDEX.md",
         "QUICKSTART.md",
