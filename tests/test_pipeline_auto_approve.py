@@ -1,12 +1,15 @@
 """Tests for Pipeline Auto-Approve feature.
 
 Tests cover:
-- Pipeline auto-approve eligibility check
-- Pipeline auto-approve application
+- Pipeline auto-approve eligibility check (via phase_kernel)
+- Pipeline auto-approve integration in review_decision_persist
 - Blocking in non-pipeline modes (user, agents_strict)
 - Audit trail creation
 
 Happy / Negative / Corner / Edge coverage.
+
+Note: The canonical implementation is in review_decision_persist.py.
+The eligibility check is in phase_kernel.py.
 """
 
 from __future__ import annotations
@@ -16,10 +19,10 @@ from pathlib import Path
 
 import pytest
 
-from governance_runtime.entrypoints.pipeline_auto_approve import (
-    apply_pipeline_auto_approve,
-    pipeline_auto_approve_eligible,
+from governance_runtime.entrypoints.review_decision_persist import (
+    apply_review_decision,
 )
+from governance_runtime.kernel.phase_kernel import pipeline_auto_approve_eligible
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +61,7 @@ def _make_state(
 
 @pytest.mark.governance
 class TestPipelineAutoApproveEligibility:
-    """Tests for pipeline_auto_approve_eligible() function."""
+    """Tests for pipeline_auto_approve_eligible() function in phase_kernel."""
 
     def test_eligible_in_pipeline_mode_with_complete_review(self):
         """Pipeline mode with complete review at Evidence Gate is eligible."""
@@ -133,88 +136,6 @@ class TestPipelineAutoApproveEligibility:
 
 
 # ---------------------------------------------------------------------------
-# Apply Pipeline Auto-Approve Tests
-# ---------------------------------------------------------------------------
-
-@pytest.mark.governance
-class TestApplyPipelineAutoApprove:
-    """Tests for apply_pipeline_auto_approve() function."""
-
-    def test_apply_creates_workflow_complete(self, tmp_path: Path):
-        """Applying auto-approve sets workflow_complete=True."""
-        session_path = tmp_path / "SESSION_STATE.json"
-        state = _make_state()
-        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
-
-        result = apply_pipeline_auto_approve(session_path=session_path)
-
-        assert result["status"] == "ok"
-        updated = json.loads(session_path.read_text(encoding="utf-8"))
-        assert updated["SESSION_STATE"]["workflow_complete"] is True
-        assert updated["SESSION_STATE"]["implementation_authorized"] is True
-
-    def test_apply_records_auto_approve_source(self, tmp_path: Path):
-        """Auto-approve decision records source=pipeline_auto_approve."""
-        session_path = tmp_path / "SESSION_STATE.json"
-        state = _make_state()
-        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
-
-        apply_pipeline_auto_approve(session_path=session_path)
-
-        updated = json.loads(session_path.read_text(encoding="utf-8"))
-        decision = updated["SESSION_STATE"]["UserReviewDecision"]
-        assert decision["source"] == "pipeline_auto_approve"
-        assert decision["decision"] == "approve"
-
-    def test_apply_writes_audit_event(self, tmp_path: Path):
-        """Auto-approve writes audit event to events_path."""
-        session_path = tmp_path / "SESSION_STATE.json"
-        events_path = tmp_path / "events.jsonl"
-        state = _make_state()
-        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
-
-        apply_pipeline_auto_approve(session_path=session_path, events_path=events_path)
-
-        assert events_path.exists()
-        lines = events_path.read_text(encoding="utf-8").strip().split("\n")
-        assert len(lines) == 1
-        event = json.loads(lines[0])
-        assert event["event"] == "pipeline_auto_approve"
-        assert event["mode"] == "pipeline"
-        assert event["result"] == "approved"
-
-    def test_apply_blocks_when_not_eligible(self, tmp_path: Path):
-        """Applying auto-approve is blocked when not eligible."""
-        session_path = tmp_path / "SESSION_STATE.json"
-        state = _make_state(effective_operating_mode="user")
-        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
-
-        result = apply_pipeline_auto_approve(session_path=session_path)
-
-        assert result["status"] == "blocked"
-        assert "reason_code" in result
-
-    def test_apply_blocks_in_agents_strict_mode(self, tmp_path: Path):
-        """Auto-approve is blocked in agents_strict (regulated) mode."""
-        session_path = tmp_path / "SESSION_STATE.json"
-        state = _make_state(effective_operating_mode="agents_strict")
-        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
-
-        result = apply_pipeline_auto_approve(session_path=session_path)
-
-        assert result["status"] == "blocked"
-
-    def test_apply_returns_error_when_session_not_found(self, tmp_path: Path):
-        """Returns error when session state file does not exist."""
-        session_path = tmp_path / "nonexistent" / "SESSION_STATE.json"
-
-        result = apply_pipeline_auto_approve(session_path=session_path)
-
-        assert result["status"] == "error"
-        assert "not found" in result["message"]
-
-
-# ---------------------------------------------------------------------------
 # Integration Tests: review_decision_persist integration
 # ---------------------------------------------------------------------------
 
@@ -224,8 +145,6 @@ class TestPipelineAutoApproveIntegration:
 
     def test_review_decision_auto_approves_in_pipeline_mode(self, tmp_path: Path):
         """apply_review_decision with empty decision auto-approves in pipeline mode."""
-        from governance_runtime.entrypoints.review_decision_persist import apply_review_decision
-
         session_path = tmp_path / "SESSION_STATE.json"
         events_path = tmp_path / "events.jsonl"
         state = _make_state()
@@ -257,8 +176,6 @@ class TestPipelineAutoApproveIntegration:
 
     def test_review_decision_blocks_in_user_mode_with_empty_decision(self, tmp_path: Path):
         """apply_review_decision with empty decision returns error in user mode."""
-        from governance_runtime.entrypoints.review_decision_persist import apply_review_decision
-
         session_path = tmp_path / "SESSION_STATE.json"
         state = _make_state(effective_operating_mode="user")
         session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
@@ -272,8 +189,6 @@ class TestPipelineAutoApproveIntegration:
 
     def test_review_decision_blocks_in_agents_strict_mode(self, tmp_path: Path):
         """apply_review_decision with empty decision blocks in agents_strict mode."""
-        from governance_runtime.entrypoints.review_decision_persist import apply_review_decision
-
         session_path = tmp_path / "SESSION_STATE.json"
         state = _make_state(effective_operating_mode="agents_strict")
         session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
@@ -286,9 +201,7 @@ class TestPipelineAutoApproveIntegration:
         assert result["status"] == "error"
 
     def test_review_decision_still_works_with_explicit_decision(self, tmp_path: Path):
-        """apply_review_decision with explicit 'approve' follows normal path (contract enforced)."""
-        from governance_runtime.entrypoints.review_decision_persist import apply_review_decision
-
+        """apply_review_decision with explicit 'approve' follows normal path."""
         session_path = tmp_path / "SESSION_STATE.json"
         state = _make_state()
         session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
@@ -301,7 +214,9 @@ class TestPipelineAutoApproveIntegration:
         assert result["status"] in ("ok", "error")
         if result["status"] == "ok":
             updated = json.loads(session_path.read_text(encoding="utf-8"))
-            assert updated["SESSION_STATE"]["workflow_complete"] is True
+            state_section = updated.get("SESSION_STATE", {})
+            canonical = state_section.get("canonical", state_section)
+            assert canonical.get("workflow_complete") is True
 
 
 # ---------------------------------------------------------------------------
@@ -323,31 +238,32 @@ class TestPipelineAutoApproveEdgeCases:
             "phase6_min_review_iterations": 1,
         }
         session_path = tmp_path / "SESSION_STATE.json"
+        events_path = tmp_path / "events.jsonl"
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
         session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
 
-        result = apply_pipeline_auto_approve(session_path=session_path)
+        result = apply_review_decision(
+            decision="",
+            session_path=session_path,
+            events_path=events_path,
+        )
         assert result["status"] == "ok"
-
-    def test_preserves_existing_state_fields(self, tmp_path: Path):
-        """Applying auto-approve preserves other state fields."""
-        session_path = tmp_path / "SESSION_STATE.json"
-        state = _make_state()
-        state["some_other_field"] = "preserved"
-        state["PlanRecordDigest"] = "abc123"
-        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
-
-        apply_pipeline_auto_approve(session_path=session_path)
-
-        updated = json.loads(session_path.read_text(encoding="utf-8"))
-        assert updated["SESSION_STATE"]["some_other_field"] == "preserved"
-        assert updated["SESSION_STATE"]["PlanRecordDigest"] == "abc123"
 
     def test_apply_without_events_path_succeeds(self, tmp_path: Path):
         """Auto-approve succeeds even without events_path."""
         session_path = tmp_path / "SESSION_STATE.json"
         state = _make_state()
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
         session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
 
-        result = apply_pipeline_auto_approve(session_path=session_path, events_path=None)
+        result = apply_review_decision(
+            decision="",
+            session_path=session_path,
+            events_path=None,
+        )
 
         assert result["status"] == "ok"
