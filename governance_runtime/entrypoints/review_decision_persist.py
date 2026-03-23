@@ -38,6 +38,7 @@ from governance_runtime.application.services.state_accessor import (
 from governance_runtime.application.services.state_normalizer import (
     normalize_with_conflicts,
 )
+from governance_runtime.kernel.phase_kernel import pipeline_auto_approve_eligible
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
@@ -53,6 +54,74 @@ from governance_runtime.infrastructure.session_locator import resolve_active_ses
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
 
+def _apply_pipeline_auto_approve(
+    *,
+    session_path: Path,
+    events_path: Path | None = None,
+) -> dict[str, object]:
+    """Apply pipeline auto-approve at Evidence Presentation Gate.
+
+    This is the canonical auto-approve path integrated into the review decision
+    entrypoint. It uses the same persistence and audit mechanisms as human
+    review decisions.
+
+    Conditions (checked by pipeline_auto_approve_eligible before calling):
+    - effective_operating_mode == "pipeline"
+    - Internal review complete
+    - At Evidence Presentation Gate
+    - No existing review decision
+    - Workflow not already complete
+    """
+    state_doc = _load_json(session_path)
+    state_obj = state_doc.get("SESSION_STATE")
+    state: dict[str, object] = state_obj if isinstance(state_obj, dict) else state_doc  # type: ignore[assignment]
+
+    event_id = uuid.uuid4().hex
+    ts = _now_iso()
+
+    state["UserReviewDecision"] = {
+        "decision": "approve",
+        "rationale": "Auto-approved by pipeline mode",
+        "timestamp": ts,
+        "event_id": event_id,
+        "source": "pipeline_auto_approve",
+    }
+    state["workflow_complete"] = True
+    state["WorkflowComplete"] = True
+    state["governance_status"] = "complete"
+    state["implementation_status"] = "authorized"
+    state["implementation_authorized"] = True
+    state["next_action_command"] = "/implement"
+    state["active_gate"] = "Workflow Complete"
+    state["next_gate_condition"] = (
+        "Workflow auto-approved by pipeline mode. Governance is complete. "
+        "Run /implement to start the implementation phase."
+    )
+    state["phase6_state"] = "phase6_completed"
+    state["implementation_review_complete"] = True
+
+    review_block = state.get("ImplementationReview")
+    if isinstance(review_block, dict):
+        review_block["implementation_review_complete"] = True
+        review_block["completion_status"] = "phase6-completed"
+        state["ImplementationReview"] = review_block
+
+    _write_json_atomic(session_path, {"SESSION_STATE": state})
+
+    if events_path:
+        event = {
+            "event": "pipeline_auto_approve",
+            "event_id": event_id,
+            "timestamp": ts,
+            "mode": "pipeline",
+            "result": "approved",
+            "decision_source": "pipeline_auto_approve",
+        }
+        _append_event(events_path, event)
+
+    return _payload(status="ok", message="Workflow auto-approved in pipeline mode.")
+
+
 def _resolve_active_session_path() -> tuple[Path, Path]:
     session_path, _, _, workspace_dir = resolve_active_session_paths()
     events_path = workspace_dir / "events.jsonl"
@@ -62,6 +131,8 @@ def _resolve_active_session_path() -> tuple[Path, Path]:
 VALID_DECISIONS = frozenset({"approve", "changes_requested", "reject"})
 
 BLOCKED_REVIEW_DECISION_INVALID = reason_codes.BLOCKED_REVIEW_DECISION_INVALID
+
+_PIPELINE_AUTO_APPROVE_REASON = "AUTO-PIPELINE-APPROVE"
 
 
 
@@ -199,15 +270,23 @@ def apply_review_decision(
     session_path: Path,
     events_path: Path | None = None,
     rationale: str = "",
+    _pre_kernel_state: dict | None = None,
 ) -> dict[str, object]:
     """Apply a user review decision to the active session state.
+
+    In pipeline mode, when no explicit decision is provided and eligibility
+    conditions are met, pipeline auto-approve is applied automatically.
 
     Parameters
     ----------
     decision:
         One of ``"approve"``, ``"changes_requested"``, ``"reject"``.
+        If empty in pipeline mode with eligible conditions, auto-approve is applied.
     session_path:
         Absolute path to the ``SESSION_STATE.json`` file.
+    _pre_kernel_state:
+        Internal: State snapshot BEFORE kernel evaluation. Used by session_reader
+        to check eligibility against the pre-transition state.
     events_path:
         Optional path to the workspace ``events.jsonl`` for audit logging.
     rationale:
@@ -219,6 +298,21 @@ def apply_review_decision(
         Status payload with ``status`` key (``"ok"`` or ``"error"``).
     """
     normalized = decision.strip().lower()
+
+    # Pipeline auto-approve: when no explicit decision and eligible, apply auto-approve
+    if not normalized and session_path.exists():
+        if _pre_kernel_state is not None:
+            state = _pre_kernel_state
+            if isinstance(state, dict) and "SESSION_STATE" in state:
+                state = state["SESSION_STATE"]
+        else:
+            state_doc = _load_json(session_path)
+            state_obj = state_doc.get("SESSION_STATE")
+            state = state_obj if isinstance(state_obj, dict) else state_doc
+        eligible = pipeline_auto_approve_eligible(state)
+        if eligible:
+            return _apply_pipeline_auto_approve(session_path=session_path, events_path=events_path)
+
     if normalized not in VALID_DECISIONS:
         return _payload(
             "error",
