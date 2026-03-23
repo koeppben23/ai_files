@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.verification.completion_matrix import build_completion_matrix, is_merge_allowed
+from governance_runtime.verification.completion_matrix import build_completion_matrix, is_merge_allowed
 
 
 def _requirements() -> tuple[dict[str, object], ...]:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.contracts.validator import validate_requirement_contracts
+from governance_runtime.contracts.validator import validate_requirement_contracts
 
 
 def _base_contract(**overrides: object) -> dict[str, object]:
@@ -14,7 +14,7 @@ def _base_contract(**overrides: object) -> dict[str, object]:
         "forbidden_behavior": ["must not do y decision"],
         "user_visible_expectation": ["user sees x"],
         "state_expectation": ["state_x=true"],
-        "code_hotspots": ["governance/entrypoints/session_reader.py"],
+        "code_hotspots": ["governance_runtime/entrypoints/session_reader.py"],
         "verification_methods": [
             "static_verification",
             "behavioral_verification",

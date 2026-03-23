@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 @pytest.mark.parametrize(
     "doc_path",
     [
-        "README.md",
+        "DOCS.md",
         "QUICKSTART.md",
         "README-OPENCODE.md",
         "BOOTSTRAP.md",

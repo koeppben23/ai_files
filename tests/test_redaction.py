@@ -9,11 +9,11 @@ import hashlib
 
 import pytest
 
-from governance.domain.classification import (
+from governance_runtime.domain.classification import (
     ClassificationLevel,
     RedactionStrategy,
 )
-from governance.infrastructure.redaction import (
+from governance_runtime.infrastructure.redaction import (
     apply_redaction,
     redact_document,
     redact_archive,

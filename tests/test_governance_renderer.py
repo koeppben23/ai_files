@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.presentation.renderer import GovernanceRenderer
+from governance_runtime.presentation.renderer import GovernanceRenderer
 
 
 @pytest.mark.governance

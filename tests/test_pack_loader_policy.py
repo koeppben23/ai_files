@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.packs.loader_policy import validate_pack_artifacts
+from governance_runtime.packs.loader_policy import validate_pack_artifacts
 
 
 @pytest.mark.governance

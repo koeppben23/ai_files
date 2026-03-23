@@ -1,4 +1,4 @@
-"""Defect 5 — Log-routing: workspace-scoped error logs when repo_fingerprint
+"""Defect 5 — Log-routing: workspace-only error logs when repo_fingerprint
 is known via _ERROR_CONTEXT.
 
 Root cause: ``_candidate_log_paths()`` in ``global_error_handler.py`` previously
@@ -20,8 +20,8 @@ from pathlib import Path
 
 import pytest
 
-import governance.infrastructure.logging.global_error_handler as geh
-from governance.infrastructure.logging.global_error_handler import (
+import governance_runtime.infrastructure.logging.global_error_handler as geh
+from governance_runtime.infrastructure.logging.global_error_handler import (
     ErrorContext,
     _candidate_log_paths,
     emit_error_event,
@@ -76,9 +76,8 @@ class TestHappyPath:
             workspaces_home=ws,
             repo_fingerprint=None,  # caller does NOT pass fp explicitly
         )
-        assert len(candidates) == 2
+        assert len(candidates) == 1
         assert candidates[0] == ws / fp / "logs" / "error.log.jsonl"
-        assert candidates[1] == cmd / "logs" / "error.log.jsonl"
 
     def test_resolve_log_path_returns_workspace_path(self, tmp_path: Path) -> None:
         fp = "aabbcc112233445566778899"
@@ -109,9 +108,7 @@ class TestHappyPath:
         )
         assert ok is True
         ws_log = ws / fp / "logs" / "error.log.jsonl"
-        cmd_log = cmd / "logs" / "error.log.jsonl"
         assert ws_log.exists(), "workspace log must be written"
-        assert not cmd_log.exists(), "commands/logs must NOT be written when workspace succeeds"
 
 
 # ---------------------------------------------------------------------------
@@ -119,8 +116,10 @@ class TestHappyPath:
 # ---------------------------------------------------------------------------
 
 class TestBadPath:
-    """When _ERROR_CONTEXT has no fingerprint (e.g. early bootstrap error
-    before set_error_context is called), logs must fall back to commands/logs."""
+    """When _ERROR_CONTEXT has no fingerprint, no workspace log path exists.
+
+    Runtime is workspace-only, so commands/logs fallback is intentionally absent.
+    """
 
     def test_no_context_fingerprint_falls_back_to_commands(self, tmp_path: Path) -> None:
         ws = tmp_path / "workspaces"
@@ -132,8 +131,7 @@ class TestBadPath:
             workspaces_home=ws,
             repo_fingerprint=None,
         )
-        assert len(candidates) == 1
-        assert candidates[0] == cmd / "logs" / "error.log.jsonl"
+        assert len(candidates) == 0
 
     def test_emit_writes_to_commands_when_no_fingerprint(self, tmp_path: Path) -> None:
         ws = tmp_path / "workspaces"
@@ -148,9 +146,7 @@ class TestBadPath:
             workspaces_home=ws,
             repo_fingerprint=None,
         )
-        assert ok is True
-        cmd_log = cmd / "logs" / "error.log.jsonl"
-        assert cmd_log.exists()
+        assert ok is False
 
 
 # ---------------------------------------------------------------------------
@@ -192,8 +188,7 @@ class TestCornerCases:
             repo_fingerprint=None,
         )
         # fp is set but ws is None → no workspace candidate
-        assert len(candidates) == 1
-        assert candidates[0] == cmd / "logs" / "error.log.jsonl"
+        assert len(candidates) == 0
 
     def test_context_fingerprint_used_with_only_workspaces_home(self, tmp_path: Path) -> None:
         """When only workspaces_home is passed (no commands_home), workspace
@@ -232,8 +227,7 @@ class TestEdgeCases:
             repo_fingerprint=None,
         )
         # fp is "" which is falsy → workspace candidate skipped
-        assert len(candidates) == 1
-        assert candidates[0] == cmd / "logs" / "error.log.jsonl"
+        assert len(candidates) == 0
 
     def test_context_workspaces_none_but_fingerprint_set(self, tmp_path: Path) -> None:
         """If _ERROR_CONTEXT has fingerprint but workspaces_home is None in
@@ -248,11 +242,10 @@ class TestEdgeCases:
             workspaces_home=None,
             repo_fingerprint=None,
         )
-        assert len(candidates) == 1
-        assert candidates[0] == cmd / "logs" / "error.log.jsonl"
+        assert len(candidates) == 0
 
-    def test_workspace_log_is_first_candidate_commands_is_fallback(self, tmp_path: Path) -> None:
-        """Verify ordering: workspace is candidates[0], commands is candidates[1]."""
+    def test_workspace_log_is_only_candidate(self, tmp_path: Path) -> None:
+        """Workspace path is the only candidate in workspace-only routing."""
         fp = "aabbcc112233445566778899"
         ws = tmp_path / "workspaces"
         cmd = tmp_path / "commands"
@@ -263,9 +256,8 @@ class TestEdgeCases:
             workspaces_home=ws,
             repo_fingerprint=None,
         )
-        assert len(candidates) == 2
+        assert len(candidates) == 1
         assert "workspaces" in str(candidates[0])
-        assert "commands" in str(candidates[1])
 
     def test_no_paths_at_all_raises(self) -> None:
         """With no paths available at all, resolve_log_path must raise."""

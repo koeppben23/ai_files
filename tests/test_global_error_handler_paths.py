@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import governance.infrastructure.logging.global_error_handler as geh
-from governance.infrastructure.logging.global_error_handler import emit_gate_failure, resolve_log_path
+import governance_runtime.infrastructure.logging.global_error_handler as geh
+from governance_runtime.infrastructure.logging.global_error_handler import emit_gate_failure, resolve_log_path
 
 
 def test_emit_gate_failure_without_fingerprint_writes_commands_log(tmp_path: Path) -> None:
@@ -22,12 +22,18 @@ def test_emit_gate_failure_without_fingerprint_writes_commands_log(tmp_path: Pat
         workspaces_home=workspaces_home,
         repo_fingerprint=None,
     )
-    assert ok is True
-    path = resolve_log_path(config_root=config_root, commands_home=commands_home, workspaces_home=workspaces_home, repo_fingerprint=None)
-    assert path.exists()
-    lines = path.read_text(encoding="utf-8").splitlines()
-    assert lines
-    assert json.loads(lines[-1])["code"] == "BLOCKED-REPO-ROOT-NOT-DETECTABLE"
+    # Workspace-only logging: without repo fingerprint there is no writable target.
+    assert ok is False
+    try:
+        resolve_log_path(
+            config_root=config_root,
+            commands_home=commands_home,
+            workspaces_home=workspaces_home,
+            repo_fingerprint=None,
+        )
+        raise AssertionError("resolve_log_path should fail without repo fingerprint")
+    except RuntimeError:
+        pass
 
 
 def test_emit_gate_failure_with_fingerprint_writes_workspace_log(tmp_path: Path) -> None:
@@ -74,19 +80,22 @@ def test_emit_gate_failure_supports_legacy_event_sink_signature(tmp_path: Path, 
         repo_fingerprint=None,
     )
 
-    assert ok is True
-    assert captured["called"] is True
+    # Workspace-only logging: no fingerprint => no path => sink is not called.
+    assert ok is False
+    assert captured["called"] is False
 
 
-def test_resolve_log_path_prefers_commands_home_before_config_root(tmp_path: Path) -> None:
+def test_resolve_log_path_requires_workspace_fingerprint_target(tmp_path: Path) -> None:
     config_root = tmp_path / "cfg"
     commands_home = tmp_path / "commands"
 
-    path = resolve_log_path(
-        config_root=config_root,
-        commands_home=commands_home,
-        workspaces_home=tmp_path / "workspaces",
-        repo_fingerprint=None,
-    )
-
-    assert path == commands_home / "logs" / "error.log.jsonl"
+    try:
+        resolve_log_path(
+            config_root=config_root,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            repo_fingerprint=None,
+        )
+        raise AssertionError("resolve_log_path should fail without workspace fingerprint")
+    except RuntimeError:
+        pass

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from governance.engine.business_rules_coverage import reconcile_code_extraction_payload
-from governance.engine.business_rules_validation import ORIGIN_CODE, RuleCandidate, validate_candidates
+from governance_runtime.engine.business_rules_coverage import reconcile_code_extraction_payload
+from governance_runtime.engine.business_rules_validation import ORIGIN_CODE, RuleCandidate, validate_candidates
 
 
 def _code_candidate(text: str) -> RuleCandidate:

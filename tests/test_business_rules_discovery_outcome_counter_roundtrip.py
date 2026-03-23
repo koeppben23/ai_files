@@ -16,12 +16,12 @@ Test categories:
 from __future__ import annotations
 
 import pytest
-from governance.engine.business_rules_hydration import (
+from governance_runtime.engine.business_rules_hydration import (
     _aggregate_discovery_outcome_counts,
     _build_code_extraction_counters,
     CodeExtractionCounters,
 )
-from governance.engine.business_rules_code_extraction import (
+from governance_runtime.engine.business_rules_code_extraction import (
     DISCOVERY_ACCEPTED,
     DISCOVERY_DROPPED_NON_BUSINESS_SURFACE,
     DISCOVERY_DROPPED_SCHEMA_ONLY,

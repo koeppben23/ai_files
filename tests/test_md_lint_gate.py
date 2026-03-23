@@ -9,24 +9,25 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+from tests.util import get_master_path, get_rules_path, get_docs_path, get_profiles_path, get_review_path
 
 
 @pytest.mark.governance
 def test_md_lint_runs_in_ci_mode_and_reports_json():
-    script = REPO_ROOT / "governance" / "entrypoints" / "md_lint.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "md_lint.py"
     assert script.exists(), "md_lint.py missing"
     files = [
-        REPO_ROOT / "master.md",
-        REPO_ROOT / "rules.md",
+        get_master_path(),
+        get_rules_path(),
         REPO_ROOT / "continue.md",
-        REPO_ROOT / "review.md",
-        REPO_ROOT / "docs" / "resume.md",
-        REPO_ROOT / "docs" / "resume_prompt.md",
-        REPO_ROOT / "docs" / "new_profile.md",
-        REPO_ROOT / "docs" / "new_addon.md",
+        get_review_path(),
+        get_docs_path() / "resume.md",
+        get_docs_path() / "resume_prompt.md",
+        get_docs_path() / "new_profile.md",
+        get_docs_path() / "new_addon.md",
         REPO_ROOT / "BOOTSTRAP.md",
     ]
-    files.extend(sorted((REPO_ROOT / "profiles").glob("rules*.md")))
+    files.extend(sorted((get_profiles_path()).glob("rules*.md")))
     file_args = [str(p) for p in files if p.exists()]
     proc = subprocess.run(
         [sys.executable, str(script), *file_args, "--ci"],

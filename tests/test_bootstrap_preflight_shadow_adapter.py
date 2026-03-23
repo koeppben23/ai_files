@@ -16,23 +16,19 @@ _POLICY_FILES = [
 
 
 def _copy_policy_files(commands_home: Path) -> None:
-    src_root = REPO_ROOT / "governance" / "assets"
+    src_root = REPO_ROOT / "governance_runtime" / "assets"
     for filename in _POLICY_FILES:
-        if filename == "blocked_reason_catalog.yaml":
-            src = src_root / "reasons" / filename
-            dst_dir = commands_home / "governance" / "assets" / "reasons"
-        else:
-            src = src_root / "config" / filename
-            dst_dir = commands_home / "governance" / "assets" / "config"
+        src = src_root / "config" / filename
+        dst_dir = commands_home / "governance_runtime" / "assets" / "config"
         if src.exists():
             dst_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst_dir / filename)
 
 
 def _load_module():
-    """Load governance/entrypoints/bootstrap_preflight_readonly.py as a module for testing."""
+    """Load governance_runtime/entrypoints/bootstrap_preflight_readonly.py as a module for testing."""
 
-    script = REPO_ROOT / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "bootstrap_preflight_readonly.py"
     spec = importlib.util.spec_from_file_location("bootstrap_preflight_readonly", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load bootstrap_preflight_readonly module")

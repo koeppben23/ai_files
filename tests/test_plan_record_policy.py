@@ -11,12 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from governance.application.policies.persistence_policy import (
+from governance_runtime.application.policies.persistence_policy import (
     ARTIFACT_PLAN_RECORD,
     PersistencePolicyInput,
     can_write,
 )
-from governance.persistence.write_policy import (
+from governance_runtime.persistence.write_policy import (
     _ALLOWED_CANONICAL_VARIABLES,
     evaluate_target_path,
 )
@@ -170,7 +170,7 @@ class TestPlanRecordArtifactConfig:
     def test_plan_record_in_artifacts_yaml(self) -> None:
         import yaml
 
-        yaml_path = REPO_ROOT / "governance" / "assets" / "config" / "persistence_artifacts.yaml"
+        yaml_path = REPO_ROOT / "governance_runtime" / "assets" / "config" / "persistence_artifacts.yaml"
         content = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
         artifacts = content.get("artifacts", {})
         assert "plan_record" in artifacts
@@ -178,7 +178,7 @@ class TestPlanRecordArtifactConfig:
     def test_plan_record_phase_window(self) -> None:
         import yaml
 
-        yaml_path = REPO_ROOT / "governance" / "assets" / "config" / "persistence_artifacts.yaml"
+        yaml_path = REPO_ROOT / "governance_runtime" / "assets" / "config" / "persistence_artifacts.yaml"
         content = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
         plan_record = content["artifacts"]["plan_record"]
         phase_window = plan_record.get("phase_window", {})
@@ -194,24 +194,24 @@ class TestPlanRecordArtifactConfig:
 class TestPlanRecordWorkspacePaths:
 
     def test_plan_record_path(self) -> None:
-        from governance.infrastructure.workspace_paths import plan_record_path
+        from governance_runtime.infrastructure.workspace_paths import plan_record_path
 
         result = plan_record_path(Path("/workspaces"), "a" * 24)
         assert result == Path("/workspaces") / ("a" * 24) / "plan-record.json"
 
     def test_plan_record_archive_dir(self) -> None:
-        from governance.infrastructure.workspace_paths import plan_record_archive_dir
+        from governance_runtime.infrastructure.workspace_paths import plan_record_archive_dir
 
         result = plan_record_archive_dir(Path("/workspaces"), "a" * 24)
         assert result == Path("/workspaces") / ("a" * 24) / "plan-record-archive"
 
     def test_plan_record_in_all_phase_artifact_paths(self) -> None:
-        from governance.infrastructure.workspace_paths import all_phase_artifact_paths
+        from governance_runtime.infrastructure.workspace_paths import all_phase_artifact_paths
 
         paths = all_phase_artifact_paths(Path("/workspaces"), "a" * 24)
         assert "plan_record" in paths
 
     def test_plan_record_in_phase4_artifacts(self) -> None:
-        from governance.infrastructure.workspace_paths import PHASE4_ARTIFACTS
+        from governance_runtime.infrastructure.workspace_paths import PHASE4_ARTIFACTS
 
         assert "plan-record.json" in PHASE4_ARTIFACTS

@@ -13,17 +13,17 @@ from pathlib import Path
 
 import pytest
 
-from governance.domain.regulated_mode import (
+from governance_runtime.domain.regulated_mode import (
     DEFAULT_CONFIG,
     RegulatedModeConfig,
     RegulatedModeState,
 )
-from governance.infrastructure.governed_archive import (
+from governance_runtime.infrastructure.governed_archive import (
     GovernedArchiveResult,
     governed_archive_active_run,
 )
-from governance.infrastructure.work_run_archive import WorkRunArchiveResult
-from governance.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.work_run_archive import WorkRunArchiveResult
+from governance_runtime.infrastructure.workspace_paths import run_dir
 
 
 # ---------------------------------------------------------------------------

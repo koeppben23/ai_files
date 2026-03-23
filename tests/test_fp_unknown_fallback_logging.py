@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.infrastructure.logging.global_error_handler import emit_error_event
+from governance_runtime.infrastructure.logging.global_error_handler import emit_error_event
 
 
-def test_fp_unknown_logs_to_commands_home(tmp_path: Path) -> None:
+def test_fp_unknown_has_no_writable_log_target(tmp_path: Path) -> None:
     commands_home = tmp_path / "commands"
     workspaces_home = tmp_path / "workspaces"
     commands_home.mkdir(parents=True, exist_ok=True)
@@ -20,6 +20,6 @@ def test_fp_unknown_logs_to_commands_home(tmp_path: Path) -> None:
         repo_fingerprint=None,
     )
 
-    assert ok is True
-    assert (commands_home / "logs" / "error.log.jsonl").exists()
-    assert not any((workspaces_home).rglob("error.log.jsonl"))
+    assert ok is False
+    assert not any(workspaces_home.rglob("error.log.jsonl"))
+    assert not any(commands_home.rglob("error.log.jsonl"))

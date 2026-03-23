@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-
-REPO_ROOT = Path(__file__).parent.parent
+from tests.util import REPO_ROOT, get_docs_path, get_master_path, get_profiles_path, get_rules_path, get_review_path
 
 
 def _strip_code_fences(text: str) -> str:
@@ -15,17 +13,17 @@ def _strip_code_fences(text: str) -> str:
 
 def test_md_rails_tripwire_operational_markers_absent():
     files = [
-        REPO_ROOT / "master.md",
-        REPO_ROOT / "rules.md",
-        REPO_ROOT / "continue.md",
-        REPO_ROOT / "review.md",
-        REPO_ROOT / "docs" / "resume.md",
-        REPO_ROOT / "docs" / "resume_prompt.md",
-        REPO_ROOT / "docs" / "new_profile.md",
-        REPO_ROOT / "docs" / "new_addon.md",
+        get_master_path(),
+        get_rules_path(),
+        REPO_ROOT / "opencode" / "commands" / "continue.md",
+        get_review_path(),
+        get_docs_path() / "resume.md",
+        get_docs_path() / "resume_prompt.md",
+        get_docs_path() / "new_profile.md",
+        get_docs_path() / "new_addon.md",
         REPO_ROOT / "BOOTSTRAP.md",
     ]
-    files.extend(sorted((REPO_ROOT / "profiles").glob("rules*.md")))
+    files.extend(sorted(get_profiles_path().glob("rules*.md")))
 
     patterns = [
         r"Policy \(this document\)",

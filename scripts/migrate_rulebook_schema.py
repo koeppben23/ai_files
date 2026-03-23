@@ -37,6 +37,14 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 
+
+def _resolve_rulesets_dir() -> Path:
+    candidates = [ROOT / "governance_spec" / "rulesets", ROOT / "rulesets"]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
 # ---------------------------------------------------------------------------
 # Migration registry
 # ---------------------------------------------------------------------------
@@ -137,7 +145,7 @@ def check_all(target_version: str | None = None) -> int:
     schema_version = target_version or _get_schema_version()
     schema_major = _parse_version(schema_version)[0]
 
-    rulesets_dir = ROOT / "rulesets"
+    rulesets_dir = _resolve_rulesets_dir()
     if not rulesets_dir.exists():
         print("No rulesets directory found.")
         return 1
@@ -182,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--target-version is required unless --check is used")
 
     target = args.target_version
-    rulesets_dir = ROOT / "rulesets"
+    rulesets_dir = _resolve_rulesets_dir()
     if not rulesets_dir.exists():
         print("No rulesets directory found.")
         return 1

@@ -13,7 +13,7 @@ from pathlib import Path
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[1]))
 
-from governance.entrypoints.new_work_session import main as new_work_session_main
+from governance_runtime.entrypoints.new_work_session import main as new_work_session_main
 
 
 def main() -> int:

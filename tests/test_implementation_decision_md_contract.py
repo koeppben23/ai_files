@@ -12,8 +12,8 @@ from .util import REPO_ROOT
 
 @pytest.mark.governance
 def test_implementation_decision_md_exists_and_documents_surface() -> None:
-    path = REPO_ROOT / "implementation-decision.md"
-    assert path.exists(), "implementation-decision.md must exist in repo root"
+    path = REPO_ROOT / "opencode" / "commands" / "implementation-decision.md"
+    assert path.exists(), "opencode/commands/implementation-decision.md must exist"
     content = path.read_text(encoding="utf-8")
     assert "--implementation-decision-persist" in content
     assert BIN_DIR_PLACEHOLDER in content

@@ -10,7 +10,7 @@ import pytest
 
 @pytest.mark.governance
 def test_bootstrap_service_lock_timeout_emits_gate_failure(tmp_path: Path):
-    script = Path(__file__).resolve().parents[1] / "governance" / "entrypoints" / "bootstrap_session_state_orchestrator.py"
+    script = Path(__file__).resolve().parents[1] / "governance_runtime" / "entrypoints" / "bootstrap_session_state_orchestrator.py"
     spec = importlib.util.spec_from_file_location("bootstrap_session_state_orchestrator", script)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -42,7 +42,7 @@ def test_bootstrap_service_lock_timeout_emits_gate_failure(tmp_path: Path):
                     "commandsHome": str(config_root / "commands"),
                     "workspacesHome": str(config_root / "workspaces"),
                 },
-                config_root / "commands" / "governance.paths.json",
+                config_root / "governance.paths.json",
             ),
         ):
             with patch.object(module, "resolve_repo_root_ssot", return_value=(repo_root, "explicit")):

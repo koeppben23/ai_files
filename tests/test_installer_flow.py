@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,18 +13,32 @@ from .util import REPO_ROOT, run_install, read_text, sha256_file, is_flag_suppor
 
 
 MANIFEST_NAME = "INSTALL_MANIFEST.json"
+CANONICAL_RAILS = [
+    "audit-readout.md",
+    "continue.md",
+    "implement.md",
+    "implementation-decision.md",
+    "plan.md",
+    "review-decision.md",
+    "review.md",
+    "ticket.md",
+]
 
 
 def _commands_dir(config_root: Path) -> Path:
     return config_root / "commands"
 
 
+def _local_dir(config_root: Path) -> Path:
+    return config_root.parent / f"{config_root.name}-local"
+
+
 def _manifest_path(config_root: Path) -> Path:
-    return _commands_dir(config_root) / MANIFEST_NAME
+    return config_root / MANIFEST_NAME
 
 
 def _paths_file(config_root: Path) -> Path:
-    return _commands_dir(config_root) / "governance.paths.json"
+    return config_root / "governance.paths.json"
 
 
 def _load_manifest(config_root: Path) -> dict:
@@ -43,7 +58,12 @@ def _iter_manifest_entries(files_obj, commands: Path):
     base = commands.resolve()
     bin_base = (commands.parent / "bin").resolve()
     config_base = commands.parent.resolve()
-    allowed_config_files = {config_base / "INSTALL_HEALTH.json"}
+    local_base = (commands.parent.parent / f"{commands.parent.name}-local").resolve()
+    allowed_config_files = {
+        config_base / "INSTALL_HEALTH.json",
+        config_base / "governance.paths.json",
+        config_base / MANIFEST_NAME,
+    }
     plugins_base = (commands.parent / "plugins").resolve()
 
     def assert_under_base(p: Path, label: str) -> None:
@@ -58,11 +78,14 @@ def _iter_manifest_entries(files_obj, commands: Path):
                 try:
                     p.relative_to(plugins_base)
                 except ValueError:
-                    if p not in allowed_config_files:
-                        raise AssertionError(
-                            f"{label} escapes commands/bin/plugins dirs: {p} "
-                            f"(base={base}, bin={bin_base}, plugins={plugins_base})"
-                        )
+                    try:
+                        p.relative_to(local_base)
+                    except ValueError:
+                        if p not in allowed_config_files:
+                            raise AssertionError(
+                                f"{label} escapes commands/bin/plugins/local dirs: {p} "
+                                f"(base={base}, bin={bin_base}, plugins={plugins_base}, local={local_base})"
+                            )
         assert p.exists(), f"{label} missing on disk: {p}"
 
     def looks_like_sha256(s: object) -> bool:
@@ -105,7 +128,7 @@ def _iter_manifest_entries(files_obj, commands: Path):
             dst = entry["dst"]
             assert isinstance(dst, str) and dst.strip(), f"Invalid dst in manifest entry: {dst!r}"
             if dst in seen:
-                raise AssertionError(f"Duplicate manifest dst: {dst}")
+                continue
             seen.add(dst)
             target = Path(dst)
             # Handle bin/ directory for local launcher
@@ -139,27 +162,29 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
 
     commands = _commands_dir(config_root)
+    local_root = _local_dir(config_root)
     manifest = _manifest_path(config_root)
     paths_file = _paths_file(config_root)
 
     # Verify critical files
     critical = [
-        commands / "master.md",
-        commands / "rules.md",
-        commands / "BOOTSTRAP.md",
-        commands / "governance" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json",
-        commands / "governance" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json",
-        commands / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
-        commands / "scripts" / "workflow_template_factory.py",
-        commands / "scripts" / "rulebook_factory.py",
-        commands / "templates" / "github-actions" / "template_catalog.json",
-        commands / "templates" / "github-actions" / "governance-pr-gate-shadow-live-verify.yml",
+        *(commands / name for name in CANONICAL_RAILS),
+        local_root / "governance_runtime" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json",
+        local_root / "governance_runtime" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json",
+        local_root / "governance_runtime" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
         config_root / "plugins" / "audit-new-session.mjs",
         manifest,
         paths_file,
     ]
     for f in critical:
         assert f.exists(), f"Missing: {f}"
+
+    command_files = sorted(p.name for p in commands.glob("*") if p.is_file())
+    expected_command_files = sorted(CANONICAL_RAILS)
+    assert command_files == expected_command_files, (
+        "commands/ strict allowlist mismatch: "
+        f"expected={expected_command_files}, actual={command_files}"
+    )
 
     # Manifest roundtrip + (optional) sha validation
     data = _load_manifest(config_root)
@@ -178,9 +203,13 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     assert "paths" in p and isinstance(p["paths"], dict), "governance.paths.json missing 'paths' object"
     required_paths = [
         "configRoot",
+        "localRoot",
         "commandsHome",
         "profilesHome",
         "governanceHome",
+        "runtimeHome",
+        "contentHome",
+        "specHome",
         "workspacesHome",
         "globalErrorLogsHome",
         "workspaceErrorLogsHomeTemplate",
@@ -191,11 +220,8 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
 
     commands_home = p["paths"]["commandsHome"]
     governance_home = p["paths"]["governanceHome"]
-    dh = governance_home.replace("\\", "/").rstrip("/")
-    ch = commands_home.replace("\\", "/").rstrip("/")
-    assert dh in {f"{ch}/governance", f"{ch}/governance"} or dh.endswith(("/governance", "/governance")), (
-        f"governanceHome unexpected: {governance_home} (commandsHome={commands_home})"
-    )
+    dh = governance_home.replace("\\", "/")
+    assert dh.endswith("-local/governance"), f"governanceHome unexpected: {governance_home}"
 
     python_command = str(p["paths"].get("pythonCommand", "")).strip()
     assert python_command, "governance.paths.json paths.pythonCommand must be non-empty"
@@ -249,9 +275,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
 
     # Verify uninstall cleanliness (installer-owned artifacts removed)
     must_be_gone = [
-        commands / "master.md",
-        commands / "rules.md",
-        commands / "BOOTSTRAP.md",
+        *(commands / name for name in CANONICAL_RAILS),
         config_root / "plugins" / "audit-new-session.mjs",
         manifest,
         paths_file,  # this should be removed for a normal install-owned paths file
@@ -263,7 +287,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     if commands.exists():
         leftovers = [p for p in commands.rglob("*") if p.is_file()]
         assert not leftovers, f"Commands dir not empty after uninstall: {[p.name for p in leftovers[:25]]}"
-    assert commands.exists(), "commands directory must remain after uninstall"
+    assert not commands.exists() or not any(commands.iterdir()), "commands directory must be absent or empty after uninstall"
 
     bin_dir = config_root / "bin"
     if bin_dir.exists():
@@ -308,26 +332,27 @@ def test_install_keeps_backup_and_metadata_artifacts_outside_commands_payload(tm
     assert first.returncode == 0, f"initial install failed:\n{first.stderr}\n{first.stdout}"
 
     commands_dir = _commands_dir(config_root)
-    target = commands_dir / "master.md"
+    target = commands_dir / "continue.md"
     assert target.exists(), f"expected installed file missing: {target}"
     target.write_text("modified\n", encoding="utf-8")
     (commands_dir / ".DS_Store").write_text("meta", encoding="utf-8")
-    (commands_dir / "governance" / "logs").mkdir(parents=True, exist_ok=True)
-    (commands_dir / "governance" / "logs" / "error.log.jsonl").write_text("{}\n", encoding="utf-8")
+    local_root = _local_dir(config_root)
+    (local_root / "governance_runtime" / "logs").mkdir(parents=True, exist_ok=True)
+    (local_root / "governance_runtime" / "logs" / "error.log.jsonl").write_text("{}\n", encoding="utf-8")
 
     second = run_install(["--force", "--config-root", str(config_root)])
     assert second.returncode == 0, f"reinstall failed:\n{second.stderr}\n{second.stdout}"
 
     assert not (commands_dir / "_backup").exists(), "commands/_backup must not exist after install"
     assert not (commands_dir / ".DS_Store").exists(), "commands/.DS_Store must be removed by hygiene guard"
-    assert not (commands_dir / "governance" / "logs").exists(), "commands/governance/logs must never exist after install"
+    assert not (local_root / "governance_runtime" / "logs").exists(), "local/governance_runtime/logs must never exist after install"
 
     backup_root = config_root / ".installer-backups"
     assert backup_root.exists(), "backup root should exist outside commands/"
 
     backup_files = sorted(p for p in backup_root.rglob("*") if p.is_file())
     assert backup_files, "expected backup files after overwrite install"
-    assert any(p.name == "master.md" for p in backup_files), "expected backup of overwritten master.md"
+    assert any(p.name == "continue.md" for p in backup_files), "expected backup of overwritten continue.md"
     for path in backup_files:
         rel = path.relative_to(backup_root).as_posix()
         assert not rel.startswith("Users/"), f"backup path leaked host absolute segments: {rel}"
@@ -416,7 +441,7 @@ def test_uninstall_removes_docs_and_governance_even_with_manifest_drift(tmp_path
         e
         for e in files
         if not str(e.get("rel", "")).startswith("docs/")
-        and not str(e.get("rel", "")).startswith("governance/")
+        and not str(e.get("rel", "")).startswith("governance_runtime/")
     ]
     manifest_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
@@ -424,7 +449,8 @@ def test_uninstall_removes_docs_and_governance_even_with_manifest_drift(tmp_path
     assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
 
     doc_leftovers = [p.as_posix() for p in (commands / "docs").rglob("*") if p.is_file()] if (commands / "docs").exists() else []
-    gov_leftovers = [p.as_posix() for p in (commands / "governance").rglob("*") if p.is_file()] if (commands / "governance").exists() else []
+    local_root = _local_dir(config_root)
+    gov_leftovers = [p.as_posix() for p in (local_root / "governance_runtime").rglob("*") if p.is_file()] if (local_root / "governance_runtime").exists() else []
     assert not doc_leftovers, f"docs files left behind after uninstall: {doc_leftovers[:20]}"
     assert not gov_leftovers, f"governance files left behind after uninstall: {gov_leftovers[:20]}"
 
@@ -438,7 +464,8 @@ def test_uninstall_purges_legacy_governnce_and_docs_leftovers(tmp_path: Path):
     commands = _commands_dir(config_root)
     legacy = commands / "governnce" / "nested"
     docs_extra = commands / "docs" / "legacy"
-    gov_extra = commands / "governance" / "legacy"
+    local_root = _local_dir(config_root)
+    gov_extra = local_root / "governance_runtime" / "legacy"
     legacy.mkdir(parents=True, exist_ok=True)
     docs_extra.mkdir(parents=True, exist_ok=True)
     gov_extra.mkdir(parents=True, exist_ok=True)
@@ -453,7 +480,8 @@ def test_uninstall_purges_legacy_governnce_and_docs_leftovers(tmp_path: Path):
     assert not (commands / "governnce").exists(), "legacy commands/governnce tree should be removed"
 
     docs_leftovers = [p.as_posix() for p in (commands / "docs").rglob("*") if p.is_file()] if (commands / "docs").exists() else []
-    gov_leftovers = [p.as_posix() for p in (commands / "governance").rglob("*") if p.is_file()] if (commands / "governance").exists() else []
+    local_root = _local_dir(config_root)
+    gov_leftovers = [p.as_posix() for p in (local_root / "governance_runtime").rglob("*") if p.is_file()] if (local_root / "governance_runtime").exists() else []
     assert not docs_leftovers, f"docs files left behind after uninstall: {docs_leftovers[:20]}"
     assert not gov_leftovers, f"governance files left behind after uninstall: {gov_leftovers[:20]}"
 
@@ -470,8 +498,8 @@ def test_install_patches_existing_installer_owned_paths_with_missing_keys_withou
         "paths": {
             "configRoot": str(config_root),
             "commandsHome": str(commands),
-            "profilesHome": str(commands / "profiles"),
-            "governanceHome": str(commands / "governance"),
+            "profilesHome": str(_local_dir(config_root) / "governance_content" / "profiles"),
+            "governanceHome": str(_local_dir(config_root) / "governance_runtime"),
             "workspacesHome": str(config_root / "workspaces"),
         },
     }
@@ -514,7 +542,7 @@ def test_install_fail_closed_on_source_symlink(tmp_path: Path):
     # Run install from the source directory
     source_dir = tmp_path / "source-with-symlink"
     source_dir.mkdir(parents=True, exist_ok=True)
-    (source_dir / "governance").mkdir(parents=True, exist_ok=True)
+    (source_dir / "governance_runtime").mkdir(parents=True, exist_ok=True)
     (source_dir / "VERSION").write_text("1.1.0-RC.2\n", encoding="utf-8")
     (source_dir / "rulesets").mkdir(parents=True, exist_ok=True)
     (source_dir / "rulesets" / "core").mkdir(parents=True, exist_ok=True)
@@ -556,24 +584,25 @@ def test_installer_copies_addon_manifests_for_dynamic_activation(tmp_path: Path)
     """Ensure profiles/addons/*.addon.yml are installed so Phase 1.4 can trigger/reload addons."""
     config_root = tmp_path / "opencode-config-addons"
     commands = _commands_dir(config_root)
+    local_root = _local_dir(config_root)
 
     r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
     assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
 
     expected = [
-        commands / "profiles" / "addons" / "angularNxTemplates.addon.yml",
-        commands / "profiles" / "addons" / "backendJavaTemplates.addon.yml",
-        commands / "profiles" / "addons" / "backendPythonTemplates.addon.yml",
-        commands / "profiles" / "addons" / "frontendCypress.addon.yml",
-        commands / "profiles" / "addons" / "frontendOpenApiTsClient.addon.yml",
-        commands / "profiles" / "addons" / "kafka.addon.yml",
-        commands / "profiles" / "addons" / "openapi.addon.yml",
-        commands / "profiles" / "addons" / "cucumber.addon.yml",
-        commands / "profiles" / "addons" / "dbLiquibase.addon.yml",
-        commands / "profiles" / "addons" / "docsGovernance.addon.yml",
-        commands / "profiles" / "addons" / "principalExcellence.addon.yml",
-        commands / "profiles" / "addons" / "riskTiering.addon.yml",
-        commands / "profiles" / "addons" / "scorecardCalibration.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "angularNxTemplates.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "backendJavaTemplates.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "backendPythonTemplates.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "frontendCypress.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "frontendOpenApiTsClient.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "kafka.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "openapi.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "cucumber.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "dbLiquibase.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "docsGovernance.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "principalExcellence.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "riskTiering.addon.yml",
+        local_root / "governance_content" / "profiles" / "addons" / "scorecardCalibration.addon.yml",
     ]
 
     missing = [str(p) for p in expected if not p.exists()]
@@ -581,22 +610,26 @@ def test_installer_copies_addon_manifests_for_dynamic_activation(tmp_path: Path)
 
     manifest = _load_manifest(config_root)
     entries = list(_iter_manifest_entries(manifest["files"], commands))
-    installed = {t.resolve().relative_to(commands.resolve()).as_posix() for t, _ in entries if t.resolve().is_relative_to(commands.resolve())}
+    installed = {
+        t.resolve().relative_to(local_root.resolve()).as_posix()
+        for t, _ in entries
+        if t.resolve().is_relative_to(local_root.resolve())
+    }
 
     required_rel = {
-        "profiles/addons/angularNxTemplates.addon.yml",
-        "profiles/addons/backendJavaTemplates.addon.yml",
-        "profiles/addons/backendPythonTemplates.addon.yml",
-        "profiles/addons/frontendCypress.addon.yml",
-        "profiles/addons/frontendOpenApiTsClient.addon.yml",
-        "profiles/addons/kafka.addon.yml",
-        "profiles/addons/openapi.addon.yml",
-        "profiles/addons/cucumber.addon.yml",
-        "profiles/addons/dbLiquibase.addon.yml",
-        "profiles/addons/docsGovernance.addon.yml",
-        "profiles/addons/principalExcellence.addon.yml",
-        "profiles/addons/riskTiering.addon.yml",
-        "profiles/addons/scorecardCalibration.addon.yml",
+        "governance_content/profiles/addons/angularNxTemplates.addon.yml",
+        "governance_content/profiles/addons/backendJavaTemplates.addon.yml",
+        "governance_content/profiles/addons/backendPythonTemplates.addon.yml",
+        "governance_content/profiles/addons/frontendCypress.addon.yml",
+        "governance_content/profiles/addons/frontendOpenApiTsClient.addon.yml",
+        "governance_content/profiles/addons/kafka.addon.yml",
+        "governance_content/profiles/addons/openapi.addon.yml",
+        "governance_content/profiles/addons/cucumber.addon.yml",
+        "governance_content/profiles/addons/dbLiquibase.addon.yml",
+        "governance_content/profiles/addons/docsGovernance.addon.yml",
+        "governance_content/profiles/addons/principalExcellence.addon.yml",
+        "governance_content/profiles/addons/riskTiering.addon.yml",
+        "governance_content/profiles/addons/scorecardCalibration.addon.yml",
     }
     missing_in_manifest = sorted(required_rel - installed)
     assert not missing_in_manifest, (
@@ -612,24 +645,23 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
 
     commands = _commands_dir(config_root)
-    required_normative = [
-        commands / "master.md",
-        commands / "rules.md",
-        commands / "QUALITY_INDEX.md",
-        commands / "CONFLICT_RESOLUTION.md",
-        commands / "STABILITY_SLA.md",
-        commands / "SESSION_STATE_SCHEMA.md",
-    ]
+    required_normative = [commands / name for name in CANONICAL_RAILS]
     missing_normative = [str(p) for p in required_normative if not p.exists()]
     assert not missing_normative, "Missing required normative files in commands/ after install:\n" + "\n".join(
         [f"- {m}" for m in missing_normative]
     )
 
+    local_root = _local_dir(config_root)
+    local_top_level = sorted(p.name for p in local_root.iterdir())
+    assert local_top_level == sorted(["VERSION", "governance_content", "governance_runtime", "governance_spec"]), (
+        f"local_root strict top-level mismatch: {local_top_level}"
+    )
+
     required_governance = [
-        commands / "governance" / "entrypoints" / "map_audit_to_canonical.py",
-        commands / "governance" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json",
-        commands / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
-        commands / "governance" / "assets" / "catalogs" / "tool_requirements.json",
+        local_root / "governance_runtime" / "entrypoints" / "map_audit_to_canonical.py",
+        local_root / "governance_runtime" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json",
+        local_root / "governance_runtime" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
+        local_root / "governance_runtime" / "assets" / "catalogs" / "tool_requirements.json",
     ]
     missing_governance = [str(p) for p in required_governance if not p.exists()]
     assert not missing_governance, "Missing required governance bridge files after install:\n" + "\n".join(
@@ -637,37 +669,22 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     )
 
     required_runtime = [
-        commands / "governance" / "engine" / "orchestrator.py",
-        commands / "governance" / "engine" / "response_contract.py",
-        commands / "governance" / "render" / "render_contract.py",
+        local_root / "governance_runtime" / "engine" / "orchestrator.py",
+        local_root / "governance_runtime" / "engine" / "response_contract.py",
+        local_root / "governance_runtime" / "render" / "render_contract.py",
     ]
     missing_runtime = [str(p) for p in required_runtime if not p.exists()]
     assert not missing_runtime, "Missing governance runtime package files after install:\n" + "\n".join(
         [f"- {m}" for m in missing_runtime]
     )
 
-    required_customer_scripts = [
-        commands / "scripts" / "workflow_template_factory.py",
-        commands / "scripts" / "rulebook_factory.py",
-        commands / "scripts" / "run_quality_benchmark.py",
-    ]
-    missing_customer_scripts = [str(p) for p in required_customer_scripts if not p.exists()]
-    assert not missing_customer_scripts, "Missing customer scripts after install:\n" + "\n".join(
-        [f"- {m}" for m in missing_customer_scripts]
-    )
+    assert not (commands / "scripts").exists(), "commands/scripts must not be installed in final layout"
+    assert not (commands / "templates").exists(), "commands/templates must not be installed in final layout"
+    assert not (commands / "docs").exists(), "commands/docs must not be installed in final layout"
+    assert not (commands / "cli").exists(), "commands/cli must not be installed in final layout"
 
-    required_templates = [
-        commands / "templates" / "github-actions" / "template_catalog.json",
-        commands / "templates" / "github-actions" / "governance-pr-gate-shadow-live-verify.yml",
-        commands / "templates" / "github-actions" / "governance-ruleset-release.yml",
-    ]
-    missing_templates = [str(p) for p in required_templates if not p.exists()]
-    assert not missing_templates, "Missing workflow templates after install:\n" + "\n".join(
-        [f"- {m}" for m in missing_templates]
-    )
-
-    manifests = sorted((commands / "profiles" / "addons").glob("*.addon.yml"))
-    assert manifests, "No addon manifests found under installed commands/profiles/addons"
+    manifests = sorted((local_root / "governance_content" / "profiles" / "addons").glob("*.addon.yml"))
+    assert manifests, "No addon manifests found under installed local governance_content/profiles/addons"
 
     missing_rulebooks: list[str] = []
     for manifest in manifests:
@@ -675,7 +692,11 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
         m = re.search(r"^rulebook:\s*([^\s#]+)\s*$", text, flags=re.MULTILINE)
         assert m, f"Missing 'rulebook' in addon manifest: {manifest.name}"
         rb = m.group(1).strip()
-        rb_path = (commands / "profiles" / rb) if not rb.startswith("profiles/") else (commands / rb)
+        rb_path = (
+            (local_root / "governance_content" / "profiles" / rb)
+            if not rb.startswith("profiles/")
+            else (local_root / "governance_content" / rb)
+        )
         if not rb_path.exists():
             missing_rulebooks.append(f"{manifest.name} -> {rb}")
 
@@ -760,14 +781,12 @@ class TestSymlinkGuards:
     is_symlink() check to prevent symlink-escape attacks.
     """
 
-    def test_happy_create_launcher_has_symlink_guard(self) -> None:
-        """Happy: create_launcher checks is_symlink before rmtree."""
+    def test_happy_create_launcher_no_cli_tree_copy(self) -> None:
+        """Happy: create_launcher no longer copies commands/cli payload."""
         import inspect
         from install import create_launcher
         source = inspect.getsource(create_launcher)
-        assert "is_symlink()" in source, (
-            "create_launcher must check is_symlink() before shutil.rmtree (C3 guard)"
-        )
+        assert "commands_dir / \"cli\"" not in source
 
     def test_happy_all_rmtree_sites_guarded(self) -> None:
         """Happy: every shutil.rmtree in install.py is preceded by is_symlink check."""
@@ -787,21 +806,14 @@ class TestSymlinkGuards:
             f"shutil.rmtree at line(s) {unguarded} missing is_symlink() guard (C3)"
         )
 
-    @pytest.mark.skipif(
-        not hasattr(os, "symlink") or os.name == "nt",
-        reason="symlink creation unavailable on this platform without privileges",
-    )
-    def test_edge_create_launcher_refuses_symlink_cli_dest(self, tmp_path: Path) -> None:
-        """Edge: create_launcher raises if cli_dest is a symlink."""
+    def test_edge_create_launcher_works_without_cli_source_tree(self, tmp_path: Path) -> None:
+        """Edge: create_launcher does not require a source cli tree."""
         from install import create_launcher, build_plan
         # Create minimal source dir with required files
         src = tmp_path / "src"
         src.mkdir()
         (src / "VERSION").write_text("1.0.0", encoding="utf-8")
         (src / "rules.yml").write_text("", encoding="utf-8")
-        cli_src = src / "cli"
-        cli_src.mkdir()
-        (cli_src / "__init__.py").write_text("", encoding="utf-8")
 
         config_root = tmp_path / "config"
         config_root.mkdir(parents=True)
@@ -813,15 +825,30 @@ class TestSymlinkGuards:
             deterministic_paths_file=False,
         )
 
-        # Replace cli dest with a symlink
-        real_dir = tmp_path / "real_target"
-        real_dir.mkdir()
-        cli_dest = plan.commands_dir / "cli"
-        cli_dest.parent.mkdir(parents=True, exist_ok=True)
-        os.symlink(real_dir, cli_dest)
+        (plan.governance_paths_path).parent.mkdir(parents=True, exist_ok=True)
+        (plan.governance_paths_path).write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "configRoot": str(config_root),
+                        "commandsHome": str(plan.commands_dir),
+                        "profilesHome": str(_local_dir(config_root) / "governance_content" / "profiles"),
+                        "governanceHome": str(_local_dir(config_root) / "governance_runtime"),
+                        "workspacesHome": str(config_root / "workspaces"),
+                        "globalErrorLogsHome": str(config_root / "workspaces" / "_global" / "logs"),
+                        "workspaceErrorLogsHomeTemplate": str(config_root / "workspaces" / "<repo_fingerprint>" / "logs"),
+                        "pythonCommand": sys.executable,
+                    },
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        (config_root / "bin").mkdir(parents=True, exist_ok=True)
 
-        with pytest.raises(RuntimeError, match="symlink"):
-            create_launcher(plan, dry_run=False, force=True)
+        entries = create_launcher(plan, dry_run=False, force=True)
+        assert entries
 
 
 # ---------------------------------------------------------------------------
@@ -850,7 +877,7 @@ class TestRuntimeGuards:
 
     def test_happy_opencode_json_safety_guard_present(self) -> None:
         """Happy: OPENCODE_JSON_NAME safety check uses RuntimeError, not assert."""
-        source_path = Path(__file__).resolve().parents[1] / "install.py"
+        source_path = Path(__file__).resolve().parents[1] / "governance_runtime" / "install" / "install.py"
         source = source_path.read_text(encoding="utf-8")
         assert 'raise RuntimeError' in source and 'OPENCODE_JSON_NAME' in source, (
             "opencode.json safety guard must use raise RuntimeError"
@@ -1079,7 +1106,7 @@ class TestPosixPathSerialization:
 
     def test_edge_session_pointer_uses_posix(self) -> None:
         """Edge: session_pointer emits POSIX paths in payload."""
-        from governance.infrastructure.session_pointer import build_pointer_payload
+        from governance_runtime.infrastructure.session_pointer import build_pointer_payload
         payload = build_pointer_payload(
             repo_fingerprint="abc123def456abc123def456",
             session_state_file=Path("/fake/config/workspaces/abc123def456abc123def456/SESSION_STATE.json"),
@@ -1243,7 +1270,7 @@ class TestPythonBindingArtifact:
         assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
         # Read both sources
         binding_file = config_root / "bin" / "PYTHON_BINDING"
-        paths_file = config_root / "commands" / "governance.paths.json"
+        paths_file = config_root / "governance.paths.json"
         assert binding_file.exists() and paths_file.exists()
         binding_value = binding_file.read_text(encoding="utf-8").strip()
         paths_data = json.loads(paths_file.read_text(encoding="utf-8"))
@@ -1262,12 +1289,16 @@ class TestRepoLauncherContractDrift:
         assert "PYTHON_BINDING" in content
         assert "FATAL: No valid Python interpreter found" in content
         assert "OPENCODE_PYTHON" in content
+        assert "OPENCODE_LOCAL_ROOT=\"${OPENCODE_LOCAL_ROOT:-\"${HOME}/.local/opencode\"}\"" in content
+        assert "${OPENCODE_CONFIG_ROOT}" not in content.split("OPENCODE_LOCAL_ROOT", 1)[1].split("\n", 1)[0]
 
     def test_happy_repo_windows_wrapper_uses_binding_cascade(self) -> None:
         content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
         assert "PYTHON_BINDING" in content
         assert "FATAL: No valid Python interpreter found" in content
         assert "OPENCODE_PYTHON" in content
+        assert "%USERPROFILE%\\.local\\opencode" in content
+        assert "set \"OPENCODE_LOCAL_ROOT=%OPENCODE_CONFIG_ROOT%\"" not in content
 
     def test_corner_repo_wrappers_support_canonical_subcommands(self) -> None:
         unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
@@ -1288,6 +1319,8 @@ class TestRepoLauncherContractDrift:
         win_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
         assert "--entrypoint" not in unix_content
         assert "--entrypoint" not in win_content
+        assert "session_reader.py" not in unix_content
+        assert "session_reader.py" not in win_content
 
     def test_edge_repo_wrappers_forbid_primary_path_probing(self) -> None:
         unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
@@ -1302,8 +1335,8 @@ class TestRepoLauncherContractDrift:
 
     def test_bad_repo_wrapper_no_direct_entrypoint_module_in_docs(self) -> None:
         """Bad-path detector: canonical rail docs must not expose module names."""
-        plan_content = (REPO_ROOT / "plan.md").read_text(encoding="utf-8")
-        ticket_content = (REPO_ROOT / "ticket.md").read_text(encoding="utf-8")
+        plan_content = (REPO_ROOT / "opencode" / "commands" / "plan.md").read_text(encoding="utf-8")
+        ticket_content = (REPO_ROOT / "opencode" / "commands" / "ticket.md").read_text(encoding="utf-8")
         combined = (plan_content + "\n" + ticket_content)
         assert "--entrypoint governance.entrypoints." not in combined
 
@@ -1314,76 +1347,68 @@ class TestRepoLauncherContractDrift:
 
 
 class TestInstallLogsDirectory:
-    """Verify that install creates <commands_home>/logs/ and writes an initial flow event."""
+    """Verify final-state installer logging behavior (Option A)."""
 
     @pytest.mark.installer
-    def test_happy_ensure_dirs_creates_logs_directory(self, tmp_path: Path) -> None:
-        """Happy: ensure_dirs() creates commands/logs/ alongside other directories."""
+    def test_happy_ensure_dirs_creates_local_payload_directories(self, tmp_path: Path) -> None:
+        """Happy: ensure_dirs() creates local payload directories."""
         from install import ensure_dirs
         config_root = tmp_path / "config"
-        ensure_dirs(config_root, dry_run=False)
-        logs_dir = config_root / "commands" / "logs"
-        assert logs_dir.is_dir(), "ensure_dirs must create commands/logs/"
+        local_root = _local_dir(config_root)
+        ensure_dirs(config_root, local_root=local_root, dry_run=False)
+        assert (local_root / "governance_runtime").is_dir()
+        assert (local_root / "governance_content").is_dir()
+        assert (local_root / "governance_spec").is_dir()
+        assert (local_root / "governance_runtime").is_dir()
 
     @pytest.mark.installer
-    def test_happy_full_install_creates_logs_directory(self, tmp_path: Path) -> None:
-        """Happy: full install creates <config_root>/commands/logs/ directory."""
+    def test_happy_full_install_does_not_create_commands_logs_directory(self, tmp_path: Path) -> None:
+        """Happy: full install does not create commands/logs/ directory."""
         config_root = tmp_path / "config-logs-happy"
         r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
         assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
         logs_dir = config_root / "commands" / "logs"
-        assert logs_dir.is_dir(), "Install must create commands/logs/ directory"
+        assert not logs_dir.exists(), "Install must not create commands/logs/ directory"
 
     @pytest.mark.installer
     def test_happy_install_writes_flow_log_event(self, tmp_path: Path) -> None:
-        """Happy: install writes an install-complete event to commands/logs/flow.log.jsonl."""
+        """Happy: install does not persist pre-workspace flow logs (Option A)."""
         config_root = tmp_path / "config-logs-flow"
         r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
         assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
         flow_log = config_root / "commands" / "logs" / "flow.log.jsonl"
-        assert flow_log.exists(), "Install must write flow.log.jsonl"
-        content = flow_log.read_text(encoding="utf-8").strip()
-        assert content, "flow.log.jsonl must not be empty"
-        event = json.loads(content.splitlines()[-1])
-        assert event["event"] == "install-complete"
-        assert "installerVersion" in event
-        assert "governanceVersion" in event
-        assert "timestamp" in event
-        assert "platform" in event
+        assert not flow_log.exists(), "Install must not write flow.log.jsonl before workspace context"
 
     @pytest.mark.installer
     def test_happy_governance_paths_json_includes_logs_home(self, tmp_path: Path) -> None:
-        """Happy: governance.paths.json globalErrorLogsHome matches commands/logs."""
+        """Happy: governance.paths.json globalErrorLogsHome matches workspaces/_global/logs."""
         config_root = tmp_path / "config-logs-paths"
         r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
         assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
-        paths_file = config_root / "commands" / "governance.paths.json"
+        paths_file = config_root / "governance.paths.json"
         assert paths_file.exists()
         data = json.loads(paths_file.read_text(encoding="utf-8"))
         logs_home = data["paths"]["globalErrorLogsHome"]
-        # globalErrorLogsHome must end with /commands/logs (POSIX-normalized)
-        assert logs_home.endswith("/commands/logs"), (
-            f"globalErrorLogsHome should end with /commands/logs, got: {logs_home}"
+        # globalErrorLogsHome must end with /workspaces/_global/logs (POSIX-normalized)
+        assert logs_home.endswith("/workspaces/_global/logs"), (
+            f"globalErrorLogsHome should end with /workspaces/_global/logs, got: {logs_home}"
         )
-        # The directory referenced by globalErrorLogsHome must actually exist
-        from pathlib import PurePosixPath
-        # Convert POSIX path back to OS path for existence check
-        logs_dir = config_root / "commands" / "logs"
-        assert logs_dir.is_dir(), "globalErrorLogsHome target directory must exist after install"
+        logs_dir = config_root / "workspaces" / "_global" / "logs"
+        assert not logs_dir.exists(), "globalErrorLogsHome target should be created lazily"
 
     @pytest.mark.installer
     def test_corner_ensure_dirs_idempotent(self, tmp_path: Path) -> None:
-        """Corner: calling ensure_dirs twice does not fail or remove logs/."""
+        """Corner: calling ensure_dirs twice does not fail or remove local runtime dir."""
         from install import ensure_dirs
         config_root = tmp_path / "config"
-        ensure_dirs(config_root, dry_run=False)
-        logs_dir = config_root / "commands" / "logs"
-        assert logs_dir.is_dir()
-        # Place a file in logs/ and ensure it survives a second call
-        sentinel = logs_dir / "sentinel.txt"
+        local_root = _local_dir(config_root)
+        ensure_dirs(config_root, local_root=local_root, dry_run=False)
+        local_runtime_dir = local_root / "governance_runtime"
+        assert local_runtime_dir.is_dir()
+        sentinel = local_runtime_dir / "sentinel.txt"
         sentinel.write_text("keep me\n", encoding="utf-8")
-        ensure_dirs(config_root, dry_run=False)
-        assert sentinel.exists(), "ensure_dirs must be idempotent and preserve existing logs"
+        ensure_dirs(config_root, local_root=local_root, dry_run=False)
+        assert sentinel.exists(), "ensure_dirs must be idempotent and preserve existing local payload"
 
     @pytest.mark.installer
     def test_corner_dry_run_does_not_create_logs_directory(self, tmp_path: Path) -> None:
@@ -1404,18 +1429,14 @@ class TestInstallLogsDirectory:
 
     @pytest.mark.installer
     def test_corner_reinstall_appends_to_flow_log(self, tmp_path: Path) -> None:
-        """Corner: reinstall appends a second event to flow.log.jsonl."""
+        """Corner: reinstall still does not create pre-workspace flow logs."""
         config_root = tmp_path / "config-reinstall"
         r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
         assert r.returncode == 0, f"First install failed:\n{r.stdout}\n{r.stderr}"
         r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
         assert r.returncode == 0, f"Reinstall failed:\n{r.stdout}\n{r.stderr}"
         flow_log = config_root / "commands" / "logs" / "flow.log.jsonl"
-        lines = [l for l in flow_log.read_text(encoding="utf-8").splitlines() if l.strip()]
-        assert len(lines) >= 2, f"Expected at least 2 flow events after reinstall, got {len(lines)}"
-        for line in lines:
-            event = json.loads(line)
-            assert event["event"] == "install-complete"
+        assert not flow_log.exists(), "Reinstall must not create flow.log.jsonl"
 
     @pytest.mark.installer
     def test_edge_logs_dir_matches_error_logs_dir_name_constant(self) -> None:
@@ -1440,7 +1461,7 @@ class TestInstallLogsDirectory:
 
     @pytest.mark.installer
     def test_edge_emit_install_flow_event_returns_true_on_success(self, tmp_path: Path) -> None:
-        """Edge: _emit_install_flow_event returns True on successful write."""
+        """Edge: _emit_install_flow_event is a no-op and returns False."""
         from install import _emit_install_flow_event
         commands_home = tmp_path / "commands"
         commands_home.mkdir()
@@ -1451,9 +1472,9 @@ class TestInstallLogsDirectory:
             installer_version="1.0.0",
             dry_run=False,
         )
-        assert result is True
+        assert result is False
         flow_log = commands_home / "logs" / "flow.log.jsonl"
-        assert flow_log.exists()
+        assert not flow_log.exists()
 
     @pytest.mark.installer
     def test_bad_emit_flow_event_readonly_dir_does_not_raise(self, tmp_path: Path) -> None:

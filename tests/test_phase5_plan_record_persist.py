@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT
+from .util import REPO_ROOT, get_phase_api_path, get_master_path, get_rules_path
 
 
 def _load_module():
-    script = REPO_ROOT / "governance" / "entrypoints" / "phase5_plan_record_persist.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "phase5_plan_record_persist.py"
     spec = importlib.util.spec_from_file_location("phase5_plan_record_persist", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load phase5_plan_record_persist module")
@@ -22,24 +22,86 @@ def _load_module():
 def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     config_root = tmp_path / "cfg"
     commands_home = config_root / "commands"
+    local_root = config_root.parent / f"{config_root.name}-local"
+    spec_home = local_root / "governance_spec"
+    content_home = local_root / "governance_content"
     workspaces_home = config_root / "workspaces"
     repo_fp = "abc123def456abc123def456"
     workspace = workspaces_home / repo_fp
     workspace.mkdir(parents=True, exist_ok=True)
     commands_home.mkdir(parents=True, exist_ok=True)
+    spec_home.mkdir(parents=True, exist_ok=True)
+    content_home.mkdir(parents=True, exist_ok=True)
 
-    (commands_home / "phase_api.yaml").write_text((REPO_ROOT / "phase_api.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
+    # Mirror SSOT content into governance_content for tests (NOT commands_home)
+    try:
+        master_src = get_master_path()
+        rules_src = get_rules_path()
+        ref_dir = content_home / "reference"
+        ref_dir.mkdir(parents=True, exist_ok=True)
+        if master_src.exists():
+            (ref_dir / "master.md").write_text(master_src.read_text(encoding="utf-8"), encoding="utf-8")
+        if rules_src.exists():
+            (ref_dir / "rules.md").write_text(rules_src.read_text(encoding="utf-8"), encoding="utf-8")
+    except Exception:
+        pass
+
+    # Create profile and addon rulebook files under governance_content/profiles/
+    try:
+        profiles_dir = content_home / "profiles"
+        profiles_dir.mkdir(parents=True, exist_ok=True)
+        # Fallback-minimum profile - must have enough structure to generate constraints
+        fallback_content = (
+            "# Fallback Minimum Profile Rulebook\n\n"
+            "## Intent (binding)\n"
+            "Provide a mandatory baseline when no explicit standards exist.\n\n"
+            "## Scope (binding)\n"
+            "Applies when no stack profile can be selected.\n\n"
+            "## Evidence contract (binding)\n"
+            "Maintain evidence for every verification claim.\n\n"
+            "## Quality heuristics (SHOULD)\n"
+            "- Use repo-native tools when available.\n\n"
+            "## Mandatory baseline (MUST)\n"
+            "- Identify how to build and verify the project.\n\n"
+            "## Anti-Patterns Catalog (Binding)\n"
+            "- Do not claim verification without executed checks.\n"
+        )
+        (profiles_dir / "rules.fallback-minimum.md").write_text(fallback_content, encoding="utf-8")
+        # Risk-tiering addon
+        addon_content = (
+            "# Risk Tiering Addon\n\n"
+            "## Intent (binding)\n"
+            "Define risk-based evidence requirements.\n\n"
+            "## Scope (binding)\n"
+            "Applies to all changes.\n\n"
+            "## Evidence contract (binding)\n"
+            "Higher risk changes require more evidence.\n\n"
+            "## Quality heuristics (SHOULD)\n"
+            "- Document risk rationale.\n\n"
+            "## Decision Trees (Binding)\n"
+            "- High risk: require additional evidence.\n\n"
+            "## Anti-Patterns Catalog (Binding)\n"
+            "- Do not skip risk assessment for high-impact changes.\n"
+        )
+        (profiles_dir / "rules.risk-tiering.md").write_text(addon_content, encoding="utf-8")
+    except Exception:
+        pass
 
     paths = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "commandsHome": str(commands_home),
+            "localRoot": str(local_root),
+            "specHome": str(spec_home),
+            "contentHome": str(content_home),
+            "profilesHome": str(content_home / "profiles"),
             "workspacesHome": str(workspaces_home),
             "configRoot": str(config_root),
             "pythonCommand": "python3",
         },
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(paths, indent=2), encoding="utf-8")
+    (config_root / "governance.paths.json").write_text(json.dumps(paths, indent=2), encoding="utf-8")
 
     session_path = workspace / "SESSION_STATE.json"
     session = {
@@ -60,15 +122,15 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
             "ActiveProfile": "profile.fallback-minimum",
             "LoadedRulebooks": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.md",
                 "templates": "${COMMANDS_HOME}/master.md",
                 "addons": {
-                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+                    "riskTiering": "${PROFILES_HOME}/rules.risk-tiering.md",
                 },
             },
             "RulebookLoadEvidence": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.md",
             },
             "AddonsEvidence": {
                 "riskTiering": {"status": "loaded"},
@@ -334,3 +396,471 @@ def test_phase5_plan_persist_bad_missing_active_repo_pointer_blocked(
     assert rc == 2
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["reason_code"] == "BLOCKED-P5-PLAN-RECORD-PERSIST"
+
+
+class TestReviewResponseEnforcementE2E:
+    """Runtime E2E evals proving the enforcement chain is fail-closed.
+
+    These tests prove that the full runtime path from LLM response → parsed
+    → validated → blocked/proceeded is correctly enforced. They test the
+    actual entrypoint's _parse_llm_review_response with real schema loading.
+
+    The enforcement chain:
+      LLM raw response
+          ↓
+      _parse_llm_review_response(response_text, mandates_schema)
+          ↓
+      JSON parse? ─no→ hard block (response-not-structured-json)
+          ↓ yes
+      schema validate? ─fail→ hard block (schema-violation:*)
+          ↓ pass
+      proceed with verdict + findings
+    """
+
+    @staticmethod
+    def _load_schema() -> dict | None:
+        schema_path = REPO_ROOT / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+        if not schema_path.exists():
+            return None
+        try:
+            return json.loads(schema_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def test_freetext_response_hard_blocked(self):
+        module = _load_module()
+        response = "Looks good overall. I reviewed the code and it seems fine. Minor suggestions but nothing blocking."
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert "response-not-structured-json" in result["validation_violations"]
+        assert result["verdict"] == "changes_requested"
+
+    def test_malformed_json_hard_blocked(self):
+        module = _load_module()
+        response = '{"verdict": "approve", "findings": []'  # trailing comma, unclosed
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert "response-not-structured-json" in result["validation_violations"]
+        assert result["verdict"] == "changes_requested"
+
+    def test_empty_response_hard_blocked(self):
+        module = _load_module()
+        result = module._parse_llm_review_response("", mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
+
+    def test_valid_approve_with_no_findings_proceeds(self):
+        module = _load_module()
+        response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation against plan. All steps covered.",
+            "contract_check": "SSOT boundaries preserved. No contract drift.",
+            "findings": [],
+            "regression_assessment": "Low risk. Changes are isolated.",
+            "test_assessment": "Tests cover the changed scope adequately.",
+        })
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is True
+        assert result["verdict"] == "approve"
+        assert result["findings"] == []
+
+    def test_valid_changes_requested_with_findings_proceeds(self):
+        module = _load_module()
+        response = json.dumps({
+            "verdict": "changes_requested",
+            "governing_evidence": "Checked source against contracts.",
+            "contract_check": "Minor drift in API response shape.",
+            "findings": [
+                {
+                    "severity": "medium",
+                    "type": "contract-drift",
+                    "location": "src/api.py:42",
+                    "evidence": "Response field 'user_id' missing",
+                    "impact": "Client code relying on this field will break",
+                    "fix": "Add 'user_id' to response payload",
+                }
+            ],
+            "regression_assessment": "Existing endpoints unaffected.",
+            "test_assessment": "Tests missing for new field.",
+        })
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is True
+        assert result["verdict"] == "changes_requested"
+        assert len(result["findings"]) == 1
+
+    def test_approve_with_critical_defect_hard_blocked(self):
+        module = _load_module()
+        response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Looks fine.",
+            "contract_check": "OK.",
+            "findings": [
+                {
+                    "severity": "critical",
+                    "type": "defect",
+                    "location": "src/auth.py:1",
+                    "evidence": "Auth bypass via missing token check",
+                    "impact": "Anyone can access protected endpoints",
+                    "fix": "Add token validation",
+                }
+            ],
+            "regression_assessment": "All endpoints affected.",
+            "test_assessment": "No tests for auth.",
+        })
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
+        violations = result.get("validation_violations", [])
+        assert any("defect" in v.lower() for v in violations)
+
+    def test_missing_required_field_hard_blocked(self):
+        module = _load_module()
+        response = json.dumps({
+            "verdict": "changes_requested",
+            "findings": [
+                {
+                    "severity": "high",
+                    "type": "defect",
+                    "location": "src/main.py:42",
+                    "evidence": "Missing null check",
+                    "impact": "Crash on empty input",
+                    "fix": "Add null guard",
+                }
+            ],
+            # missing: governing_evidence, contract_check, regression_assessment, test_assessment
+        })
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
+        violations = result.get("validation_violations", [])
+        assert any("governing_evidence" in v or "contract_check" in v or "required" in v.lower() for v in violations)
+
+    def test_invalid_verdict_value_hard_blocked(self):
+        module = _load_module()
+        response = json.dumps({
+            "verdict": "looks_good_to_me",
+            "governing_evidence": "Reviewed all files.",
+            "contract_check": "No issues found.",
+            "findings": [],
+            "regression_assessment": "Minimal risk.",
+            "test_assessment": "Tests sufficient.",
+        })
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"  # hard-blocked: invalid verdict
+
+    def test_json_array_response_hard_blocked(self):
+        module = _load_module()
+        response = json.dumps([{"verdict": "approve"}, {"note": "all good"}])
+        result = module._parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert "response-not-structured-json" in result.get("validation_violations", [])
+
+    def test_whitespace_only_response_hard_blocked(self):
+        module = _load_module()
+        result = module._parse_llm_review_response("   \n\n  ", mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
+
+
+class TestPhase5BlocksWhenEffectivePolicyUnavailable:
+    """Phase 5 must block when effective review policy cannot be built."""
+
+    def test_phase5_blocks_when_effective_review_policy_unavailable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+        # Clear the profile files so effective policy cannot be built
+        local_root = config_root.parent / f"{config_root.name}-local"
+        profiles_dir = local_root / "governance_content" / "profiles"
+        if profiles_dir.exists():
+            for f in profiles_dir.iterdir():
+                f.unlink()
+
+        rc = module.main(["--plan-text", "Architecture plan v1", "--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["status"] == "blocked"
+        assert payload["reason_code"] == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+        assert "effective-review-policy-unavailable" in payload["reason"]
+
+    def test_phase5_blocks_when_mandate_schema_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+        # Mock _load_mandates_schema to raise MandateSchemaMissingError
+        original_load = module._load_mandates_schema
+
+        def mock_load():
+            raise module.MandateSchemaMissingError("Schema missing")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", mock_load)
+
+        rc = module.main(["--plan-text", "Architecture plan v1", "--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["status"] == "blocked"
+        assert payload["reason"] == "mandate-schema-missing"
+
+
+class TestCallLLMReviewMandateSchemaFailClosed:
+    """_call_llm_review() must itself fail-closed on mandate schema errors."""
+
+    def test_blocks_on_missing_schema(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+
+        def _raise_missing():
+            raise module.MandateSchemaMissingError("schema file not found")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_missing)
+        result = module._call_llm_review("plan text", "mandate text")
+        assert result["llm_invoked"] is False
+        assert result["verdict"] == "changes_requested"
+        assert result["reason_code"] == "MANDATE-SCHEMA-MISSING"
+        assert any("mandate-schema-missing" in f for f in result["findings"])
+
+    def test_blocks_on_invalid_json(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+
+        def _raise_invalid_json():
+            raise module.MandateSchemaInvalidJsonError("bad json at line 5")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_invalid_json)
+        result = module._call_llm_review("plan text", "mandate text")
+        assert result["llm_invoked"] is False
+        assert result["verdict"] == "changes_requested"
+        assert result["reason_code"] == "MANDATE-SCHEMA-INVALID-JSON"
+
+    def test_blocks_on_invalid_structure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+
+        def _raise_invalid_structure():
+            raise module.MandateSchemaInvalidStructureError("missing review_mandate")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_invalid_structure)
+        result = module._call_llm_review("plan text", "mandate text")
+        assert result["llm_invoked"] is False
+        assert result["verdict"] == "changes_requested"
+        assert result["reason_code"] == "MANDATE-SCHEMA-INVALID-STRUCTURE"
+
+    def test_blocks_on_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+
+        def _raise_unavailable():
+            raise module.MandateSchemaUnavailableError("IO error reading schema")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_unavailable)
+        result = module._call_llm_review("plan text", "mandate text")
+        assert result["llm_invoked"] is False
+        assert result["verdict"] == "changes_requested"
+        assert result["reason_code"] == "MANDATE-SCHEMA-UNAVAILABLE"
+
+
+class TestPlanGeneration:
+    """Tests for LLM-based plan generation in /plan."""
+
+    def _valid_plan_response(self) -> str:
+        return json.dumps({
+            "objective": "Add authentication endpoint with JWT support",
+            "target_state": "New /auth/login endpoint accepts credentials and returns JWT token",
+            "target_flow": "1. Add auth route. 2. Validate credentials. 3. Generate JWT. 4. Return token.",
+            "state_machine": "unauthenticated -> authenticated (on valid login)",
+            "blocker_taxonomy": "Credential store must be available; JWT secret must be configured",
+            "audit": "Login events logged with timestamp and user id",
+            "go_no_go": "JWT library available; credential store reachable; tests pass",
+            "test_strategy": "Unit tests for token generation; integration test for login flow",
+            "reason_code": "PLAN-AUTH-001",
+        })
+
+    def test_blocks_when_executor_unavailable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+        monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
+        monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth",
+            task_text="Implement login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is True
+        assert result["reason_code"] == "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE"
+
+    def test_blocks_when_llm_returns_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo ''")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth",
+            task_text="Implement login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is True
+        assert "empty" in result["reason"].lower() or result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
+
+    def test_blocks_when_llm_returns_non_json(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo 'not json at all'")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth",
+            task_text="Implement login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is True
+        assert "not-json" in result["reason"] or result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
+
+    def test_blocks_when_llm_returns_invalid_plan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        module = _load_module()
+        # Response with only objective — missing all other required fields
+        invalid = json.dumps({"objective": "Something"})
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{invalid}'")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth",
+            task_text="Implement login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is True
+        assert result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
+
+    def test_valid_plan_response_accepted(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        valid = self._valid_plan_response()
+        escaped = valid.replace("'", "'\\''")
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{escaped}'")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth endpoint",
+            task_text="Implement JWT login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is False
+        assert "plan_text" in result
+        plan_text = result["plan_text"]
+        assert "Target State" in plan_text
+        assert "Target Flow" in plan_text
+        assert "Go/No-Go" in plan_text
+
+    def test_auto_generate_blocks_when_no_ticket(self, capsys: pytest.CaptureFixture[str]):
+        module = _load_module()
+        # No ticket, no task, no plan text — must block
+        rc = module.main(["--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["status"] == "blocked"
+        assert "missing-plan-record-evidence" in payload["reason"] or "session-state-unreadable" in payload["reason"]
+
+    def test_auto_generate_blocks_when_executor_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        # Add Ticket text to session so auto-generation path is reached
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        doc["SESSION_STATE"]["Ticket"] = "Implement authentication endpoint"
+        doc["SESSION_STATE"]["Task"] = "Add JWT login support"
+        session_path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+        monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
+        monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+
+        rc = module.main(["--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["status"] == "blocked"
+        assert payload["reason_code"] == "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE"
+
+    def test_uses_user_plan_text_when_provided(self, capsys: pytest.CaptureFixture[str]):
+        module = _load_module()
+        # Provide explicit plan text — should skip auto-generation
+        rc = module.main(["--plan-text", "Manual plan text for testing purposes here.", "--quiet"])
+        # May succeed or fail depending on session state, but should NOT try auto-generation
+        # If session state is missing, it should fail with a session-related error, not plan-executor
+        out = capsys.readouterr().out
+        if rc != 0:
+            payload = json.loads(out.strip())
+            assert "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE" != payload.get("reason_code", "")
+
+    def test_resolve_plan_executor_prefers_plan_cmd(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "plan-llm-cmd")
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "implement-llm-cmd")
+        assert module._resolve_plan_executor() == "plan-llm-cmd"
+
+    def test_resolve_plan_executor_falls_back_to_implement_cmd(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "implement-llm-cmd")
+        assert module._resolve_plan_executor() == "implement-llm-cmd"
+
+    def test_parse_blocks_when_plan_output_schema_missing(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        valid_response = self._valid_plan_response()
+
+        # Mock _load_mandates_schema to return schema WITHOUT planOutputSchema
+        def _schema_without_plan():
+            return {"$defs": {"reviewOutputSchema": {"type": "object"}}}
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _schema_without_plan)
+        result = module._parse_plan_generation_response(valid_response)
+        assert result["blocked"] is True
+        assert "plan-output-schema-missing" in result["reason"]
+
+    def test_parse_blocks_when_mandate_schema_unavailable_in_response(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        valid_response = self._valid_plan_response()
+
+        def _raise_missing():
+            raise module.MandateSchemaMissingError("not found")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_missing)
+        result = module._parse_plan_generation_response(valid_response)
+        assert result["blocked"] is True
+        assert result["reason_code"] == "MANDATE-SCHEMA-UNAVAILABLE"
+
+    def test_auto_generate_blocks_when_mandate_schema_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        doc["SESSION_STATE"]["Ticket"] = "Implement authentication"
+        doc["SESSION_STATE"]["Task"] = "Add JWT login"
+        session_path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+        def _raise_missing():
+            raise module.MandateSchemaMissingError("schema file not found")
+
+        monkeypatch.setattr(module, "_load_mandates_schema", _raise_missing)
+
+        rc = module.main(["--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["status"] == "blocked"
+        assert payload["reason_code"] == "MANDATE-SCHEMA-MISSING"

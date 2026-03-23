@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.engine.audit_readout_contract import validate_audit_readout_v1
+from governance_runtime.engine.audit_readout_contract import validate_audit_readout_v1
 
 
 def _valid_payload() -> dict[str, object]:

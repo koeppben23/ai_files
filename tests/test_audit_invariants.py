@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.domain.audit_contract import (
+from governance_runtime.domain.audit_contract import (
     ALLOWED_RUN_STATUSES,
     ALLOWED_RECORD_STATUSES,
     ALLOWED_ARCHIVE_STATUSES,
@@ -36,7 +36,7 @@ from governance.domain.audit_contract import (
     validate_archived_file_keys,
     get_contract_summary,
 )
-from governance.domain.failure_model import (
+from governance_runtime.domain.failure_model import (
     FailureCategory,
     FailureSeverity,
     RecoveryStrategy,
@@ -48,7 +48,7 @@ from governance.domain.failure_model import (
     failure_report_to_dict,
     FailureDetail,
 )
-from governance.infrastructure.run_audit_artifacts import (
+from governance_runtime.infrastructure.run_audit_artifacts import (
     RUN_STATUSES,
     RECORD_STATUSES,
 )

@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencode-effective-llm-policy.v1",
+  "title": "Effective LLM Policy",
+  "description": "Kernel-compiled effective policy from loaded rulebooks and addons. Authority for active profile/addon behavior, separate from mandate and output-schema authority.",
+  "type": "object",
+  "required": ["schema_version", "compiled_at", "evidence", "effective_policy"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "compiled_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_digest": {
+      "type": "string",
+      "description": "Stable digest of the effective policy content for audit/drift detection"
+    },
+    "evidence": {
+      "$ref": "#/$defs/EvidenceBlock"
+    },
+    "effective_policy": {
+      "$ref": "#/$defs/EffectivePolicyBlock"
+    }
+  },
+  "$defs": {
+    "EvidenceBlock": {
+      "type": "object",
+      "description": "Audit trail: which sources were loaded and how",
+      "additionalProperties": false,
+      "properties": {
+        "active_profile": {
+          "type": "string",
+          "description": "Currently active profile identifier"
+        },
+        "active_addons": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of active addon keys"
+        },
+        "source_refs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string" },
+              "sha256": { "type": "string" },
+              "source_kind": {
+                "type": "string",
+                "enum": ["core", "master", "profile", "addon"]
+              }
+            }
+          }
+        }
+      },
+      "required": ["active_profile", "active_addons", "source_refs"]
+    },
+    "EffectivePolicyBlock": {
+      "type": "object",
+      "description": "LLM-effective policy, resolved by precedence",
+      "additionalProperties": false,
+      "properties": {
+        "global_constraints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Constraints from core/master that always apply"
+        },
+        "effective_authoring_policy": {
+          "$ref": "#/$defs/AuthoringPolicy"
+        },
+        "effective_review_policy": {
+          "$ref": "#/$defs/ReviewPolicy"
+        }
+      },
+      "required": ["effective_authoring_policy", "effective_review_policy"]
+    },
+    "AuthoringPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile_constraints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Profile-specific authoring constraints"
+        },
+        "addon_constraints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Active addon authoring constraints"
+        },
+        "quality_priorities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Quality priorities for this profile/addon combination"
+        },
+        "forbidden_behaviors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Explicitly prohibited behaviors"
+        },
+        "required_checks": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Mandatory checks before claiming completion"
+        },
+        "naming_conventions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Naming standards for this stack"
+        },
+        "tooling_commands": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Recommended/required tooling commands"
+        },
+        "decision_rules": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Blocking/approval decision rules"
+        },
+        "governance_addendum": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional governance principles"
+        },
+        "profile_anti_patterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Named anti-patterns to avoid"
+        },
+        "definition_of_done": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Completion criteria"
+        }
+      }
+    },
+    "ReviewPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile_constraints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Profile-specific review constraints"
+        },
+        "addon_constraints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Active addon review constraints"
+        },
+        "required_lenses": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PolicyLens" },
+          "description": "Lenses that MUST be applied in review"
+        },
+        "apply_when_relevant_lenses": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PolicyLens" },
+          "description": "Lenses applied when relevant to changed scope"
+        },
+        "forbidden_behaviors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Explicitly prohibited review behaviors"
+        },
+        "required_checks": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Mandatory review checks"
+        },
+        "tier_evidence_minimums": {
+          "$ref": "#/$defs/TierEvidenceMinimums"
+        },
+        "decision_rules": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Review decision rules"
+        },
+        "governance_addendum": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional governance principles"
+        }
+      }
+    },
+    "PolicyLens": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "focus": { "type": "string" },
+        "questions": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["name", "focus"]
+    },
+    "TierEvidenceMinimums": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Tier-specific evidence requirements from risk-tiering addon",
+      "properties": {
+        "TIER-LOW": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "TIER-MEDIUM": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "TIER-HIGH": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

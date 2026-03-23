@@ -18,27 +18,27 @@ from pathlib import Path
 
 import pytest
 
-from governance.domain.access_control import (
+from governance_runtime.domain.access_control import (
     AccessDecision,
     Action,
     Role,
 )
-from governance.domain.classification import ClassificationLevel
-from governance.domain.regulated_mode import (
+from governance_runtime.domain.classification import ClassificationLevel
+from governance_runtime.domain.regulated_mode import (
     DEFAULT_CONFIG,
     RegulatedModeConfig,
     RegulatedModeState,
 )
-from governance.domain.retention import (
+from governance_runtime.domain.retention import (
     DeletionDecision,
     LegalHold,
     LegalHoldStatus,
 )
-from governance.infrastructure.archive_export import (
+from governance_runtime.infrastructure.archive_export import (
     EXPORT_MANIFEST_SCHEMA,
     write_legal_hold_record,
 )
-from governance.infrastructure.governance_orchestrator import (
+from governance_runtime.infrastructure.governance_orchestrator import (
     GovernancePipelineResult,
     build_governance_summary,
     execute_failure_recovery,
@@ -46,7 +46,7 @@ from governance.infrastructure.governance_orchestrator import (
     run_governance_pipeline,
     validate_archive_contract,
 )
-from governance.infrastructure.recovery_executor import build_resume_token
+from governance_runtime.infrastructure.recovery_executor import build_resume_token
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +162,7 @@ def _create_finalized_archive(base: Path, run_id: str = _RUN_ID) -> Path:
         "trigger": "new_work_session_created",
         "policy_fingerprint": "",
         "binding": {"repo_fingerprint": _FINGERPRINT, "session_run_id": run_id},
-        "launcher": "governance.entrypoints.new_work_session",
+        "launcher": "governance_runtime.entrypoints.new_work_session",
         "timestamps": {"materialized_at": _OBSERVED_AT},
     }
     (archive_path / "provenance-record.json").write_text(

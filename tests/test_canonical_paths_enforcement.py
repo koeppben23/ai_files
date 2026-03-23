@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.fs.canonical_paths import CanonicalPathError, build_canonical_paths
+from governance_runtime.infrastructure.fs.canonical_paths import CanonicalPathError, build_canonical_paths
 
 
 def test_canonical_paths_blocks_parent_traversal(tmp_path: Path) -> None:

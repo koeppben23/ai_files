@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from governance.render.response_formatter import render_response, resolve_output_format
+from governance_runtime.render.response_formatter import render_response, resolve_output_format
 
 
 def _sample_payload() -> dict[str, object]:

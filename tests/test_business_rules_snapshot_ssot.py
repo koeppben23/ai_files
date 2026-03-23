@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-from governance.engine.business_rules_hydration import (
+from governance_runtime.engine.business_rules_hydration import (
     build_business_rules_code_extraction_report,
     build_business_rules_state_snapshot,
     hydrate_business_rules_state_from_artifacts,
@@ -13,7 +13,7 @@ from .util import REPO_ROOT
 
 
 def _load_orchestrator_module():
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts_orchestrator.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts_orchestrator.py"
     spec = importlib.util.spec_from_file_location("persist_workspace_artifacts_orchestrator", script)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

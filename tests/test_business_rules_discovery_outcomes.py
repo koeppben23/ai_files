@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.engine.business_rules_code_extraction import (
+from governance_runtime.engine.business_rules_code_extraction import (
     DISCOVERY_ACCEPTED,
     DISCOVERY_DROPPED_MISSING_ANCHOR,
     DISCOVERY_DROPPED_MISSING_SEMANTICS,
@@ -10,7 +10,7 @@ from governance.engine.business_rules_code_extraction import (
     DISCOVERY_DROPPED_NON_BUSINESS_SURFACE,
     extract_code_rule_candidates_with_diagnostics,
 )
-from governance.engine.business_rules_validation import extract_validated_business_rules_with_diagnostics
+from governance_runtime.engine.business_rules_validation import extract_validated_business_rules_with_diagnostics
 
 
 def _write(path: Path, text: str) -> None:

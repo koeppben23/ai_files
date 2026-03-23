@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from governance.engine.canonical_json import (
+from governance_runtime.engine.canonical_json import (
     canonical_json_bytes,
     canonical_json_clone,
     canonical_json_hash,
     canonical_json_text,
 )
-from governance.domain.canonical_json import (
+from governance_runtime.domain.canonical_json import (
     canonical_json_bytes as domain_canonical_json_bytes,
     canonical_json_clone as domain_canonical_json_clone,
     canonical_json_hash as domain_canonical_json_hash,

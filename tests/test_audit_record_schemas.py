@@ -10,25 +10,25 @@ try:
 except ImportError:
     jsonschema = None  # type: ignore[assignment]
 
-from governance.infrastructure.workspace_paths import run_dir
-from governance.infrastructure.workspace_paths import repository_manifest_path
-from governance.infrastructure.work_run_archive import archive_active_run
+from governance_runtime.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.workspace_paths import repository_manifest_path
+from governance_runtime.infrastructure.work_run_archive import archive_active_run
 
 
 _FINGERPRINT = "abc123def456abc123def456"
 _OBSERVED_AT = "2026-03-11T12:00:00Z"
 
 _SCHEMA_PATHS = {
-    "run-manifest.json": Path("governance/assets/schemas/run_manifest.v1.schema.json"),
-    "metadata.json": Path("governance/assets/schemas/work_run_snapshot.v2.schema.json"),
-    "checksums.json": Path("governance/assets/schemas/run_checksums.v1.schema.json"),
-    "ticket-record.json": Path("governance/assets/schemas/ticket_record.v1.schema.json"),
-    "review-decision-record.json": Path("governance/assets/schemas/review_decision_record.v1.schema.json"),
-    "outcome-record.json": Path("governance/assets/schemas/outcome_record.v1.schema.json"),
-    "evidence-index.json": Path("governance/assets/schemas/evidence_index.v1.schema.json"),
-    "finalization-record.json": Path("governance/assets/schemas/finalization_record.v1.schema.json"),
-    "pr-record.json": Path("governance/assets/schemas/pr_record.v1.schema.json"),
-    "provenance-record.json": Path("governance/assets/schemas/provenance_record.v1.schema.json"),
+    "run-manifest.json": Path("governance_runtime/assets/schemas/run_manifest.v1.schema.json"),
+    "metadata.json": Path("governance_runtime/assets/schemas/work_run_snapshot.v2.schema.json"),
+    "checksums.json": Path("governance_runtime/assets/schemas/run_checksums.v1.schema.json"),
+    "ticket-record.json": Path("governance_runtime/assets/schemas/ticket_record.v1.schema.json"),
+    "review-decision-record.json": Path("governance_runtime/assets/schemas/review_decision_record.v1.schema.json"),
+    "outcome-record.json": Path("governance_runtime/assets/schemas/outcome_record.v1.schema.json"),
+    "evidence-index.json": Path("governance_runtime/assets/schemas/evidence_index.v1.schema.json"),
+    "finalization-record.json": Path("governance_runtime/assets/schemas/finalization_record.v1.schema.json"),
+    "pr-record.json": Path("governance_runtime/assets/schemas/pr_record.v1.schema.json"),
+    "provenance-record.json": Path("governance_runtime/assets/schemas/provenance_record.v1.schema.json"),
 }
 
 
@@ -108,6 +108,6 @@ class TestAuditRecordSchemaValidation:
         payload = json.loads(
             repository_manifest_path(workspaces_home, _FINGERPRINT).read_text(encoding="utf-8")
         )
-        schema = _load_schema(Path("governance/assets/schemas/repository_manifest.v1.schema.json"))
+        schema = _load_schema(Path("governance_runtime/assets/schemas/repository_manifest.v1.schema.json"))
         jsonschema.Draft202012Validator.check_schema(schema)
         jsonschema.validate(payload, schema)

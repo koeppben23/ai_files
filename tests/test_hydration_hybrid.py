@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
+from governance_runtime.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
 
 
 # ---------------------------------------------------------------------------

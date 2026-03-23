@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.addon_catalog import (
+from governance_runtime.addon_catalog import (
     ALLOWED_CAPABILITIES,
     ALLOWED_CLASSES,
     ALLOWED_EVIDENCE_KINDS,

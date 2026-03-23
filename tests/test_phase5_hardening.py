@@ -10,6 +10,7 @@ Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -20,13 +21,40 @@ try:
 except ImportError:
     yaml = None  # type: ignore
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_phase_api_path, get_master_path, get_rules_path, read_text
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-PHASE_API_PATH = REPO_ROOT / "phase_api.yaml"
+PHASE_API_PATH = get_phase_api_path()
+
+
+@pytest.fixture(autouse=True)
+def _binding_with_phase_api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    cfg = home / ".config" / "opencode"
+    commands_home = cfg / "commands"
+    workspaces_home = cfg / "workspaces"
+    commands_home.mkdir(parents=True, exist_ok=True)
+    workspaces_home.mkdir(parents=True, exist_ok=True)
+    (commands_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
+    (cfg / "governance.paths.json").write_text(
+        json.dumps(
+            {
+                "schema": "opencode-governance.paths.v1",
+                "paths": {
+                    "commandsHome": str(commands_home),
+                    "workspacesHome": str(workspaces_home),
+                    "configRoot": str(cfg),
+                    "pythonCommand": "python3",
+                },
+            },
+            ensure_ascii=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
 
 def _load_phase_api() -> dict[str, Any]:
@@ -46,9 +74,32 @@ def _find_phase_entry(token: str) -> dict[str, Any]:
 
 
 def _read(relpath: str) -> str:
-    p = REPO_ROOT / relpath
-    assert p.exists(), f"Expected file not found: {relpath}"
-    return p.read_text(encoding="utf-8")
+    # Resolve legacy root accesses to the new SSOT-based locations
+    if relpath == "master.md":
+        path = get_master_path()
+    elif relpath == "rules.md":
+        path = get_rules_path()
+    elif relpath == "phase_api.yaml":
+        path = PHASE_API_PATH
+    else:
+        # Fallback to a best-effort search among known locations for common docs
+        if relpath == "review.md":
+            candidates = [
+                REPO_ROOT / "governance_content" / "review.md",
+                REPO_ROOT / "governance_content" / "docs" / "review.md",
+            ]
+            for cand in candidates:
+                if cand.exists():
+                    path = cand
+                    break
+            else:
+                path = REPO_ROOT / relpath
+        else:
+            path = REPO_ROOT / relpath
+    try:
+        return read_text(path)
+    except FileNotFoundError:
+        assert False, f"Expected file not found: {relpath}"
 
 
 # ===================================================================
@@ -174,7 +225,7 @@ class TestRuntimeEnforcementHappy:
         }
 
     def _make_kwargs(self, phase: str, requested_action: str | None = None) -> dict[str, Any]:
-        from governance.engine.response_contract import NextAction, Snapshot
+        from governance_runtime.engine.response_contract import NextAction, Snapshot
         return {
             "status": "OK",
             "session_state": self._make_session_state(phase),
@@ -185,24 +236,24 @@ class TestRuntimeEnforcementHappy:
         }
 
     def test_phase5_rejects_implementation(self) -> None:
-        from governance.engine.response_contract import build_strict_response
-        from governance.domain.phase_state_machine import clear_phase_output_policy_cache
+        from governance_runtime.engine.response_contract import build_strict_response
+        from governance_runtime.domain.phase_state_machine import clear_phase_output_policy_cache
         clear_phase_output_policy_cache()
         kwargs = self._make_kwargs("5-ArchitectureReview", requested_action="implement the feature")
         with pytest.raises(ValueError, match="forbidden"):
             build_strict_response(**kwargs)
 
     def test_phase5_rejects_code_delivery(self) -> None:
-        from governance.engine.response_contract import build_strict_response
-        from governance.domain.phase_state_machine import clear_phase_output_policy_cache
+        from governance_runtime.engine.response_contract import build_strict_response
+        from governance_runtime.domain.phase_state_machine import clear_phase_output_policy_cache
         clear_phase_output_policy_cache()
         kwargs = self._make_kwargs("5-ArchitectureReview", requested_action="deliver code to user")
         with pytest.raises(ValueError, match="forbidden"):
             build_strict_response(**kwargs)
 
     def test_phase5_allows_review(self) -> None:
-        from governance.engine.response_contract import build_strict_response
-        from governance.domain.phase_state_machine import clear_phase_output_policy_cache
+        from governance_runtime.engine.response_contract import build_strict_response
+        from governance_runtime.domain.phase_state_machine import clear_phase_output_policy_cache
         clear_phase_output_policy_cache()
         kwargs = self._make_kwargs("5-ArchitectureReview", requested_action="review architecture plan")
         # Should not raise
@@ -210,8 +261,8 @@ class TestRuntimeEnforcementHappy:
         assert result["mode"] == "STRICT"
 
     def test_phase5_allows_plan(self) -> None:
-        from governance.engine.response_contract import build_strict_response
-        from governance.domain.phase_state_machine import clear_phase_output_policy_cache
+        from governance_runtime.engine.response_contract import build_strict_response
+        from governance_runtime.domain.phase_state_machine import clear_phase_output_policy_cache
         clear_phase_output_policy_cache()
         kwargs = self._make_kwargs("5-ArchitectureReview", requested_action="plan the architecture approach")
         result = build_strict_response(**kwargs)
@@ -261,7 +312,7 @@ class TestPhase6TransitionHappy:
 
     def test_phase5_subtokens_inherit_policy(self) -> None:
         """5.* sub-tokens inherit output_policy from token '5'."""
-        from governance.domain.phase_state_machine import (
+        from governance_runtime.domain.phase_state_machine import (
             resolve_phase_output_policy,
             clear_phase_output_policy_cache,
         )
@@ -272,7 +323,7 @@ class TestPhase6TransitionHappy:
 
     def test_phase4_no_output_policy(self) -> None:
         """Token '4' must NOT have output_policy (different gating)."""
-        from governance.domain.phase_state_machine import (
+        from governance_runtime.domain.phase_state_machine import (
             resolve_phase_output_policy,
             clear_phase_output_policy_cache,
         )
@@ -293,35 +344,35 @@ class TestClassifyOutputClass:
     """Verify structural classification of requested actions."""
 
     def test_implement_classified_as_implementation(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("implement the feature") == "implementation"
 
     def test_review_classified_as_review(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("review architecture") == "review"
 
     def test_plan_classified_as_plan(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("plan the approach") == "plan"
 
     def test_patch_classified_as_patch(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("apply patch to module") == "patch"
 
     def test_diff_classified_as_diff(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("generate diff for changes") == "diff"
 
     def test_risk_classified_as_risk_analysis(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("risk analysis of migration") == "risk_analysis"
 
     def test_empty_defaults_to_safe_review_class(self) -> None:
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("") == "review"
         assert classify_output_class(None) == "review"
 
     def test_unrecognized_action_fails_closed(self) -> None:
         """Unrecognized actions must fail-closed to 'implementation'."""
-        from governance.application.use_cases.target_path_helpers import classify_output_class
+        from governance_runtime.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("xyzzy frobulate the thing") == "implementation"

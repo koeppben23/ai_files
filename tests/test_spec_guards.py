@@ -6,7 +6,16 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
-from .util import REPO_ROOT, git_ls_files, read_text
+from .util import REPO_ROOT, get_master_path, git_ls_files, read_text, get_profiles_path, get_docs_path
+from pathlib import Path
+
+# Helpers to resolve paths via SSOT for tests that touch templates/docs
+def _resolve_rel(rel: str) -> Path:
+    if rel.startswith("profiles/"):
+        return get_profiles_path() / rel[len("profiles/"):]
+    if rel.startswith("docs/"):
+        return get_docs_path() / rel[len("docs/"):]
+    return REPO_ROOT / rel
 
 
 @pytest.mark.spec
@@ -25,8 +34,8 @@ def test_no_case_only_filename_collisions_windows_safe():
 
 @pytest.mark.spec
 def test_master_md_no_resolved_path_placeholder_and_variable_paths():
-    p = REPO_ROOT / "master.md"
-    assert p.exists(), "master.md not found at repo root"
+    p = get_master_path()
+    assert p.exists(), "master.md not found"
 
     lines = read_text(p).splitlines()
 
@@ -51,20 +60,20 @@ def test_master_md_no_resolved_path_placeholder_and_variable_paths():
 
 @pytest.mark.spec
 def test_governance_version_present_in_version_file():
-    version_file = REPO_ROOT / "governance" / "VERSION"
-    assert version_file.exists(), "governance/VERSION not found"
+    version_file = REPO_ROOT / "governance_runtime" / "VERSION"
+    assert version_file.exists(), "governance_runtime/VERSION not found"
 
     version = version_file.read_text(encoding="utf-8").strip()
-    assert version, "governance/VERSION is empty"
+    assert version, "governance_runtime/VERSION is empty"
 
     semver_pattern = r"^[0-9]+\.[0-9]+\.[0-9]+"
-    assert re.match(semver_pattern, version), f"Invalid semver in governance/VERSION: {version}"
+    assert re.match(semver_pattern, version), f"Invalid semver in governance_runtime/VERSION: {version}"
 
 
 @pytest.mark.spec
 def test_readme_consistency_no_obsolete_opencode_refs():
-    # Check both README.md and README-OPENCODE.md if present
-    readmes = [REPO_ROOT / "README.md", REPO_ROOT / "README-OPENCODE.md"]
+    # Check README.md, DOCS.md, and README-OPENCODE.md if present
+    readmes = [REPO_ROOT / "README.md", REPO_ROOT / "DOCS.md", REPO_ROOT / "README-OPENCODE.md"]
     texts = []
     for rp in readmes:
         if rp.exists():
@@ -93,7 +102,7 @@ def test_readme_consistency_no_obsolete_opencode_refs():
 
 @pytest.mark.spec
 def test_bootstrap_binding_payload_contains_required_keys():
-    helper = REPO_ROOT / "governance" / "entrypoints" / "bootstrap_binding_evidence.py"
+    helper = REPO_ROOT / "governance_runtime" / "entrypoints" / "bootstrap_binding_evidence.py"
     text_parts = []
     if helper.exists():
         text_parts.append(read_text(helper))

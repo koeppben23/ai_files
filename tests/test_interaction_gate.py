@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.engine.interaction_gate import evaluate_interaction_gate
+from governance_runtime.engine.interaction_gate import evaluate_interaction_gate
 
 
 def test_interaction_gate_blocks_pipeline_prompt_attempts():

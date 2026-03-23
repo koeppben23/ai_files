@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from governance.addon_catalog import (  # noqa: E402
+from governance_runtime.addon_catalog import (  # noqa: E402
     ALLOWED_CAPABILITIES,
     ALLOWED_CLASSES,
     ALLOWED_SIGNAL_KEYS,
@@ -21,6 +21,13 @@ from governance.addon_catalog import (  # noqa: E402
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def get_profiles_root(repo_root: Path) -> Path:
+    new_path = repo_root / "governance_content" / "profiles"
+    if new_path.exists():
+        return new_path
+    return repo_root / "profiles"
 
 
 def _unquote(value: str) -> str:
@@ -165,7 +172,11 @@ def validate_manifest(path: Path, repo_root: Path) -> list[str]:
     if not rulebook:
         errors.append("missing rulebook")
     else:
-        rb_path = (repo_root / "profiles" / rulebook) if not rulebook.startswith("profiles/") else (repo_root / rulebook)
+        profiles_root = get_profiles_root(repo_root)
+        if rulebook.startswith("profiles/"):
+            rb_path = profiles_root / rulebook[len("profiles/"):]
+        else:
+            rb_path = profiles_root / rulebook
         if not rb_path.exists():
             errors.append(f"rulebook does not exist: {rulebook}")
 
@@ -237,7 +248,8 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     repo_root = args.repo_root.resolve()
-    manifests = sorted((repo_root / "profiles" / "addons").glob("*.addon.yml"))
+    profiles_root = get_profiles_root(repo_root)
+    manifests = sorted((profiles_root / "addons").glob("*.addon.yml"))
     if not manifests:
         print("ERROR: no addon manifests found under profiles/addons/*.addon.yml", file=sys.stderr)
         return 2

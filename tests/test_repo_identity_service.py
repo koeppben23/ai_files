@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
+from governance_runtime.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
 
 
 @pytest.mark.governance

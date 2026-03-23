@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.engine.business_rules_hydration import build_business_rules_state_snapshot
-from governance.engine.business_rules_validation import extract_validated_business_rules_with_diagnostics
+from governance_runtime.engine.business_rules_hydration import build_business_rules_state_snapshot
+from governance_runtime.engine.business_rules_validation import extract_validated_business_rules_with_diagnostics
 
 
 def _write(path: Path, text: str) -> None:

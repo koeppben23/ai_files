@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.engine.sanitization import (
+from governance_runtime.engine.sanitization import (
     apply_fresh_start_business_rules_neutralization,
     sanitize_for_output,
 )

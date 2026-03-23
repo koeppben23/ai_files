@@ -93,7 +93,7 @@ def test_validate_all_passes_on_real_repo():
 @pytest.mark.governance
 def test_validate_single_valid_file():
     """Validating a single known-good file passes."""
-    result = _run(["rulesets/core/rules.yml"])
+    result = _run(["governance_spec/rulesets/core/rules.yml"])
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
 
 

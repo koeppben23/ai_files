@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
+from governance_runtime.engine.phase_next_action_contract import validate_phase_next_action_contract
 
 
 def test_phase_contract_rejects_ticket_prompt_before_phase4():

@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_load_tenant_config_returns_none_when_env_not_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """load_tenant_config returns None when OPENCODE_TENANT_CONFIG is not set."""
     monkeypatch.delenv("OPENCODE_TENANT_CONFIG", raising=False)
-    from governance.infrastructure.tenant_config import load_tenant_config
+    from governance_runtime.infrastructure.tenant_config import load_tenant_config
     assert load_tenant_config() is None
 
 
@@ -23,7 +23,7 @@ def test_load_tenant_config_returns_none_when_env_not_set(tmp_path: Path, monkey
 def test_load_tenant_config_returns_none_when_file_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """load_tenant_config returns None when file does not exist."""
     monkeypatch.setenv("OPENCODE_TENANT_CONFIG", str(tmp_path / "nonexistent.yaml"))
-    from governance.infrastructure.tenant_config import load_tenant_config
+    from governance_runtime.infrastructure.tenant_config import load_tenant_config
     assert load_tenant_config() is None
 
 
@@ -33,7 +33,7 @@ def test_load_tenant_config_returns_none_when_invalid_json(tmp_path: Path, monke
     config_file = tmp_path / "tenant.yaml"
     config_file.write_text("{ invalid json }")
     monkeypatch.setenv("OPENCODE_TENANT_CONFIG", str(config_file))
-    from governance.infrastructure.tenant_config import load_tenant_config
+    from governance_runtime.infrastructure.tenant_config import load_tenant_config
     assert load_tenant_config() is None
 
 
@@ -43,7 +43,7 @@ def test_load_tenant_config_returns_none_when_missing_required_fields(tmp_path: 
     config_file = tmp_path / "tenant.yaml"
     config_file.write_text(json.dumps({"version": "1.0.0"}))
     monkeypatch.setenv("OPENCODE_TENANT_CONFIG", str(config_file))
-    from governance.infrastructure.tenant_config import load_tenant_config
+    from governance_runtime.infrastructure.tenant_config import load_tenant_config
     assert load_tenant_config() is None
 
 
@@ -57,7 +57,7 @@ def test_load_tenant_config_returns_none_when_wrong_schema_version(tmp_path: Pat
         "default_profile": "profile.python-safety",
     }))
     monkeypatch.setenv("OPENCODE_TENANT_CONFIG", str(config_file))
-    from governance.infrastructure.tenant_config import load_tenant_config
+    from governance_runtime.infrastructure.tenant_config import load_tenant_config
     assert load_tenant_config() is None
 
 
@@ -74,7 +74,7 @@ def test_load_tenant_config_parses_valid_config(tmp_path: Path, monkeypatch: pyt
         "audit_verbosity": "verbose",
     }))
     monkeypatch.setenv("OPENCODE_TENANT_CONFIG", str(config_file))
-    from governance.infrastructure.tenant_config import load_tenant_config
+    from governance_runtime.infrastructure.tenant_config import load_tenant_config
     config = load_tenant_config()
     assert config is not None
     assert config.tenant_id == "acme-corp"
@@ -94,7 +94,7 @@ def test_load_tenant_config_defaults_optional_fields(tmp_path: Path, monkeypatch
         "default_profile": "profile.python-safety",
     }))
     monkeypatch.setenv("OPENCODE_TENANT_CONFIG", str(config_file))
-    from governance.infrastructure.tenant_config import load_tenant_config
+    from governance_runtime.infrastructure.tenant_config import load_tenant_config
     config = load_tenant_config()
     assert config is not None
     assert config.allowed_addons == ()
@@ -112,7 +112,7 @@ def test_get_default_profile_returns_profile_id(tmp_path: Path, monkeypatch: pyt
         "default_profile": "profile.python-safety",
     }))
     monkeypatch.setenv("OPENCODE_TENANT_CONFIG", str(config_file))
-    from governance.infrastructure.tenant_config import get_default_profile
+    from governance_runtime.infrastructure.tenant_config import get_default_profile
     assert get_default_profile() == "python-safety"
 
 
@@ -120,7 +120,7 @@ def test_get_default_profile_returns_profile_id(tmp_path: Path, monkeypatch: pyt
 def test_get_default_profile_returns_none_without_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """get_default_profile returns None when no tenant config."""
     monkeypatch.delenv("OPENCODE_TENANT_CONFIG", raising=False)
-    from governance.infrastructure.tenant_config import get_default_profile
+    from governance_runtime.infrastructure.tenant_config import get_default_profile
     assert get_default_profile() is None
 
 
@@ -153,7 +153,7 @@ def test_tenant_config_validates_against_schema(tmp_path: Path):
 def test_load_workspace_config_returns_none_when_env_not_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """load_workspace_config returns None when OPENCODE_WORKSPACE_CONFIG is not set."""
     monkeypatch.delenv("OPENCODE_WORKSPACE_CONFIG", raising=False)
-    from governance.infrastructure.tenant_config import load_workspace_config
+    from governance_runtime.infrastructure.tenant_config import load_workspace_config
     assert load_workspace_config() is None
 
 
@@ -167,7 +167,7 @@ def test_load_workspace_config_parses_valid_config(tmp_path: Path, monkeypatch: 
         "default_profile": "profile.java-excellence",
     }))
     monkeypatch.setenv("OPENCODE_WORKSPACE_CONFIG", str(config_file))
-    from governance.infrastructure.tenant_config import load_workspace_config
+    from governance_runtime.infrastructure.tenant_config import load_workspace_config
     config = load_workspace_config()
     assert config is not None
     assert config.tenant_id == "workspace-1"
@@ -191,7 +191,7 @@ def test_get_profile_override_prefers_workspace_over_tenant(tmp_path: Path, monk
     }))
     monkeypatch.setenv("OPENCODE_TENANT_CONFIG", str(tenant_file))
     monkeypatch.setenv("OPENCODE_WORKSPACE_CONFIG", str(workspace_file))
-    from governance.infrastructure.tenant_config import get_profile_override
+    from governance_runtime.infrastructure.tenant_config import get_profile_override
     assert get_profile_override() == "java-excellence"
 
 
@@ -206,7 +206,7 @@ def test_get_profile_override_returns_tenant_when_no_workspace(tmp_path: Path, m
     }))
     monkeypatch.setenv("OPENCODE_TENANT_CONFIG", str(tenant_file))
     monkeypatch.delenv("OPENCODE_WORKSPACE_CONFIG", raising=False)
-    from governance.infrastructure.tenant_config import get_profile_override
+    from governance_runtime.infrastructure.tenant_config import get_profile_override
     assert get_profile_override() == "python-safety"
 
 
@@ -215,5 +215,5 @@ def test_get_profile_override_returns_none_when_no_config(tmp_path: Path, monkey
     """get_profile_override returns None when no config is set."""
     monkeypatch.delenv("OPENCODE_TENANT_CONFIG", raising=False)
     monkeypatch.delenv("OPENCODE_WORKSPACE_CONFIG", raising=False)
-    from governance.infrastructure.tenant_config import get_profile_override
+    from governance_runtime.infrastructure.tenant_config import get_profile_override
     assert get_profile_override() is None

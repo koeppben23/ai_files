@@ -14,9 +14,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from governance.engine.schema_validator import validate_against_schema
-from governance.engine._embedded_session_state_schema import SESSION_STATE_CORE_SCHEMA
-from governance.engine.session_state_invariants import validate_session_state_invariants
+from governance_runtime.engine.schema_validator import validate_against_schema
+from governance_runtime.engine._embedded_session_state_schema import SESSION_STATE_CORE_SCHEMA
+from governance_runtime.engine.session_state_invariants import validate_session_state_invariants
 
 
 def find_session_state_files(repo_root: Path) -> list[Path]:

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.packs.pack_lock import LOCK_SCHEMA, resolve_pack_lock, write_pack_lock
+from governance_runtime.packs.pack_lock import LOCK_SCHEMA, resolve_pack_lock, write_pack_lock
 
 
 def _manifest(

@@ -15,9 +15,17 @@ if not defined OPENCODE_REPO_ROOT (
 
 set "COMMANDS_HOME=%OPENCODE_CONFIG_ROOT%\commands"
 set "OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%"
-set "PYTHONPATH=%COMMANDS_HOME%;%COMMANDS_HOME%\governance;!PYTHONPATH!"
+set "OPENCODE_LOCAL_ROOT=%OPENCODE_LOCAL_ROOT%"
+if not defined OPENCODE_LOCAL_ROOT (
+    if defined USERPROFILE (
+        set "OPENCODE_LOCAL_ROOT=%USERPROFILE%\.local\opencode"
+    ) else (
+        set "OPENCODE_LOCAL_ROOT=%HOMEDRIVE%%HOMEPATH%\.local\opencode"
+    )
+)
+set "PYTHONPATH=%OPENCODE_LOCAL_ROOT%;%COMMANDS_HOME%;!PYTHONPATH!"
 set "OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%"
-set "OPENCODE_BOOTSTRAP_BINDING_PATH=%COMMANDS_HOME%\governance.paths.json"
+set "OPENCODE_BOOTSTRAP_BINDING_PATH=%OPENCODE_CONFIG_ROOT%\governance.paths.json"
 if defined OPENCODE_REPO_ROOT (
     set "PYTHONPATH=%OPENCODE_REPO_ROOT%;%PYTHONPATH%"
 )
@@ -56,46 +64,46 @@ if not defined OPENCODE_BOOTSTRAP_OUTPUT (
 rem --- Subcommand routing (python-binding-contract.v1 §4) ---
 if "%~1"=="--session-reader" (
     shift
-    "!PYTHON_EXE!" "%COMMANDS_HOME%\governance\entrypoints\session_reader.py" %*
+    "!PYTHON_EXE!" -m governance_runtime.entrypoints.session_reader %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
 if "%~1"=="--ticket-persist" (
     shift
-    "!PYTHON_EXE!" -m governance.entrypoints.phase4_intake_persist %*
+    "!PYTHON_EXE!" -m governance_runtime.entrypoints.phase4_intake_persist %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
 if "%~1"=="--plan-persist" (
     shift
-    "!PYTHON_EXE!" -m governance.entrypoints.phase5_plan_record_persist %*
+    "!PYTHON_EXE!" -m governance_runtime.entrypoints.phase5_plan_record_persist %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
 if "%~1"=="--review-decision-persist" (
     shift
-    "!PYTHON_EXE!" -m governance.entrypoints.review_decision_persist %*
+    "!PYTHON_EXE!" -m governance_runtime.entrypoints.review_decision_persist %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
 if "%~1"=="--implement-start" (
     shift
-    "!PYTHON_EXE!" -m governance.entrypoints.implement_start %*
+    "!PYTHON_EXE!" -m governance_runtime.entrypoints.implement_start %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
 if "%~1"=="--implementation-decision-persist" (
     shift
-    "!PYTHON_EXE!" -m governance.entrypoints.implementation_decision_persist %*
+    "!PYTHON_EXE!" -m governance_runtime.entrypoints.implementation_decision_persist %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
 if "%~1"=="--human-approval-persist" (
     shift
-    "!PYTHON_EXE!" -m governance.entrypoints.human_approval_persist %*
+    "!PYTHON_EXE!" -m governance_runtime.entrypoints.human_approval_persist %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
-"!PYTHON_EXE!" -m governance.entrypoints.bootstrap_executor %*
+"!PYTHON_EXE!" -m governance_runtime.entrypoints.bootstrap_executor %*
 set "WRAPPER_EXIT=%ERRORLEVEL%"
 endlocal & exit /b %WRAPPER_EXIT%

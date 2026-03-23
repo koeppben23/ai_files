@@ -18,10 +18,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_docs_path
 
-CONTRACT_PATH = REPO_ROOT / "docs" / "contracts" / "runtime-state-contract.v1.md"
+CONTRACT_PATH = get_docs_path() / "contracts" / "runtime-state-contract.v1.md"
 THIS_FILE_REL = "tests/conformance/test_runtime_state_conformance.py"
+INSTALLER_SOURCE_PATH = REPO_ROOT / "governance_runtime" / "install" / "install.py"
 
 # ---------------------------------------------------------------------------
 # State Classification Taxonomy — source of truth from the contract
@@ -125,7 +126,7 @@ class TestStateClassification:
 
     def test_happy_all_workspace_paths_classified(self, tmp_path):
         """Happy: Every artifact from workspace_paths.py has a classification entry."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "ws"
         fp = "a" * 24
@@ -200,18 +201,18 @@ class TestPointerSemantics:
 
     def test_happy_global_pointer_is_routing_only(self, tmp_path):
         """Happy: Global pointer file is named SESSION_STATE.json (routing pointer)."""
-        from governance.infrastructure.workspace_paths import global_pointer_path
+        from governance_runtime.infrastructure.workspace_paths import global_pointer_path
         ptr = global_pointer_path(tmp_path / "cfg")
         assert ptr.name == "SESSION_STATE.json"
 
     def test_happy_pointer_schema_is_v1(self):
         """Happy: Canonical pointer schema matches contract."""
-        from governance.infrastructure.session_pointer import CANONICAL_POINTER_SCHEMA
+        from governance_runtime.infrastructure.session_pointer import CANONICAL_POINTER_SCHEMA
         assert CANONICAL_POINTER_SCHEMA == "opencode-session-pointer.v1"
 
     def test_happy_pointer_keys_match_contract(self, tmp_path):
         """Happy: build_pointer_payload produces all contract-specified keys."""
-        from governance.infrastructure.session_pointer import build_pointer_payload
+        from governance_runtime.infrastructure.session_pointer import build_pointer_payload
 
         fp = "b" * 24
         config = tmp_path / "config"
@@ -223,7 +224,7 @@ class TestPointerSemantics:
 
     def test_happy_workspace_state_is_separate_from_pointer(self, tmp_path):
         """Happy: Workspace state path differs from global pointer path."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         config_root = tmp_path / "cfg"
         ws_home = config_root / "workspaces"
@@ -234,7 +235,7 @@ class TestPointerSemantics:
 
     def test_corner_legacy_schema_migration(self, tmp_path):
         """Corner: parse_pointer_payload accepts legacy schema and produces canonical keys."""
-        from governance.infrastructure.session_pointer import parse_pointer_payload
+        from governance_runtime.infrastructure.session_pointer import parse_pointer_payload
 
         fp = "d" * 24
         legacy_payload = {
@@ -269,7 +270,7 @@ class TestPurgeRules:
 
     def test_happy_purge_allowlist_flat_files(self):
         """Happy: All 9 contract flat files appear in install.py purge logic."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         flat_files = [
             "SESSION_STATE.json",
             "repo-identity-map.yaml",
@@ -286,19 +287,19 @@ class TestPurgeRules:
 
     def test_happy_purge_subtrees(self):
         """Happy: All 3 contract subtrees appear in install.py purge logic."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         subtrees = ["plan-record-archive", "evidence"]
         missing = [s for s in subtrees if s not in install_src]
         assert not missing, f"Purge allowlist subtrees missing: {missing}"
 
     def test_happy_config_root_purge_targets(self):
         """Happy: Both config-root-level purge targets in install.py."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         assert "governance.activation_intent.json" in install_src
 
     def test_corner_purge_does_not_use_glob(self):
         """Corner: purge_runtime_state uses explicit names, not glob/wildcard patterns."""
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         # Extract purge function body (rough heuristic)
         purge_idx = install_src.find("def purge_runtime_state")
         if purge_idx >= 0:
@@ -309,7 +310,7 @@ class TestPurgeRules:
     def test_bad_opencode_json_never_purged(self):
         """Bad: opencode.json must be protected from purge by runtime guards."""
         import re
-        install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
+        install_src = INSTALLER_SOURCE_PATH.read_text(encoding="utf-8")
         # R14 replaced assert-based guards with RuntimeError guards that survive -O mode.
         guard_count = len(re.findall(
             r"if\s+OPENCODE_JSON_NAME\b.*?raise\s+RuntimeError",
@@ -330,7 +331,7 @@ class TestArtifactCompleteness:
 
     def test_happy_all_path_functions_have_classifications(self, tmp_path):
         """Happy: Every workspace_paths function output is in the classification table."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "ws"
         fp = "e" * 24
@@ -347,19 +348,19 @@ class TestArtifactCompleteness:
 
     def test_happy_reason_code_exists_for_drift(self):
         """Happy: BLOCKED-CONTRACT-RUNTIME-DRIFT reason code is registered."""
-        from governance.domain.reason_codes import BLOCKED_CONTRACT_RUNTIME_DRIFT
+        from governance_runtime.domain.reason_codes import BLOCKED_CONTRACT_RUNTIME_DRIFT
         assert BLOCKED_CONTRACT_RUNTIME_DRIFT == "BLOCKED-CONTRACT-RUNTIME-DRIFT"
 
     def test_happy_all_three_drift_codes_exist(self):
         """Happy: All 3 contract drift reason codes are defined."""
-        from governance.domain import reason_codes as rc
+        from governance_runtime.domain import reason_codes as rc
         assert hasattr(rc, "BLOCKED_CONTRACT_LAYOUT_DRIFT")
         assert hasattr(rc, "BLOCKED_CONTRACT_RUNTIME_DRIFT")
         assert hasattr(rc, "BLOCKED_CONTRACT_OPENCODE_DRIFT")
 
     def test_bad_drift_codes_in_canonical_tuple(self):
         """Bad: All 3 drift codes must be in CANONICAL_REASON_CODES."""
-        from governance.domain.reason_codes import CANONICAL_REASON_CODES
+        from governance_runtime.domain.reason_codes import CANONICAL_REASON_CODES
         drift_codes = {
             "BLOCKED-CONTRACT-LAYOUT-DRIFT",
             "BLOCKED-CONTRACT-RUNTIME-DRIFT",

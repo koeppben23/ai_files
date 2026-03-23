@@ -11,8 +11,6 @@ from pathlib import Path
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from governance.verification.runner import run_contract_verification
-
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run governance contract verification")
@@ -21,7 +19,25 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo_root = Path(args.repo_root).resolve()
-    result = run_contract_verification(repo_root=repo_root)
+    from governance_runtime.verification.runner import run_contract_verification
+
+    payload = run_contract_verification(repo_root=repo_root, python_bin=sys.executable)
+    status = str(payload.get("status") or "FAIL").strip().lower()
+    is_pass = status in {"ok", "pass"}
+    matrix = payload.get("matrix")
+    if not isinstance(matrix, dict):
+        matrix = {
+            "overall_status": "FAIL",
+            "completion_matrix": [],
+            "release_blocking_requirements_failed": [],
+            "release_blocking_requirements_unverified": [],
+        }
+    result = {
+        "status": "PASS" if is_pass else "FAIL",
+        "merge_allowed": is_pass,
+        "merge_reason": str(payload.get("merge_reason") or payload.get("message") or "verification failed"),
+        "matrix": matrix,
+    }
 
     out_path = Path(args.out)
     if not out_path.is_absolute():

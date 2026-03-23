@@ -1,0 +1,69 @@
+"""Composition root wiring for application gateway ports."""
+
+from __future__ import annotations
+
+import os
+
+from governance_runtime.application.ports.gateways import GatewayRegistry, set_gateway_registry
+from governance_runtime.application.policies.persistence_policy import configure_persistence_artifact_policy
+from governance_runtime.infrastructure.error_reason_router import canonicalize_reason_payload_failure
+from governance_runtime.infrastructure.phase4_config_resolver import configure_phase4_self_review_resolver
+from governance_runtime.infrastructure.phase5_config_resolver import configure_phase5_review_resolver
+from governance_runtime.infrastructure.policy_bundle_loader import ensure_policy_bundle_loaded
+from governance_runtime.infrastructure.interaction_gate import evaluate_interaction_gate
+from governance_runtime.infrastructure.mode_repo_rules import (
+    classify_repo_doc,
+    compute_repo_doc_hash,
+    resolve_prompt_budget,
+    summarize_classification,
+    resolve_env_operating_mode,
+)
+from governance_runtime.infrastructure.pack_lock import resolve_pack_lock
+from governance_runtime.infrastructure.reason_payload import build_reason_payload, validate_reason_payload
+from governance_runtime.infrastructure.persist_confirmation_store import load_persist_confirmation_evidence
+from governance_runtime.infrastructure.repo_root_resolver import resolve_repo_root
+from governance_runtime.infrastructure.runtime_activation import evaluate_runtime_activation, golden_parity_fields
+from governance_runtime.infrastructure.selfcheck import run_engine_selfcheck
+from governance_runtime.infrastructure.workspace_ready_gate import ensure_workspace_ready
+from governance_runtime.infrastructure.surface_policy import (
+    capability_satisfies_requirement,
+    mode_satisfies_requirement,
+    resolve_surface_policy,
+)
+from governance_runtime.infrastructure.write_policy import evaluate_target_path
+
+
+def configure_gateway_registry() -> None:
+    effective_mode = resolve_env_operating_mode()
+    if effective_mode == "invalid":
+        effective_mode = "pipeline"
+
+    # Runtime startup wiring for policy-bound config resolvers.
+    configure_phase4_self_review_resolver(mode=effective_mode)
+    configure_phase5_review_resolver(mode=effective_mode)
+    policy_bundle = ensure_policy_bundle_loaded(mode=effective_mode)
+    configure_persistence_artifact_policy(policy_bundle.get("persistence_artifacts.yaml"))
+
+    set_gateway_registry(
+        GatewayRegistry(
+            resolve_repo_root=resolve_repo_root,
+            evaluate_target_path=evaluate_target_path,
+            resolve_pack_lock=resolve_pack_lock,
+            classify_repo_doc=classify_repo_doc,
+            compute_repo_doc_hash=compute_repo_doc_hash,
+            resolve_prompt_budget=resolve_prompt_budget,
+            summarize_classification=summarize_classification,
+            evaluate_interaction_gate=evaluate_interaction_gate,
+            evaluate_runtime_activation=evaluate_runtime_activation,
+            golden_parity_fields=golden_parity_fields,
+            run_engine_selfcheck=run_engine_selfcheck,
+            resolve_surface_policy=resolve_surface_policy,
+            mode_satisfies_requirement=mode_satisfies_requirement,
+            capability_satisfies_requirement=capability_satisfies_requirement,
+            build_reason_payload=build_reason_payload,
+            validate_reason_payload=validate_reason_payload,
+            canonicalize_reason_payload_failure=canonicalize_reason_payload_failure,
+            ensure_workspace_ready=ensure_workspace_ready,
+            load_persist_confirmation_evidence=load_persist_confirmation_evidence,
+        )
+    )

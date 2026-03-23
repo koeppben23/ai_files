@@ -24,7 +24,7 @@ _ERROR_CONTEXT_DEFAULTS: dict = {
 @pytest.fixture(autouse=True)
 def _isolate_error_context():
     """Prevent _ERROR_CONTEXT state leaking between tests."""
-    import governance.infrastructure.logging.global_error_handler as geh
+    import governance_runtime.infrastructure.logging.global_error_handler as geh
 
     original = geh._ERROR_CONTEXT.copy()
     geh._ERROR_CONTEXT.clear()
@@ -34,6 +34,32 @@ def _isolate_error_context():
     geh._ERROR_CONTEXT.update(original)
 
 
+@pytest.fixture(autouse=True)
+def _reset_phase6_review_orchestrator():
+    """Reset Phase 6 review orchestrator module-level instances between tests."""
+    from governance_runtime.application.services.phase6_review_orchestrator import _reset_instances
+
+    _reset_instances()
+    yield
+    _reset_instances()
+
+
+@pytest.fixture(autouse=True)
+def _remove_root_rulesets_bridge():
+    """Keep root rulesets/ bridge absent throughout tests.
+
+    Some tests launch subprocesses that can materialize transient rulesets/
+    at repository root. The conformance contract requires this bridge to be
+    absent, so we clean it before/after each test.
+    """
+    root_rulesets = REPO_ROOT / "rulesets"
+    if root_rulesets.exists():
+        shutil.rmtree(root_rulesets, ignore_errors=True)
+    yield
+    if root_rulesets.exists():
+        shutil.rmtree(root_rulesets, ignore_errors=True)
+
+
 @pytest.fixture(autouse=True, scope="session")
 def _configure_binding_evidence(tmp_path_factory: pytest.TempPathFactory):
     """Provide canonical binding evidence for tests."""
@@ -41,7 +67,7 @@ def _configure_binding_evidence(tmp_path_factory: pytest.TempPathFactory):
     config_root = home / ".config" / "opencode"
     commands_home = Path(str(REPO_ROOT))
     workspaces_home = config_root / "workspaces"
-    evidence_file = config_root / "commands" / "governance.paths.json"
+    evidence_file = config_root / "governance.paths.json"
     evidence_file.parent.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
 
@@ -49,7 +75,13 @@ def _configure_binding_evidence(tmp_path_factory: pytest.TempPathFactory):
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(config_root),
+            "localRoot": str(REPO_ROOT),
             "commandsHome": str(commands_home),
+            "runtimeHome": str(REPO_ROOT / "governance_runtime"),
+            "governanceHome": str(REPO_ROOT / "governance_runtime"),
+            "contentHome": str(REPO_ROOT / "governance_content"),
+            "specHome": str(REPO_ROOT / "governance_spec"),
+            "profilesHome": str(REPO_ROOT / "governance_content" / "profiles"),
             "workspacesHome": str(workspaces_home),
             "pythonCommand": sys.executable,
         },
@@ -60,8 +92,8 @@ def _configure_binding_evidence(tmp_path_factory: pytest.TempPathFactory):
     Path.home = staticmethod(lambda: home)  # type: ignore[assignment]
     os.environ["OPENCODE_OPERATING_MODE"] = "user"
 
-    from governance.infrastructure.phase4_config_resolver import configure_phase4_self_review_resolver
-    from governance.infrastructure.phase5_config_resolver import configure_phase5_review_resolver
+    from governance_runtime.infrastructure.phase4_config_resolver import configure_phase4_self_review_resolver
+    from governance_runtime.infrastructure.phase5_config_resolver import configure_phase5_review_resolver
 
     configure_phase4_self_review_resolver()
     configure_phase5_review_resolver()

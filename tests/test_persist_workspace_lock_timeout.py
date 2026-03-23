@@ -11,7 +11,7 @@ import pytest
 
 @pytest.mark.governance
 def test_persist_workspace_lock_timeout_emits_gate_failure(tmp_path: Path):
-    script = Path(__file__).resolve().parents[1] / "governance" / "entrypoints" / "persist_workspace_artifacts_orchestrator.py"
+    script = Path(__file__).resolve().parents[1] / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts_orchestrator.py"
     spec = importlib.util.spec_from_file_location("persist_workspace_artifacts_orchestrator", script)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

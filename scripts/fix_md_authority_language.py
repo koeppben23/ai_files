@@ -38,8 +38,7 @@ FIX_PATTERNS = [
 
 # Files to skip (documentation about patterns)
 SKIP_FILES = {
-    "docs/_archive/MD_VIOLATION_ANALYSIS.md",
-    "docs/MD_PYTHON_POLICY.md",
+    "governance_content/docs/MD_PYTHON_POLICY.md",
     "CHANGELOG.md",  # Historical, don't modify
 }
 

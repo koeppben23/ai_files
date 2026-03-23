@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from governance.contracts.enforcement import FAIL_CLOSED_MISSING_CONTRACT, EnforcementResult
-from governance.entrypoints import implement_start as entrypoint
-from governance.engine.implementation_validation import (
+from governance_runtime.contracts.enforcement import FAIL_CLOSED_MISSING_CONTRACT, EnforcementResult
+from governance_runtime.entrypoints import implement_start as entrypoint
+from governance_runtime.engine.implementation_validation import (
     RC_GOVERNANCE_ONLY_CHANGES,
     RC_NO_REPO_CHANGES,
     RC_TARGETED_CHECKS_FAILED,
@@ -318,6 +318,9 @@ def test_security_local_writes_are_governance_or_state_only(
     # coverage includes context/stdout/stderr local diagnostic writes.
     monkeypatch.setattr(entrypoint, "_run_llm_edit_step", _ORIGINAL_RUN_LLM_EDIT_STEP)
     monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+    monkeypatch.delenv("OPENCODE", raising=False)
+    monkeypatch.delenv("OPENCODE_MODEL", raising=False)
+    monkeypatch.delenv("OPENCODE_MODEL_PROVIDER", raising=False)
 
     rc = entrypoint.main(["--quiet"])
     out = json.loads(capsys.readouterr().out.strip())
@@ -413,6 +416,37 @@ def test_bad_no_executor_binding_blocks_with_not_configured_reason(
 
     assert result["executor_invoked"] is False
     assert result["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
+
+
+def test_bad_effective_authoring_policy_unavailable_blocks_with_executor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    commands_home = tmp_path / "commands"
+    commands_home.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+    monkeypatch.setattr(
+        entrypoint,
+        "_load_effective_authoring_policy_text",
+        lambda **_kwargs: ("", "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"),
+    )
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"Phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+        commands_home=commands_home,
+    )
+
+    assert result.get("blocked") is True
+    assert result.get("reason") == "effective-policy-unavailable"
+    assert result.get("reason_code") == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
 
 
 def test_bad_approval_required_before_implement_start(

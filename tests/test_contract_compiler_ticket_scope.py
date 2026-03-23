@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.contracts.compiler import compile_plan_to_requirements
+from governance_runtime.contracts.compiler import compile_plan_to_requirements
 
 
 def test_happy_compiler_prefers_ticket_scope_over_governance_meta_plan() -> None:

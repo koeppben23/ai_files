@@ -1,4 +1,4 @@
-"""WI-26 — Tests for governance/entrypoints/governed_export_cli.py
+"""WI-26 — Tests for governance_runtime/entrypoints/governed_export_cli.py
 
 Tests covering the governance-gated export CLI entrypoint.
 Happy / Edge / Corner / Bad coverage.
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.entrypoints.governed_export_cli import main
+from governance_runtime.entrypoints.governed_export_cli import main
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +116,7 @@ def _create_finalized_archive(base: Path, run_id: str = _RUN_ID) -> Path:
         "trigger": "new_work_session_created",
         "policy_fingerprint": "",
         "binding": {"repo_fingerprint": _FINGERPRINT, "session_run_id": run_id},
-        "launcher": "governance.entrypoints.new_work_session",
+        "launcher": "governance_runtime.entrypoints.new_work_session",
         "timestamps": {"materialized_at": _OBSERVED_AT},
     }
     (archive_path / "provenance-record.json").write_text(json.dumps(provenance), encoding="utf-8")

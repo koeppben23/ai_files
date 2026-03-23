@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.verification.completion_matrix import is_merge_allowed
+from governance_runtime.verification.completion_matrix import is_merge_allowed
 
 
 def test_merge_blocked_when_any_requirement_unverified() -> None:

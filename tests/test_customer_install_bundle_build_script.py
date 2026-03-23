@@ -13,10 +13,10 @@ from .util import REPO_ROOT, read_text, run_build, run_customer_bundle_build, sh
 
 
 def _governance_version() -> str:
-    version_file = REPO_ROOT / "governance" / "VERSION"
-    assert version_file.exists(), "Missing governance/VERSION"
+    version_file = REPO_ROOT / "governance_runtime" / "VERSION"
+    assert version_file.exists(), "Missing governance_runtime/VERSION"
     version = version_file.read_text(encoding="utf-8").strip()
-    assert version, "Empty governance/VERSION"
+    assert version, "Empty governance_runtime/VERSION"
     return version
 
 
@@ -63,7 +63,7 @@ def test_customer_install_bundle_build_outputs_expected_files():
         assert "& py -3 $installPy @InstallArgs" in install_ps1
 
         manifest = json.loads((bundle_dir / "BUNDLE_MANIFEST.json").read_text(encoding="utf-8"))
-        assert manifest["schema"] == "governance.customer-install-bundle.v1"
+        assert manifest["schema"] == "opencode.customer-install-bundle.v1"
         assert manifest["governance_version"] == version
         assert f"{release_prefix}.zip" in manifest["release_artifacts"]
         assert f"{release_prefix}.tar.gz" in manifest["release_artifacts"]

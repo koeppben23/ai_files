@@ -5,11 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OPENCODE_CONFIG_ROOT="${OPENCODE_CONFIG_ROOT:-"${SCRIPT_DIR}/.."}"
 OPENCODE_REPO_ROOT="${OPENCODE_REPO_ROOT:-}"
 COMMANDS_HOME="${COMMANDS_HOME:-"${OPENCODE_CONFIG_ROOT}/commands"}"
-PYTHONPATH="${COMMANDS_HOME}:${COMMANDS_HOME}/governance:${PYTHONPATH}"
+OPENCODE_LOCAL_ROOT="${OPENCODE_LOCAL_ROOT:-"${HOME}/.local/opencode"}"
+PYTHONPATH="${OPENCODE_LOCAL_ROOT}:${COMMANDS_HOME}:${PYTHONPATH}"
 
 export OPENCODE_CONFIG_ROOT
 export OPENCODE_REPO_ROOT
 export COMMANDS_HOME
+export OPENCODE_LOCAL_ROOT
 export PYTHONPATH
 
 # --- Python resolution cascade (python-binding-contract.v1 §3) ---
@@ -32,41 +34,41 @@ export OPENCODE_PYTHON="${PYTHON_BIN}"
 case "${1:-}" in
     --session-reader)
         shift
-        exec "${PYTHON_BIN}" "${COMMANDS_HOME}/governance/entrypoints/session_reader.py" "$@"
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.session_reader "$@"
         ;;
     --review-pr)
         shift
-        exec "${PYTHON_BIN}" -m governance.entrypoints.review_pr "$@"
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.review_pr "$@"
         ;;
     --ticket-persist)
         shift
-        exec "${PYTHON_BIN}" -m governance.entrypoints.phase4_intake_persist "$@"
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.phase4_intake_persist "$@"
         ;;
     --plan-persist)
         shift
-        exec "${PYTHON_BIN}" -m governance.entrypoints.phase5_plan_record_persist "$@"
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.phase5_plan_record_persist "$@"
         ;;
     --review-decision-persist)
         shift
-        exec "${PYTHON_BIN}" -m governance.entrypoints.review_decision_persist "$@"
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.review_decision_persist "$@"
         ;;
     --implement-start)
         shift
-        exec "${PYTHON_BIN}" -m governance.entrypoints.implement_start "$@"
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.implement_start "$@"
         ;;
     --implementation-decision-persist)
         shift
-        exec "${PYTHON_BIN}" -m governance.entrypoints.implementation_decision_persist "$@"
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.implementation_decision_persist "$@"
         ;;
     --verify-contracts)
         shift
-        exec "${PYTHON_BIN}" -m governance.entrypoints.verify_contracts "$@"
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.verify_contracts "$@"
         ;;
     --human-approval-persist)
         shift
-        exec "${PYTHON_BIN}" -m governance.entrypoints.human_approval_persist "$@"
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.human_approval_persist "$@"
         ;;
     *)
-        exec "${PYTHON_BIN}" -m governance.entrypoints.bootstrap_executor "$@"
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.bootstrap_executor "$@"
         ;;
 esac

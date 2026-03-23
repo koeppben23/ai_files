@@ -6,6 +6,8 @@
 
 `opencode-governance-bootstrap` initializes or resumes a governance session for the current repository.
 It creates the session state file, writes the initial audit event, and prepares the governance environment.
+This launcher-first command is the only canonical operator bootstrap path.
+`python -m ...` invocation is internal/debug/compatibility-only and not primary user guidance.
 
 ## Installation
 
@@ -80,6 +82,15 @@ opencode-governance-bootstrap init --profile team --repo-root C:\path\to\repo --
 ```cmd
 opencode-governance-bootstrap.cmd init --profile team --repo-root C:\path\to\repo --config-root C:\path\to\opencode-config
 ```
+
+## Install/layout truth
+
+- Config root (default): `~/.config/opencode`
+  - `commands/`, `plugins/`, `workspaces/`, `bin/`
+- Local root (default): `~/.local/opencode`
+  - `governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, `VERSION`
+- Workspace logs: `~/.config/opencode/workspaces/<repo_fingerprint>/logs/`
+- Global logs: `~/.config/opencode/workspaces/_global/logs/`
 
 ### Operating mode setup surface
 

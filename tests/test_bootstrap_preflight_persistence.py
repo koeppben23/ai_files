@@ -13,7 +13,7 @@ from .util import REPO_ROOT
 
 
 def _load_module():
-    script = REPO_ROOT / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "bootstrap_preflight_readonly.py"
     spec = importlib.util.spec_from_file_location("bootstrap_preflight_readonly", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load bootstrap_preflight_readonly module")
@@ -23,7 +23,7 @@ def _load_module():
 
 
 def _load_module_with_env(env: dict[str, str]):
-    script = REPO_ROOT / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "bootstrap_preflight_readonly.py"
     spec = importlib.util.spec_from_file_location("bootstrap_preflight_readonly", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load bootstrap_preflight_readonly module")
@@ -52,7 +52,7 @@ def test_bootstrap_preflight_readonly_hook_blocks_when_writes_not_allowed(monkey
     monkeypatch.setenv("OPENCODE_FORCE_READ_ONLY", "1")
     monkeypatch.delenv("CI", raising=False)
     import importlib
-    import governance.entrypoints.bootstrap_preflight_readonly as mod
+    import governance_runtime.entrypoints.bootstrap_preflight_readonly as mod
     importlib.reload(mod)
     
     try:
@@ -109,7 +109,7 @@ def test_bootstrap_preflight_writes_allowed_false_when_force_read_only(monkeypat
     """SSOT: writes_allowed() is False when FORCE_READ_ONLY=1."""
     monkeypatch.setenv("OPENCODE_FORCE_READ_ONLY", "1")
     import importlib
-    import governance.entrypoints.write_policy as wp
+    import governance_runtime.entrypoints.write_policy as wp
     importlib.reload(wp)
     assert wp.writes_allowed() is False
 
@@ -119,7 +119,7 @@ def test_run_persistence_hook_blocks_when_writes_not_allowed(monkeypatch: pytest
     monkeypatch.setenv("OPENCODE_FORCE_READ_ONLY", "1")
     monkeypatch.delenv("CI", raising=False)
     import importlib
-    import governance.entrypoints.bootstrap_preflight_readonly as mod
+    import governance_runtime.entrypoints.bootstrap_preflight_readonly as mod
     importlib.reload(mod)
     
     try:
@@ -163,11 +163,11 @@ def test_run_persistence_hook_delegates_to_hook_module(capsys: pytest.CaptureFix
     assert module.sys.executable.replace('"', '') in hook_cmd.replace('"', ''), (
         f"hook command must reference python executable: {hook_cmd}"
     )
-    assert "-m governance.entrypoints.bootstrap_persistence_hook" in hook_cmd
+    assert "-m governance_runtime.entrypoints.bootstrap_persistence_hook" in hook_cmd
     assert result["cwd"]
     assert result["repo_root_detected"] == str(repo_root)
     run_args = mock_run.call_args.args[0]
-    assert run_args[:3] == [module.sys.executable, "-m", "governance.entrypoints.bootstrap_persistence_hook"]
+    assert run_args[:3] == [module.sys.executable, "-m", "governance_runtime.entrypoints.bootstrap_persistence_hook"]
     call_args = mock_run.call_args.kwargs
     assert call_args["cwd"] == str(repo_root)
     expected_prefix = str(repo_root) + module.os.pathsep + str(module.COMMANDS_HOME)
@@ -244,7 +244,7 @@ def test_run_persistence_hook_blocks_when_repo_root_not_detectable(capsys: pytes
     assert payload["reason_code"] == "BLOCKED-REPO-ROOT-NOT-DETECTABLE"
     assert payload["hook_invoked"] is False
     assert payload["failure_stage"] == "repo_root"
-    assert payload["bootstrap_hook_command"].endswith("-m governance.entrypoints.bootstrap_persistence_hook")
+    assert payload["bootstrap_hook_command"].endswith("-m governance_runtime.entrypoints.bootstrap_persistence_hook")
     assert payload["python_executable"]
 
 

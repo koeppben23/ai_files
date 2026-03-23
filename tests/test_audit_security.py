@@ -16,10 +16,10 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.io_verify import verify_run_archive
-from governance.infrastructure.work_run_archive import archive_active_run
-from governance.infrastructure.workspace_paths import run_dir
-from governance.domain.audit_contract import (
+from governance_runtime.infrastructure.io_verify import verify_run_archive
+from governance_runtime.infrastructure.work_run_archive import archive_active_run
+from governance_runtime.infrastructure.workspace_paths import run_dir
+from governance_runtime.domain.audit_contract import (
     validate_repo_fingerprint,
     validate_timestamp,
     validate_checksum_digest,

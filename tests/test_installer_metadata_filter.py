@@ -26,34 +26,35 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
 
     module = _load_install_module()
     source = tmp_path / "source"
+    (source / "opencode" / "commands").mkdir(parents=True, exist_ok=True)
     (source / "profiles" / "addons").mkdir(parents=True, exist_ok=True)
-    (source / "governance").mkdir(parents=True, exist_ok=True)
-    (source / "governance" / "engine").mkdir(parents=True, exist_ok=True)
-    (source / "governance" / "__MACOSX").mkdir(parents=True, exist_ok=True)
+    (source / "governance_runtime").mkdir(parents=True, exist_ok=True)
+    (source / "governance_runtime" / "engine").mkdir(parents=True, exist_ok=True)
+    (source / "governance_runtime" / "__MACOSX").mkdir(parents=True, exist_ok=True)
     (source / "scripts").mkdir(parents=True, exist_ok=True)
-    (source / "governance" / "artifacts" / "opencode-plugins").mkdir(parents=True, exist_ok=True)
+    (source / "governance_runtime" / "artifacts" / "opencode-plugins").mkdir(parents=True, exist_ok=True)
     (source / "templates" / "github-actions").mkdir(parents=True, exist_ok=True)
 
     # valid files
-    (source / "master.md").write_text("# master", encoding="utf-8")
+    (source / "opencode" / "commands" / "continue.md").write_text("# continue", encoding="utf-8")
     (source / "profiles" / "rules.backend-python.md").write_text("# profile", encoding="utf-8")
     (source / "profiles" / "addons" / "backendPythonTemplates.addon.yml").write_text(
         "addon_key: backendPythonTemplates\n", encoding="utf-8"
     )
-    (source / "governance" / "assets" / "catalogs").mkdir(parents=True, exist_ok=True)
-    (source / "governance" / "assets" / "catalogs" / "tool_requirements.json").write_text("{}", encoding="utf-8")
-    (source / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").write_text(
-        '{"schema":"governance.customer-script-catalog.v1","scripts":[{"path":"scripts/workflow_template_factory.py","ship_in_release":true}]}\n',
+    (source / "governance_runtime" / "assets" / "catalogs").mkdir(parents=True, exist_ok=True)
+    (source / "governance_runtime" / "assets" / "catalogs" / "tool_requirements.json").write_text("{}", encoding="utf-8")
+    (source / "governance_runtime" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").write_text(
+        '{"schema":"opencode.customer-script-catalog.v1","scripts":[{"path":"scripts/workflow_template_factory.py","ship_in_release":true}]}\n',
         encoding="utf-8",
     )
-    (source / "governance" / "engine" / "orchestrator.py").write_text("pass\n", encoding="utf-8")
+    (source / "governance_runtime" / "engine" / "orchestrator.py").write_text("pass\n", encoding="utf-8")
     (source / "scripts" / "workflow_template_factory.py").write_text("print('ok')\n", encoding="utf-8")
-    (source / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs").write_text(
+    (source / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs").write_text(
         "export const AuditNewSession = async () => ({ event: async () => {} });\n",
         encoding="utf-8",
     )
     (source / "templates" / "github-actions" / "template_catalog.json").write_text(
-        '{"schema":"governance.workflow-template-catalog.v1","templates":[{"file":"templates/github-actions/governance-sample.yml"}]}\n',
+        '{"schema":"opencode.workflow-template-catalog.v1","templates":[{"file":"templates/github-actions/governance-sample.yml"}]}\n',
         encoding="utf-8",
     )
     (source / "templates" / "github-actions" / "governance-sample.yml").write_text("name: Sample\n", encoding="utf-8")
@@ -61,11 +62,11 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     # metadata garbage that must be excluded
     (source / ".DS_Store").write_text("meta", encoding="utf-8")
     (source / "profiles" / "._rules.backend-python.md").write_text("meta", encoding="utf-8")
-    (source / "governance" / ".DS_Store").write_text("meta", encoding="utf-8")
-    (source / "governance" / "__MACOSX" / "file.py").write_text("meta", encoding="utf-8")
-    (source / "governance" / "engine" / "._orchestrator.py").write_text("meta", encoding="utf-8")
+    (source / "governance_runtime" / ".DS_Store").write_text("meta", encoding="utf-8")
+    (source / "governance_runtime" / "__MACOSX" / "file.py").write_text("meta", encoding="utf-8")
+    (source / "governance_runtime" / "engine" / "._orchestrator.py").write_text("meta", encoding="utf-8")
     (source / "scripts" / "._workflow_template_factory.py").write_text("meta", encoding="utf-8")
-    (source / "governance" / "artifacts" / "opencode-plugins" / ".DS_Store").write_text("meta", encoding="utf-8")
+    (source / "governance_runtime" / "artifacts" / "opencode-plugins" / ".DS_Store").write_text("meta", encoding="utf-8")
     (source / "templates" / "github-actions" / ".DS_Store").write_text("meta", encoding="utf-8")
 
     root_files = module.collect_command_root_files(source)
@@ -76,19 +77,18 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     plugin_files = module.collect_opencode_plugin_files(source)
     workflow_template_files = module.collect_workflow_template_files(source, strict=True)
 
-    assert [p.relative_to(source).as_posix() for p in root_files] == ["master.md"]
+    assert [p.relative_to(source).as_posix() for p in root_files] == ["opencode/commands/continue.md"]
     assert [p.relative_to(source).as_posix() for p in profile_files] == ["profiles/rules.backend-python.md"]
     assert [p.relative_to(source).as_posix() for p in addon_files] == ["profiles/addons/backendPythonTemplates.addon.yml"]
-    assert [p.relative_to(source).as_posix() for p in runtime_files] == [
-        "governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
-        "governance/assets/catalogs/tool_requirements.json",
-        "governance/engine/orchestrator.py",
-    ]
+    runtime_rel = [p.relative_to(source).as_posix() for p in runtime_files]
+    assert "governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json" in runtime_rel
+    assert "governance_runtime/assets/catalogs/tool_requirements.json" in runtime_rel
+    assert "governance_runtime/engine/orchestrator.py" in runtime_rel
     assert [p.relative_to(source).as_posix() for p in customer_script_files] == [
         "scripts/workflow_template_factory.py"
     ]
     assert [p.relative_to(source).as_posix() for p in plugin_files] == [
-        "governance/artifacts/opencode-plugins/audit-new-session.mjs"
+        "governance_runtime/artifacts/opencode-plugins/audit-new-session.mjs"
     ]
     assert [p.relative_to(source).as_posix() for p in workflow_template_files] == [
         "templates/github-actions/governance-sample.yml",

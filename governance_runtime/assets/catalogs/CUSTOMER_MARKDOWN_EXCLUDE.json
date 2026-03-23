@@ -1,0 +1,10 @@
+{
+  "schema": "opencode.customer-markdown-exclude.v1",
+  "version": "1.0.0",
+  "release_excluded_markdown": [
+    "governance_content/docs/MD_PYTHON_POLICY.md",
+    "governance_content/docs/MODEL_IDENTITY_RESOLUTION.md",
+    "governance_content/docs/TERMINOLOGY_CLASSIFICATION.md"
+  ],
+  "notes": "Files listed here are intentionally excluded from customer release archives in SSOT layout."
+}

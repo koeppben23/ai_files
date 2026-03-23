@@ -13,7 +13,7 @@ from pathlib import Path
 import yaml
 import pytest
 
-from governance.domain.audit_contract import (
+from governance_runtime.domain.audit_contract import (
     ALLOWED_RUN_STATUSES,
     ALLOWED_RECORD_STATUSES,
     ALLOWED_ARCHIVE_STATUSES,
@@ -34,14 +34,14 @@ from governance.domain.audit_contract import (
     CONTRACT_VERSION,
     validate_schema_identifier,
 )
-from governance.domain.failure_model import (
+from governance_runtime.domain.failure_model import (
     FailureCategory,
     FailureSeverity,
     RecoveryStrategy,
     FAILURE_CLASSIFICATIONS,
     CONTRACT_VERSION as FAILURE_CONTRACT_VERSION,
 )
-from governance.infrastructure.run_audit_artifacts import (
+from governance_runtime.infrastructure.run_audit_artifacts import (
     RUN_STATUSES,
     RECORD_STATUSES,
 )
@@ -51,7 +51,7 @@ from governance.infrastructure.run_audit_artifacts import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-_ASSETS_ROOT = Path(__file__).resolve().parent.parent / "governance" / "assets"
+_ASSETS_ROOT = Path(__file__).resolve().parent.parent / "governance_runtime" / "assets"
 _CONFIG_ROOT = _ASSETS_ROOT / "config"
 _SCHEMA_ROOT = _ASSETS_ROOT / "schemas"
 

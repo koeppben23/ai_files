@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.application.use_cases.phase4_self_review import (
+from governance_runtime.application.use_cases.phase4_self_review import (
     RigorLevel,
     ReviewFinding,
     SelfReviewRound,
@@ -367,7 +367,7 @@ class TestPolicyBoundConfigLoading:
 
     def test_missing_config_raises_policy_error(self, tmp_path):
         """When policy-bound config is missing, raise PolicyConfigError."""
-        from governance.application.use_cases import phase4_self_review
+        from governance_runtime.application.use_cases import phase4_self_review
 
         phase4_self_review._CONFIG_CACHE = None  # Clear cache
         phase4_self_review._default_resolver = None  # No resolver configured
@@ -379,7 +379,7 @@ class TestPolicyBoundConfigLoading:
 
     def test_config_without_pack_locked_raises_error(self, tmp_path):
         """Config must have pack_locked=true."""
-        from governance.application.use_cases import phase4_self_review
+        from governance_runtime.application.use_cases import phase4_self_review
         
         config_content = """
 policy:
@@ -409,7 +409,7 @@ rigor_levels:
 
     def test_config_with_wrong_precedence_raises_error(self, tmp_path):
         """Config must have correct precedence_level."""
-        from governance.application.use_cases import phase4_self_review
+        from governance_runtime.application.use_cases import phase4_self_review
         
         config_content = """
 policy:
@@ -439,7 +439,7 @@ rigor_levels:
 
     def test_valid_config_loads_successfully(self, tmp_path):
         """Valid policy-bound config loads without error."""
-        from governance.application.use_cases import phase4_self_review
+        from governance_runtime.application.use_cases import phase4_self_review
         
         config_content = """
 policy:

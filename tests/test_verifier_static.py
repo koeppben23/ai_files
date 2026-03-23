@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.verification.static_verifier import run_static_verification
+from governance_runtime.verification.static_verifier import run_static_verification
 
 
 def test_static_verifier_checks_hotspot_presence(tmp_path: Path) -> None:

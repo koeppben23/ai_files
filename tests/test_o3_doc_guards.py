@@ -23,8 +23,24 @@ from tests.util import REPO_ROOT
 def _read(relpath: str) -> str:
     """Read a file relative to REPO_ROOT, fail fast if missing."""
     p = REPO_ROOT / relpath
-    assert p.exists(), f"Expected file not found: {relpath}"
-    return p.read_text(encoding="utf-8")
+    if p.exists():
+        return p.read_text(encoding="utf-8")
+
+    if relpath.startswith("docs/"):
+        migrated_docs = REPO_ROOT / "governance_content" / relpath
+        if migrated_docs.exists():
+            return migrated_docs.read_text(encoding="utf-8")
+
+    command_doc = REPO_ROOT / "opencode" / "commands" / Path(relpath).name
+    if command_doc.exists():
+        return command_doc.read_text(encoding="utf-8")
+
+    if relpath == "phase_api.yaml":
+        phase_api = REPO_ROOT / "governance_spec" / "phase_api.yaml"
+        if phase_api.exists():
+            return phase_api.read_text(encoding="utf-8")
+
+    assert False, f"Expected file not found: {relpath}"
 
 
 # ===================================================================
@@ -161,9 +177,14 @@ class TestQuickstartEdge:
     def test_bootstrap_step_has_launcher(self) -> None:
         """Step 3 bootstrap section must reference the launcher."""
         content = _read("QUICKSTART.md")
+        # Try both "## Step 3:" and "## Step 3 " formats
         start = content.find("## Step 3:")
-        assert start >= 0
+        if start < 0:
+            start = content.find("## Step 3 ")
+        assert start >= 0, "QUICKSTART.md must contain Step 3"
         next_section = content.find("## Step 4:", start)
+        if next_section < 0:
+            next_section = content.find("## Step 4 ", start)
         if next_section < 0:
             next_section = len(content)
         section = content[start:next_section]
@@ -215,20 +236,20 @@ class TestAuditReadoutFallbackCorner:
 
 
 # ===================================================================
-# 4. README.md — authority language guard
+# 4. DOCS.md — authority language guard
 # ===================================================================
 
 
-class TestReadmeAuthorityHappy:
-    """README.md /review line must not contain authority language."""
+class TestDocsAuthorityHappy:
+    """DOCS.md /review line must not contain authority language."""
 
     def test_review_line_no_authoritative(self) -> None:
-        """README.md /review description must not use 'authoritative'."""
-        content = _read("README.md")
+        """DOCS.md /review description must not use 'authoritative'."""
+        content = _read("DOCS.md")
         for line in content.split("\n"):
             if "/review" in line and "read-only rail entrypoint" in line:
                 assert "authoritative" not in line.lower(), (
-                    f"README.md /review line must not contain 'authoritative' — "
+                    f"DOCS.md /review line must not contain 'authoritative' — "
                     f"authority language removed in O3-F3: {line.strip()}"
                 )
 
@@ -241,7 +262,7 @@ class TestReadmeAuthorityHappy:
 class TestO3SurfaceBad:
     """Prevent regression to deprecated command and entrypoint surfaces."""
 
-    _DOCS = ["README-OPENCODE.md", "QUICKSTART.md", "README.md", "docs/operator-runbook.md"]
+    _DOCS = ["README-OPENCODE.md", "QUICKSTART.md", "DOCS.md", "docs/operator-runbook.md"]
 
     @pytest.mark.parametrize("relpath", _DOCS)
     def test_no_direct_governance_entrypoint_calls(self, relpath: str) -> None:
@@ -274,7 +295,7 @@ class TestO3SurfaceEdge:
         assert "%USERPROFILE%\\.config\\opencode\\bin\\" not in combined
 
     def test_launcher_command_present(self) -> None:
-        combined = "\n".join(_read(p) for p in ["README-OPENCODE.md", "QUICKSTART.md", "README.md"])
+        combined = "\n".join(_read(p) for p in ["README-OPENCODE.md", "QUICKSTART.md", "DOCS.md"])
         assert "opencode-governance-bootstrap" in combined
 
 
@@ -292,9 +313,8 @@ class TestO3ActiveCatalogGuards:
     """Ensure active governance catalogs do not regress to legacy command wording."""
 
     _ACTIVE_CATALOGS = [
-        "governance/assets/reasons/blocked_reason_catalog.yaml",
-        "governance/assets/config/blocked_reason_catalog.yaml",
-        "governance/assets/catalogs/reason_codes.registry.json",
+        "governance_runtime/assets/config/blocked_reason_catalog.yaml",
+        "governance_runtime/assets/catalogs/reason_codes.registry.json",
         "SESSION_STATE_SCHEMA.md",
         "phase_api.yaml",
     ]
@@ -324,7 +344,7 @@ class TestLauncherSurfaceBad:
     """Bad: active paths must not expose module-name launcher surface."""
 
     _ACTIVE_PATHS = [
-        "README.md",
+        "DOCS.md",
         "README-OPENCODE.md",
         "QUICKSTART.md",
         "ticket.md",
@@ -334,7 +354,7 @@ class TestLauncherSurfaceBad:
         "docs/operator-runbook.md",
         "SESSION_STATE_SCHEMA.md",
         "phase_api.yaml",
-        "governance/assets/catalogs/REASON_REMEDIATION_MAP.json",
+        "governance_runtime/assets/catalogs/REASON_REMEDIATION_MAP.json",
     ]
 
     @pytest.mark.parametrize("relpath", _ACTIVE_PATHS)
@@ -350,7 +370,7 @@ class TestLauncherSurfaceCorner:
     """Corner: secondary support catalogs still use launcher subcommands."""
 
     def test_reason_remediation_map_uses_launcher_subcommands(self) -> None:
-        content = _read("governance/assets/catalogs/REASON_REMEDIATION_MAP.json")
+        content = _read("governance_runtime/assets/catalogs/REASON_REMEDIATION_MAP.json")
         assert "opencode-governance-bootstrap --ticket-persist" in content
         assert "opencode-governance-bootstrap --plan-persist" in content
 

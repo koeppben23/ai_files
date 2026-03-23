@@ -27,7 +27,7 @@ from unittest.mock import patch
 
 import pytest
 
-from governance.entrypoints.session_reader import (
+from governance_runtime.entrypoints.session_reader import (
     POINTER_SCHEMA,
     read_session_snapshot,
 )
@@ -66,7 +66,7 @@ def _write_workspace_state(ws_state: Path, state: dict) -> None:
 def _mock_readonly_unavailable():
     """Patch evaluate_readonly to raise, triggering graceful degradation."""
     return patch(
-        "governance.kernel.phase_kernel.evaluate_readonly",
+        "governance_runtime.kernel.phase_kernel.evaluate_readonly",
         side_effect=RuntimeError("kernel not available in test"),
     )
 
@@ -358,11 +358,12 @@ class TestRailDocFreeTextGuard:
 
     @pytest.fixture(autouse=True)
     def _load_rail_docs(self) -> None:
-        """Load continue.md, ticket.md, and plan.md from the repo root."""
+        """Load continue.md, ticket.md, and plan.md from opencode/commands/."""
         repo_root = Path(__file__).resolve().parent.parent
-        self.continue_md = (repo_root / "continue.md").read_text(encoding="utf-8")
-        self.ticket_md = (repo_root / "ticket.md").read_text(encoding="utf-8")
-        self.plan_md = (repo_root / "plan.md").read_text(encoding="utf-8")
+        commands_root = repo_root / "opencode" / "commands"
+        self.continue_md = (commands_root / "continue.md").read_text(encoding="utf-8")
+        self.ticket_md = (commands_root / "ticket.md").read_text(encoding="utf-8")
+        self.plan_md = (commands_root / "plan.md").read_text(encoding="utf-8")
 
     def test_continue_md_has_free_text_guard(self) -> None:
         """continue.md must contain the free-text guard section."""
@@ -477,7 +478,7 @@ class TestEvaluateReadonlyNoSideEffects:
         files_before = set(os.listdir(workspace_dir))
         content_before = ws_state.read_text(encoding="utf-8")
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         fake_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -499,7 +500,7 @@ class TestEvaluateReadonlyNoSideEffects:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=fake_result,
         ):
             read_session_snapshot(commands_home=fake_config / "commands")

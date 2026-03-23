@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.engine.reason_payload import (
+from governance_runtime.engine.reason_payload import (
     ReasonPayload,
     build_reason_payload,
     validate_reason_payload,

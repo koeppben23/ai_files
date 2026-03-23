@@ -4,10 +4,10 @@ from typing import Any, cast
 
 import pytest
 
-from governance.render.delta_renderer import build_delta_state
-from governance.render.intent_router import route_intent
-from governance.render.render_contract import build_two_layer_output
-from governance.render.token_guard import apply_token_budget
+from governance_runtime.render.delta_renderer import build_delta_state
+from governance_runtime.render.intent_router import route_intent
+from governance_runtime.render.render_contract import build_two_layer_output
+from governance_runtime.render.token_guard import apply_token_budget
 
 
 @pytest.mark.governance

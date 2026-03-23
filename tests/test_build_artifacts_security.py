@@ -10,14 +10,31 @@ from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT, read_text, run_build, sha256_file
+from .util import REPO_ROOT, get_templates_path, run_build, sha256_file
+
+
+def _resolve_existing_rel(rel: str) -> str:
+    candidates = [rel]
+    if rel == "master.md":
+        candidates.append("governance_content/reference/master.md")
+    elif rel == "rules.md":
+        candidates.append("governance_content/reference/rules.md")
+    elif rel.startswith("docs/") or rel.startswith("profiles/") or rel.startswith("templates/"):
+        candidates.append("governance_content/" + rel)
+    elif rel.startswith("rulesets/"):
+        candidates.append("governance_spec/" + rel)
+
+    for candidate in candidates:
+        if (REPO_ROOT / candidate).is_file():
+            return candidate
+    return rel
 
 
 def _governance_version() -> str:
-    version_file = REPO_ROOT / "governance" / "VERSION"
-    assert version_file.exists(), "Missing governance/VERSION"
+    version_file = REPO_ROOT / "governance_runtime" / "VERSION"
+    assert version_file.exists(), "Missing governance_runtime/VERSION"
     version = version_file.read_text(encoding="utf-8").strip()
-    assert version, "Empty governance/VERSION"
+    assert version, "Empty governance_runtime/VERSION"
     return version
 
 
@@ -46,7 +63,7 @@ def _top_level_prefix(names: list[str]) -> set[str]:
 
 
 def _shipped_customer_scripts() -> set[str]:
-    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
     return {
         str(entry["path"])
         for entry in payload.get("scripts", [])
@@ -55,9 +72,9 @@ def _shipped_customer_scripts() -> set[str]:
 
 
 def _shipped_workflow_templates() -> set[str]:
-    payload = json.loads((REPO_ROOT / "templates" / "github-actions" / "template_catalog.json").read_text(encoding="utf-8"))
+    payload = json.loads((get_templates_path() / "github-actions" / "template_catalog.json").read_text(encoding="utf-8"))
     return {
-        str(entry["file"])
+        _resolve_existing_rel(str(entry["file"]))
         for entry in payload.get("templates", [])
         if isinstance(entry, dict) and isinstance(entry.get("file"), str)
     }
@@ -130,25 +147,25 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
     required_rel = {
         "install.py",
         "cli/bootstrap.py",
-        "governance/VERSION",
-        "master.md",
-        "rules.md",
+        "governance_runtime/VERSION",
+        _resolve_existing_rel("master.md"),
+        _resolve_existing_rel("rules.md"),
         "BOOTSTRAP.md",
-        "profiles/addons/docsGovernance.addon.yml",
-        "governance/entrypoints/persist_workspace_artifacts.py",
-        "governance/entrypoints/bootstrap_session_state.py",
-        "governance/entrypoints/error_logs.py",
-        "governance/entrypoints/map_audit_to_canonical.py",
-        "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
-        "governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
-        "governance/assets/catalogs/tool_requirements.json",
-        "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
-        "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
+        _resolve_existing_rel("profiles/addons/docsGovernance.addon.yml"),
+        "governance_runtime/entrypoints/persist_workspace_artifacts.py",
+        "governance_runtime/entrypoints/bootstrap_session_state.py",
+        "governance_runtime/entrypoints/error_logs.py",
+        "governance_runtime/entrypoints/map_audit_to_canonical.py",
+        "governance_runtime/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
+        "governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+        "governance_runtime/assets/catalogs/tool_requirements.json",
+        "governance_runtime/assets/catalogs/QUICKFIX_TEMPLATES.json",
+        "governance_runtime/assets/catalogs/UX_INTENT_GOLDENS.json",
     }
     required_rel.update(_shipped_customer_scripts())
     required_rel.update(_shipped_workflow_templates())
 
-    allowed_suffixes = {".md", ".json", ".yaml"}
+    allowed_suffixes = {".md", ".json", ".yaml", ".yml"}
 
     def assert_policy(members: list[str], label: str):
         files = [m for m in members if m and not m.endswith("/")]
@@ -187,9 +204,9 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         # - LICENSE*
         # - *.md + *.json
         # - profiles/addons/*.addon.yml
-        # - governance/entrypoints/*.py runtime helpers
+        # - governance_runtime/entrypoints/*.py runtime helpers
         # - cli/*.py local bootstrap runtime package
-        # - governance/artifacts/opencode-plugins/*.{mjs,js} desktop session hooks
+        # - governance_runtime/artifacts/opencode-plugins/*.{mjs,js} desktop session hooks
         # - scripts/*.py listed in CUSTOMER_SCRIPT_CATALOG ship_in_release
         # - templates/github-actions/*.yml listed in workflow template catalog
         for n in files:
@@ -199,19 +216,19 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
                 continue
             if name.upper().startswith(("LICENSE", "LICENCE")):
                 continue
-            if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
+            if (rel.startswith("profiles/addons/") or rel.startswith("governance_content/profiles/addons/")) and name.endswith(".addon.yml"):
                 continue
-            if rel.startswith("governance/entrypoints/") and Path(name).suffix.lower() == ".py":
+            if rel.startswith("governance_runtime/entrypoints/") and Path(name).suffix.lower() == ".py":
                 continue
-            if rel.startswith("governance/") and Path(name).suffix.lower() == ".py":
+            if rel.startswith("governance_runtime/") and Path(name).suffix.lower() == ".py":
                 continue
             if rel.startswith("bootstrap/") and Path(name).suffix.lower() == ".py":
                 continue
             if rel.startswith("cli/") and Path(name).suffix.lower() == ".py":
                 continue
-            if rel.startswith("governance/artifacts/opencode-plugins/") and Path(name).suffix.lower() in {".mjs", ".js"}:
+            if rel.startswith("governance_runtime/artifacts/opencode-plugins/") and Path(name).suffix.lower() in {".mjs", ".js"}:
                 continue
-            if rel == "governance/VERSION":
+            if rel == "governance_runtime/VERSION":
                 continue
             if rel in shipped_scripts:
                 observed_scripts.add(rel)
@@ -231,7 +248,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
             f"unexpected={sorted(observed_templates - shipped_templates)}"
         )
 
-        addon_manifests = [n for n in files if "/profiles/addons/" in n and n.endswith(".addon.yml")]
+        addon_manifests = [n for n in files if ("/profiles/addons/" in n or "/governance_content/profiles/addons/" in n) and n.endswith(".addon.yml")]
         assert addon_manifests, f"{label}: expected addon manifests under profiles/addons/*.addon.yml"
 
     with zipfile.ZipFile(zip_path, "r") as zf:

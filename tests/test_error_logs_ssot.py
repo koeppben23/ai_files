@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 import sys
 
-import governance.infrastructure.logging.error_logs as error_logs
+import governance_runtime.infrastructure.logging.error_logs as error_logs
 
 
 def test_write_error_event_uses_ssot_error_log_path(monkeypatch) -> None:
@@ -66,7 +66,7 @@ def test_resolve_paths_full_returns_commands_home(tmp_path: Path) -> None:
             "pythonCommand": sys.executable,
         },
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
 
     resolved_cfg, resolved_ws, resolved_cmd = error_logs.resolve_paths_full(cfg)
 

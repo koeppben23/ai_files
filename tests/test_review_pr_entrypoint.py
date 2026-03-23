@@ -4,7 +4,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from governance.entrypoints import review_pr
+from governance_runtime.entrypoints import review_pr
 
 
 class _EnforcementOk:

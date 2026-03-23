@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from artifacts.writers.plan_record import compute_content_hash
-from governance.infrastructure.plan_record_repository import (
+from governance_runtime.infrastructure.plan_record_repository import (
     PlanRecordFinalizeResult,
     PlanRecordRepository,
     PlanRecordRotateResult,
@@ -208,7 +208,7 @@ class TestFinalize:
     def test_finalize_fails_when_no_versions(self, repo: PlanRecordRepository, tmp_path: Path) -> None:
         # Create an empty document manually
         from artifacts.writers.plan_record import new_plan_record_document, render_plan_record
-        from governance.infrastructure.fs_atomic import atomic_write_text
+        from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 
         doc = new_plan_record_document(_FP)
         atomic_write_text(repo.path, render_plan_record(doc))

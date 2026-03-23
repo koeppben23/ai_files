@@ -1,7 +1,7 @@
 """Tests for business specificity in validation."""
 
 import pytest
-from governance.engine.business_rules_validation import (
+from governance_runtime.engine.business_rules_validation import (
     validate_candidates,
     RuleCandidate,
     ORIGIN_CODE,

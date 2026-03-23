@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.adapters import ExecResult, HostCapabilities, OperatingMode
-from governance.engine.orchestrator import run_engine_orchestrator
+from governance_runtime.engine.adapters import ExecResult, HostCapabilities, OperatingMode
+from governance_runtime.engine.orchestrator import run_engine_orchestrator
 
 
 @dataclass(frozen=True)

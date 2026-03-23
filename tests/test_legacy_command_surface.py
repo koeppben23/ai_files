@@ -6,6 +6,13 @@ from .util import REPO_ROOT
 
 
 def _read(relpath: str) -> str:
+    migrated = REPO_ROOT / "governance_content" / relpath
+    if migrated.exists():
+        return migrated.read_text(encoding="utf-8")
+    if relpath == "phase_api.yaml":
+        canonical = REPO_ROOT / "governance_spec" / "phase_api.yaml"
+        if canonical.exists():
+            return canonical.read_text(encoding="utf-8")
     return (REPO_ROOT / relpath).read_text(encoding="utf-8")
 
 
@@ -13,12 +20,11 @@ class TestLegacyCommandSurfaceMigration:
     """Guard active surfaces against /resume and /audit legacy drift."""
 
     _ACTIVE_SURFACES = [
-        "governance/assets/reasons/blocked_reason_catalog.yaml",
-        "governance/assets/config/blocked_reason_catalog.yaml",
-        "governance/assets/catalogs/reason_codes.registry.json",
+        "governance_runtime/assets/config/blocked_reason_catalog.yaml",
+        "governance_runtime/assets/catalogs/reason_codes.registry.json",
         "SESSION_STATE_SCHEMA.md",
         "phase_api.yaml",
-        "governance/assets/catalogs/audit.md",
+        "governance_runtime/assets/catalogs/audit.md",
         "docs/operator-runbook.md",
         "README.md",
         "README-OPENCODE.md",
@@ -27,9 +33,8 @@ class TestLegacyCommandSurfaceMigration:
 
     def test_happy_reason_catalogs_use_continue(self) -> None:
         files = [
-            "governance/assets/reasons/blocked_reason_catalog.yaml",
-            "governance/assets/config/blocked_reason_catalog.yaml",
-            "governance/assets/catalogs/reason_codes.registry.json",
+            "governance_runtime/assets/config/blocked_reason_catalog.yaml",
+            "governance_runtime/assets/catalogs/reason_codes.registry.json",
         ]
         for relpath in files:
             content = _read(relpath)
@@ -46,7 +51,7 @@ class TestLegacyCommandSurfaceMigration:
         assert "resume via /continue" not in content
 
     def test_happy_audit_catalog_uses_audit_readout_vocabulary(self) -> None:
-        content = _read("governance/assets/catalogs/audit.md")
+        content = _read("governance_runtime/assets/catalogs/audit.md")
         assert "/audit-readout" in content
         assert "The `/audit` command" not in content
         assert "- `/audit` MUST NOT" not in content
@@ -89,8 +94,7 @@ class TestLegacyCommandSurfaceMigration:
 
     def test_bad_blocked_catalogs_must_not_use_raw_entrypoint_quick_fixes(self) -> None:
         for relpath in [
-            "governance/assets/reasons/blocked_reason_catalog.yaml",
-            "governance/assets/config/blocked_reason_catalog.yaml",
+            "governance_runtime/assets/config/blocked_reason_catalog.yaml",
         ]:
             content = _read(relpath)
             assert "governance.entrypoints.phase4_intake_persist" not in content
@@ -98,8 +102,7 @@ class TestLegacyCommandSurfaceMigration:
 
     def test_bad_blocked_catalogs_must_not_use_resume_pointer_key(self) -> None:
         for relpath in [
-            "governance/assets/reasons/blocked_reason_catalog.yaml",
-            "governance/assets/config/blocked_reason_catalog.yaml",
+            "governance_runtime/assets/config/blocked_reason_catalog.yaml",
         ]:
             content = _read(relpath)
             assert "resume_pointer:" not in content

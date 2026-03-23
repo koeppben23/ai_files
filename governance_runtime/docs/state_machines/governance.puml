@@ -1,0 +1,50 @@
+@startuml governance
+
+title Governance State Machine
+
+    package "Phase 4 - Ticket/Plan" {
+        [plan record preparation gate]
+        [ticket input gate]
+        [ticket input gate] --> [ticket input gate] : run /ticket with the ticket/task details. (phase4-ticket-input)
+        [plan record preparation gate] --> [plan record preparation gate] : run /plan. (plan-record-missing)
+    }
+
+    package "Phase 5 - Architecture Review" {
+        [*]
+        [plan record preparation gate]
+        [plan record preparation gate] --> [plan record preparation gate] : run /plan. (plan-record-missing)
+        [*] --> [*] : run /continue. (phase5-progress)
+    }
+
+    package "Phase 6 - Post Flight" {
+        [*]
+        [evidence presentation gate]
+        [implementation blocked]
+        [implementation execution in progress]
+        [implementation presentation gate]
+        [implementation review complete]
+        [implementation revision]
+        [implementation rework clarification gate]
+        [implementation self review]
+        [implementation started]
+        [implementation verification]
+        [rework clarification gate]
+        [workflow complete]
+        [rework clarification gate] --> [*] : provide clarification in chat. (rework-clarification-required)
+        [rework clarification gate] --> [*] : run /ticket. (rework-scope-change)
+        [rework clarification gate] --> [*] : run /plan. (rework-plan-change)
+        [workflow complete] --> [workflow complete] : run /implement. (workflow-approved)
+        [implementation rework clarification gate] --> [*] : run /implement. (impl-rework-clarified)
+        [implementation started] --> [implementation started] : continue implementation work on the approved plan. (implementation-running)
+        [implementation execution in progress] --> [*] : run /continue. (implementation-loop-progress)
+        [implementation self review] --> [*] : run /continue. (implementation-loop-progress)
+        [implementation revision] --> [*] : run /continue. (implementation-loop-progress)
+        [implementation verification] --> [*] : run /continue. (implementation-loop-progress)
+        [implementation review complete] --> [*] : run /continue. (implementation-loop-progress)
+        [implementation blocked] --> [implementation blocked] : resolve implementation blockers, then run /implement. (implementation-blocked)
+        [implementation presentation gate] --> [implementation presentation gate] : run /implementation-decision <approve|changes_requested|reject>. (implementation-decision-available)
+        [evidence presentation gate] --> [evidence presentation gate] : run /review-decision <approve|changes_requested|reject>. (awaiting-final-decision)
+        [*] --> [*] : run /continue. (phase6-progress)
+    }
+
+@enduml

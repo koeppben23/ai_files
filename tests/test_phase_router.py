@@ -8,12 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from governance.application.use_cases.phase_router import (
+from governance_runtime.application.use_cases.phase_router import (
     route_phase,
     _api_in_scope,
     _openapi_signal,
     _external_api_artifacts,
 )
+from tests.util import get_phase_api_path
 
 
 @pytest.fixture(autouse=True)
@@ -22,21 +23,23 @@ def _kernel_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     cfg = home / ".config" / "opencode"
     commands_home = cfg / "commands"
     workspaces_home = cfg / "workspaces"
+    spec_home = cfg / "governance_spec"
     commands_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
+    spec_home.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
+            "specHome": str(spec_home),
             "pythonCommand": sys.executable,
         },
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
 
-    repo_root = Path(__file__).resolve().parents[1]
-    (commands_home / "phase_api.yaml").write_text((repo_root / "phase_api.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
 
@@ -52,15 +55,15 @@ def _minimal_session_state(**overrides) -> dict[str, object]:
             "ActiveProfile": "profile.fallback-minimum",
             "LoadedRulebooks": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
                 "templates": "${COMMANDS_HOME}/master.md",
                 "addons": {
-                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+                    "riskTiering": "${PROFILES_HOME}/rules.risk-tiering.yml",
                 },
             },
             "RulebookLoadEvidence": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
             },
             "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
             "RepoDiscovery": {

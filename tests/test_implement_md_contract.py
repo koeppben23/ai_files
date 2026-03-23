@@ -12,8 +12,8 @@ from .util import REPO_ROOT
 
 @pytest.mark.governance
 def test_implement_md_exists_and_documents_canonical_surface() -> None:
-    path = REPO_ROOT / "implement.md"
-    assert path.exists(), "implement.md must exist in repo root"
+    path = REPO_ROOT / "opencode" / "commands" / "implement.md"
+    assert path.exists(), "opencode/commands/implement.md must exist"
     content = path.read_text(encoding="utf-8")
     assert "--implement-start" in content
     assert BIN_DIR_PLACEHOLDER in content

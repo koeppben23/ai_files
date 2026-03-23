@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from governance.entrypoints import work_session_restore
-from governance.domain.canonical_json import canonical_json_hash
+from governance_runtime.entrypoints import work_session_restore
+from governance_runtime.domain.canonical_json import canonical_json_hash
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -117,7 +117,7 @@ def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str
                 "repo_fingerprint": "abc123def456abc123def456",
                 "session_run_id": run_id,
             },
-            "launcher": "governance.entrypoints.new_work_session",
+            "launcher": "governance_runtime.entrypoints.new_work_session",
             "timestamps": {"materialized_at": "2026-01-01T00:00:00Z"},
         },
     )
@@ -223,7 +223,7 @@ def _setup_workspace(tmp_path: Path) -> tuple[Path, Path, str]:
     session_path = workspace / "SESSION_STATE.json"
 
     _write_json(
-        commands_home / "governance.paths.json",
+        config_root / "governance.paths.json",
         {
             "schema": "opencode-governance.paths.v1",
             "paths": {

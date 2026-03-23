@@ -107,7 +107,7 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
 
 def pointer_payload(repo_fingerprint: str, session_state_file: Path | None = None) -> dict:
     try:
-        from governance.infrastructure.session_pointer import build_pointer_payload
+        from governance_runtime.infrastructure.session_pointer import build_pointer_payload
 
         return build_pointer_payload(
             repo_fingerprint=repo_fingerprint,
