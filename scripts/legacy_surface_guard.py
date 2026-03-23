@@ -11,7 +11,6 @@ DEFAULT_ALLOWED_PREFIXES = (
     "docs/archive/",
     "migration_notes/",
     "tests/fixtures/legacy_examples/",
-    "historical/",
     "governance_spec/migrations/",
     "governance_spec/rulesets/governance/",
     "scripts/legacy_surface_guard.py",

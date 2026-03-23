@@ -41,39 +41,19 @@ def test_historical_wave_and_r2_records_not_in_active_migrations() -> None:
         name = path.name.lower()
         if name.startswith("r2_") or "wave" in name:
             offenders.append(path.relative_to(REPO_ROOT).as_posix())
-    assert not offenders, f"historical migration records must be archived: {offenders}"
+    assert not offenders, f"historical migration records must be archived or removed: {offenders}"
 
 
 @pytest.mark.conformance
-def test_archived_migration_records_exist_for_r2_and_wave_history() -> None:
-    required = [
-        MIGRATIONS_ARCHIVED / "R2_Import_Inventory.md",
-        MIGRATIONS_ARCHIVED / "R2_Migration_Units.md",
-        MIGRATIONS_ARCHIVED / "WAVE_22_MIGRATION_INVENTORY.md",
-        MIGRATIONS_ARCHIVED / "README.md",
+def test_archived_directories_removed_by_patch1() -> None:
+    """Patch 1 deleted all archived directories."""
+    archived_dirs = [
+        MIGRATIONS_ARCHIVED,
+        DOCS_ARCHIVED,
+        REPO_ROOT / "historical",
     ]
-    missing = [p.relative_to(REPO_ROOT).as_posix() for p in required if not p.exists()]
-    assert not missing, f"missing archived migration records: {missing}"
-
-
-@pytest.mark.conformance
-def test_historical_governance_docs_are_archived_not_active() -> None:
-    historical_doc_name = "governance-layer-separation-decisions.md"
-    active_path = DOCS / historical_doc_name
-    archived_path = DOCS_ARCHIVED / historical_doc_name
-
-    assert not active_path.exists(), (
-        f"historical governance decision doc must not remain active: {active_path.relative_to(REPO_ROOT)}"
-    )
-    assert archived_path.exists(), (
-        f"historical governance decision doc missing from archive: {archived_path.relative_to(REPO_ROOT)}"
-    )
-
-
-@pytest.mark.conformance
-def test_archived_docs_directory_has_readme() -> None:
-    readme = DOCS_ARCHIVED / "README.md"
-    assert readme.exists(), "archived governance docs directory must include README.md"
+    unexpected = [p.relative_to(REPO_ROOT).as_posix() for p in archived_dirs if p.exists()]
+    assert not unexpected, f"archived directories should not exist after patch 1: {unexpected}"
 
 
 @pytest.mark.conformance
