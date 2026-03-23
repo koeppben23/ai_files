@@ -23,11 +23,9 @@ FIELD_OWNERSHIP_PATH = _docs_root() / "governance" / "canonical_field_ownership.
 
 ALLOWED_ARCHIVE_PREFIXES = (
     "docs/archive/",
-    "governance_content/docs/archived/",
     "migration_notes/",
     "governance_spec/migrations/",
     "tests/fixtures/legacy_examples/",
-    "historical/",
 )
 
 CANONICAL_DOCS = {

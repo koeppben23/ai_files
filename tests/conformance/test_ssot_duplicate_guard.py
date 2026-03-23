@@ -35,9 +35,9 @@ def test_ssot_duplicate_guard_bad_duplicate(monkeypatch, tmp_path: Path) -> None
     assert any("non-canonical normative duplicate" in item for item in issues)
 
 
-def test_ssot_duplicate_guard_corner_archived_duplicate_allowed(monkeypatch, tmp_path: Path) -> None:
+def test_ssot_duplicate_guard_corner_migration_duplicate_allowed(monkeypatch, tmp_path: Path) -> None:
     _seed_canonical(tmp_path)
-    _write(tmp_path / "governance_content" / "docs" / "archived" / "master.md", "archived")
+    _write(tmp_path / "governance_spec" / "migrations" / "master.md", "migrated")
     monkeypatch.setattr(ssot_guard, "REPO_ROOT", tmp_path)
     issues: list[str] = []
     ssot_guard._validate_canonical_uniqueness(issues)

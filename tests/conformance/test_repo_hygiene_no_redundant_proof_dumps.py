@@ -17,20 +17,16 @@ def test_redundant_frozen_surface_raw_dump_removed() -> None:
 
 
 @pytest.mark.conformance
-def test_historical_r2_records_are_archived() -> None:
+def test_historical_r2_records_removed_by_patch1() -> None:
+    """Patch 1 deleted archived directories including R2 records."""
     active_r2 = [
         MIGRATIONS / "R2_Migration_Units.md",
         MIGRATIONS / "R2_Import_Inventory.md",
     ]
     for path in active_r2:
-        assert not path.exists(), f"historical migration record must be archived: {path.name}"
+        assert not path.exists(), f"historical migration record must not exist: {path.name}"
 
-    archived_r2 = [
-        ARCHIVED / "R2_Migration_Units.md",
-        ARCHIVED / "R2_Import_Inventory.md",
-    ]
-    for path in archived_r2:
-        assert path.exists(), f"archived migration record missing: {path.relative_to(REPO_ROOT)}"
+    assert not ARCHIVED.exists(), "archived directory should not exist after patch 1"
 
 
 @pytest.mark.conformance
