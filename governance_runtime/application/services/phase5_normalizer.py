@@ -17,6 +17,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from governance_runtime.application.services.phase5_gate_evaluators import (
+    GateEvaluationResult,
+    evaluate_p53_test_quality,
+    evaluate_p54_business_rules,
+    evaluate_p55_technical_debt,
+    evaluate_p56_rollback_safety,
+    phase_1_5_executed,
+)
 from governance_runtime.application.services.state_normalizer import (
     normalize_to_canonical,
 )
@@ -140,66 +148,16 @@ def sync_conditional_p5_gate_states(
     
     Args:
         state_doc: The session state document.
-        gate_evaluators: Injectable gate evaluators (optional, uses defaults for tests).
+        gate_evaluators: Injectable gate evaluators (optional, uses pure defaults).
     """
     if gate_evaluators is None:
-        class _DefaultEvaluators:
-            def phase_1_5_executed(self, state):
-                br = state.get("BusinessRules") or {}
-                return bool(br.get("Outcome") == "extracted" and br.get("ExecutionEvidence"))
-
-            def evaluate_p53(self, session_state):
-                ticket_digest = str(session_state.get("TicketRecordDigest") or "")
-                test_strategy = str(session_state.get("TestStrategy") or "")
-                if "not applicable" in ticket_digest.lower() or "not-applicable" in test_strategy.lower():
-                    class NotApplicableResult:
-                        status = "not-applicable"
-                    return NotApplicableResult()
-                class PassResult:
-                    status = "pass"
-                return PassResult()
-
-            def evaluate_p54(self, session_state, phase_1_5_executed):
-                br = session_state.get("BusinessRules") or {}
-                validation = br.get("ValidationReport") or {}
-                if not validation:
-                    class GapResult:
-                        status = "gap-detected"
-                    return GapResult()
-                is_compliant = validation.get("is_compliant", True)
-                if not is_compliant:
-                    class GapResult:
-                        status = "gap-detected"
-                    return GapResult()
-                class CompliantResult:
-                    status = "compliant"
-                return CompliantResult()
-
-            def evaluate_p55(self, session_state):
-                technical_debt_proposed = session_state.get("TechnicalDebtProposed")
-                if isinstance(technical_debt_proposed, bool) and technical_debt_proposed:
-                    class ApprovedResult:
-                        status = "approved"
-                    return ApprovedResult()
-                class NotApplicableResult:
-                    status = "not-applicable"
-                return NotApplicableResult()
-
-            def evaluate_p56(self, session_state):
-                touched = session_state.get("TouchedSurface") or {}
-                schema = touched.get("SchemaPlanned") if isinstance(touched, dict) else None
-                contracts = touched.get("ContractsPlanned") if isinstance(touched, dict) else None
-                schema_touched = isinstance(schema, list) and len(schema) > 0
-                contracts_touched = isinstance(contracts, list) and len(contracts) > 0
-                if not schema_touched and not contracts_touched:
-                    class NotApplicableResult:
-                        status = "not-applicable"
-                    return NotApplicableResult()
-                class ApprovedResult:
-                    status = "approved"
-                return ApprovedResult()
-
-        gate_evaluators = _DefaultEvaluators()
+        gate_evaluators = GateEvaluators(
+            evaluate_p53=evaluate_p53_test_quality,
+            evaluate_p54=evaluate_p54_business_rules,
+            evaluate_p55=evaluate_p55_technical_debt,
+            evaluate_p56=evaluate_p56_rollback_safety,
+            phase_1_5_executed=phase_1_5_executed,
+        )
     
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
@@ -236,11 +194,13 @@ def sync_conditional_p5_gate_states(
             state["Phase5State"] = "phase5-in-progress"
             state["phase5_completion_status"] = "phase5-in-progress"
 
+    # --- P5.5 Technical Debt ---
     p55_eval = gate_evaluators.evaluate_p55(session_state=state)
     if str(gates.get("P5.5-TechnicalDebt", "")).strip().lower() == "pending":
         if p55_eval.status in {"approved", "not-applicable", "rejected"}:
             gates["P5.5-TechnicalDebt"] = p55_eval.status
 
+    # --- P5.6 Rollback Safety ---
     p56_eval = gate_evaluators.evaluate_p56(session_state=state)
     if str(gates.get("P5.6-RollbackSafety", "")).strip().lower() == "pending":
         if p56_eval.status in {"approved", "not-applicable", "rejected"}:
@@ -312,23 +272,13 @@ def normalize_phase6_p5_state(
         )
     
     if gate_evaluators is None:
-        class _MockEval:
-            def __init__(self, status):
-                self.status = status
-        class _MockEvaluators:
-            def __init__(self):
-                pass
-            def phase_1_5_executed(self, state):
-                return True
-            def evaluate_p54(self, session_state, phase_1_5_executed):
-                business_rules = session_state.get("BusinessRules", {})
-                validation_report = business_rules.get("ValidationReport", {})
-                if validation_report.get("has_invalid_rules") or validation_report.get("has_render_mismatch"):
-                    return _MockEval("invalid-rules-detected")
-                if validation_report.get("has_code_coverage_gap"):
-                    return _MockEval("gap-detected")
-                return _MockEval("compliant")
-        gate_evaluators = _MockEvaluators()
+        gate_evaluators = GateEvaluators(
+            evaluate_p53=evaluate_p53_test_quality,
+            evaluate_p54=evaluate_p54_business_rules,
+            evaluate_p55=evaluate_p55_technical_debt,
+            evaluate_p56=evaluate_p56_rollback_safety,
+            phase_1_5_executed=phase_1_5_executed,
+        )
 
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
