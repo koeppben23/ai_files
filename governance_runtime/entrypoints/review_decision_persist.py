@@ -106,10 +106,7 @@ def _apply_pipeline_auto_approve(
         review_block["completion_status"] = "phase6-completed"
         state["ImplementationReview"] = review_block
 
-    normalized_state = normalize_with_conflicts(state)
-    normalized_state.pop("_normalized_from", None)
-    normalized_state.pop("_normalization_conflicts", None)
-    _write_json_atomic(session_path, {"SESSION_STATE": normalized_state})
+    _write_json_atomic(session_path, {"SESSION_STATE": state})
 
     if events_path:
         event = {
@@ -273,6 +270,7 @@ def apply_review_decision(
     session_path: Path,
     events_path: Path | None = None,
     rationale: str = "",
+    _pre_kernel_state: dict | None = None,
 ) -> dict[str, object]:
     """Apply a user review decision to the active session state.
 
@@ -286,6 +284,9 @@ def apply_review_decision(
         If empty in pipeline mode with eligible conditions, auto-approve is applied.
     session_path:
         Absolute path to the ``SESSION_STATE.json`` file.
+    _pre_kernel_state:
+        Internal: State snapshot BEFORE kernel evaluation. Used by session_reader
+        to check eligibility against the pre-transition state.
     events_path:
         Optional path to the workspace ``events.jsonl`` for audit logging.
     rationale:
@@ -300,10 +301,16 @@ def apply_review_decision(
 
     # Pipeline auto-approve: when no explicit decision and eligible, apply auto-approve
     if not normalized and session_path.exists():
-        state_doc = _load_json(session_path)
-        state_obj = state_doc.get("SESSION_STATE")
-        state: dict[str, object] = state_obj if isinstance(state_obj, dict) else state_doc  # type: ignore[assignment]
-        if pipeline_auto_approve_eligible(state):
+        if _pre_kernel_state is not None:
+            state = _pre_kernel_state
+            if isinstance(state, dict) and "SESSION_STATE" in state:
+                state = state["SESSION_STATE"]
+        else:
+            state_doc = _load_json(session_path)
+            state_obj = state_doc.get("SESSION_STATE")
+            state = state_obj if isinstance(state_obj, dict) else state_doc
+        eligible = pipeline_auto_approve_eligible(state)
+        if eligible:
             return _apply_pipeline_auto_approve(session_path=session_path, events_path=events_path)
 
     if normalized not in VALID_DECISIONS:

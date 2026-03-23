@@ -15,7 +15,9 @@ The eligibility check is in phase_kernel.py.
 from __future__ import annotations
 
 import json
+import textwrap
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -267,3 +269,230 @@ class TestPipelineAutoApproveEdgeCases:
         )
 
         assert result["status"] == "ok"
+
+
+# ---------------------------------------------------------------------------
+# E2E Integration Tests: session_reader with materialize=True
+# ---------------------------------------------------------------------------
+
+@pytest.mark.governance
+class TestPipelineAutoApproveE2E:
+    """E2E tests for pipeline auto-approve wired through session_reader.
+
+    These tests prove the full workflow WITHOUT manual apply_review_decision calls:
+    1. Pipeline mode with complete internal review
+    2. Kernel signals source="pipeline-auto-approve"
+    3. session_reader consumes signal AUTOMATICALLY during materialize
+    4. State is auto-approved - workflow completes automatically
+    """
+
+    def test_materialize_auto_approves_without_manual_decision_call(self, tmp_path: Path):
+        """Pipeline workflow auto-approves during materialize - NO manual apply_review_decision call.
+
+        This test proves the deterministic auto-approve flow:
+        - /continue calls read_session_snapshot(materialize=True)
+        - Kernel returns source="pipeline-auto-approve"
+        - session_reader AUTOMATICALLY triggers apply_review_decision
+        - Workflow completes without human intervention
+        """
+        import governance_runtime.entrypoints.session_reader as session_reader_module
+        from governance_runtime.kernel.phase_kernel import KernelResult
+
+        config_root = tmp_path / "config_root"
+        commands_home = config_root / "commands"
+        commands_home.mkdir(parents=True)
+
+        ws_dir = config_root / "workspaces" / "test-repo"
+        ws_dir.mkdir(parents=True, exist_ok=True)
+        session_path = ws_dir / "SESSION_STATE.json"
+        events_path = ws_dir / "events.jsonl"
+
+        pointer = {
+            "schema": "opencode-session-pointer.v1",
+            "activeSessionStateFile": str(session_path),
+            "activeRepoFingerprint": "test-repo",
+        }
+        (config_root / "SESSION_STATE.json").write_text(json.dumps(pointer), encoding="utf-8")
+
+        state = _make_state()
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        state["repo_fingerprint"] = "test-repo"
+        state["PersistenceCommitted"] = True
+        state["WorkspaceReadyGateCommitted"] = True
+        state["WorkspaceArtifactsCommitted"] = True
+        state["PointerVerified"] = True
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        (commands_home / "phase_api.yaml").write_text(
+            textwrap.dedent("""\
+                schema: opencode.governance.phase-api.v1
+                phases:
+                  "6":
+                    next_token: "6"
+                    route_strategy: stay
+                    entries:
+                      - entry: start
+                        when: default
+                        next_token: "6"
+                        source: phase-6-default
+                        active_gate: Evidence Presentation Gate
+                        next_gate_condition: Run /continue to materialize presentation gate.
+            """),
+            encoding="utf-8",
+        )
+
+        kernel_result = KernelResult(
+            phase="6",
+            next_token="6",
+            active_gate="Evidence Presentation Gate",
+            next_gate_condition="Workflow auto-approved in pipeline mode. Implementation authorized.",
+            workspace_ready=True,
+            source="pipeline-auto-approve",
+            status="OK",
+            spec_hash="abc",
+            spec_path=str(commands_home / "phase_api.yaml"),
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-auto-approve-001",
+            route_strategy="stay",
+            plan_record_status="active",
+            plan_record_versions=1,
+            transition_evidence_met=False,
+        )
+
+        # Track that apply_review_decision is NEVER called directly by test code
+        apply_review_decision_calls = []
+        original_apply = session_reader_module.apply_review_decision
+        def tracking_apply(*args, **kwargs):
+            apply_review_decision_calls.append((args, kwargs))
+            return original_apply(*args, **kwargs)
+        
+        with patch("governance_runtime.kernel.phase_kernel.execute", return_value=kernel_result):
+            with patch.object(session_reader_module, "apply_review_decision", tracking_apply):
+                snapshot = session_reader_module.read_session_snapshot(
+                    commands_home=commands_home,
+                    materialize=True,
+                )
+
+        # Prove: workflow auto-completed during materialize
+        assert snapshot.get("status") == "OK", f"Snapshot should be OK, got {snapshot.get('status')}: {snapshot.get('error', '')}"
+        assert snapshot.get("active_gate") == "Workflow Complete", \
+            f"active_gate should be 'Workflow Complete', got '{snapshot.get('active_gate')}'"
+
+        # Prove: on-disk state reflects auto-approve
+        updated_state = json.loads(session_path.read_text(encoding="utf-8"))
+        state_section = updated_state.get("SESSION_STATE", {})
+        on_disk = state_section.get("canonical", state_section) if isinstance(state_section, dict) else state_section
+        assert on_disk.get("workflow_complete") is True, \
+            f"workflow_complete should be True, got {on_disk.get('workflow_complete')}"
+        assert on_disk.get("active_gate") == "Workflow Complete", \
+            f"on-disk active_gate should be 'Workflow Complete', got '{on_disk.get('active_gate')}'"
+        assert on_disk.get("implementation_authorized") is True, \
+            f"implementation_authorized should be True, got {on_disk.get('implementation_authorized')}"
+
+        # Prove: apply_review_decision was called AUTOMATICALLY by session_reader (1 call)
+        assert len(apply_review_decision_calls) == 1, \
+            f"apply_review_decision should be called exactly once automatically, was called {len(apply_review_decision_calls)} times"
+        
+        # Prove: audit trail was created
+        assert events_path.exists(), "events.jsonl should exist"
+        audit_lines = events_path.read_text(encoding="utf-8").strip().split("\n")
+        assert len(audit_lines) >= 1, "At least one audit event should be written"
+        pipeline_events = [l for l in audit_lines if "pipeline" in l.lower() or "auto" in l.lower()]
+        assert len(pipeline_events) >= 1, f"Pipeline auto-approve event should be in audit log, got {audit_lines}"
+
+    def test_kernel_signal_triggers_auto_approve_via_session_reader(self, tmp_path: Path):
+        """Kernel source='pipeline-auto-approve' deterministically triggers auto-approve.
+
+        This test verifies the kernel-to-session_reader signal path:
+        1. Kernel evaluation returns source="pipeline-auto-approve"
+        2. session_reader.materialize detects the signal
+        3. apply_review_decision is invoked with empty decision
+        4. State transitions to Workflow Complete
+        """
+        import governance_runtime.entrypoints.session_reader as session_reader_module
+        from governance_runtime.kernel.phase_kernel import KernelResult
+
+        config_root = tmp_path / "config_root"
+        commands_home = config_root / "commands"
+        commands_home.mkdir(parents=True)
+
+        ws_dir = config_root / "workspaces" / "test-repo"
+        ws_dir.mkdir(parents=True, exist_ok=True)
+        session_path = ws_dir / "SESSION_STATE.json"
+        events_path = ws_dir / "events.jsonl"
+
+        pointer = {
+            "schema": "opencode-session-pointer.v1",
+            "activeSessionStateFile": str(session_path),
+            "activeRepoFingerprint": "test-repo",
+        }
+        (config_root / "SESSION_STATE.json").write_text(json.dumps(pointer), encoding="utf-8")
+
+        state = _make_state()
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        state["repo_fingerprint"] = "test-repo"
+        state["PersistenceCommitted"] = True
+        state["WorkspaceReadyGateCommitted"] = True
+        state["WorkspaceArtifactsCommitted"] = True
+        state["PointerVerified"] = True
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        (commands_home / "phase_api.yaml").write_text(
+            textwrap.dedent("""\
+                schema: opencode.governance.phase-api.v1
+                phases:
+                  "6":
+                    next_token: "6"
+                    route_strategy: stay
+                    entries:
+                      - entry: start
+                        when: implementation_review_complete
+                        next_token: "6"
+                        source: phase-6-review-complete
+                        active_gate: Pipeline Auto-Approved
+                        next_gate_condition: Workflow auto-approved.
+            """),
+            encoding="utf-8",
+        )
+
+        kernel_result = KernelResult(
+            phase="6",
+            next_token="6",
+            active_gate="Pipeline Auto-Approved",
+            next_gate_condition="Workflow auto-approved in pipeline mode. Implementation authorized.",
+            workspace_ready=True,
+            source="pipeline-auto-approve",
+            status="OK",
+            spec_hash="abc",
+            spec_path=str(commands_home / "phase_api.yaml"),
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-auto-approve-002",
+            route_strategy="stay",
+            plan_record_status="active",
+            plan_record_versions=1,
+            transition_evidence_met=False,
+        )
+
+        # Execute via session_reader (simulates /continue)
+        with patch("governance_runtime.kernel.phase_kernel.execute", return_value=kernel_result):
+            snapshot = session_reader_module.read_session_snapshot(
+                commands_home=commands_home,
+                materialize=True,
+            )
+
+        # Verify: Kernel signal was consumed and auto-approve executed
+        assert snapshot.get("status") == "OK"
+        assert snapshot.get("active_gate") == "Workflow Complete"
+
+        # Verify: Final on-disk state is consistent
+        on_disk = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = on_disk.get("SESSION_STATE", on_disk)
+        canonical = ss.get("canonical", ss) if isinstance(ss, dict) else ss
+        assert canonical.get("workflow_complete") is True
+        assert canonical.get("UserReviewDecision", {}).get("source") == "pipeline_auto_approve"

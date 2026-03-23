@@ -654,8 +654,10 @@ def pipeline_auto_approve_eligible(state: Mapping[str, object]) -> bool:
     - No existing review decision recorded
 
     This function is used by the kernel to determine if a pipeline auto-approve
-    transition is possible. The actual state mutation is handled by the separate
-    pipeline_auto_approve entrypoint.
+    transition is possible. When the kernel signals source="pipeline-auto-approve",
+    the session_reader materialization path automatically consumes this signal and
+    calls apply_review_decision() in review_decision_persist.py to execute
+    the approval.
 
     Args:
         state: Current session state mapping

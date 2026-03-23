@@ -110,6 +110,7 @@ from governance_runtime.engine.gate_evaluator import (
     reason_code_for_gate,
 )
 from governance_runtime.kernel.phase_kernel import _phase_1_5_executed
+from governance_runtime.entrypoints.review_decision_persist import apply_review_decision
 
 # Import from orchestrator package (main API)
 from governance_runtime.application.services.phase6_review_orchestrator import (
@@ -658,6 +659,18 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     )
     _persist_review_package_markers(state_doc=materialized, session_path=session_path)
     _persist_implementation_package_markers(state_doc=materialized)
+
+    if result.source == "pipeline-auto-approve":
+        _write_json_atomic(session_path, materialized)
+        events_path = session_path.parent / "events.jsonl"
+        apply_review_decision(
+            decision="",
+            session_path=session_path,
+            events_path=events_path,
+            _pre_kernel_state=state_doc,
+        )
+        final_state = _read_json(session_path)
+        return final_state
 
     _write_json_atomic(session_path, materialized)
     return materialized
