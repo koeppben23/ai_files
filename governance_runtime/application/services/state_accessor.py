@@ -155,3 +155,55 @@ def is_phase5_completed(state: Mapping) -> bool:
     """Return True if Phase-5 is completed."""
     val = _get(state, "phase5_completed")
     return isinstance(val, bool) and val
+
+
+# ── Review Package ────────────────────────────────────────────────────────
+
+
+def get_review_package(state: Mapping) -> dict[str, Any]:
+    """Return the ReviewPackage from canonical state.
+
+    Returns:
+        ReviewPackage dict with canonical field names, or empty dict.
+    """
+    pkg = _get(state, "review_package")
+    if isinstance(pkg, dict):
+        return dict(pkg)
+    return {}
+
+
+def is_review_package_presented(state: Mapping) -> bool:
+    """Return True if review package has been presented."""
+    pkg = get_review_package(state)
+    val = pkg.get("presented")
+    return isinstance(val, bool) and val
+
+
+def is_review_package_plan_body_present(state: Mapping) -> bool:
+    """Return True if plan body is present in review package."""
+    pkg = get_review_package(state)
+    val = pkg.get("plan_body_present")
+    return isinstance(val, bool) and val
+
+
+def get_review_package_field(state: Mapping, field: str) -> Any:
+    """Get a specific field from ReviewPackage.
+
+    Args:
+        state: Session state.
+        field: Canonical field name (e.g. 'ticket', 'review_object').
+
+    Returns:
+        Field value or None.
+    """
+    pkg = get_review_package(state)
+    return pkg.get(field)
+
+
+def get_review_package_receipt(state: Mapping) -> dict[str, Any] | None:
+    """Return the presentation receipt from ReviewPackage."""
+    pkg = get_review_package(state)
+    receipt = pkg.get("presentation_receipt")
+    if isinstance(receipt, dict):
+        return dict(receipt)
+    return None

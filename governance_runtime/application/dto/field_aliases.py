@@ -128,6 +128,7 @@ REVIEW_PACKAGE_ALIASES: dict[str, list[str]] = {
     "presented": ["review_package_presented"],
     "plan_body_present": ["review_package_plan_body_present"],
     "evidence_summary": ["review_package_evidence_summary"],
+    "loop_status": ["review_package_loop_status"],
     "last_state_change_at": ["review_package_last_state_change_at"],
     "presentation_receipt": ["review_package_presentation_receipt"],
 }

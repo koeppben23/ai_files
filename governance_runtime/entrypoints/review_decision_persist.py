@@ -28,6 +28,17 @@ import uuid
 from pathlib import Path
 from typing import Mapping
 
+from governance_runtime.application.services.state_accessor import (
+    get_review_package,
+    is_review_package_presented,
+    is_review_package_plan_body_present,
+    get_review_package_field,
+    get_review_package_receipt,
+)
+from governance_runtime.application.services.state_normalizer import (
+    normalize_with_conflicts,
+)
+
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
@@ -76,16 +87,27 @@ def _is_evidence_presentation_gate(state: Mapping[str, object]) -> bool:
 
 
 def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
+    result = normalize_with_conflicts(dict(state))
+    if result["conflicts"]:
+        conflict_details = "; ".join(
+            f"{c['field']}: flat={c['flat_value']} vs nested={c['nested_value']}"
+            for c in result["conflicts"]
+        )
+        return False, f"review_package_conflict={conflict_details}"
+
+    canonical = result["canonical"]
+
     def _review_digest() -> str:
+        pkg = canonical.get("review_package", {})
         source = "|".join(
             [
-                str(state.get("review_package_review_object") or ""),
-                str(state.get("review_package_ticket") or ""),
-                str(state.get("review_package_approved_plan_summary") or ""),
-                str(state.get("review_package_plan_body") or ""),
-                str(state.get("review_package_implementation_scope") or ""),
-                str(state.get("review_package_constraints") or ""),
-                str(state.get("review_package_decision_semantics") or ""),
+                str(pkg.get("review_object") or ""),
+                str(pkg.get("ticket") or ""),
+                str(pkg.get("approved_plan_summary") or ""),
+                str(pkg.get("plan_body") or ""),
+                str(pkg.get("implementation_scope") or ""),
+                str(pkg.get("constraints") or ""),
+                str(pkg.get("decision_semantics") or ""),
             ]
         )
         return hashlib.sha256(source.encode("utf-8")).hexdigest()
@@ -100,54 +122,54 @@ def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
         except Exception:
             return fallback
 
-    review_complete = bool(state.get("implementation_review_complete"))
+    pkg = canonical.get("review_package", {})
+    impl_review = canonical.get("implementation_review", {})
+
+    review_complete = bool(impl_review.get("implementation_review_complete"))
     if not review_complete:
-        block = state.get("ImplementationReview")
-        if isinstance(block, Mapping):
-            review_complete = bool(block.get("implementation_review_complete"))
-            if not review_complete:
-                revision_delta = str(block.get("revision_delta") or "").strip().lower()
-                iteration = _as_int(block.get("iteration"), 0)
-                min_iterations = _as_int(block.get("min_self_review_iterations"), 1)
-                review_complete = iteration >= min_iterations and revision_delta == "none"
-    package_presented = bool(state.get("review_package_presented"))
-    plan_body_present = bool(state.get("review_package_plan_body_present"))
-    review_object = str(state.get("review_package_review_object") or "").strip()
+        revision_delta = str(impl_review.get("revision_delta") or "").strip().lower()
+        iteration = _as_int(impl_review.get("iteration"), 0)
+        min_iterations = _as_int(impl_review.get("min_self_review_iterations"), 1)
+        review_complete = iteration >= min_iterations and revision_delta == "none"
+
+    package_presented = bool(pkg.get("presented"))
+    plan_body_present = bool(pkg.get("plan_body_present"))
+    review_object = str(pkg.get("review_object") or "").strip()
 
     if not review_complete:
         return False, "implementation_review_complete=false"
     if not package_presented:
-        return False, "review_package_presented=false"
+        return False, "review_package.presented=false"
     if not plan_body_present:
-        return False, "review_package_plan_body_present=false"
+        return False, "review_package.plan_body_present=false"
     if not review_object:
-        return False, "review_package_review_object=missing"
-    receipt = state.get("review_package_presentation_receipt")
+        return False, "review_package.review_object=missing"
+    receipt = pkg.get("presentation_receipt")
     if not isinstance(receipt, Mapping):
-        return False, "review_package_presentation_receipt=missing"
+        return False, "review_package.presentation_receipt=missing"
     receipt_digest = str(receipt.get("digest") or "").strip()
     receipt_contract = str(receipt.get("contract") or "").strip()
     receipt_presented_at = str(receipt.get("presented_at") or "").strip()
-    current_materialization_id = str(state.get("session_materialization_event_id") or "").strip()
-    current_state_revision = str(state.get("session_state_revision") or "").strip()
+    current_materialization_id = str(canonical.get("session_materialization_event_id") or "").strip()
+    current_state_revision = str(canonical.get("session_state_revision") or "").strip()
     if not receipt_digest:
-        return False, "review_package_presentation_receipt.digest=missing"
+        return False, "review_package.presentation_receipt.digest=missing"
     if receipt_contract != "guided-ui.v1":
-        return False, "review_package_presentation_receipt.contract!=guided-ui.v1"
+        return False, "review_package.presentation_receipt.contract!=guided-ui.v1"
     if not receipt_presented_at:
-        return False, "review_package_presentation_receipt.presented_at=missing"
+        return False, "review_package.presentation_receipt.presented_at=missing"
     if not current_materialization_id:
         return False, "session_materialization_event_id=missing"
     if not current_state_revision:
         return False, "session_state_revision=missing"
 
     receipt_session_id = str(receipt.get("session_id") or "").strip()
-    current_session_id = str(state.get("session_run_id") or "").strip()
+    current_session_id = str(canonical.get("session_run_id") or "").strip()
     if not current_session_id:
         return False, "session_run_id=missing"
     last_state_change_at = str(
-        state.get("review_package_last_state_change_at")
-        or state.get("session_materialized_at")
+        pkg.get("last_state_change_at")
+        or canonical.get("session_materialized_at")
         or ""
     ).strip()
     matched, reason = validate_receipt_match(
@@ -163,11 +185,11 @@ def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
         ),
     )
     if not matched:
-        return False, f"review_package_presentation_receipt.match={reason}"
+        return False, f"review_package.presentation_receipt.match={reason}"
     if receipt_digest != _review_digest():
-        return False, "review_package_presentation_receipt.digest_mismatch"
+        return False, "review_package.presentation_receipt.digest_mismatch"
     if not receipt_session_id:
-        return False, "review_package_presentation_receipt.session_id=missing"
+        return False, "review_package.presentation_receipt.session_id=missing"
     return True, "ready"
 
 

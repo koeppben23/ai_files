@@ -130,6 +130,7 @@ from governance_runtime.application.dto.session_state_types import Snapshot
 # Import StateNormalizer for canonical state access
 from governance_runtime.application.services.state_normalizer import (
     normalize_to_canonical,
+    normalize_with_conflicts,
     get_gate,
     is_gate_passed,
     is_gate_pending,
@@ -303,8 +304,13 @@ def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> N
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
 
-    # Use canonical state for field access
-    canonical = normalize_to_canonical(state)
+    result = normalize_with_conflicts(state)
+    if result["conflicts"]:
+        raise ValueError(
+            f"Cannot persist review package: conflicting representations detected: {result['conflicts']}"
+        )
+
+    canonical = result["canonical"]
     phase = str(canonical.get("phase") or "").strip()
     gate = str(canonical.get("active_gate") or "").strip().lower()
 
@@ -312,38 +318,33 @@ def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> N
         return
 
     plan_body = _build_plan_body(session_path=session_path, json_loader=_read_json)
-    state["review_package_review_object"] = "Final Phase-6 implementation review decision"
-    state["review_package_ticket"] = _build_ticket_summary(state)
-    state["review_package_approved_plan_summary"] = _build_plan_summary(
-        state_view=state,
-        session_path=session_path,
-    )
-    state["review_package_plan_body"] = plan_body
-    state["review_package_implementation_scope"] = "Implement the approved plan record in this repository."
-    state["review_package_constraints"] = "Governance guards remain active; implementation must follow the approved plan scope."
-    state["review_package_decision_semantics"] = (
-        "approve=governance complete + implementation authorized; "
-        "changes_requested=enter rework clarification gate; "
-        "reject=return to phase 4 ticket input gate"
-    )
-    state["review_package_presented"] = True
-    state["review_package_plan_body_present"] = plan_body != "none"
+    ticket_summary = _build_ticket_summary(state)
+    plan_summary = _build_plan_summary(state_view=state, session_path=session_path)
+
     receipt_source = "|".join(
         [
-            str(state.get("review_package_review_object") or ""),
-            str(state.get("review_package_ticket") or ""),
-            str(state.get("review_package_approved_plan_summary") or ""),
-            str(state.get("review_package_plan_body") or ""),
-            str(state.get("review_package_implementation_scope") or ""),
-            str(state.get("review_package_constraints") or ""),
-            str(state.get("review_package_decision_semantics") or ""),
+            "Final Phase-6 implementation review decision",
+            ticket_summary,
+            plan_summary,
+            plan_body,
+            "Implement the approved plan record in this repository.",
+            "Governance guards remain active; implementation must follow the approved plan scope.",
+            (
+                "approve=governance complete + implementation authorized; "
+                "changes_requested=enter rework clarification gate; "
+                "reject=return to phase 4 ticket input gate"
+            ),
         ]
     )
     rendered_at = _now_iso()
     session_id = str(state.get("session_run_id") or session_path.parent.name or "unknown-session")
     state_revision = str(state.get("session_state_revision") or "")
-    state["review_package_last_state_change_at"] = str(state.get("session_materialized_at") or rendered_at)
-    state["review_package_presentation_receipt"] = build_presentation_receipt(
+
+    for legacy_key in list(state.keys()):
+        if legacy_key.startswith("review_package_"):
+            del state[legacy_key]
+
+    receipt = build_presentation_receipt(
         receipt_type="governance_review_presentation_receipt",
         requirement_scope="R-REVIEW-DECISION-001",
         content_source=receipt_source,
@@ -354,6 +355,24 @@ def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> N
         state_revision=state_revision,
         source_command="/continue",
     )
+
+    state["ReviewPackage"] = {
+        "review_object": "Final Phase-6 implementation review decision",
+        "ticket": ticket_summary,
+        "approved_plan_summary": plan_summary,
+        "plan_body": plan_body,
+        "implementation_scope": "Implement the approved plan record in this repository.",
+        "constraints": "Governance guards remain active; implementation must follow the approved plan scope.",
+        "decision_semantics": (
+            "approve=governance complete + implementation authorized; "
+            "changes_requested=enter rework clarification gate; "
+            "reject=return to phase 4 ticket input gate"
+        ),
+        "presented": True,
+        "plan_body_present": plan_body != "none",
+        "last_state_change_at": str(state.get("session_materialized_at") or rendered_at),
+        "presentation_receipt": receipt,
+    }
 
 
 def _persist_implementation_package_markers(*, state_doc: dict) -> None:

@@ -56,6 +56,7 @@ class CanonicalReviewPackage(TypedDict, total=False):
     presented: bool
     plan_body_present: bool
     evidence_summary: str
+    loop_status: str
     last_state_change_at: str
     presentation_receipt: dict[str, object]
 
@@ -191,3 +192,25 @@ class CanonicalStateDocument(TypedDict, total=False):
     schema: str
     status: str
     error: str
+
+
+class ConflictDetail(TypedDict):
+    """Details of a single field conflict."""
+
+    field: str
+    flat_value: object
+    nested_value: object
+
+
+class NormalizationResult(TypedDict):
+    """Result of state normalization with conflict tracking.
+
+    Attributes:
+        canonical: The normalized canonical state.
+        conflicts: List of conflicting fields detected during normalization.
+        warnings: List of non-critical warnings.
+    """
+
+    canonical: CanonicalSessionState
+    conflicts: list[ConflictDetail]
+    warnings: list[str]

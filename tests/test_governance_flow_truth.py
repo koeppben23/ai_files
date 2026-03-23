@@ -1269,6 +1269,8 @@ class TestE2EComprehensiveChain:
         assert rc_cont2 == 0, f"/continue (Phase 6 routing) failed"
 
         state = _read_state(session_path)
+        # After second /continue, the review loop has completed and the review package
+        # is presented. Reset the implementation review to re-run the loop.
         stable_digest = "sha256:" + hashlib.sha256(b"phase6:e2e:stable-digest").hexdigest()
         state["RulebookLoadEvidence"] = {
             "core": "deferred",
@@ -1289,16 +1291,19 @@ class TestE2EComprehensiveChain:
         state["implementation_review_complete"] = False
         state["phase_transition_evidence"] = True
         state["phase6_state"] = "phase6_in_progress"
-        state["review_package_presented"] = False
-        state["review_package_plan_body_present"] = True
-        state["review_package_review_object"] = "Final Phase-6 implementation review decision"
-        state["review_package_ticket"] = state.get("Ticket", "")
-        state["review_package_approved_plan_summary"] = "JWT authentication implementation"
-        state["review_package_plan_body"] = "Implement JWT endpoint with RS256."
-        state["review_package_implementation_scope"] = ""
-        state["review_package_constraints"] = ""
-        state["review_package_decision_semantics"] = "approve | changes_requested | reject"
-        state["review_package_evidence_summary"] = "All acceptance tests pass"
+        # The nested ReviewPackage was already created by the second /continue.
+        # Update it to reset presented=False for the re-run.
+        if "ReviewPackage" in state and isinstance(state["ReviewPackage"], dict):
+            state["ReviewPackage"]["presented"] = False
+            state["ReviewPackage"]["plan_body_present"] = True
+            state["ReviewPackage"]["review_object"] = "Final Phase-6 implementation review decision"
+            state["ReviewPackage"]["ticket"] = state.get("Ticket", "")
+            state["ReviewPackage"]["approved_plan_summary"] = "JWT authentication implementation"
+            state["ReviewPackage"]["plan_body"] = "Implement JWT endpoint with RS256."
+            state["ReviewPackage"]["implementation_scope"] = ""
+            state["ReviewPackage"]["constraints"] = ""
+            state["ReviewPackage"]["decision_semantics"] = "approve | changes_requested | reject"
+            state["ReviewPackage"]["evidence_summary"] = "All acceptance tests pass"
         state["session_materialization_event_id"] = "evt-phase6-001"
         state["session_state_revision"] = 1
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
@@ -1314,25 +1319,30 @@ class TestE2EComprehensiveChain:
         assert state.get("phase6_state") == "phase6_completed", (
             f"Phase 6 state must be phase6_completed, got {state.get('phase6_state')}"
         )
-        assert str(state.get("ImplementationReview", {}).get("iteration", 0)) == "1", (
-            f"Review loop must complete at iteration 1 (stable digest), got iteration={state.get('ImplementationReview', {}).get('iteration')}"
+        impl_review = state.get("ImplementationReview")
+        assert impl_review, "ImplementationReview block must exist after internal review loop"
+        assert impl_review.get("iteration") == 1, (
+            f"Internal review iteration must be 1 (completed), got {impl_review.get('iteration')}"
         )
 
-        state["review_package_presented"] = True
-        state["review_package_loop_status"] = "completed"
-        state["session_materialized_at"] = "2026-03-21T12:00:01Z"
-        state["review_package_last_state_change_at"] = "2026-03-21T12:00:00Z"
+        # Update the nested ReviewPackage instead of flat fields
+        rp = state.get("ReviewPackage", {})
+        if not isinstance(rp, dict):
+            rp = {}
+        rp["presented"] = True
+        rp["loop_status"] = "completed"
+        rp["last_state_change_at"] = "2026-03-21T12:00:00Z"
         source = "|".join([
-            str(state.get("review_package_review_object") or ""),
-            str(state.get("review_package_ticket") or ""),
-            str(state.get("review_package_approved_plan_summary") or ""),
-            str(state.get("review_package_plan_body") or ""),
-            str(state.get("review_package_implementation_scope") or ""),
-            str(state.get("review_package_constraints") or ""),
-            str(state.get("review_package_decision_semantics") or ""),
+            str(rp.get("review_object") or ""),
+            str(rp.get("ticket") or ""),
+            str(rp.get("approved_plan_summary") or ""),
+            str(rp.get("plan_body") or ""),
+            str(rp.get("implementation_scope") or ""),
+            str(rp.get("constraints") or ""),
+            str(rp.get("decision_semantics") or ""),
         ])
         digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
-        state["review_package_presentation_receipt"] = {
+        rp["presentation_receipt"] = {
             "receipt_type": "governance_review_presentation_receipt",
             "requirement_scope": "R-REVIEW-DECISION-001",
             "content_digest": digest,
@@ -1347,6 +1357,12 @@ class TestE2EComprehensiveChain:
             "contract": "guided-ui.v1",
             "materialization_event_id": "evt-phase6-001",
         }
+        state["ReviewPackage"] = rp
+        state["session_materialized_at"] = "2026-03-21T12:00:01Z"
+        # Remove flat fields to avoid conflicts
+        for key in list(state.keys()):
+            if key.startswith("review_package_"):
+                del state[key]
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
         state = _read_state(session_path)

@@ -8,6 +8,14 @@ Usage:
 
     canonical = normalize_to_canonical(raw_state)
     phase = canonical["phase"]  # guaranteed canonical name
+
+For conflict detection (used by critical boundary paths):
+    from governance_runtime.application.services.state_normalizer import normalize_with_conflicts
+
+    result = normalize_with_conflicts(raw_state)
+    if result.conflicts:
+        raise InvalidStateError(f"Conflicts detected: {result.conflicts}")
+    canonical = result.canonical
 """
 
 from __future__ import annotations
@@ -23,6 +31,8 @@ from governance_runtime.application.dto.canonical_state import (
     CanonicalP54BusinessRules,
     CanonicalReviewPackage,
     CanonicalSessionState,
+    ConflictDetail,
+    NormalizationResult,
 )
 from governance_runtime.application.dto.field_aliases import (
     FIELD_ALIASES,
@@ -140,10 +150,49 @@ def _normalize_p54(state: dict[str, Any]) -> CanonicalP54BusinessRules:
 
 
 def _normalize_review_package(state: dict[str, Any]) -> CanonicalReviewPackage:
-    """Extract review package fields from state into nested block."""
+    """Extract review package fields from state into nested block.
+
+    Reads from:
+    1. Existing nested 'ReviewPackage' key (preferred)
+    2. Flat review_package_* fields via aliases (legacy fallback)
+
+    When nested ReviewPackage exists but is incomplete, missing fields are
+    filled from flat review_package_* fields to prevent silent data loss.
+
+    Args:
+        state: Raw state dict.
+
+    Returns:
+        CanonicalReviewPackage with normalized fields.
+    """
+    result: CanonicalReviewPackage = {}
+
+    existing = state.get("ReviewPackage")
+    if isinstance(existing, dict) and existing:
+        result = _normalize_review_package_from_dict(existing)
+
+    for canonical, aliases in REVIEW_PACKAGE_ALIASES.items():
+        if canonical in result:
+            continue
+        value = _resolve_field(state, canonical, aliases)
+        if value is not None:
+            result[canonical] = value
+
+    return result
+
+
+def _normalize_review_package_from_dict(source: dict[str, Any]) -> CanonicalReviewPackage:
+    """Normalize a ReviewPackage dict to canonical form.
+
+    Args:
+        source: Dict that may contain canonical or alias field names.
+
+    Returns:
+        CanonicalReviewPackage with normalized fields.
+    """
     result: CanonicalReviewPackage = {}
     for canonical, aliases in REVIEW_PACKAGE_ALIASES.items():
-        value = _resolve_field(state, canonical, aliases)
+        value = _resolve_field(source, canonical, aliases)
         if value is not None:
             result[canonical] = value
     return result
@@ -243,3 +292,108 @@ def is_gate_pending(canonical_gates: CanonicalGates, gate_name: str) -> bool:
     """
     status = get_gate(canonical_gates, gate_name)
     return status is not None and status.lower() == "pending"
+
+
+def normalize_with_conflicts(state: dict[str, Any]) -> NormalizationResult:
+    """Normalize state with conflict detection for critical boundary paths.
+
+    This function extends normalize_to_canonical with conflict detection.
+    Use this at critical boundaries where fail-closed behavior is required.
+
+    Conflict Policy:
+        - No conflict: normalize normally
+        - Both representations consistent: ReviewPackage wins, log warning
+        - Both representations conflicting: fail-closed, add to conflicts list
+
+    Args:
+        state: Raw state dict (may contain legacy field names).
+
+    Returns:
+        NormalizationResult with canonical state and any detected conflicts.
+    """
+    conflicts: list[ConflictDetail] = []
+    warnings: list[str] = []
+
+    canonical = normalize_to_canonical(state)
+
+    flat_conflicts, flat_warnings = _detect_review_package_conflicts(state, canonical)
+    conflicts.extend(flat_conflicts)
+    warnings.extend(flat_warnings)
+
+    return NormalizationResult(
+        canonical=canonical,
+        conflicts=conflicts,
+        warnings=warnings,
+    )
+
+
+def _detect_review_package_conflicts(
+    raw: dict[str, Any],
+    canonical: CanonicalSessionState,
+) -> tuple[list[ConflictDetail], list[str]]:
+    """Detect conflicts between flat review_package_* fields and nested ReviewPackage.
+
+    Conflict Policy:
+        - Only flat fields: normalizes correctly, no conflict
+        - Only nested ReviewPackage: normalizes correctly, no conflict
+        - Both present and consistent: ReviewPackage wins, warning logged
+        - Both present and conflicting: fail-closed, conflict reported
+
+    Args:
+        raw: Raw input state with potentially flat fields.
+        canonical: Already-normalized state with nested ReviewPackage.
+
+    Returns:
+        Tuple of (conflicts, warnings). Conflicts are semantic contradictions,
+        warnings are non-critical duplicates.
+    """
+    conflicts: list[ConflictDetail] = []
+    warnings: list[str] = []
+
+    review_package = canonical.get("review_package", {})
+    if not review_package:
+        return conflicts, warnings
+
+    nested_keys = set(review_package.keys())
+
+    for canonical_field in nested_keys:
+        aliases = REVIEW_PACKAGE_ALIASES.get(canonical_field, [])
+        flat_value = None
+        flat_source = None
+
+        for alias in aliases:
+            if alias in raw:
+                flat_value = raw[alias]
+                flat_source = alias
+                break
+
+        nested_value = review_package[canonical_field]
+
+        if flat_value is None:
+            continue
+
+        if flat_value != nested_value:
+            conflicts.append(ConflictDetail(
+                field=canonical_field,
+                flat_value=flat_value,
+                nested_value=nested_value,
+            ))
+        else:
+            warnings.append(f"Duplicate field: {flat_source} mirrors {canonical_field}")
+
+    return conflicts, warnings
+
+
+def has_review_package_conflicts(state: dict[str, Any]) -> bool:
+    """Check if state has conflicting ReviewPackage representations.
+
+    Convenience function for quick conflict checking.
+
+    Args:
+        state: Raw state dict to check.
+
+    Returns:
+        True if conflicts exist, False otherwise.
+    """
+    result = normalize_with_conflicts(state)
+    return len(result["conflicts"]) > 0
