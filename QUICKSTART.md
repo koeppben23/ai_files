@@ -1,123 +1,64 @@
+# Quickstart
+
+Short reference for getting started. For full details see [README.md](README.md).
+
 SSOT: `${SPEC_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
 Kernel: `governance_runtime/kernel/*` is the canonical control-plane implementation.
-Control-plane enforcement is runtime-native only.
 MD files are AI rails/guidance only and are never routing-binding.
-Phase `1.3` is mandatory before every phase `>=2`.
+Phase `1.3` is mandatory before every phase `>=2`. Phase 4 Plan Mode auto-generates plans from tickets via Desktop LLM.
 
-## Step 1: Install (2 minutes)
+## Step 1: Install (2 min)
 
 ```bash
-# Extract the customer install bundle
-unzip customer-install-bundle-v1.zip
-cd customer-install-bundle-v1
-
-# Run installer (macOS / Linux)
+unzip customer-install-bundle-v1.zip && cd customer-install-bundle-v1
 ./install/install.sh
 ```
 
-```powershell
-# Windows (PowerShell)
-Expand-Archive -Path customer-install-bundle-v1.zip -DestinationPath .
-cd customer-install-bundle-v1
-.\install\install.ps1
-```
-
-| Error | Fix |
-|-------|-----|
-| Permission denied | Run with appropriate permissions or use `--user` flag |
-| Path not found | Ensure the bundle directory exists and is extracted |
-| Binding file missing | Rerun the installer from the bundle |
+**Verify:** `./install/install.sh --status`
 
 ## Step 2: Verify installation
 
 ```bash
-# macOS / Linux
 ./install/install.sh --status
+./install/install.sh --smoketest
 ```
 
-```powershell
-# Windows
-.\install\install.ps1 --status
-```
+## Step 3: Bootstrap session (1 min)
 
-## Step 3: Bootstrap session (1 minute)
-
-The installer places the `opencode-governance-bootstrap` launcher in a platform-specific config directory.
-Add that directory to your shell PATH, then invoke the launcher by name.
-
-### Set PATH (run once per shell session)
+The installer places the `opencode-governance-bootstrap` launcher in a platform-specific config directory. Add that directory to your shell PATH, then invoke the launcher by name.
 
 ```bash
-# macOS / Linux (bash / zsh)
 export PATH="$HOME/.config/opencode/bin:$PATH"
-```
-
-```powershell
-# Windows (PowerShell)
-$env:Path = "$env:USERPROFILE\.config\opencode\bin;" + $env:Path
-```
-
-```cmd
-:: Windows (cmd.exe)
-set "PATH=%USERPROFILE%\.config\opencode\bin;%PATH%"
-```
-
-### Run the bootstrap
-
-```bash
-# macOS / Linux
 opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
 ```
 
-```powershell
-# Windows (PowerShell)
-opencode-governance-bootstrap init --profile solo --repo-root C:\path\to\repo
-```
-
-```cmd
-:: Windows (cmd.exe)
-opencode-governance-bootstrap.cmd init --profile solo --repo-root C:\path\to\repo
-```
-
-Profiles: `solo`, `team`, `regulated`.
-
-Optional alias (administrative surface, same semantics):
-
-```bash
-opencode-governance-bootstrap --set-operating-mode solo --repo-root /path/to/repo
-```
-
-Use `--verbose` for step-by-step bootstrap output.
-
-### What goes where (operator map)
-
-- `${CONFIG_ROOT}` (default `~/.config/opencode`) contains `commands/`, `plugins/`, `workspaces/`, `bin/`.
-- `${LOCAL_ROOT}` (default `~/.local/opencode`) contains `governance_runtime/`, `governance_content/`, `governance_spec/`, `VERSION`.
-
-| Error | Fix |
-|-------|-----|
-| Launcher not found | Run the installer from the bundle first |
-| Repo not detected | Provide `--repo-root /path/to/repo` |
-| `opencode-governance-bootstrap` is not recognized | The launcher is not on PATH — set PATH as shown above |
+**Profiles:** `solo`, `team`, `regulated`
 
 ## Step 4: Open Desktop and continue
 
 After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/continue`.
-If `/continue` lands in Phase 4, run `/ticket` to persist the ticket/task, then run `/plan` to auto-generate a plan from the ticket via Desktop LLM. Alternatively run `/review` for read-only review feedback (no state change).
-Use `/review` as a read-only rail entrypoint for quality feedback. At Phase 6, run `/review-decision <approve|changes_requested|reject>` for the final decision.
-If you choose `changes_requested`, the workflow enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
-If you choose `reject`, the workflow returns to the Ticket Input Gate; primary next action is `/ticket` with updated scope.
-Alternative: run `/review` for read-only feedback before re-entering the development path.
-If the command cannot be executed, the model asks the user to paste the command output.
-For rail details and lifecycle behavior, use `README-OPENCODE.md`.
 
-## Step 5: Troubleshooting flow (linear)
+If `/continue` lands in Phase 4, run `/ticket` to persist the ticket/task, then run `/plan`. Use `/review` as a read-only rail entrypoint for review-depth feedback. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` for the final decision.
 
-1. Verify launcher exists at `${CONFIG_ROOT}/bin/`.
-2. Re-run `opencode-governance-bootstrap init ...` with explicit `--repo-root`.
-3. Check workspace logs at `${WORKSPACES_HOME}/<repo_fingerprint>/logs/`.
-4. Check global logs at `${WORKSPACES_HOME}/_global/logs/`.
-5. Run installer status/smoketest and then retry bootstrap.
+For rail details and lifecycle behavior, see README-OPENCODE.md.
+
+## Key tests
+
+| Test | Description |
+|------|-------------|
+| `tests/test_governance_flow_truth.py` | E2E workflow (Ticket → Plan → Review → Implement) |
+| `tests/test_phase_transition_audit.py` | Phase transitions and audit logic |
+| `tests/test_review_decision_persist_entrypoint.py` | Review decision validation |
+| `tests/test_state_invariants.py` | State invariants (Phase 6, Gates) |
+| `tests/test_session_reader.py` | Session snapshot and materialization |
+
+```bash
+# Run all tests
+python3 -m pytest tests/ -q
+
+# Run specific test
+python3 -m pytest tests/test_governance_flow_truth.py -v
+```
 
 ## Output Codes
 
@@ -127,4 +68,8 @@ For rail details and lifecycle behavior, use `README-OPENCODE.md`.
 | `BLOCKED-REPO-ROOT-NOT-DETECTABLE` | Repository not found | Provide `--repo-root` |
 | `BLOCKED-WORKSPACE-PERSISTENCE` | Bootstrap failed | Check logs |
 
-Further reading: `README-OPENCODE.md`, `README.md`.
+## Further reading
+
+- [README.md](README.md) - Full documentation
+- [ARCHITECTURE_CANONICAL_STATE.md](governance_runtime/ARCHITECTURE_CANONICAL_STATE.md) - State model
+- [OPERATING_RULES.md](governance_runtime/OPERATING_RULES.md) - Operating rules

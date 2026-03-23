@@ -177,9 +177,14 @@ class TestQuickstartEdge:
     def test_bootstrap_step_has_launcher(self) -> None:
         """Step 3 bootstrap section must reference the launcher."""
         content = _read("QUICKSTART.md")
+        # Try both "## Step 3:" and "## Step 3 " formats
         start = content.find("## Step 3:")
-        assert start >= 0
+        if start < 0:
+            start = content.find("## Step 3 ")
+        assert start >= 0, "QUICKSTART.md must contain Step 3"
         next_section = content.find("## Step 4:", start)
+        if next_section < 0:
+            next_section = content.find("## Step 4 ", start)
         if next_section < 0:
             next_section = len(content)
         section = content[start:next_section]

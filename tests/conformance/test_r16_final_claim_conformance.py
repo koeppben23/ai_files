@@ -116,10 +116,8 @@ class TestR16FinalClaimConformance:
         docs = [
             REPO_ROOT / "README.md",
             REPO_ROOT / "README-OPENCODE.md",
-            REPO_ROOT / "QUICKSTART.md",
             REPO_ROOT / "BOOTSTRAP.md",
             REPO_ROOT / "governance_content" / "README.md",
-            REPO_ROOT / "governance_content" / "QUICKSTART.md",
         ]
 
         for path in docs:

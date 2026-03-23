@@ -99,6 +99,8 @@ Post-install directory layout (`<config_root>`):
 
 ## Start a governed session
 
+**Schnellstart:** Siehe [QUICKSTART.md](QUICKSTART.md) für eine kurze Referenz mit Beispielen.
+
 ### Prerequisites: make the launcher reachable
 
 The installer places the launcher at `~/.config/opencode/bin/` (macOS/Linux) or
@@ -177,10 +179,10 @@ opencode-governance-bootstrap --set-operating-mode solo --repo-root /path/to/rep
 
 ## Docs and troubleshooting
 
-- Quickstarts: `QUICKSTART.md`, `README-OPENCODE.md`
-- OpenCode lifecycle details: `README-OPENCODE.md`
-- Rules overview: `README-RULES.md`
-- Install path binding details: `docs/install-layout.md`
+- **Quickstart:** [QUICKSTART.md](QUICKSTART.md) — kurze Referenz mit Beispielen
+- **Architecture:** [governance_runtime/ARCHITECTURE_CANONICAL_STATE.md](governance_runtime/ARCHITECTURE_CANONICAL_STATE.md)
+- **Rules:** [governance_runtime/OPERATING_RULES.md](governance_runtime/OPERATING_RULES.md)
+- **Install:** [governance_content/docs/install-layout.md](governance_content/docs/install-layout.md)
 
 ## Uninstall
 
