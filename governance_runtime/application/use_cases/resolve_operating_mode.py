@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 _PROFILE_TO_RUNTIME_MODE: dict[str, "OperatingMode"] = {
     "solo": "user",
     "team": "pipeline",
-    "regulated": "pipeline",
+    "regulated": "agents_strict",
 }
 
 _REPO_POLICY_RELATIVE_PATH = ".opencode/governance-repo-policy.json"
