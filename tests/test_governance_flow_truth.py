@@ -1472,8 +1472,10 @@ class TestE2EPlanAutoGeneration:
         _set_env(monkeypatch, config_root, commands_home)
         json_data = '{"objective":"Implement feature X with high quality","target_state":"Feature X delivered and verified","target_flow":"Step 1: Setup. Step 2: Implement. Step 3: Test.","state_machine":"Draft -> Active -> Complete","blocker_taxonomy":"Dependencies,Complexity","audit":"Test results, coverage report","go_no_go":"All tests pass, no critical bugs","test_strategy":"Unit + integration tests","reason_code":"PLAN-001"}'
         if platform.system() == "Windows":
-            # Use PowerShell Write-Output which handles quotes properly
-            cmd = f'powershell -Command "Write-Output \'{json_data}\'"'
+            # Use python -c with print for Windows (cmd.exe runs with shell=True)
+            import json as _json
+            escaped = _json.dumps(json_data)
+            cmd = f"python -c \"print({escaped})\""
         else:
             cmd = f"echo '{json_data}'"
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", cmd)
@@ -1538,7 +1540,9 @@ class TestE2EPlanAutoGeneration:
         _set_env(monkeypatch, config_root, commands_home)
         json_data = '{"objective":"Implement feature X with high quality","target_state":"Feature X delivered and verified","target_flow":"Step 1: Setup. Step 2: Implement. Step 3: Test.","state_machine":"Draft -> Active -> Complete","blocker_taxonomy":"Dependencies,Complexity","audit":"Test results, coverage report","go_no_go":"All tests pass, no critical bugs","test_strategy":"Unit + integration tests","reason_code":"PLAN-001"}'
         if platform.system() == "Windows":
-            cmd = f'powershell -Command "Write-Output \'{json_data}\'"'
+            import json as _json
+            escaped = _json.dumps(json_data)
+            cmd = f"python -c \"print({escaped})\""
         else:
             cmd = f"echo '{json_data}'"
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", cmd)
