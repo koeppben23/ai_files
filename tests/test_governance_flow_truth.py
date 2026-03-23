@@ -1467,9 +1467,15 @@ class TestE2EPlanAutoGeneration:
         for the architecture requirement and is effectively covered by the schema and
         mandate schema fail-closed tests above.
         """
+        import platform
         config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
         _set_env(monkeypatch, config_root, commands_home)
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo '{\"objective\":\"Implement feature X with high quality\",\"target_state\":\"Feature X delivered and verified\",\"target_flow\":\"Step 1: Setup. Step 2: Implement. Step 3: Test.\",\"state_machine\":\"Draft -> Active -> Complete\",\"blocker_taxonomy\":\"Dependencies,Complexity\",\"audit\":\"Test results, coverage report\",\"go_no_go\":\"All tests pass, no critical bugs\",\"test_strategy\":\"Unit + integration tests\",\"reason_code\":\"PLAN-001\"}'")
+        json_data = '{"objective":"Implement feature X with high quality","target_state":"Feature X delivered and verified","target_flow":"Step 1: Setup. Step 2: Implement. Step 3: Test.","state_machine":"Draft -> Active -> Complete","blocker_taxonomy":"Dependencies,Complexity","audit":"Test results, coverage report","go_no_go":"All tests pass, no critical bugs","test_strategy":"Unit + integration tests","reason_code":"PLAN-001"}'
+        if platform.system() == "Windows":
+            cmd = f'python -c "import sys; sys.stdout.write({json_data!r})"'
+        else:
+            cmd = f"echo '{json_data}'"
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", cmd)
 
         module = _load_phase5()
         rc = module.main(["--quiet"])
@@ -1526,9 +1532,15 @@ class TestE2EPlanAutoGeneration:
 
     def test_plan_auto_gen_success_with_valid_llm_response(self, tmp_path, monkeypatch, capsys):
         """/plan with valid LLM response: persists plan + requirements, routes to /continue."""
+        import platform
         config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
         _set_env(monkeypatch, config_root, commands_home)
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo '{\"objective\":\"Implement feature X with high quality\",\"target_state\":\"Feature X delivered and verified\",\"target_flow\":\"Step 1: Setup. Step 2: Implement. Step 3: Test.\",\"state_machine\":\"Draft -> Active -> Complete\",\"blocker_taxonomy\":\"Dependencies,Complexity\",\"audit\":\"Test results, coverage report\",\"go_no_go\":\"All tests pass, no critical bugs\",\"test_strategy\":\"Unit + integration tests\",\"reason_code\":\"PLAN-001\"}'")
+        json_data = '{"objective":"Implement feature X with high quality","target_state":"Feature X delivered and verified","target_flow":"Step 1: Setup. Step 2: Implement. Step 3: Test.","state_machine":"Draft -> Active -> Complete","blocker_taxonomy":"Dependencies,Complexity","audit":"Test results, coverage report","go_no_go":"All tests pass, no critical bugs","test_strategy":"Unit + integration tests","reason_code":"PLAN-001"}'
+        if platform.system() == "Windows":
+            cmd = f'python -c "import sys; sys.stdout.write({json_data!r})"'
+        else:
+            cmd = f"echo '{json_data}'"
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", cmd)
 
         module = _load_phase5()
         capsys.readouterr()
