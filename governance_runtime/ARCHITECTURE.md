@@ -92,6 +92,44 @@ validate_plan_payload(payload)      # Wirft bei ungültigem Plan
 - Next-Action wird explizit berechnet
 - Keine impliziten Fallbacks
 
+## Profile Resolution
+
+### Operating Profile Hierarchy
+
+```
+solo (1) < team (2) < regulated (3)
+```
+
+Profile sind monoton: Ein höheres Profil ist strenger und kann nicht auf ein niedrigeres zurückgestuft werden (außer mit Break-Glass).
+
+### Runtime Mode Mapping
+
+| Profile | Runtime Mode | Bootstrap Flag | CI Signal |
+|---------|-------------|---------------|----------|
+| solo | user | `--profile solo` | - |
+| team | pipeline | `--profile team` | CI=true |
+| regulated | agents_strict | `--profile regulated` | Must not collapse to pipeline |
+
+**Wichtig:** CI alone does not erase regulated semantics. A repo initialized with `--profile regulated` maintains `agents_strict` mode even in CI pipelines.
+
+### Regulated Mode Activation
+
+When `--profile regulated` is specified during bootstrap:
+
+1. `.opencode/governance-repo-policy.json` is created with `operatingMode: "regulated"`
+2. `governance-mode.json` is created at repo root with `state: "active"`
+3. `detect_regulated_mode()` reads `governance-mode.json` to enforce constraints:
+   - Retention lock (3650 days default)
+   - Four-eyes approval for archive operations
+   - Immutable archives
+   - Tamper-evident export
+
+### Profile vs Runtime Mode vs CI Environment
+
+- **Profile**: Bootstrap-Konfiguration (solo, team, regulated)
+- **Runtime Mode**: Effektiver Modus für Logik (user, pipeline, agents_strict)
+- **CI Environment**: Kann Pipeline-Modus aktivieren, aber nicht regulated downgraden
+
 ## Allowlist
 
 **31 Allowlist-Einträge** für Alias-Zugriff (Stand: Sprint K/M).

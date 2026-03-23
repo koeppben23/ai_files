@@ -43,6 +43,8 @@ For engineering teams that need repeatable planning, review visibility, and shar
 
 For organizations that require controlled approvals, auditable decisions, retained evidence, redaction support, and fail-closed governance behavior.
 
+**Note:** The regulated profile maps to `agents_strict` runtime mode, not `pipeline`. This ensures stricter enforcement and prevents silent downgrade in CI environments.
+
 ---
 
 ## Built for Controlled Engineering Environments
