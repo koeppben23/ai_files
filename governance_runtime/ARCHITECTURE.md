@@ -104,13 +104,13 @@ Profile sind monoton: Ein höheres Profil ist strenger und kann nicht auf ein ni
 
 ### Runtime Mode Mapping
 
-| Profile | Runtime Mode | Bootstrap Flag | CI Signal |
-|---------|-------------|---------------|----------|
-| solo | user | `--profile solo` | - |
-| team | pipeline | `--profile team` | CI=true |
-| regulated | agents_strict | `--profile regulated` | Must not collapse to pipeline |
+| Profile | Runtime Mode | Bootstrap Flag | Auto-Approve | CI Signal |
+|---------|-------------|---------------|--------------|----------|
+| solo | user | `--profile solo` | No | - |
+| team | pipeline | `--profile team` | Yes (at Evidence Gate) | CI=true |
+| regulated | agents_strict | `--profile regulated` | No | Must not collapse to pipeline |
 
-**Wichtig:** CI alone does not erase regulated semantics. A repo initialized with `--profile regulated` maintains `agents_strict` mode even in CI pipelines.
+**Wichtig:** CI alone does not erase regulated semantics. A repo initialized with `--profile regulated` maintains `agents_strict` mode even in CI pipelines. Pipeline auto-approve does NOT apply to regulated/agents_strict mode.
 
 ### Regulated Mode Activation
 
@@ -123,6 +123,29 @@ When `--profile regulated` is specified during bootstrap:
    - Four-eyes approval for archive operations
    - Immutable archives
    - Tamper-evident export
+
+### Pipeline Auto-Approve (Team Profile)
+
+The team profile (`--profile team`) enables non-interactive auto-approve at the Evidence Presentation Gate.
+
+**Eligibility Conditions (ALL must be true):**
+- `effective_operating_mode == "pipeline"`
+- Internal review is complete
+- At Evidence Presentation Gate
+- No existing review decision recorded
+- Workflow not already complete
+
+**How it works:**
+1. Kernel evaluates transition eligibility via `pipeline_auto_approve_eligible()`
+2. When eligible, kernel signals `source="pipeline-auto-approve"`
+3. `session_reader._materialize_authoritative_state()` consumes the signal
+4. `apply_review_decision(decision="")` is called automatically
+5. Workflow completes without manual intervention
+
+**Important:**
+- Pipeline auto-approve only applies to team/pipeline mode
+- Regulated/agents_strict mode does NOT support pipeline auto-approve
+- Solo/user mode requires explicit `/review-decision`
 
 ### Profile vs Runtime Mode vs CI Environment
 
