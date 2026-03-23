@@ -5,6 +5,7 @@ from tests.conftest_governance.helpers import (
     _load_phase5,
     _load_review_decision,
     _load_session_reader,
+    _mock_llm_cmd,
     _read_json,
     _read_state,
     _set_env,

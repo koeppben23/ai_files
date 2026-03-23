@@ -18,6 +18,7 @@ from tests.conftest_governance import (
     _load_review_decision,
     _load_session_reader,
     _load_module,
+    _mock_llm_cmd,
     _read_json,
     _read_state,
     _set_env,
@@ -1467,18 +1468,10 @@ class TestE2EPlanAutoGeneration:
         for the architecture requirement and is effectively covered by the schema and
         mandate schema fail-closed tests above.
         """
-        import platform
         config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
         _set_env(monkeypatch, config_root, commands_home)
         json_data = '{"objective":"Implement feature X with high quality","target_state":"Feature X delivered and verified","target_flow":"Step 1: Setup. Step 2: Implement. Step 3: Test.","state_machine":"Draft -> Active -> Complete","blocker_taxonomy":"Dependencies,Complexity","audit":"Test results, coverage report","go_no_go":"All tests pass, no critical bugs","test_strategy":"Unit + integration tests","reason_code":"PLAN-001"}'
-        if platform.system() == "Windows":
-            # Use python -c with print for Windows (cmd.exe runs with shell=True)
-            import json as _json
-            escaped = _json.dumps(json_data)
-            cmd = f"python -c \"print({escaped})\""
-        else:
-            cmd = f"echo '{json_data}'"
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", cmd)
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", _mock_llm_cmd(json_data))
 
         module = _load_phase5()
         rc = module.main(["--quiet"])
@@ -1535,17 +1528,10 @@ class TestE2EPlanAutoGeneration:
 
     def test_plan_auto_gen_success_with_valid_llm_response(self, tmp_path, monkeypatch, capsys):
         """/plan with valid LLM response: persists plan + requirements, routes to /continue."""
-        import platform
         config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
         _set_env(monkeypatch, config_root, commands_home)
         json_data = '{"objective":"Implement feature X with high quality","target_state":"Feature X delivered and verified","target_flow":"Step 1: Setup. Step 2: Implement. Step 3: Test.","state_machine":"Draft -> Active -> Complete","blocker_taxonomy":"Dependencies,Complexity","audit":"Test results, coverage report","go_no_go":"All tests pass, no critical bugs","test_strategy":"Unit + integration tests","reason_code":"PLAN-001"}'
-        if platform.system() == "Windows":
-            import json as _json
-            escaped = _json.dumps(json_data)
-            cmd = f"python -c \"print({escaped})\""
-        else:
-            cmd = f"echo '{json_data}'"
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", cmd)
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", _mock_llm_cmd(json_data))
 
         module = _load_phase5()
         capsys.readouterr()

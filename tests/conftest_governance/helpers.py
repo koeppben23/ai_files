@@ -162,6 +162,23 @@ def _set_env(monkeypatch: pytest.MonkeyPatch, config_root: Path, commands_home: 
     monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
 
 
+def _mock_llm_cmd(json_data: str) -> str:
+    """Create a platform-specific mock LLM command that outputs JSON.
+
+    On Unix: uses echo with single quotes
+    On Windows: uses python -c with print to avoid cmd.exe quoting issues
+    """
+    import platform
+    if platform.system() == "Windows":
+        # On Windows, subprocess.run with shell=True uses cmd.exe
+        # Use python to print the JSON to avoid quoting issues
+        # Replace double quotes with escaped version for the python command
+        escaped = json_data.replace('"', '\\"')
+        return f'python -c "print(\\"{escaped}\\")"'
+    else:
+        return f"echo '{json_data}'"
+
+
 def _write_phase6_session(
     session_path: Path,
     workspace: Path,
