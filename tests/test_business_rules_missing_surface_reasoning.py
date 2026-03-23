@@ -11,7 +11,7 @@ Test categories:
 from __future__ import annotations
 
 import pytest
-from governance.engine.business_rules_coverage import (
+from governance_runtime.engine.business_rules_coverage import (
     evaluate_code_extraction_coverage,
     MISSING_SURFACE_REASONS,
 )
@@ -39,7 +39,7 @@ class TestMissingSurfaceReasons:
 
     def test_some_surfaces_present_all_expected(self) -> None:
         """Test when expected surfaces are present - no missing reasons."""
-        from governance.engine.business_rules_code_extraction import CodeSurface
+        from governance_runtime.engine.business_rules_code_extraction import CodeSurface
         
         coverage = evaluate_code_extraction_coverage(
             scanned_surfaces=[
@@ -61,7 +61,7 @@ class TestMissingSurfaceReasons:
 
     def test_non_business_surface_drops_causes_filtered_reason(self) -> None:
         """Test that non-business surface drops cause 'filtered_non_business' reason."""
-        from governance.engine.business_rules_code_extraction import CodeSurface
+        from governance_runtime.engine.business_rules_code_extraction import CodeSurface
         
         coverage = evaluate_code_extraction_coverage(
             scanned_surfaces=[
@@ -83,7 +83,7 @@ class TestMissingSurfaceReasons:
 
     def test_rejected_non_business_subject_causes_insufficient_context(self) -> None:
         """Test that rejected subjects cause 'insufficient_business_context' reason."""
-        from governance.engine.business_rules_code_extraction import CodeSurface
+        from governance_runtime.engine.business_rules_code_extraction import CodeSurface
         
         coverage = evaluate_code_extraction_coverage(
             scanned_surfaces=[
@@ -105,7 +105,7 @@ class TestMissingSurfaceReasons:
 
     def test_business_surfaces_exist_but_wrong_type(self) -> None:
         """Test that existing wrong-type surfaces cause 'unsupported_surface'."""
-        from governance.engine.business_rules_code_extraction import CodeSurface
+        from governance_runtime.engine.business_rules_code_extraction import CodeSurface
         
         coverage = evaluate_code_extraction_coverage(
             scanned_surfaces=[
@@ -130,7 +130,7 @@ class TestMissingSurfaceReasonsEdgeCases:
 
     def test_large_repo_with_all_surfaces(self) -> None:
         """Test large repo that has all expected surfaces."""
-        from governance.engine.business_rules_code_extraction import CodeSurface
+        from governance_runtime.engine.business_rules_code_extraction import CodeSurface
         
         coverage = evaluate_code_extraction_coverage(
             scanned_surfaces=[
@@ -168,7 +168,7 @@ class TestMissingSurfaceReasonsEdgeCases:
 
     def test_only_test_surfaces_found(self) -> None:
         """Test repo that only has test files - should show filtering."""
-        from governance.engine.business_rules_code_extraction import CodeSurface
+        from governance_runtime.engine.business_rules_code_extraction import CodeSurface
         
         coverage = evaluate_code_extraction_coverage(
             scanned_surfaces=[

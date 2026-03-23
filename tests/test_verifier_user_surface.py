@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.verification.user_surface_verifier import run_user_surface_verification
+from governance_runtime.verification.user_surface_verifier import run_user_surface_verification
 
 
 def test_user_surface_verifier_marks_unverified_without_registry_tests(tmp_path: Path) -> None:

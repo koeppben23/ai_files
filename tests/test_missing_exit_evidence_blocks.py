@@ -4,28 +4,31 @@ import json
 import sys
 from pathlib import Path
 
-from governance.kernel.phase_kernel import RuntimeContext, execute
+from governance_runtime.kernel.phase_kernel import RuntimeContext, execute
+from tests.util import get_phase_api_path
 
 
 def _prepare_binding(tmp_path: Path, monkeypatch) -> tuple[Path, str]:
     home = tmp_path / "home"
     cfg = home / ".config" / "opencode"
     commands_home = cfg / "commands"
+    spec_home = cfg / "governance_spec"
     workspaces_home = cfg / "workspaces"
     commands_home.mkdir(parents=True, exist_ok=True)
+    spec_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
             "commandsHome": str(commands_home),
+            "specHome": str(spec_home),
             "workspacesHome": str(workspaces_home),
             "pythonCommand": sys.executable,
         },
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
-    phase_api_src = Path(__file__).resolve().parents[1] / "phase_api.yaml"
-    (commands_home / "phase_api.yaml").write_text(phase_api_src.read_text(encoding="utf-8"), encoding="utf-8")
+    (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
     return workspaces_home, "88b39b036804c534a1b2c3d4"
 

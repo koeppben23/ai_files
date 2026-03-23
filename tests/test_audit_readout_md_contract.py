@@ -15,8 +15,8 @@ from tests.util import REPO_ROOT
 
 @pytest.mark.governance
 def test_audit_readout_md_exists_and_has_bridge_contract() -> None:
-    path = REPO_ROOT / "audit-readout.md"
-    assert path.exists(), "audit-readout.md must exist in repo root"
+    path = REPO_ROOT / "opencode" / "commands" / "audit-readout.md"
+    assert path.exists(), "opencode/commands/audit-readout.md must exist"
     content = path.read_text(encoding="utf-8")
     assert BIN_DIR_PLACEHOLDER in content
     assert "opencode-governance-bootstrap" in content
@@ -30,7 +30,7 @@ def test_audit_readout_md_exists_and_has_bridge_contract() -> None:
 
 @pytest.mark.governance
 def test_audit_readout_md_rail_classification() -> None:
-    path = REPO_ROOT / "audit-readout.md"
+    path = REPO_ROOT / "opencode" / "commands" / "audit-readout.md"
     content = path.read_text(encoding="utf-8")
     match = re.search(r"<!--\s*rail-classification:\s*([^>]+)-->", content)
     assert match is not None

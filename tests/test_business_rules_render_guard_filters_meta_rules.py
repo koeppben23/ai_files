@@ -12,7 +12,7 @@ Test categories:
 from __future__ import annotations
 
 import pytest
-from governance.engine.business_rules_validation import (
+from governance_runtime.engine.business_rules_validation import (
     RuleCandidate,
     validate_candidates,
     ORIGIN_CODE,

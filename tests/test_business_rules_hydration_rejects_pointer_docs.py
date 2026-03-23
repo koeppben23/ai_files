@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.business_rules_hydration import (
+from governance_runtime.engine.business_rules_hydration import (
     POINTER_AS_SESSION_STATE_ERROR,
     hydrate_business_rules_state_from_artifacts,
 )

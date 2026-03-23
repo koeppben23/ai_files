@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-import governance.engine.reason_payload as reason_payload
-from governance.engine.reason_codes import (
+import governance_runtime.engine.reason_payload as reason_payload
+from governance_runtime.engine.reason_codes import (
     BLOCKED_EXEC_DISALLOWED,
     BLOCKED_STRICT_CONTRACT_MISSING,
     BLOCKED_STRICT_EVIDENCE_MISSING,
@@ -22,7 +22,7 @@ from governance.engine.reason_codes import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_DIR = REPO_ROOT / "governance" / "assets" / "schemas"
+SCHEMA_DIR = REPO_ROOT / "governance_runtime" / "assets" / "schemas"
 
 
 # -- Fixtures: strict-exit payloads ------------------------------------------
@@ -226,10 +226,10 @@ def test_reason_context_schema_missing_error_is_canonical(monkeypatch: pytest.Mo
     monkeypatch.setattr(
         reason_payload,
         "_resolve_schema_ref_for_reason",
-        lambda _reason_code: "governance/assets/schemas/does_not_exist.v1.json",
+        lambda _reason_code: "governance_runtime/assets/schemas/does_not_exist.v1.json",
     )
 
-    with pytest.raises(ValueError, match=r"^reason_schema_missing:governance/assets/schemas/does_not_exist.v1.json$"):
+    with pytest.raises(ValueError, match=r"^reason_schema_missing:governance_runtime/assets/schemas/does_not_exist.v1.json$"):
         reason_payload.validate_reason_context_schema(
             REPO_DOC_UNSAFE_DIRECTIVE,
             {
@@ -242,7 +242,7 @@ def test_reason_context_schema_missing_error_is_canonical(monkeypatch: pytest.Mo
 
 def test_blocked_strict_codes_bound_to_strict_exit_schema():
     """All 4 BLOCKED-STRICT-* codes must map to the strict_exit schema, not blocked_core."""
-    from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
+    from governance_runtime.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
 
     strict_codes = [
         BLOCKED_STRICT_EVIDENCE_MISSING,
@@ -250,7 +250,7 @@ def test_blocked_strict_codes_bound_to_strict_exit_schema():
         BLOCKED_STRICT_THRESHOLD,
         BLOCKED_STRICT_CONTRACT_MISSING,
     ]
-    expected_ref = "governance/assets/schemas/strict_exit_blocked.v1.schema.json"
+    expected_ref = "governance_runtime/assets/schemas/strict_exit_blocked.v1.schema.json"
     for code in strict_codes:
         assert EMBEDDED_REASON_CODE_TO_SCHEMA_REF.get(code) == expected_ref, (
             f"{code} must be bound to {expected_ref}"

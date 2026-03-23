@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.infrastructure.workspace_paths import run_dir
-from governance.infrastructure.work_run_archive import archive_active_run
+from governance_runtime.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.work_run_archive import archive_active_run
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

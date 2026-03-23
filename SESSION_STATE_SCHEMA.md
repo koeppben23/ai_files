@@ -5,8 +5,8 @@ It exists to prevent **session state drift** across models and sessions and to m
 
 Normative language (MUST / SHOULD / MAY) is binding.
 
-SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
-Kernel: `governance/kernel/*` is the only control-plane implementation.
+SSOT: `${SPEC_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
+Kernel: `governance_runtime/kernel/*` is the canonical control-plane implementation.
 MD files are AI rails/guidance only and are never routing-binding.
 Phase `1.3` is mandatory before every phase `>=2`.
 

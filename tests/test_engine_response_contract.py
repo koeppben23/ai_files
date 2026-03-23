@@ -5,7 +5,7 @@ from typing import Any, cast
 
 import pytest
 
-from governance.engine.response_contract import (
+from governance_runtime.engine.response_contract import (
     SESSION_SNAPSHOT_MAX_CHARS,
     SESSION_SNAPSHOT_WHITELIST,
     NextAction,

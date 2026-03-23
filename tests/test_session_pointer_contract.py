@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.infrastructure.session_pointer import is_valid_pointer, parse_pointer_payload
+from governance_runtime.infrastructure.session_pointer import is_valid_pointer, parse_pointer_payload
 
 
 def test_parse_pointer_payload_rejects_missing_required_fields() -> None:

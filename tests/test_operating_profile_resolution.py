@@ -4,11 +4,11 @@ from dataclasses import dataclass
 
 import pytest
 
-from governance.application.use_cases.resolve_operating_mode import (
+from governance_runtime.application.use_cases.resolve_operating_mode import (
     resolve_effective_operating_mode,
     resolve_operating_mode_result,
 )
-from governance.domain.operating_profile import (
+from governance_runtime.domain.operating_profile import (
     BREAK_GLASS_EXPIRED,
     BREAK_GLASS_INVALID,
     FORBIDDEN_DOWNSHIFT,
@@ -20,7 +20,7 @@ from governance.domain.operating_profile import (
     runtime_mode_to_operating_profile,
     resolve_operating_profile,
 )
-from governance.engine.mode_repo_rules import canonicalize_operating_mode, resolve_env_operating_mode
+from governance_runtime.engine.mode_repo_rules import canonicalize_operating_mode, resolve_env_operating_mode
 
 
 @dataclass(frozen=True)

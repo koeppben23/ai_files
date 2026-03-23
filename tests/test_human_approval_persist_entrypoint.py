@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.entrypoints import human_approval_persist as entrypoint
+from governance_runtime.entrypoints import human_approval_persist as entrypoint
 
 
 def _write_session(path: Path) -> None:

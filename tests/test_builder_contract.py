@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from governance.verification.builder_contract import validate_builder_result
+from governance_runtime.verification.builder_contract import validate_builder_result
 
 
 def test_builder_contract_happy_path() -> None:
     result = validate_builder_result(
         {
-            "changed_files": ["governance/entrypoints/session_reader.py"],
+            "changed_files": ["governance_runtime/entrypoints/session_reader.py"],
             "contracts_addressed": ["R-NEXT-ACTION-001"],
             "tests_added": ["tests/test_session_reader_guided_contract.py::test_guided_happy"],
             "contracts_unverified": [],

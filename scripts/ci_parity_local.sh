@@ -93,9 +93,9 @@ if [[ ! -x "${PY}" ]]; then
   exit 2
 fi
 
-if ! "${PY}" -m pytest --version >/dev/null 2>&1; then
-  run_step "Installing local test dependencies (pip, pytest)" "${PY}" -m pip install --upgrade pip
-  run_step "Installing pytest" "${PIP}" install pytest
+if ! "${PY}" -m pytest --version >/dev/null 2>&1 || ! "${PY}" -c "import yaml, jsonschema" >/dev/null 2>&1; then
+  run_step "Installing local test dependencies (pip, pytest, pyyaml, jsonschema)" "${PY}" -m pip install --upgrade pip
+  run_step "Installing pytest, pyyaml, and jsonschema" "${PIP}" install pytest pyyaml jsonschema
 fi
 
 if [[ "${SKIP_PR_TITLE}" -eq 0 ]]; then
@@ -133,6 +133,8 @@ run_step "Running installer tests" "${PYTEST}" -q -m installer
 run_step "Running governance validation tests" "${PYTEST}" -q -m governance
 run_step "Running governance end-to-end tests" "${PYTEST}" -q -m e2e_governance
 run_step "Running release readiness tests" "${PYTEST}" -q -m release
+run_step "Running repo hygiene guard" "${PY}" scripts/repo_hygiene_guard.py --repo-root .
+run_step "Running ship surface guard" "${PY}" scripts/ship_surface_guard.py --repo-root .
 
 run_step "Installer smoke test (dry-run)" "${PY}" install.py --dry-run --force --config-root "${CONFIG_ROOT}"
 run_step "Installer smoke test (install)" "${PY}" install.py --force --no-backup --config-root "${CONFIG_ROOT}"

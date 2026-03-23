@@ -18,7 +18,7 @@ except ImportError:
 
 from tests.util import REPO_ROOT
 
-_SCHEMA_PATH = REPO_ROOT / "governance" / "assets" / "schemas" / "plan_record.v1.schema.json"
+_SCHEMA_PATH = REPO_ROOT / "governance_runtime" / "assets" / "schemas" / "plan_record.v1.schema.json"
 
 
 def _load_schema() -> dict:

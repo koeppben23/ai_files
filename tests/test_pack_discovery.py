@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.packs.discovery import (
+from governance_runtime.packs.discovery import (
     activate_candidates,
     collect_discovered_candidates,
     resolve_trust_policy,

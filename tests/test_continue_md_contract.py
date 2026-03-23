@@ -44,8 +44,8 @@ class TestSourceTemplate:
 
     @pytest.fixture(autouse=True)
     def _load_source(self) -> None:
-        self.source_path = REPO_ROOT / "continue.md"
-        assert self.source_path.exists(), "continue.md must exist in repo root"
+        self.source_path = REPO_ROOT / "opencode" / "commands" / "continue.md"
+        assert self.source_path.exists(), "opencode/commands/continue.md must exist"
         self.content = self.source_path.read_text(encoding="utf-8")
 
     def test_placeholder_present(self) -> None:
@@ -229,8 +229,8 @@ class TestNoModelRefusalPatterns:
     def _load_templates(self) -> None:
         self.contents: dict[str, str] = {}
         for name in self.TEMPLATES:
-            path = REPO_ROOT / name
-            assert path.exists(), f"{name} must exist in repo root"
+            path = REPO_ROOT / "opencode" / "commands" / name
+            assert path.exists(), f"opencode/commands/{name} must exist"
             self.contents[name] = path.read_text(encoding="utf-8")
 
     @pytest.mark.parametrize("template_name", TEMPLATES)
@@ -440,7 +440,7 @@ class TestInjectSessionReaderPath:
         cmd = tmp_path / "commands"
         cmd.mkdir()
         # Also create the governance/entrypoints directory for path construction
-        (cmd / "governance" / "entrypoints").mkdir(parents=True)
+        (cmd / "governance_runtime" / "entrypoints").mkdir(parents=True)
         return cmd
 
     def _write_template(self, commands_dir: Path) -> Path:
@@ -466,12 +466,12 @@ class TestInjectSessionReaderPath:
         assert PYTHON_COMMAND_PLACEHOLDER not in content
 
     def test_injected_path_is_correct(self, commands_dir: Path) -> None:
-        """Injected path points to governance/entrypoints/session_reader.py."""
+        """Injected path points to governance_runtime/entrypoints/session_reader.py."""
         self._write_template(commands_dir)
         inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
-        expected_path = str(commands_dir / "governance" / "entrypoints" / "session_reader.py")
+        expected_path = str(commands_dir / "governance_runtime" / "entrypoints" / "session_reader.py")
         assert expected_path in content
 
     def test_injected_path_is_absolute(self, commands_dir: Path) -> None:
@@ -481,7 +481,7 @@ class TestInjectSessionReaderPath:
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
         # The path should be absolute — starts with / on Unix or drive letter on Windows
-        expected_path = str(commands_dir / "governance" / "entrypoints" / "session_reader.py")
+        expected_path = str(commands_dir / "governance_runtime" / "entrypoints" / "session_reader.py")
         assert os.path.isabs(expected_path)
         assert expected_path in content
 
@@ -509,7 +509,7 @@ class TestInjectSessionReaderPath:
 
     def test_legacy_python_reader_command_is_upgraded(self, commands_dir: Path) -> None:
         continue_md = commands_dir / "continue.md"
-        legacy_reader = commands_dir / "governance" / "entrypoints" / "session_reader.py"
+        legacy_reader = commands_dir / "governance_runtime" / "entrypoints" / "session_reader.py"
         continue_md.write_text(
             f"# Governance Continue\npython \"{legacy_reader}\"\n",
             encoding="utf-8",
@@ -567,7 +567,7 @@ class TestPythonCommandQuoting:
     def commands_dir(self, tmp_path: Path) -> Path:
         cmd = tmp_path / "commands"
         cmd.mkdir()
-        (cmd / "governance" / "entrypoints").mkdir(parents=True)
+        (cmd / "governance_runtime" / "entrypoints").mkdir(parents=True)
         return cmd
 
     def _write_template(self, commands_dir: Path, name: str = "continue.md") -> Path:

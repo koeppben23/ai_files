@@ -35,7 +35,6 @@ GOVERNANCE_EXCLUDE_DIRS = {
     ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
-    "docs/_archive",
 }
 
 FORBIDDEN_METADATA_SEGMENTS = ("__MACOSX",)
@@ -43,14 +42,14 @@ FORBIDDEN_METADATA_FILENAMES = {".DS_Store", "Icon\r"}
 
 BASELINE_REQUIRED_PATHS = (
     "scripts/migrate_session_state.py",
-    "governance/render/intent_router.py",
-    "governance/render/delta_renderer.py",
-    "governance/render/token_guard.py",
-    "governance/render/render_contract.py",
-    "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
-    "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
-    "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
-    "governance/assets/catalogs/tool_requirements.json",
+    "governance_runtime/entrypoints/bootstrap_executor.py",
+    "governance_runtime/entrypoints/session_reader.py",
+    "governance_runtime/kernel/phase_kernel.py",
+    "governance_runtime/infrastructure/binding_paths.py",
+    "governance_runtime/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
+    "governance_runtime/assets/catalogs/QUICKFIX_TEMPLATES.json",
+    "governance_runtime/assets/catalogs/UX_INTENT_GOLDENS.json",
+    "governance_runtime/assets/catalogs/tool_requirements.json",
 )
 
 BASELINE_REQUIRED_REASON_CODES = (
@@ -58,12 +57,15 @@ BASELINE_REQUIRED_REASON_CODES = (
     "NOT_VERIFIED_EVIDENCE_STALE",
 )
 
-CUSTOMER_SCRIPT_CATALOG_PATH = Path("governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
-CUSTOMER_SCRIPT_CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
-WORKFLOW_TEMPLATE_CATALOG_PATH = Path("templates/github-actions/template_catalog.json")
-WORKFLOW_TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
-MARKDOWN_EXCLUDE_POLICY_PATH = Path("governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json")
-MARKDOWN_EXCLUDE_POLICY_SCHEMA = "governance.customer-markdown-exclude.v1"
+CUSTOMER_SCRIPT_CATALOG_PATH = Path("governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
+CUSTOMER_SCRIPT_CATALOG_SCHEMA = "opencode.customer-script-catalog.v1"
+WORKFLOW_TEMPLATE_CATALOG_PATHS = (
+    Path("governance_content/templates/github-actions/template_catalog.json"),
+    Path("templates/github-actions/template_catalog.json"),
+)
+WORKFLOW_TEMPLATE_CATALOG_SCHEMA = "opencode.workflow-template-catalog.v1"
+MARKDOWN_EXCLUDE_POLICY_PATH = Path("governance_runtime/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json")
+MARKDOWN_EXCLUDE_POLICY_SCHEMA = "opencode.customer-markdown-exclude.v1"
 
 CUSTOMER_DOCS_ALLOWLIST = {
     "docs/phases.md",
@@ -79,13 +81,68 @@ CUSTOMER_DOCS_ALLOWLIST = {
     "rules.md",
     "BOOTSTRAP.md",
     "CHANGELOG.md",
-    "governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
-    "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
-    "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
-    "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
-    "governance/assets/catalogs/tool_requirements.json",
+    "governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+    "governance_runtime/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
+    "governance_runtime/assets/catalogs/QUICKFIX_TEMPLATES.json",
+    "governance_runtime/assets/catalogs/UX_INTENT_GOLDENS.json",
+    "governance_runtime/assets/catalogs/tool_requirements.json",
     "templates/github-actions/template_catalog.json",
 }
+
+
+def _legacy_rel_alias(rel: str) -> str:
+    """Map migrated paths back to legacy relpaths used by allowlists/catalogs."""
+
+    norm = rel.replace("\\", "/")
+    if norm == "governance_content/reference/master.md":
+        return "master.md"
+    if norm == "governance_content/reference/rules.md":
+        return "rules.md"
+    if norm == "governance_spec/phase_api.yaml":
+        return "phase_api.yaml"
+    if norm.startswith("governance_content/docs/"):
+        return "docs/" + norm.split("governance_content/docs/", 1)[1]
+    if norm.startswith("governance_content/profiles/"):
+        return "profiles/" + norm.split("governance_content/profiles/", 1)[1]
+    if norm.startswith("governance_content/templates/"):
+        return "templates/" + norm.split("governance_content/templates/", 1)[1]
+    if norm.startswith("governance_spec/rulesets/"):
+        return "rulesets/" + norm.split("governance_spec/rulesets/", 1)[1]
+    return norm
+
+
+def _resolve_rel_candidates(repo_root: Path, rel: str) -> list[str]:
+    """Return concrete existing relpaths for a canonical/legacy entry."""
+
+    rel_norm = rel.replace("\\", "/")
+    candidates = [rel_norm]
+    if rel_norm == "master.md":
+        candidates.append("governance_content/reference/master.md")
+    elif rel_norm == "rules.md":
+        candidates.append("governance_content/reference/rules.md")
+    elif rel_norm == "phase_api.yaml":
+        candidates.append("governance_spec/phase_api.yaml")
+    elif rel_norm.startswith("docs/"):
+        candidates.append("governance_content/" + rel_norm)
+    elif rel_norm.startswith("profiles/"):
+        candidates.append("governance_content/" + rel_norm)
+    elif rel_norm.startswith("templates/"):
+        candidates.append("governance_content/" + rel_norm)
+    elif rel_norm.startswith("rulesets/"):
+        candidates.append("governance_spec/" + rel_norm)
+
+    existing = [cand for cand in candidates if (repo_root / cand).is_file()]
+    return existing or candidates
+
+
+def _resolve_workflow_catalog_path(repo_root: Path) -> Path:
+    for rel in WORKFLOW_TEMPLATE_CATALOG_PATHS:
+        if (repo_root / rel).is_file():
+            return rel
+    raise SystemExit(
+        "Missing workflow template catalog: "
+        + ", ".join(str(p) for p in WORKFLOW_TEMPLATE_CATALOG_PATHS)
+    )
 
 
 def is_forbidden_metadata_path(relpath: str) -> bool:
@@ -146,9 +203,15 @@ def _enforce_readme_baseline_claims(repo_root: Path) -> None:
             + ", ".join(sorted(missing_paths))
         )
 
-    reason_codes_path = repo_root / "governance" / "engine" / "reason_codes.py"
-    if not reason_codes_path.exists():
-        raise SystemExit("README baseline claims verification failed: governance/engine/reason_codes.py is missing")
+    reason_code_candidates = (
+        repo_root / "governance_runtime" / "domain" / "reason_codes.py",
+    )
+    reason_codes_path = next((p for p in reason_code_candidates if p.exists()), None)
+    if reason_codes_path is None:
+        raise SystemExit(
+            "README baseline claims verification failed: reason code module missing "
+            "(expected governance_runtime/domain/reason_codes.py)"
+        )
     reason_codes_src = reason_codes_path.read_text(encoding="utf-8")
     missing_codes = [c for c in BASELINE_REQUIRED_REASON_CODES if c not in reason_codes_src]
     if missing_codes:
@@ -238,38 +301,44 @@ def _load_customer_release_script_paths(repo_root: Path) -> set[str]:
 
 
 def _load_workflow_template_paths(repo_root: Path) -> set[str]:
-    catalog_path = repo_root / WORKFLOW_TEMPLATE_CATALOG_PATH
-    if not catalog_path.exists():
-        raise SystemExit(f"Missing workflow template catalog: {WORKFLOW_TEMPLATE_CATALOG_PATH}")
+    catalog_rel = _resolve_workflow_catalog_path(repo_root)
+    catalog_path = repo_root / catalog_rel
 
     try:
         payload = json.loads(catalog_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise SystemExit(f"Invalid JSON in {WORKFLOW_TEMPLATE_CATALOG_PATH}: {exc}") from exc
+        raise SystemExit(f"Invalid JSON in {catalog_rel}: {exc}") from exc
 
     if payload.get("schema") != WORKFLOW_TEMPLATE_CATALOG_SCHEMA:
-        raise SystemExit(
-            f"Invalid workflow template catalog schema in {WORKFLOW_TEMPLATE_CATALOG_PATH}: "
+            raise SystemExit(
+            f"Invalid workflow template catalog schema in {catalog_rel}: "
             f"expected {WORKFLOW_TEMPLATE_CATALOG_SCHEMA}, got {payload.get('schema')!r}"
         )
 
     raw_templates = payload.get("templates")
     if not isinstance(raw_templates, list) or not raw_templates:
-        raise SystemExit(f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates must be a non-empty array")
+        raise SystemExit(f"{catalog_rel}: templates must be a non-empty array")
 
     selected: set[str] = set()
     for idx, item in enumerate(raw_templates, start=1):
         if not isinstance(item, dict):
-            raise SystemExit(f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates[{idx}] must be an object")
+            raise SystemExit(f"{catalog_rel}: templates[{idx}] must be an object")
         raw_file = item.get("file")
         if not isinstance(raw_file, str) or not raw_file:
-            raise SystemExit(f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates[{idx}] missing non-empty file")
+            raise SystemExit(f"{catalog_rel}: templates[{idx}] missing non-empty file")
         rel = raw_file.replace("\\", "/")
-        if not rel.startswith("templates/github-actions/") or not rel.endswith(".yml"):
+        legacy = rel.startswith("templates/github-actions/") and rel.endswith(".yml")
+        migrated = rel.startswith("governance_content/templates/github-actions/") and rel.endswith(".yml")
+        if not (legacy or migrated):
             raise SystemExit(
-                f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates[{idx}].file must be templates/github-actions/*.yml: {rel}"
+                f"{catalog_rel}: templates[{idx}].file must be templates/github-actions/*.yml: {rel}"
             )
-        selected.add(rel)
+        for cand in _resolve_rel_candidates(repo_root, rel):
+            if (repo_root / cand).is_file():
+                selected.add(cand)
+
+    if not selected:
+        raise SystemExit(f"{catalog_rel}: no valid workflow templates resolved")
 
     missing = sorted(rel for rel in selected if not (repo_root / rel).is_file())
     if missing:
@@ -311,11 +380,11 @@ def _load_markdown_release_exclusions(repo_root: Path) -> set[str]:
             raise SystemExit(
                 f"{MARKDOWN_EXCLUDE_POLICY_PATH}: invalid markdown path in release_excluded_markdown[{idx}]"
             )
-        if not (repo_root / rel_path).is_file():
+        if not any((repo_root / cand).is_file() for cand in _resolve_rel_candidates(repo_root, rel)):
             raise SystemExit(
                 f"{MARKDOWN_EXCLUDE_POLICY_PATH}: referenced markdown file does not exist: {rel}"
             )
-        excluded.add(rel)
+        excluded.add(_legacy_rel_alias(rel))
 
     return excluded
 
@@ -327,13 +396,13 @@ class BuildPaths:
 
 
 def _read_governance_version(repo_root: Path) -> str:
-    version_file = repo_root / "governance" / "VERSION"
+    version_file = repo_root / "VERSION"
     if not version_file.exists():
-        raise SystemExit("governance/VERSION not found (required for build)")
+        raise SystemExit("VERSION not found (required for build)")
 
     version = version_file.read_text(encoding="utf-8").strip()
     if not version:
-        raise SystemExit("governance/VERSION is empty (expected semver)")
+        raise SystemExit("VERSION is empty (expected semver)")
 
     if not re.match(r"^[0-9]+\.[0-9]+\.[0-9]+", version):
         raise SystemExit(f"Invalid governance version in VERSION: {version} (expected semver)")
@@ -346,6 +415,8 @@ def _is_excluded(path: Path, repo_root: Path) -> bool:
     if any(part in EXCLUDE_DIRS for part in rel.parts):
         return True
     if any(part.startswith(".tmp_dist") for part in rel.parts):
+        return True
+    if any(part.startswith("tp_") for part in rel.parts):
         return True
     # Exclude AppleDouble sidecar files (resource-fork metadata).
     if any(part.startswith("._") for part in rel.parts):
@@ -364,8 +435,10 @@ def _should_include_file(
     shipped_workflow_templates: set[str],
     release_excluded_markdown: set[str],
 ) -> bool:
+    rel_legacy = _legacy_rel_alias(rel)
+
     def _is_governance_runtime_excluded(rel_path: str) -> bool:
-        if not rel_path.startswith("governance/"):
+        if not rel_path.startswith("governance_runtime/"):
             return False
         parts = rel_path.split("/")
         if any(part in GOVERNANCE_EXCLUDE_DIRS for part in parts):
@@ -377,39 +450,44 @@ def _should_include_file(
             return True
         return False
 
-    if rel in customer_release_scripts:
+    if rel in customer_release_scripts or rel_legacy in customer_release_scripts:
         return True
-    if rel in shipped_workflow_templates:
+    if rel in shipped_workflow_templates or rel_legacy in shipped_workflow_templates:
         return True
-    if rel in release_excluded_markdown:
+    if rel in release_excluded_markdown or rel_legacy in release_excluded_markdown:
         return False
     name = p.name
     if name == "install.py":
         return True
     if name.upper().startswith("LICENSE") or name.upper().startswith("LICENCE"):
         return True
-    if rel in {"phase_api.yaml"}:
+    if rel in {"phase_api.yaml", "governance_spec/phase_api.yaml"} or rel_legacy == "phase_api.yaml":
+        return True
+    # Canonical rail command templates required for strict command-surface install.
+    if rel.startswith("opencode/commands/") and p.suffix.lower() == ".md":
         return True
     # Addon manifests are required at runtime for deterministic addon activation/reload.
-    if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
+    if (rel.startswith("profiles/addons/") or rel.startswith("governance_content/profiles/addons/") or rel_legacy.startswith("profiles/addons/")) and name.endswith(".addon.yml"):
         return True
     # Governance runtime should ship as a coherent tree, excluding only non-runtime artifacts.
-    if rel.startswith("governance/"):
-        return not _is_governance_runtime_excluded(rel)
+    if rel.startswith("governance_runtime/"):
+        if _is_governance_runtime_excluded(rel):
+            return False
+        if rel == "governance_runtime/VERSION":
+            return True
+        return p.suffix.lower() in {".py", ".json", ".yaml", ".yml", ".md"}
     # Bootstrap runtime modules required by governance entrypoints.
     if rel.startswith("bootstrap/") and p.suffix.lower() == ".py":
         return True
     # Local bootstrap runtime package.
     if rel.startswith("cli/") and p.suffix.lower() == ".py":
         return True
-    if rel.startswith("governance/artifacts/opencode-plugins/") and p.suffix.lower() in {".mjs", ".js"}:
+    if rel.startswith("governance_runtime/artifacts/opencode-plugins/") and p.suffix.lower() in {".mjs", ".js"}:
         return True
-    if rel == "governance/VERSION":
-        return True
-    if rel.startswith("docs/"):
-        return rel in CUSTOMER_DOCS_ALLOWLIST
+    if rel.startswith("docs/") or rel.startswith("governance_content/docs/") or rel_legacy.startswith("docs/"):
+        return rel in CUSTOMER_DOCS_ALLOWLIST or rel_legacy in CUSTOMER_DOCS_ALLOWLIST
     if p.suffix.lower() in {".md", ".json"}:
-        return rel in CUSTOMER_DOCS_ALLOWLIST
+        return rel in CUSTOMER_DOCS_ALLOWLIST or rel_legacy in CUSTOMER_DOCS_ALLOWLIST
     return False
 
 
@@ -434,9 +512,9 @@ def collect_release_files(
     """
     Allowlist strategy:
       - include: install.py, LICENSE*, LICENCE*, *.md, *.json,
-        profiles/addons/*.addon.yml, governance/** (runtime),
-        governance/artifacts/opencode-plugins/*.{mjs,js},
-        scripts listed in governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release=true,
+        profiles/addons/*.addon.yml, governance_runtime/** (runtime),
+        governance_runtime/artifacts/opencode-plugins/*.{mjs,js},
+        scripts listed in governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release=true,
         workflow template .yml files listed in templates/github-actions/template_catalog.json
       - exclude: .git, .github, dist, tests, caches
     Deterministic ordering (sorted by posix relpath).
@@ -475,13 +553,13 @@ def _enforce_runtime_imports(files: Iterable[Path], repo_root: Path) -> None:
 
     relset = {p.relative_to(repo_root).as_posix() for p in files}
     stdlib_modules = set(getattr(sys, "stdlib_module_names", set()))
-    entrypoints_root = repo_root / "governance" / "entrypoints"
+    entrypoints_root = repo_root / "governance_runtime" / "entrypoints"
     if not entrypoints_root.exists():
-        raise SystemExit("Release build failed: governance/entrypoints missing")
+        raise SystemExit("Release build failed: governance_runtime/entrypoints missing")
 
     import_re = re.compile(r"^\s*(?:from\s+([\w\.]+)|import\s+([\w\.]+))")
     allow_prefixes = (
-        "governance.",
+        "governance_runtime.",
         "bootstrap.",
         "cli.",
         "yaml.",

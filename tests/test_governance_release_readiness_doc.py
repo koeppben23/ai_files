@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT
+from .util import REPO_ROOT, get_docs_path
 
 
 @pytest.mark.governance
 def test_governance_release_readiness_doc_contains_required_matrices() -> None:
-    path = REPO_ROOT / "docs" / "governance-release-readiness.md"
+    path = get_docs_path() / "governance-release-readiness.md"
     assert path.exists(), "docs/governance-release-readiness.md must exist"
     text = path.read_text(encoding="utf-8")
 
@@ -26,7 +26,7 @@ def test_governance_release_readiness_doc_contains_required_matrices() -> None:
 
 @pytest.mark.governance
 def test_governance_release_readiness_doc_mentions_plan_rail_contract() -> None:
-    path = REPO_ROOT / "docs" / "governance-release-readiness.md"
+    path = get_docs_path() / "governance-release-readiness.md"
     text = path.read_text(encoding="utf-8")
     assert "/plan" in text
     assert "Free-text" in text

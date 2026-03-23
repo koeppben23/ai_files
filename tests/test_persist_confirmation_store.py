@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.persist_confirmation_store import (
+from governance_runtime.infrastructure.persist_confirmation_store import (
     has_persist_confirmation,
     load_persist_confirmation_evidence,
     record_persist_confirmation,

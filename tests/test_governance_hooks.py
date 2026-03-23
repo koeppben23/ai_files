@@ -14,14 +14,14 @@ from pathlib import Path
 
 import pytest
 
-from governance.domain.access_control import Role
-from governance.domain.regulated_mode import (
+from governance_runtime.domain.access_control import Role
+from governance_runtime.domain.regulated_mode import (
     DEFAULT_CONFIG,
     RegulatedModeConfig,
     RegulatedModeState,
 )
-from governance.domain.retention import LegalHold, LegalHoldStatus
-from governance.infrastructure.governance_hooks import (
+from governance_runtime.domain.retention import LegalHold, LegalHoldStatus
+from governance_runtime.infrastructure.governance_hooks import (
     GovernanceHookResult,
     detect_regulated_mode,
     run_post_archive_governance,
@@ -129,7 +129,7 @@ def _create_finalized_archive(base: Path, run_id: str = _RUN_ID) -> Path:
         "trigger": "new_work_session_created",
         "policy_fingerprint": "",
         "binding": {"repo_fingerprint": _FINGERPRINT, "session_run_id": run_id},
-        "launcher": "governance.entrypoints.new_work_session",
+        "launcher": "governance_runtime.entrypoints.new_work_session",
         "timestamps": {"materialized_at": _OBSERVED_AT},
     }
     (archive_path / "provenance-record.json").write_text(json.dumps(provenance), encoding="utf-8")

@@ -1,4 +1,4 @@
-from governance.application.use_cases.route_phase import RoutePhaseInput, RoutePhaseService, RoutedPhase
+from governance_runtime.application.use_cases.route_phase import RoutePhaseInput, RoutePhaseService, RoutedPhase
 
 
 def test_routed_phase_shape() -> None:

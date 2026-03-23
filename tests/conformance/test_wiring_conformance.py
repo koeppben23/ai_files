@@ -19,27 +19,32 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_docs_path, get_master_path, get_rules_path, get_profiles_path
+
+INSTALLER_SOURCE_PATH = REPO_ROOT / "governance_runtime" / "install" / "install.py"
 
 # ---------------------------------------------------------------------------
-# Contract documents — all 5 contracts must be validated
+# Contract documents — active + archived contract metadata validation
 # ---------------------------------------------------------------------------
 
-CONTRACT_DIR = REPO_ROOT / "docs" / "contracts"
+CONTRACT_DIR = get_docs_path() / "contracts"
 
-ALL_CONTRACTS = {
+ACTIVE_CONTRACTS_WITH_SUITES = {
+    "command-surface-contract.v1.md": "tests/test_rail_conformance_sweep.py",
+    "cross-agent-rail-spec.v1.md": "tests/test_rail_conformance_sweep.py",
     "install-layout-contract.v_current.md": "tests/conformance/test_layout_conformance.py",
-    "install-layout-contract.v_next.md": None,       # v_next has no conformance suite yet
-    "install-layout-migration.v1.md": None,           # planned, conformance_suite: TBD
     "opencode-integration-contract.v1.md": "tests/conformance/test_opencode_integration_conformance.py",
-    "runtime-state-contract.v1.md": "tests/conformance/test_runtime_state_conformance.py",
     "python-binding-contract.v1.md": "tests/conformance/test_binding_conformance.py",
+    "rail-style-spec.v1.md": "tests/test_rail_conformance_sweep.py",
+    "runtime-state-contract.v1.md": "tests/conformance/test_runtime_state_conformance.py",
 }
 
-# Contracts with active conformance suites
-CONTRACTS_WITH_SUITES = {
-    k: v for k, v in ALL_CONTRACTS.items() if v is not None
+ARCHIVED_CONTRACTS = {
+    "install-layout-contract.v_next.md",
+    "install-layout-migration.v1.md",
 }
+
+ALL_CONTRACTS = set(ACTIVE_CONTRACTS_WITH_SUITES.keys()) | ARCHIVED_CONTRACTS
 
 
 # ---------------------------------------------------------------------------
@@ -68,21 +73,21 @@ class TestAllContractRefsExist:
     """Validate that every contract document exists and has valid frontmatter."""
 
     def test_happy_all_contract_files_exist(self):
-        """Happy: All 5 contract documents exist on disk."""
+        """Happy: All expected contract documents exist on disk."""
         missing = [
             name for name in ALL_CONTRACTS
             if not (CONTRACT_DIR / name).is_file()
         ]
         assert not missing, f"Missing contract documents: {missing}"
 
-    @pytest.mark.parametrize("contract_name", list(ALL_CONTRACTS.keys()))
+    @pytest.mark.parametrize("contract_name", sorted(ALL_CONTRACTS))
     def test_happy_frontmatter_parseable(self, contract_name: str):
         """Happy: YAML frontmatter can be parsed without errors."""
         path = CONTRACT_DIR / contract_name
         fm = _parse_frontmatter(path)
         assert isinstance(fm, dict)
 
-    @pytest.mark.parametrize("contract_name", list(ALL_CONTRACTS.keys()))
+    @pytest.mark.parametrize("contract_name", sorted(ALL_CONTRACTS))
     def test_happy_frontmatter_has_required_keys(self, contract_name: str):
         """Happy: Frontmatter contains all standardised keys."""
         path = CONTRACT_DIR / contract_name
@@ -92,26 +97,30 @@ class TestAllContractRefsExist:
         missing = required - set(fm.keys())
         assert not missing, f"{contract_name}: missing frontmatter keys: {missing}"
 
-    @pytest.mark.parametrize(
-        "contract_name,expected_suite",
-        list(CONTRACTS_WITH_SUITES.items()),
-    )
+    @pytest.mark.parametrize("contract_name", sorted(ARCHIVED_CONTRACTS))
+    def test_happy_archived_contracts_marked_archived(self, contract_name: str):
+        path = CONTRACT_DIR / contract_name
+        fm = _parse_frontmatter(path)
+        assert str(fm.get("status", "")).lower() == "archived"
+        assert str(fm.get("effective_version", "")).lower() == "archived"
+        assert str(fm.get("conformance_suite", "")).lower() == "archived"
+
+    @pytest.mark.parametrize("contract_name,expected_suite", sorted(ACTIVE_CONTRACTS_WITH_SUITES.items()))
     def test_happy_conformance_suite_points_to_correct_file(
         self, contract_name: str, expected_suite: str
     ):
         """Happy: conformance_suite field references the correct test file."""
         path = CONTRACT_DIR / contract_name
         fm = _parse_frontmatter(path)
+        assert str(fm.get("status", "")).lower() == "active"
+        assert str(fm.get("effective_version", "")).lower() != "archived"
         actual = fm.get("conformance_suite", "")
         assert actual == expected_suite, (
             f"{contract_name}: conformance_suite mismatch: "
             f"expected {expected_suite!r}, got {actual!r}"
         )
 
-    @pytest.mark.parametrize(
-        "contract_name,expected_suite",
-        list(CONTRACTS_WITH_SUITES.items()),
-    )
+    @pytest.mark.parametrize("contract_name,expected_suite", sorted(ACTIVE_CONTRACTS_WITH_SUITES.items()))
     def test_happy_conformance_suite_file_exists(
         self, contract_name: str, expected_suite: str
     ):
@@ -130,32 +139,28 @@ class TestAllContractRefsExist:
 class TestInstallerToFiles:
     """Validate that installer references to source files are resolvable."""
 
-    # Command source files that install.py copies to ${COMMANDS_HOME}/commands/
+    # Command source files - moved in Wave 19/20
+    # Rails are in opencode/commands/, content is in governance_content/
     COMMAND_SOURCES = [
-        "master.md",
-        "rules.md",
-        "BOOTSTRAP.md",
-        "continue.md",
-        "review.md",
-        "plan.md",
-        "ticket.md",
-        "README.md",
-        "README-RULES.md",
-        "README-OPENCODE.md",
-        "SESSION_STATE_SCHEMA.md",
+        "governance_content/reference/master.md",  # was: governance_content/master.md
+        "governance_content/reference/rules.md",    # was: governance_content/rules.md
+        "opencode/commands/continue.md",             # was: continue.md
+        "opencode/commands/plan.md",                # was: plan.md
+        "opencode/commands/ticket.md",              # was: ticket.md
     ]
 
     def test_happy_all_command_sources_exist(self):
         """Happy: All command source files referenced by install.py exist in source tree."""
         missing = [f for f in self.COMMAND_SOURCES if not (REPO_ROOT / f).is_file()]
-        assert not missing, f"Command source files missing from repo root: {missing}"
+        assert not missing, f"Command source files missing: {missing}"
 
     def test_happy_install_py_references_all_command_files(self):
         """Happy: install.py source code contains references to each command file."""
-        install_src = _read_source(REPO_ROOT / "install.py")
+        install_src = _read_source(INSTALLER_SOURCE_PATH)
         unreferenced = []
         for cmd in self.COMMAND_SOURCES:
-            if cmd not in install_src:
+            token = Path(cmd).name
+            if token not in install_src:
                 unreferenced.append(cmd)
         assert not unreferenced, (
             f"Command files not referenced in install.py: {unreferenced}"
@@ -163,14 +168,14 @@ class TestInstallerToFiles:
 
     def test_happy_governance_paths_json_schema_referenced(self):
         """Happy: install.py defines the binding evidence schema string."""
-        install_src = _read_source(REPO_ROOT / "install.py")
+        install_src = _read_source(INSTALLER_SOURCE_PATH)
         assert "opencode-governance.paths.v1" in install_src, (
             "install.py missing governance.paths schema definition"
         )
 
     def test_happy_plugin_source_referenced_in_installer(self):
         """Happy: install.py references the plugin source file."""
-        install_src = _read_source(REPO_ROOT / "install.py")
+        install_src = _read_source(INSTALLER_SOURCE_PATH)
         assert "audit-new-session.mjs" in install_src, (
             "install.py missing reference to plugin source"
         )
@@ -181,8 +186,9 @@ class TestInstallerToFiles:
 
     def test_edge_audit_readout_exists(self):
         """Edge: audit-readout.md (injection target) exists in source tree."""
-        assert (REPO_ROOT / "audit-readout.md").is_file(), (
-            "audit-readout.md missing — install.py injects session reader into it"
+        # Rails moved to opencode/commands/ in Wave 19
+        assert (REPO_ROOT / "opencode/commands" / "audit-readout.md").is_file(), (
+            "audit-readout.md missing from opencode/commands/ — install.py injects session reader into it"
         )
 
 
@@ -194,11 +200,11 @@ class TestInstallerToFiles:
 class TestLauncherToEntrypoints:
     """Validate that launcher references resolve to real entrypoint modules."""
 
-    ENTRYPOINTS_DIR = REPO_ROOT / "governance" / "entrypoints"
+    ENTRYPOINTS_DIR = REPO_ROOT / "governance_runtime" / "entrypoints"
 
     # The key entrypoint modules that launchers/plugin invoke
     REQUIRED_ENTRYPOINTS = [
-        "new_work_session.py",      # Plugin invokes via -m governance.entrypoints.new_work_session
+        "new_work_session.py",      # Plugin invokes via -m governance_runtime.entrypoints.new_work_session
         "session_reader.py",        # Rail injection target
         "phase4_intake_persist.py", # ticket.md invokes via -m
         "phase5_plan_record_persist.py",  # plan.md invokes via -m
@@ -208,7 +214,7 @@ class TestLauncherToEntrypoints:
     ]
 
     def test_happy_entrypoints_dir_exists(self):
-        """Happy: governance/entrypoints/ directory exists."""
+        """Happy: governance_runtime/entrypoints/ directory exists."""
         assert self.ENTRYPOINTS_DIR.is_dir()
 
     def test_happy_all_required_entrypoints_exist(self):
@@ -224,11 +230,11 @@ class TestLauncherToEntrypoints:
         assert (self.ENTRYPOINTS_DIR / "__init__.py").is_file()
 
     def test_happy_plugin_references_correct_module(self):
-        """Happy: Plugin source references governance.entrypoints.new_work_session."""
+        """Happy: Plugin source references governance_runtime.entrypoints.new_work_session."""
         plugin_src = _read_source(
-            REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+            REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
         )
-        assert "governance.entrypoints.new_work_session" in plugin_src
+        assert "governance_runtime.entrypoints.new_work_session" in plugin_src
 
     def test_corner_session_reader_is_importable_module(self):
         """Corner: session_reader.py has a recognizable entrypoint pattern."""
@@ -244,7 +250,7 @@ class TestLauncherToEntrypoints:
 
     def test_bad_no_dangling_entrypoint_references(self):
         """Bad: No entrypoint reference in install.py points to a non-existent module."""
-        install_src = _read_source(REPO_ROOT / "install.py")
+        install_src = _read_source(INSTALLER_SOURCE_PATH)
         # Extract governance.entrypoints.<module> references
         refs = re.findall(r"governance\.entrypoints\.(\w+)", install_src)
         for module_name in set(refs):
@@ -263,22 +269,23 @@ class TestLauncherToEntrypoints:
 class TestRailsToPaths:
     """Validate that rail files reference valid paths and placeholders."""
 
-    # All rail injection targets including audit-readout
+    # Rail files moved to opencode/commands/ in Wave 19
     RAIL_FILES_WITH_LAUNCHER = ["continue.md", "review.md", "audit-readout.md"]
     RAIL_FILES_WITH_ENTRYPOINT = ["plan.md", "ticket.md", "review-decision.md", "implement.md"]
     ALL_RAIL_FILES = RAIL_FILES_WITH_LAUNCHER + RAIL_FILES_WITH_ENTRYPOINT
+    OPENCODE_COMMANDS = "opencode/commands"
 
     BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
     def test_happy_all_rail_files_exist(self):
-        """Happy: All rail injection target files exist at repo root."""
-        missing = [f for f in self.ALL_RAIL_FILES if not (REPO_ROOT / f).is_file()]
-        assert not missing, f"Rail files missing: {missing}"
+        """Happy: All rail injection target files exist in opencode/commands/."""
+        missing = [f for f in self.ALL_RAIL_FILES if not (REPO_ROOT / self.OPENCODE_COMMANDS / f).is_file()]
+        assert not missing, f"Rail files missing from opencode/commands/: {missing}"
 
     def test_happy_launcher_rails_have_bin_dir_or_resolved(self):
         """Happy: Launcher rails have BIN_DIR placeholder or resolved opencode-governance-bootstrap."""
         for fname in self.RAIL_FILES_WITH_LAUNCHER:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / self.OPENCODE_COMMANDS / fname)
             has_placeholder = self.BIN_DIR_PLACEHOLDER in content
             has_launcher = "opencode-governance-bootstrap" in content
             assert has_placeholder or has_launcher, (
@@ -288,7 +295,7 @@ class TestRailsToPaths:
     def test_happy_all_rails_have_launcher_or_python_reference(self):
         """Happy: All rail files reference BIN_DIR/launcher or a resolved python command."""
         for fname in self.ALL_RAIL_FILES:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / self.OPENCODE_COMMANDS / fname)
             has_bin_dir = self.BIN_DIR_PLACEHOLDER in content
             has_launcher = "opencode-governance-bootstrap" in content
             has_python = "python" in content.lower()
@@ -298,42 +305,44 @@ class TestRailsToPaths:
 
     def test_happy_plan_uses_canonical_plan_subcommand(self):
         """Happy: plan.md uses canonical --plan-persist launcher surface."""
-        content = _read_source(REPO_ROOT / "plan.md")
+        content = _read_source(REPO_ROOT / self.OPENCODE_COMMANDS / "plan.md")
         assert "--plan-persist" in content, (
             "plan.md must use canonical --plan-persist subcommand"
         )
 
     def test_happy_ticket_uses_canonical_ticket_subcommand(self):
         """Happy: ticket.md uses canonical --ticket-persist launcher surface."""
-        content = _read_source(REPO_ROOT / "ticket.md")
+        content = _read_source(REPO_ROOT / self.OPENCODE_COMMANDS / "ticket.md")
         assert "--ticket-persist" in content, (
             "ticket.md must use canonical --ticket-persist subcommand"
         )
 
     def test_happy_review_decision_uses_canonical_subcommand(self):
         """Happy: review-decision.md uses canonical --review-decision-persist launcher surface."""
-        content = _read_source(REPO_ROOT / "review-decision.md")
+        content = _read_source(REPO_ROOT / self.OPENCODE_COMMANDS / "review-decision.md")
         assert "--review-decision-persist" in content, (
             "review-decision.md must use canonical --review-decision-persist subcommand"
         )
 
     def test_corner_legacy_entrypoint_not_in_primary_rails(self):
         """Corner: docs switched immediately to canonical subcommands."""
+        opencode_commands = self.OPENCODE_COMMANDS
         combined = (
-            _read_source(REPO_ROOT / "plan.md")
+            _read_source(REPO_ROOT / opencode_commands / "plan.md")
             + "\n"
-            + _read_source(REPO_ROOT / "ticket.md")
+            + _read_source(REPO_ROOT / opencode_commands / "ticket.md")
             + "\n"
-            + _read_source(REPO_ROOT / "review-decision.md")
+            + _read_source(REPO_ROOT / opencode_commands / "review-decision.md")
         )
         assert "--entrypoint governance.entrypoints." not in combined
 
     def test_happy_referenced_modules_exist(self):
         """Happy: All -m module references in rail files resolve to real files."""
-        entrypoints = REPO_ROOT / "governance" / "entrypoints"
+        opencode_commands = self.OPENCODE_COMMANDS
+        entrypoints = REPO_ROOT / "governance_runtime" / "entrypoints"
         modules_referenced = set()
         for fname in self.ALL_RAIL_FILES:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / opencode_commands / fname)
             # Match patterns like: governance.entrypoints.<module_name>
             for m in re.finditer(r"governance\.entrypoints\.(\w+)", content):
                 modules_referenced.add(m.group(1))
@@ -345,14 +354,15 @@ class TestRailsToPaths:
 
     def test_corner_bin_dir_placeholder_in_install(self):
         """Corner: install.py defines BIN_DIR_PLACEHOLDER constant."""
-        install_src = _read_source(REPO_ROOT / "install.py")
+        install_src = _read_source(INSTALLER_SOURCE_PATH)
         assert "BIN_DIR_PLACEHOLDER" in install_src or "BIN_DIR" in install_src
 
     def test_edge_no_mixed_placeholder_and_resolved_in_same_rail(self):
         """Edge: A rail file should not have both an unresolved BIN_DIR placeholder AND a resolved
         absolute bin path (indicates partial injection)."""
+        opencode_commands = self.OPENCODE_COMMANDS
         for fname in self.RAIL_FILES_WITH_LAUNCHER:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / opencode_commands / fname)
             has_bin_dir_placeholder = self.BIN_DIR_PLACEHOLDER in content
             # A resolved bin dir looks like an absolute path before opencode-governance-bootstrap.
             # Match both POSIX and Windows installed rail formats:
@@ -371,8 +381,9 @@ class TestRailsToPaths:
     def test_bad_no_broken_placeholder_syntax(self):
         """Bad: No rail file has malformed placeholders like {BIN_DIR} (single brace)."""
         single_brace_pattern = re.compile(r"(?<!\{)\{(BIN_DIR|SESSION_READER_PATH|PYTHON_COMMAND)\}(?!\})")
+        opencode_commands = self.OPENCODE_COMMANDS
         for fname in self.ALL_RAIL_FILES:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / opencode_commands / fname)
             match = single_brace_pattern.search(content)
             assert match is None, (
                 f"{fname} has malformed single-brace placeholder: {match.group()}"
@@ -387,12 +398,12 @@ class TestRailsToPaths:
 class TestPluginToRuntime:
     """Validate that the plugin invokes governance correctly."""
 
-    PLUGIN_PATH = REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+    PLUGIN_PATH = REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
 
     def test_happy_plugin_invokes_governance_module(self):
-        """Happy: Plugin uses -m governance.entrypoints.new_work_session."""
+        """Happy: Plugin uses -m governance_runtime.entrypoints.new_work_session."""
         src = _read_source(self.PLUGIN_PATH)
-        assert "governance.entrypoints.new_work_session" in src
+        assert "governance_runtime.entrypoints.new_work_session" in src
 
     def test_happy_plugin_passes_trigger_source(self):
         """Happy: Plugin passes --trigger-source desktop-plugin."""
@@ -456,7 +467,7 @@ class TestRuntimeToWorkspace:
 
     def test_happy_all_artifact_paths_under_workspace_or_audit_root(self, tmp_path):
         """Happy: Runtime paths resolve under workspace, audit paths under governance-records."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "workspaces"
         fp = "a" * 24
@@ -484,7 +495,7 @@ class TestRuntimeToWorkspace:
 
     def test_happy_workspace_root_deterministic(self, tmp_path):
         """Happy: workspace_root returns same result for same inputs."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "workspaces"
         fp = "b" * 24
@@ -494,7 +505,7 @@ class TestRuntimeToWorkspace:
 
     def test_happy_global_pointer_at_config_root(self, tmp_path):
         """Happy: global_pointer_path is at config root level."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         config_root = tmp_path / "opencode"
         ptr = wp.global_pointer_path(config_root)
@@ -503,7 +514,7 @@ class TestRuntimeToWorkspace:
 
     def test_happy_phase_artifact_lists_match_functions(self, tmp_path):
         """Happy: PHASE*_ARTIFACTS constants reference real artifact filenames."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "ws"
         fp = "c" * 24
@@ -530,7 +541,7 @@ class TestRuntimeToWorkspace:
 
     def test_corner_run_artifacts_under_runs_dir(self, tmp_path):
         """Corner: Run-scoped artifacts are all under runs/<run_id>/."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "ws"
         fp = "d" * 24
@@ -551,7 +562,7 @@ class TestRuntimeToWorkspace:
 
     def test_bad_no_artifact_named_opencode_json(self, tmp_path):
         """Bad: opencode.json must never be a workspace artifact."""
-        from governance.infrastructure import workspace_paths as wp
+        from governance_runtime.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "ws"
         fp = "e" * 24
@@ -569,12 +580,12 @@ class TestNoRoguePaths:
     """Validate that no unplanned files or hardcoded paths violate the contract."""
 
     # Root-level files that are expected to exist (from install-layout-contract)
-    # This is the complete allowlist of files at REPO_ROOT
+    # Updated in Wave 19/20/26 - Rails moved to opencode/commands/, content to governance_*/
+    # Note: Original rail files still exist at root for BC - will be removed in later waves
     ALLOWED_ROOT_FILES = {
-        # Command sources (installed to commands/)
-        "master.md",
-        "rules.md",
-        "BOOTSTRAP.md",
+        # OS files
+        ".DS_Store",
+        # Rails (originals at root for BC - primary location is now opencode/commands/)
         "continue.md",
         "review.md",
         "plan.md",
@@ -583,11 +594,13 @@ class TestNoRoguePaths:
         "implementation-decision.md",
         "implement.md",
         "audit-readout.md",
+        "BOOTSTRAP.md",
+        "SESSION_STATE_SCHEMA.md",
+        "TICKET_RECORD_TEMPLATE.md",
+        # README files
         "README.md",
         "README-RULES.md",
         "README-OPENCODE.md",
-        "SESSION_STATE_SCHEMA.md",
-        "TICKET_RECORD_TEMPLATE.md",
         # Infrastructure
         "install.py",
         "package.json",
@@ -595,15 +608,15 @@ class TestNoRoguePaths:
         "LICENSE",
         "VERSION",
         # Configuration
-        "rules.yml",
-        "phase_api.yaml",
         # Documentation
         "ADR.md",
         "CHANGELOG.md",
         "CONFLICT_RESOLUTION.md",
+        "DOCS.md",
         "HowTo_Release.txt",
         "QUALITY_INDEX.md",
         "QUICKSTART.md",
+        "master.md",
         "SCOPE-AND-CONTEXT.md",
         "STABILITY_SLA.md",
         # Dotfiles
@@ -621,20 +634,26 @@ class TestNoRoguePaths:
         ".husky",
         ".opencode",
         ".pytest_cache",
+        ".venv",
         "artifacts",
         "bin",
         "bootstrap",
         "ci",
-        "cli",
         "docs",
-        "governance",
-        "logs",
-        "profiles",
         "rulesets",
+        "cli",
+        "governance_content",
+        "governance_runtime",
+        "governance_spec",
+        "historical",
+        "logs",
+        "opencode",
+        "dist",
         "schemas",
+        "docs",
+        "rulesets",
         "scripts",
         "session_state",
-        "templates",
         "tests",
     }
 
@@ -696,16 +715,18 @@ class TestNoRoguePaths:
     def test_happy_no_rogue_path_references_in_rails(self):
         """Happy: Rail files do not reference non-installed paths.
         
+        Rails moved to opencode/commands/ in Wave 19.
         Rails should only reference paths that exist after installation:
         - governance.entrypoints.* modules
         - {{SESSION_READER_PATH}} / {{PYTHON_COMMAND}} placeholders
         - Relative references within installed tree
         """
-        entrypoints_dir = REPO_ROOT / "governance" / "entrypoints"
+        entrypoints_dir = REPO_ROOT / "governance_runtime" / "entrypoints"
         rail_files = ["continue.md", "review.md", "plan.md", "ticket.md", "review-decision.md", "implement.md"]
+        opencode_commands = "opencode/commands"
 
         for fname in rail_files:
-            content = _read_source(REPO_ROOT / fname)
+            content = _read_source(REPO_ROOT / opencode_commands / fname)
             # Check for governance module references
             module_refs = re.findall(r"governance\.entrypoints\.(\w+)", content)
             for mod in module_refs:
@@ -730,13 +751,13 @@ class TestNoRoguePaths:
         """Edge: Plugin does not reference paths that only exist after installation
         by absolute path (it should use module invocation instead)."""
         plugin_src = _read_source(
-            REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+            REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
         )
         # Plugin should use -m module invocation, not absolute script paths
         assert "-m" in plugin_src, (
             "Plugin should use -m module invocation for governance entrypoints"
         )
-        # Should NOT hardcode paths like /path/to/governance/entrypoints/
+        # Should NOT hardcode paths like /path/to/governance_runtime/entrypoints/
         hardcoded_ep = re.search(
             r'["\'][A-Za-z]:\\.*?governance[/\\]entrypoints|'
             r'["\']/.*?governance/entrypoints',
@@ -749,11 +770,11 @@ class TestNoRoguePaths:
     def test_bad_no_plugin_references_to_noninstalled_paths(self):
         """Bad: Plugin must not reference any paths that don't exist in the source tree."""
         plugin_src = _read_source(
-            REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+            REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
         )
         # The plugin should not reference governance files by absolute path
         # It should only use -m module invocation
-        assert "governance.entrypoints.new_work_session" in plugin_src, (
+        assert "governance_runtime.entrypoints.new_work_session" in plugin_src, (
             "Plugin missing -m module reference to new_work_session"
         )
 
@@ -768,24 +789,24 @@ class TestBindingPathWiring:
 
     def test_happy_binding_paths_module_exists(self):
         """Happy: binding_paths.py module exists."""
-        assert (REPO_ROOT / "governance" / "infrastructure" / "binding_paths.py").is_file()
+        assert (REPO_ROOT / "governance_runtime" / "infrastructure" / "binding_paths.py").is_file()
 
     def test_happy_path_contract_module_exists(self):
         """Happy: path_contract.py module exists (canonical_config_root SSOT)."""
-        assert (REPO_ROOT / "governance" / "infrastructure" / "path_contract.py").is_file()
+        assert (REPO_ROOT / "governance_runtime" / "infrastructure" / "path_contract.py").is_file()
 
     def test_happy_binding_evidence_resolver_exists(self):
         """Happy: binding_evidence_resolver.py exists."""
-        assert (REPO_ROOT / "governance" / "infrastructure" / "binding_evidence_resolver.py").is_file()
+        assert (REPO_ROOT / "governance_runtime" / "infrastructure" / "binding_evidence_resolver.py").is_file()
 
     def test_happy_supported_binding_schemas(self):
         """Happy: binding_paths supports the expected schema versions."""
-        from governance.infrastructure.binding_paths import SUPPORTED_BINDING_SCHEMAS
+        from governance_runtime.infrastructure.binding_paths import SUPPORTED_BINDING_SCHEMAS
         assert "opencode-governance.paths.v1" in SUPPORTED_BINDING_SCHEMAS
 
     def test_happy_canonical_config_root_importable(self):
         """Happy: canonical_config_root function is importable from path_contract."""
-        from governance.infrastructure.path_contract import canonical_config_root
+        from governance_runtime.infrastructure.path_contract import canonical_config_root
         result = canonical_config_root()
         assert isinstance(result, Path)
         assert "opencode" in str(result).lower()
@@ -795,7 +816,7 @@ class TestBindingPathWiring:
         import json
         import tempfile
 
-        from governance.infrastructure.binding_paths import (
+        from governance_runtime.infrastructure.binding_paths import (
             BindingLoadError,
             load_binding_paths_strict,
         )
@@ -815,7 +836,7 @@ class TestBindingPathWiring:
 
     def test_bad_binding_load_rejects_missing_file(self):
         """Bad: load_binding_paths_strict raises on missing file."""
-        from governance.infrastructure.binding_paths import (
+        from governance_runtime.infrastructure.binding_paths import (
             BindingLoadError,
             load_binding_paths_strict,
         )

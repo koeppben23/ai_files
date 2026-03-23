@@ -4,15 +4,15 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from governance.application.use_cases.bootstrap_persistence import (
+from governance_runtime.application.use_cases.bootstrap_persistence import (
     ACTIVATION_INTENT_FILE,
     BootstrapInput,
     BootstrapPersistenceService,
 )
-from governance.domain.models.binding import Binding
-from governance.domain.models.layouts import WorkspaceLayout
-from governance.domain.models.repo_identity import RepoIdentity
-from governance.infrastructure.adapters.filesystem.in_memory import InMemoryFS
+from governance_runtime.domain.models.binding import Binding
+from governance_runtime.domain.models.layouts import WorkspaceLayout
+from governance_runtime.domain.models.repo_identity import RepoIdentity
+from governance_runtime.infrastructure.adapters.filesystem.in_memory import InMemoryFS
 
 
 class DummyRunner:

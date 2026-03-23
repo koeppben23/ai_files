@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
+from governance_runtime.engine.phase_next_action_contract import validate_phase_next_action_contract
 
 
 def _is_nonempty_string(value: object) -> bool:

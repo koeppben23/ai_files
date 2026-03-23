@@ -1,4 +1,4 @@
-from governance.domain.policies.write_policy import compute_write_policy
+from governance_runtime.domain.policies.write_policy import compute_write_policy
 
 
 def test_force_read_only_blocks_writes() -> None:

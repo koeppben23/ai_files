@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-import governance.engine.adapters as adapters_module
-from governance.engine.adapters import LocalHostAdapter, OpenCodeDesktopAdapter
+import governance_runtime.engine.adapters as adapters_module
+from governance_runtime.engine.adapters import LocalHostAdapter, OpenCodeDesktopAdapter
 
 
 def _write_binding(config_root: Path, *, commands_home: Path, workspaces_home: Path) -> None:
@@ -21,7 +21,7 @@ def _write_binding(config_root: Path, *, commands_home: Path, workspaces_home: P
         },
     }
     (config_root / "commands").mkdir(parents=True, exist_ok=True)
-    (config_root / "commands" / "governance.paths.json").write_text(
+    (config_root / "governance.paths.json").write_text(
         json.dumps(payload, ensure_ascii=True), encoding="utf-8"
     )
 

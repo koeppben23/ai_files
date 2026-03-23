@@ -1,10 +1,10 @@
-from governance.application.use_cases.artifact_backfill import (
+from governance_runtime.application.use_cases.artifact_backfill import (
     ArtifactBackfillInput,
     ArtifactBackfillService,
     ArtifactSpec,
     BackfillSummary,
 )
-from governance.infrastructure.adapters.filesystem.in_memory import InMemoryFS
+from governance_runtime.infrastructure.adapters.filesystem.in_memory import InMemoryFS
 
 
 def test_backfill_summary_defaults_fail_closed() -> None:

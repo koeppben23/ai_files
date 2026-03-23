@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.engine.implementation_validation import (
+from governance_runtime.engine.implementation_validation import (
     CheckResult,
     ExecutorRunResult,
     RC_GOVERNANCE_ONLY_CHANGES,

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from governance.engine.reason_codes import (
+from governance_runtime.engine.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
     BLOCKED_UNSPECIFIED,
     REASON_CODE_NONE,
     WARN_ENGINE_LIVE_DENIED,
 )
-from governance.engine.runtime import evaluate_runtime_activation, golden_parity_fields
-from governance.engine.selfcheck import EngineSelfcheckResult, run_engine_selfcheck
+from governance_runtime.engine.runtime import evaluate_runtime_activation, golden_parity_fields
+from governance_runtime.engine.selfcheck import EngineSelfcheckResult, run_engine_selfcheck
 
 
 @pytest.mark.governance

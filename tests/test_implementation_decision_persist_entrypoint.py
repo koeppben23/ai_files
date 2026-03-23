@@ -4,8 +4,8 @@ import json
 import hashlib
 from pathlib import Path
 
-from governance.entrypoints import implementation_decision_persist as entrypoint
-from governance.contracts.enforcement import EnforcementResult, FAIL_CLOSED_MISSING_CONTRACT
+from governance_runtime.entrypoints import implementation_decision_persist as entrypoint
+from governance_runtime.contracts.enforcement import EnforcementResult, FAIL_CLOSED_MISSING_CONTRACT
 
 
 def _write_session(path: Path, *, gate: str = "Implementation Presentation Gate", open_findings: list[str] | None = None) -> None:

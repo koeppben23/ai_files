@@ -4,17 +4,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 import json
 
-from governance.application.ports.process_runner import ProcessResult
-from governance.application.ports.process_runner import ProcessRunnerPort
-from governance.application.use_cases.bootstrap_persistence import (
+from governance_runtime.application.ports.process_runner import ProcessResult
+from governance_runtime.application.ports.process_runner import ProcessRunnerPort
+from governance_runtime.application.use_cases.bootstrap_persistence import (
     BootstrapInput,
     BootstrapPersistenceService,
 )
-from governance.domain.errors.events import ErrorEvent
-from governance.domain.models.binding import Binding
-from governance.domain.models.layouts import WorkspaceLayout
-from governance.domain.models.repo_identity import RepoIdentity
-from governance.infrastructure.adapters.filesystem.in_memory import InMemoryFS
+from governance_runtime.domain.errors.events import ErrorEvent
+from governance_runtime.domain.models.binding import Binding
+from governance_runtime.domain.models.layouts import WorkspaceLayout
+from governance_runtime.domain.models.repo_identity import RepoIdentity
+from governance_runtime.infrastructure.adapters.filesystem.in_memory import InMemoryFS
 
 
 class _FakeRunner(ProcessRunnerPort):

@@ -9,8 +9,8 @@ from pathlib import Path
 import sys
 
 
-CATALOG_PATH = Path("governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
-CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
+CATALOG_PATH = Path("governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
+CATALOG_SCHEMA = "opencode.customer-script-catalog.v1"
 
 
 def _load_catalog(repo_root: Path, catalog_rel: Path) -> dict[str, object]:

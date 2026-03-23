@@ -15,13 +15,15 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import textwrap
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from governance.entrypoints.session_reader import (
+import governance_runtime.entrypoints.session_reader as session_reader_entrypoint
+from governance_runtime.entrypoints.session_reader import (
     POINTER_SCHEMA,
     SNAPSHOT_SCHEMA,
     format_snapshot,
@@ -37,6 +39,7 @@ from governance.entrypoints.session_reader import (
     _resolve_next_action_line,
     _render_blocker,
 )
+from tests.util import get_phase_api_path
 
 
 # ---------------------------------------------------------------------------
@@ -77,8 +80,15 @@ def _write_pointer(config_root: Path, *, workspace_fp: str = "abc123") -> Path:
 
 
 def _write_workspace_state(ws_state: Path, state: dict) -> None:
-    """Write workspace SESSION_STATE.json."""
-    ws_state.write_text(json.dumps(state), encoding="utf-8")
+    """Write workspace SESSION_STATE.json with proper nested structure.
+    
+    Handles both flat state (wraps in SESSION_STATE) and pre-wrapped state (uses as-is).
+    """
+    if "SESSION_STATE" in state:
+        doc = state
+    else:
+        doc = {"SESSION_STATE": state}
+    ws_state.write_text(json.dumps(doc), encoding="utf-8")
 
 
 def _mock_readonly_unavailable():
@@ -88,7 +98,7 @@ def _mock_readonly_unavailable():
     without needing a full kernel setup (phase_api.yaml, etc.).
     """
     return patch(
-        "governance.kernel.phase_kernel.evaluate_readonly",
+        "governance_runtime.kernel.phase_kernel.evaluate_readonly",
         side_effect=RuntimeError("kernel not available in test"),
     )
 
@@ -312,7 +322,7 @@ class TestReadSessionSnapshotSuccess:
         (ws_state.parent / "plan-record.json").write_text(
             json.dumps({
                 "status": "active",
-                "versions": [{"version": 1}, {"version": 2, "plan_record_text": "Plan summary example"}],
+                "versions": [{"version": 1}, {"version": 2, "plan_record_text": "Plan body example"}],
             }),
             encoding="utf-8",
         )
@@ -320,8 +330,8 @@ class TestReadSessionSnapshotSuccess:
             result = read_session_snapshot(commands_home=fake_config / "commands")
         assert result["review_package_review_object"]
         assert result["review_package_ticket"] == "Ticket summary example"
-        assert "Plan summary example" in result["review_package_approved_plan_summary"]
-        assert "Plan summary example" in result["review_package_plan_body"]
+        assert "Plan body example" in result["review_package_approved_plan_summary"]
+        assert "Plan body example" in result["review_package_plan_body"]
         assert result["review_package_evidence_summary"]
         assert result["review_package_loop_status"]
         assert result["review_package_decision_semantics"]
@@ -523,7 +533,7 @@ class TestPlanRecordLabel:
             "plan_record_versions": 0,
         })
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         kernel_with_plan = KernelResult(
             phase="5-ArchitectureReview",
@@ -545,7 +555,7 @@ class TestPlanRecordLabel:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=kernel_with_plan,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -614,7 +624,7 @@ class TestReadonlyKernelEvalEnrichment:
             "next_gate_condition": "stale-condition",
         })
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         fake_result = KernelResult(
             phase="5",
@@ -634,7 +644,7 @@ class TestReadonlyKernelEvalEnrichment:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=fake_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -693,7 +703,9 @@ class TestReadonlyKernelEvalEnrichment:
                 "LoadedRulebooks": {
                     "core": "rulesets/core/rules.yml",
                     "profile": "rulesets/profiles/rules.fallback-minimum.yml",
-                    "addons": {"riskTiering": "rulesets/profiles/rules.risk-tiering.yml"},
+                    "addons": {
+                        "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                    },
                 },
                 "RulebookLoadEvidence": {
                     "core": "rulesets/core/rules.yml",
@@ -705,10 +717,10 @@ class TestReadonlyKernelEvalEnrichment:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -723,7 +735,7 @@ class TestReadonlyKernelEvalEnrichment:
 
         # If evaluate_readonly were called, this mock would raise and fail the test.
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             side_effect=AssertionError("evaluate_readonly must NOT be called in materialize mode"),
         ):
             result = read_session_snapshot(commands_home=commands_home, materialize=True)
@@ -740,7 +752,7 @@ class TestReadonlyKernelEvalEnrichment:
             "active_gate": "stale-gate",
         })
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         blocked_result = KernelResult(
             phase="1.1-Bootstrap",
@@ -760,7 +772,7 @@ class TestReadonlyKernelEvalEnrichment:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=blocked_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -776,7 +788,7 @@ class TestReadonlyKernelEvalEnrichment:
         _write_workspace_state(ws_state, {"Phase": "4", "status": "OK"})
         original_content = ws_state.read_text(encoding="utf-8")
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         fake_result = KernelResult(
             phase="5",
@@ -796,7 +808,7 @@ class TestReadonlyKernelEvalEnrichment:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=fake_result,
         ):
             read_session_snapshot(commands_home=fake_config / "commands")
@@ -992,7 +1004,7 @@ class TestMain:
         snapshot_path.parent.mkdir(parents=True, exist_ok=True)
         snapshot_path.write_text(json.dumps(snapshot_doc), encoding="utf-8")
 
-        from governance.engine.canonical_json import canonical_json_hash
+        from governance_runtime.engine.canonical_json import canonical_json_hash
 
         digest = canonical_json_hash(snapshot_doc)
         (ws_state.parent.parent / "governance-records" / ws_state.parent.name / "runs" / "work-1" / "metadata.json").write_text(
@@ -1104,10 +1116,10 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1190,10 +1202,10 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1271,10 +1283,10 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1340,10 +1352,10 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1368,6 +1380,7 @@ class TestMain:
         self,
         fake_config: Path,
         capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(
@@ -1382,6 +1395,11 @@ class TestMain:
                     "ActiveProfile": "profile.fallback-minimum",
                     "TicketRecordDigest": "sha256:ticket-v1",
                     "phase5_plan_record_digest": "sha256:plan-v1",
+                    "ImplementationReview": {
+                        "iteration": 0,
+                        "max_iterations": 3,
+                        "min_self_review_iterations": 1,
+                    },
                     "PersistenceCommitted": True,
                     "WorkspaceReadyGateCommitted": True,
                     "WorkspaceArtifactsCommitted": True,
@@ -1412,11 +1430,13 @@ class TestMain:
         )
 
         commands_home = fake_config / "commands"
-        (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+        spec_home = fake_config / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        (spec_home / "phase_api.yaml").write_text(
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1430,8 +1450,39 @@ class TestMain:
             ),
             encoding="utf-8",
         )
+        approve_response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation. All plan steps correctly implemented.",
+            "contract_check": "SSOT boundaries preserved. No contract drift.",
+            "findings": [],
+            "regression_assessment": "Low risk profile. Implementation isolated.",
+            "test_assessment": "Tests sufficient for changed scope.",
+        })
 
-        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        import subprocess
+
+        def mock_subprocess_run(*args, **kwargs):
+            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            m.setattr(
+                session_reader_entrypoint,
+                "_load_effective_review_policy_text",
+                lambda **_kwargs: ("[EFFECTIVE REVIEW POLICY]\n- baseline", ""),
+            )
+            from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver
+            mock_policy_resolver = type("MockPolicyResolver", (), {
+                "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                    "is_available": True,
+                    "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
+                    "error_code": "",
+                })(),
+                "load_mandate_schema": lambda self, **kw: None,
+            })()
+            _set_policy_resolver(mock_policy_resolver)
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
         assert "Presented review content" in output
@@ -1446,6 +1497,7 @@ class TestMain:
         self,
         fake_config: Path,
         capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(
@@ -1497,10 +1549,10 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1515,7 +1567,39 @@ class TestMain:
             encoding="utf-8",
         )
 
-        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        approve_response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation. All plan steps correctly implemented.",
+            "contract_check": "SSOT boundaries preserved. No contract drift.",
+            "findings": [],
+            "regression_assessment": "Low risk. Implementation isolated.",
+            "test_assessment": "Tests sufficient for changed scope.",
+        })
+
+        import subprocess
+
+        def mock_subprocess_run(*args, **kwargs):
+            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            m.setattr(
+                session_reader_entrypoint,
+                "_load_effective_review_policy_text",
+                lambda **_kwargs: ("[EFFECTIVE REVIEW POLICY]\n- baseline", ""),
+            )
+            from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver
+            mock_policy_resolver = type("MockPolicyResolver", (), {
+                "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                    "is_available": True,
+                    "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
+                    "error_code": "",
+                })(),
+                "load_mandate_schema": lambda self, **kw: None,
+            })()
+            _set_policy_resolver(mock_policy_resolver)
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
         assert "Presented review content" in output
@@ -1529,6 +1613,7 @@ class TestMain:
         self,
         fake_config: Path,
         capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Phase 6 should not keep stale in-progress flags once iterations are complete."""
         ws_state = _write_pointer(fake_config)
@@ -1587,11 +1672,13 @@ class TestMain:
         )
 
         commands_home = fake_config / "commands"
-        (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+        spec_home = fake_config / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        (spec_home / "phase_api.yaml").write_text(
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1605,8 +1692,29 @@ class TestMain:
             ),
             encoding="utf-8",
         )
+        approve_response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation. Phase 6 review complete.",
+            "contract_check": "No contract drift detected.",
+            "findings": [],
+            "regression_assessment": "Low risk profile. No regressions.",
+            "test_assessment": "Tests are sufficient for the scope.",
+        })
 
-        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        import subprocess
+
+        def mock_subprocess_run(*args, **kwargs):
+            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            m.setattr(
+                session_reader_entrypoint,
+                "_load_effective_review_policy_text",
+                lambda **_kwargs: ("[EFFECTIVE REVIEW POLICY]\n- baseline", ""),
+            )
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
         assert "Presented review content" in output
@@ -1669,10 +1777,10 @@ class TestMain:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
                     "schema": "opencode-governance.paths.v1",
@@ -1704,7 +1812,7 @@ class TestMain:
 class TestSelfBootstrap:
     def test_derive_commands_home_from_file(self) -> None:
         """_derive_commands_home returns the correct ancestor of __file__."""
-        reader_path = Path(__file__).resolve().parent.parent / "governance" / "entrypoints" / "session_reader.py"
+        reader_path = Path(__file__).resolve().parent.parent / "governance_runtime" / "entrypoints" / "session_reader.py"
         if reader_path.exists():
             # The actual file exists — verify parent chain
             expected = reader_path.parents[2]
@@ -1757,7 +1865,7 @@ class TestTransitionEvidenceVisibility:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         fake_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -1778,7 +1886,7 @@ class TestTransitionEvidenceVisibility:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=fake_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -1791,7 +1899,7 @@ class TestTransitionEvidenceVisibility:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         fake_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -1812,7 +1920,7 @@ class TestTransitionEvidenceVisibility:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=fake_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -1826,7 +1934,7 @@ class TestTransitionEvidenceVisibility:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         blocked_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -1847,7 +1955,7 @@ class TestTransitionEvidenceVisibility:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=blocked_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -2013,10 +2121,10 @@ class TestTransitionEvidenceAutoGrant:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -2093,10 +2201,10 @@ class TestTransitionEvidenceAutoGrant:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -2109,7 +2217,7 @@ class TestTransitionEvidenceAutoGrant:
             encoding="utf-8",
         )
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         stay_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -2130,7 +2238,7 @@ class TestTransitionEvidenceAutoGrant:
             transition_evidence_met=False,
         )
 
-        with patch("governance.kernel.phase_kernel.execute", return_value=stay_result):
+        with patch("governance_runtime.kernel.phase_kernel.execute", return_value=stay_result):
             result = read_session_snapshot(commands_home=commands_home, materialize=True)
 
         assert result["status"] != "ERROR", f"Unexpected error: {result.get('error', '')}"
@@ -2185,10 +2293,10 @@ class TestTransitionEvidenceStayStrategyRegressions:
 
         commands_home = fake_config / "commands"
         (commands_home / "phase_api.yaml").write_text(
-            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            get_phase_api_path().read_text(encoding="utf-8"),
             encoding="utf-8",
         )
-        (commands_home / "governance.paths.json").write_text(
+        (fake_config / "governance.paths.json").write_text(
             json.dumps({
                 "schema": "opencode-governance.paths.v1",
                 "paths": {
@@ -2210,7 +2318,7 @@ class TestTransitionEvidenceStayStrategyRegressions:
             next_token="5.3",
         )
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         stay_forward = KernelResult(
             phase="5-ArchitectureReview",
@@ -2231,7 +2339,7 @@ class TestTransitionEvidenceStayStrategyRegressions:
             transition_evidence_met=False,
         )
 
-        with patch("governance.kernel.phase_kernel.execute", return_value=stay_forward):
+        with patch("governance_runtime.kernel.phase_kernel.execute", return_value=stay_forward):
             read_session_snapshot(commands_home=commands_home, materialize=True)
 
         persisted = json.loads(ws_state.read_text(encoding="utf-8"))
@@ -2246,7 +2354,7 @@ class TestTransitionEvidenceStayStrategyRegressions:
             next_token="6",
         )
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         stay_self_loop = KernelResult(
             phase="6-PostFlight",
@@ -2267,7 +2375,7 @@ class TestTransitionEvidenceStayStrategyRegressions:
             transition_evidence_met=False,
         )
 
-        with patch("governance.kernel.phase_kernel.execute", return_value=stay_self_loop):
+        with patch("governance_runtime.kernel.phase_kernel.execute", return_value=stay_self_loop):
             read_session_snapshot(commands_home=commands_home, materialize=True)
 
         persisted = json.loads(ws_state.read_text(encoding="utf-8"))
@@ -2488,7 +2596,7 @@ class TestMissingTransitionEvidenceDiagnosed:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         blocked_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -2509,7 +2617,7 @@ class TestMissingTransitionEvidenceDiagnosed:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=blocked_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -2835,7 +2943,7 @@ class TestMaterializeOutputActionLine:
             "next_gate_condition": "Workflow approved.",
         }
         with patch(
-            "governance.entrypoints.session_reader.read_session_snapshot",
+            "governance_runtime.entrypoints.session_reader.read_session_snapshot",
             return_value=snapshot,
         ):
             rc = main(["--materialize"])
@@ -2861,7 +2969,7 @@ class TestRouteTargetExplanation:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         next_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -2883,7 +2991,7 @@ class TestRouteTargetExplanation:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=next_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -2901,7 +3009,7 @@ class TestRouteTargetExplanation:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
 
-        from governance.kernel.phase_kernel import KernelResult
+        from governance_runtime.kernel.phase_kernel import KernelResult
 
         stay_result = KernelResult(
             phase="5-ArchitectureReview",
@@ -2923,7 +3031,7 @@ class TestRouteTargetExplanation:
         )
 
         with patch(
-            "governance.kernel.phase_kernel.evaluate_readonly",
+            "governance_runtime.kernel.phase_kernel.evaluate_readonly",
             return_value=stay_result,
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -3305,3 +3413,587 @@ class TestImplementationBlockerSurface:
         assert any("Executor invoked: true" in line for line in lines)
         assert any("Changed files: 1" in line for line in lines)
         assert any("Domain files changed: 0" in line for line in lines)
+
+
+class TestPhase6LLMReviewIntegrationEvals:
+    """Integration E2E evals for Phase 6 LLM review enforcement chain.
+
+    Tests the full path: _call_llm_impl_review -> subprocess (mocked) ->
+    _parse_llm_review_response -> validation -> block/proceed.
+
+    Chain:
+      _run_phase6_internal_review_loop
+          -> _has_any_llm_executor()
+          -> _call_llm_impl_review(content, mandate)
+              -> subprocess.run (mocked)
+              -> response captured from stdout
+              -> _parse_llm_review_response(response_text, schema)
+                  -> JSON parse? no -> hard block
+                  -> schema validate? fail -> hard block
+                  -> proceed
+    """
+
+    @staticmethod
+    def _load_schema() -> dict | None:
+        schema_path = Path(__file__).resolve().parents[1] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+        if not schema_path.exists():
+            return None
+        try:
+            return json.loads(schema_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def test_parse_llm_review_response_valid_json_approve_proceeds(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation. All plan steps implemented correctly.",
+            "contract_check": "SSOT boundaries preserved. No contract drift.",
+            "findings": [],
+            "regression_assessment": "Low risk. Implementation isolated.",
+            "test_assessment": "Tests sufficient for changed scope.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is True
+        assert result["verdict"] == "approve"
+        assert result["findings"] == []
+
+    def test_parse_llm_review_response_valid_json_changes_requested_proceeds(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "changes_requested",
+            "governing_evidence": "Reviewed implementation against plan.",
+            "contract_check": "Minor drift in response shape.",
+            "findings": [
+                {
+                    "severity": "high",
+                    "type": "defect",
+                    "location": "src/api.py:42",
+                    "evidence": "Response field missing",
+                    "impact": "Client breakage",
+                    "fix": "Add missing field",
+                }
+            ],
+            "regression_assessment": "Existing endpoints unaffected.",
+            "test_assessment": "Tests missing for new behavior.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is True
+        assert result["verdict"] == "changes_requested"
+        assert len(result["findings"]) == 1
+
+    def test_parse_llm_review_response_free_prose_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = "Looks good. I reviewed the implementation and everything seems fine."
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert "response-not-structured-json" in result["validation_violations"]
+        assert result["verdict"] == "changes_requested"
+
+    def test_parse_llm_review_response_malformed_json_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = '{"verdict": "approve", "findings": ['
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert "response-not-structured-json" in result["validation_violations"]
+
+    def test_parse_llm_review_response_empty_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        result = _parse_llm_review_response("", mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
+
+    def test_parse_llm_review_response_approve_with_defect_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed code.",
+            "contract_check": "OK.",
+            "findings": [
+                {
+                    "severity": "medium",
+                    "type": "defect",
+                    "location": "src/main.py:1",
+                    "evidence": "Logic error in condition",
+                    "impact": "Wrong branch executed",
+                    "fix": "Fix condition",
+                }
+            ],
+            "regression_assessment": "Most endpoints affected.",
+            "test_assessment": "Insufficient coverage.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        violations = result.get("validation_violations", [])
+        assert any("defect" in v.lower() for v in violations)
+
+    def test_parse_llm_review_response_missing_required_field_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "changes_requested",
+            "findings": [
+                {
+                    "severity": "high",
+                    "type": "defect",
+                    "location": "src/main.py:42",
+                    "evidence": "Missing null check causes crash",
+                    "impact": "Crash on empty input",
+                    "fix": "Add null guard",
+                }
+            ],
+            "regression_assessment": "Other endpoints unaffected.",
+            "test_assessment": "Tests sufficient.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+
+    def test_parse_llm_review_response_invalid_verdict_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "looks_good",
+            "governing_evidence": "Reviewed all files.",
+            "contract_check": "No issues found.",
+            "findings": [],
+            "regression_assessment": "Minimal risk.",
+            "test_assessment": "Tests sufficient.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        assert result["verdict"] == "changes_requested"
+
+    def test_parse_llm_review_response_changes_requested_without_findings_hard_blocked(self):
+        from governance_runtime.entrypoints.session_reader import _parse_llm_review_response
+        response = json.dumps({
+            "verdict": "changes_requested",
+            "governing_evidence": "Something needs fixing.",
+            "contract_check": "Minor drift.",
+            "findings": [],
+            "regression_assessment": "Low risk profile.",
+            "test_assessment": "Tests adequate.",
+        })
+        result = _parse_llm_review_response(response, mandates_schema=self._load_schema())
+        assert result["validation_valid"] is False
+        violations = result.get("validation_violations", [])
+        assert any("changes_requested" in v.lower() and "no findings" in v.lower() for v in violations)
+
+
+class TestPhase6LLMReviewLoopGatingEvals:
+    """E2E evals proving LLM verdict gates Phase 6 completion.
+
+    These tests verify that _run_phase6_internal_review_loop() uses the LLM
+    review result to determine completion — not just mechanical iteration count.
+    """
+
+    @staticmethod
+    def _load_schema() -> dict | None:
+        schema_path = Path(__file__).resolve().parents[1] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+        if not schema_path.exists():
+            return None
+        try:
+            return json.loads(schema_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def test_approve_verdict_at_max_iterations_completes_phase6(
+        self,
+        fake_config: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "6-PostFlight",
+                    "Next": "6",
+                    "active_gate": "Post Flight",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "phase5_plan_record_digest": "sha256:plan-v1",
+                    "ImplementationReview": {
+                        "iteration": 0,
+                        "max_iterations": 3,
+                        "min_self_review_iterations": 1,
+                    },
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
+                        "P5.4-BusinessRules": "compliant",
+                        "P5.5-TechnicalDebt": "approved",
+                        "P5.6-RollbackSafety": "approved",
+                    },
+                }
+            },
+        )
+        commands_home = fake_config / "commands"
+        spec_home = fake_config / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        (spec_home / "phase_api.yaml").write_text(
+            get_phase_api_path().read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (fake_config / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        approve_response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation. All plan steps implemented.",
+            "contract_check": "SSOT boundaries preserved.",
+            "findings": [],
+            "regression_assessment": "Low risk profile.",
+            "test_assessment": "Tests sufficient.",
+        })
+
+        import subprocess
+
+        def mock_subprocess_run(*args, **kwargs):
+            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            m.setattr(
+                session_reader_entrypoint,
+                "_load_effective_review_policy_text",
+                lambda **_kwargs: ("[EFFECTIVE REVIEW POLICY]\n- baseline", ""),
+            )
+            from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver
+            mock_policy_resolver = type("MockPolicyResolver", (), {
+                "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                    "is_available": True,
+                    "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
+                    "error_code": "",
+                })(),
+                "load_mandate_schema": lambda self, **kw: None,
+            })()
+            _set_policy_resolver(mock_policy_resolver)
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
+
+        assert rc == 0
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["implementation_review_complete"] is True
+        assert updated_state["phase6_review_iterations"] == 3
+
+    def test_changes_requested_verdict_blocks_phase6_completion(
+        self,
+        fake_config: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "6-PostFlight",
+                    "Next": "6",
+                    "active_gate": "Post Flight",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "phase5_plan_record_digest": "sha256:plan-v1",
+                    "ImplementationReview": {
+                        "iteration": 0,
+                        "max_iterations": 3,
+                        "min_self_review_iterations": 1,
+                    },
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
+                        "P5.4-BusinessRules": "compliant",
+                        "P5.5-TechnicalDebt": "approved",
+                        "P5.6-RollbackSafety": "approved",
+                    },
+                }
+            },
+        )
+        commands_home = fake_config / "commands"
+        spec_home = fake_config / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        (spec_home / "phase_api.yaml").write_text(
+            get_phase_api_path().read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (fake_config / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        cr_response = json.dumps({
+            "verdict": "changes_requested",
+            "governing_evidence": "Reviewed implementation.",
+            "contract_check": "Minor drift found.",
+            "findings": [
+                {
+                    "severity": "high",
+                    "type": "defect",
+                    "location": "src/main.py:42",
+                    "evidence": "Missing null check causes crash",
+                    "impact": "Crash on empty input",
+                    "fix": "Add null guard",
+                }
+            ],
+            "regression_assessment": "Other endpoints unaffected.",
+            "test_assessment": "Tests sufficient.",
+        })
+
+        import subprocess
+
+        def mock_subprocess_run(*args, **kwargs):
+            return type("MockResult", (), {"stdout": cr_response, "stderr": "", "returncode": 0})()
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver
+            mock_policy_resolver = type("MockPolicyResolver", (), {
+                "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                    "is_available": True,
+                    "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
+                    "error_code": "",
+                })(),
+                "load_mandate_schema": lambda self, **kw: None,
+            })()
+            _set_policy_resolver(mock_policy_resolver)
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
+
+        assert rc == 0
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["implementation_review_complete"] is False
+        assert updated_state["phase6_state"] == "phase6_in_progress"
+
+    def test_validator_import_failure_blocks_phase6_completion(
+        self,
+        fake_config: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "6-PostFlight",
+                    "Next": "6",
+                    "active_gate": "Post Flight",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "phase5_plan_record_digest": "sha256:plan-v1",
+                    "ImplementationReview": {
+                        "iteration": 0,
+                        "max_iterations": 3,
+                        "min_self_review_iterations": 1,
+                    },
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
+                        "P5.4-BusinessRules": "compliant",
+                        "P5.5-TechnicalDebt": "approved",
+                        "P5.6-RollbackSafety": "approved",
+                    },
+                }
+            },
+        )
+        commands_home = fake_config / "commands"
+        spec_home = fake_config / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        (spec_home / "phase_api.yaml").write_text(
+            get_phase_api_path().read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (fake_config / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        approve_response = json.dumps({
+            "verdict": "approve",
+            "governing_evidence": "Reviewed implementation.",
+            "contract_check": "OK.",
+            "findings": [],
+            "regression_assessment": "Low risk profile.",
+            "test_assessment": "OK.",
+        })
+
+        import subprocess
+
+        def mock_subprocess_run(*args, **kwargs):
+            return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
+
+        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        with monkeypatch.context() as m:
+            m.setattr(subprocess, "run", mock_subprocess_run)
+            from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver, _set_response_validator
+            mock_policy_resolver = type("MockPolicyResolver", (), {
+                "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                    "is_available": True,
+                    "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
+                    "error_code": "",
+                })(),
+                "load_mandate_schema": lambda self, **kw: None,
+            })()
+            _set_policy_resolver(mock_policy_resolver)
+            mock_response_validator = type("MockResponseValidator", (), {
+                "validate": lambda self, response_text, mandates_schema=None: type("V", (), {
+                    "valid": False,
+                    "verdict": "changes_requested",
+                    "findings": ["validator-not-available: llm_response_validator could not be imported"],
+                    "violations": ["validator-not-available"],
+                    "is_approve": False,
+                    "is_changes_requested": True,
+                })(),
+            })()
+            _set_response_validator(mock_response_validator)
+            rc = main(["--commands-home", str(commands_home), "--materialize"])
+
+        assert rc == 0
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["implementation_review_complete"] is False
+
+    def test_phase6_blocks_when_effective_review_policy_unavailable(
+        self,
+        fake_config: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from governance_runtime.application.services.phase6_review_orchestrator import (
+            run_review_loop,
+            ReviewLoopConfig,
+            ReviewResult,
+            BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+        )
+        from governance_runtime.infrastructure.json_store import load_json as _read_json, write_json_atomic as _write_json_atomic
+
+        ws_state = _write_pointer(fake_config)
+        state_doc = {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "Next": "6",
+                "active_gate": "Post Flight",
+                "status": "OK",
+                "LoadedRulebooks": {
+                    "core": "${COMMANDS_HOME}/rules.md",
+                    "profile": "${PROFILES_HOME}/rules.fallback-minimum.md",
+                },
+                "AddonsEvidence": {},
+            }
+        }
+        _write_workspace_state(ws_state, state_doc)
+
+        commands_home = fake_config / "commands"
+        config = ReviewLoopConfig(
+            commands_home=commands_home,
+            session_path=ws_state,
+            max_iterations=3,
+            min_iterations=1,
+        )
+
+        mock_policy_resolver = type("MockPolicyResolver", (), {
+            "load_effective_review_policy": lambda self, **kw: type("R", (), {
+                "is_available": False,
+                "policy_text": "",
+                "error_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+            })(),
+            "load_mandate_schema": lambda self, **kw: None,
+        })()
+
+        from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver, _set_llm_caller
+        _set_policy_resolver(mock_policy_resolver)
+
+        mock_llm_caller = type("MockLLMCaller", (), {
+            "is_configured": True,
+            "build_context": lambda self, **kw: {},
+            "invoke": lambda self, **kw: type("R", (), {
+                "invoked": False,
+                "stdout": "",
+                "stderr": "",
+                "return_code": 0,
+            })(),
+        })()
+        _set_llm_caller(mock_llm_caller)
+
+        result = run_review_loop(
+            state_doc=state_doc,
+            config=config,
+            json_loader=_read_json,
+            context_writer=_write_json_atomic,
+        )
+
+        assert isinstance(result, ReviewResult)
+        assert result.loop_result is not None
+        assert result.loop_result.blocked is True
+        assert result.loop_result.block_reason == "effective-review-policy-unavailable"
+        assert result.loop_result.block_reason_code == BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE

@@ -26,6 +26,14 @@ def _commands_dir(config_root: Path) -> Path:
     return config_root / "commands"
 
 
+def _local_root(config_root: Path) -> Path:
+    return config_root.parent / f"{config_root.name}-local"
+
+
+def _profiles_dir(config_root: Path) -> Path:
+    return _local_root(config_root) / "governance_content" / "profiles"
+
+
 def _parse_addon_manifest(path: Path) -> AddonManifest:
     text = read_text(path)
 
@@ -210,7 +218,8 @@ def _infer_capabilities(repo_root: Path, repo_relpaths: list[str]) -> set[str]:
 
 def _evaluate_addons(commands_dir: Path, repo_root: Path) -> tuple[dict[str, str], list[str], list[str]]:
     """Returns (status_by_addon, blocked_next_codes, warnings)."""
-    manifests_dir = commands_dir / "profiles" / "addons"
+    local_root = commands_dir.parent.parent / f"{commands_dir.parent.name}-local"
+    manifests_dir = local_root / "governance_content" / "profiles" / "addons"
     manifests = sorted(manifests_dir.glob("*.addon.yml"))
     assert manifests, f"No addon manifests found in {manifests_dir}"
 
@@ -232,7 +241,7 @@ def _evaluate_addons(commands_dir: Path, repo_root: Path) -> tuple[dict[str, str
             statuses[addon.addon_key] = "skipped"
             continue
 
-        rb_path = commands_dir / "profiles" / addon.rulebook
+        rb_path = local_root / "governance_content" / "profiles" / addon.rulebook
         if rb_path.exists():
             statuses[addon.addon_key] = "loaded"
             continue
@@ -247,7 +256,8 @@ def _evaluate_addons(commands_dir: Path, repo_root: Path) -> tuple[dict[str, str
 
 
 def _activation_delta_hashes(commands_dir: Path, repo_root: Path) -> tuple[str, str]:
-    manifests = sorted((commands_dir / "profiles" / "addons").glob("*.addon.yml"))
+    local_root = commands_dir.parent.parent / f"{commands_dir.parent.name}-local"
+    manifests = sorted((local_root / "governance_content" / "profiles" / "addons").glob("*.addon.yml"))
     relpaths = _repo_relpaths(repo_root)
     capabilities = sorted(_infer_capabilities(repo_root, relpaths))
 
@@ -376,8 +386,8 @@ def test_e2e_activation_delta_blocks_when_hashes_unchanged_but_outcome_drifts(tm
 
 @pytest.mark.e2e_governance
 def test_e2e_short_intent_goldens_are_stable():
-    fixture = REPO_ROOT / "governance" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json"
-    assert fixture.exists(), "Missing governance/assets/catalogs/UX_INTENT_GOLDENS.json"
+    fixture = REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json"
+    assert fixture.exists(), "Missing governance_runtime/assets/catalogs/UX_INTENT_GOLDENS.json"
     payload = json.loads(read_text(fixture))
 
     assert payload.get("$schema") == "opencode.ux-intent-goldens.v1"
@@ -420,8 +430,9 @@ def test_e2e_governance_flow_required_block_then_reload_and_advisory_warn(tmp_pa
     (repo / "apps" / "web").mkdir(parents=True, exist_ok=True)
     (repo / "apps" / "web" / "cypress.config.ts").write_text("export default {}\n", encoding="utf-8")
 
-    required_rb = commands / "profiles" / "rules.frontend-angular-nx-templates.md"
-    advisory_rb = commands / "profiles" / "rules.frontend-cypress-testing.md"
+    profiles = _profiles_dir(config_root)
+    required_rb = profiles / "rules.frontend-angular-nx-templates.md"
+    advisory_rb = profiles / "rules.frontend-cypress-testing.md"
     assert required_rb.exists(), f"Missing installed required rulebook: {required_rb}"
     assert advisory_rb.exists(), f"Missing installed advisory rulebook: {advisory_rb}"
 
@@ -456,7 +467,7 @@ def test_e2e_governance_flow_required_block_then_reload_and_advisory_warn(tmp_pa
         advisory_backup.rename(advisory_rb)
 
     # Step 3b: shared advisory contract missing -> WARN (non-blocking)
-    shared_rb = commands / "profiles" / "rules.principal-excellence.md"
+    shared_rb = profiles / "rules.principal-excellence.md"
     assert shared_rb.exists(), f"Missing installed shared rulebook: {shared_rb}"
     shared_backup = shared_rb.with_suffix(shared_rb.suffix + ".bak")
     shared_rb.rename(shared_backup)
@@ -483,7 +494,7 @@ def test_e2e_governance_flow_required_block_then_reload_and_advisory_warn(tmp_pa
         + "\n",
         encoding="utf-8",
     )
-    kafka_rb = commands / "profiles" / "rules.backend-java-kafka-templates.md"
+    kafka_rb = profiles / "rules.backend-java-kafka-templates.md"
     assert kafka_rb.exists(), f"Missing installed kafka rulebook: {kafka_rb}"
     kafka_backup = kafka_rb.with_suffix(kafka_rb.suffix + ".bak")
     kafka_rb.rename(kafka_backup)
@@ -555,7 +566,8 @@ def test_e2e_backend_python_templates_missing_rulebook_blocks_when_required(tmp_
     repo.mkdir(parents=True, exist_ok=True)
     (repo / "requirements.txt").write_text("fastapi==0.115.0\n", encoding="utf-8")
 
-    rb = commands / "profiles" / "rules.backend-python-templates.md"
+    profiles = _profiles_dir(config_root)
+    rb = profiles / "rules.backend-python-templates.md"
     assert rb.exists(), f"Missing installed python templates rulebook: {rb}"
     backup = rb.with_suffix(rb.suffix + ".bak")
     rb.rename(backup)

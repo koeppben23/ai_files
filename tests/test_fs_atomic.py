@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure import fs_atomic
+from governance_runtime.infrastructure import fs_atomic
 
 
 @pytest.mark.governance

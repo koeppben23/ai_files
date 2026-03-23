@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.infrastructure.run_audit_artifacts import purge_runtime_artifacts
-from governance.infrastructure.work_run_archive import archive_active_run
-from governance.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.run_audit_artifacts import purge_runtime_artifacts
+from governance_runtime.infrastructure.work_run_archive import archive_active_run
+from governance_runtime.infrastructure.workspace_paths import run_dir
 
 
 def test_runtime_purge_does_not_touch_audit_runs(tmp_path: Path) -> None:

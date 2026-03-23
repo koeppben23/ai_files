@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.domain.retention import (
+from governance_runtime.domain.retention import (
     CONTRACT_VERSION,
     RetentionClass,
     LegalHoldStatus,

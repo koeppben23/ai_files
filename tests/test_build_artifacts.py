@@ -8,14 +8,33 @@ from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT, run_build, sha256_file, read_text
+from .util import REPO_ROOT, get_templates_path, run_build, sha256_file
+
+
+def _resolve_existing_rel(rel: str) -> str:
+    candidates = [rel]
+    if rel == "master.md":
+        candidates.append("governance_content/reference/master.md")
+    elif rel == "rules.md":
+        candidates.append("governance_content/reference/rules.md")
+    elif rel == "phase_api.yaml":
+        candidates.append("governance_spec/phase_api.yaml")
+    elif rel.startswith("docs/") or rel.startswith("profiles/") or rel.startswith("templates/"):
+        candidates.append("governance_content/" + rel)
+    elif rel.startswith("rulesets/"):
+        candidates.append("governance_spec/" + rel)
+
+    for candidate in candidates:
+        if (REPO_ROOT / candidate).is_file():
+            return candidate
+    return rel
 
 
 def _governance_version() -> str:
-    version_file = REPO_ROOT / "governance" / "VERSION"
-    assert version_file.exists(), "Missing governance/VERSION (required for build)"
+    version_file = REPO_ROOT / "governance_runtime" / "VERSION"
+    assert version_file.exists(), "Missing governance_runtime/VERSION (required for build)"
     version = version_file.read_text(encoding="utf-8").strip()
-    assert version, "Empty governance/VERSION"
+    assert version, "Empty governance_runtime/VERSION"
     return version
 
 
@@ -27,7 +46,7 @@ def _assert_member_paths_safe(names: list[str]) -> None:
 
 
 def _shipped_customer_scripts() -> list[str]:
-    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
     scripts = []
     for entry in payload.get("scripts", []):
         if entry.get("ship_in_release") is True:
@@ -36,14 +55,14 @@ def _shipped_customer_scripts() -> list[str]:
 
 
 def _shipped_workflow_templates() -> list[str]:
-    payload = json.loads((REPO_ROOT / "templates" / "github-actions" / "template_catalog.json").read_text(encoding="utf-8"))
-    files = [entry["file"] for entry in payload.get("templates", [])]
+    payload = json.loads((get_templates_path() / "github-actions" / "template_catalog.json").read_text(encoding="utf-8"))
+    files = [_resolve_existing_rel(entry["file"]) for entry in payload.get("templates", [])]
     return sorted(files)
 
 
 def _release_excluded_markdown() -> list[str]:
-    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_MARKDOWN_EXCLUDE.json").read_text(encoding="utf-8"))
-    return sorted(payload.get("release_excluded_markdown", []))
+    payload = json.loads((REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "CUSTOMER_MARKDOWN_EXCLUDE.json").read_text(encoding="utf-8"))
+    return sorted(_resolve_existing_rel(rel) for rel in payload.get("release_excluded_markdown", []))
 
 
 @pytest.mark.build
@@ -124,11 +143,11 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
 
         required = {
             f"{prefix}/install.py",
-            f"{prefix}/master.md",
-            f"{prefix}/rules.md",
+            f"{prefix}/{_resolve_existing_rel('master.md')}",
+            f"{prefix}/{_resolve_existing_rel('rules.md')}",
             f"{prefix}/BOOTSTRAP.md",
             f"{prefix}/CHANGELOG.md",
-            f"{prefix}/governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+            f"{prefix}/governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
         }
         required.update(f"{prefix}/{rel}" for rel in _shipped_customer_scripts())
         required.update(f"{prefix}/{rel}" for rel in _shipped_workflow_templates())
@@ -140,8 +159,8 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
         assert not present_forbidden, f"ZIP contains markdown files excluded for customer release: {present_forbidden}"
 
         assert any(Path(n).name.upper().startswith(("LICENSE", "LICENCE")) for n in names), "ZIP missing LICENSE* file"
-        assert any(n.startswith(f"{prefix}/profiles/") for n in names), "ZIP missing profiles/ payload"
-        assert any(n.startswith(f"{prefix}/governance/") for n in names), "ZIP missing governance/ payload"
+        assert any(n.startswith(f"{prefix}/profiles/") or n.startswith(f"{prefix}/governance_content/profiles/") for n in names), "ZIP missing profiles payload"
+        assert any(n.startswith(f"{prefix}/governance_runtime/") for n in names), "ZIP missing governance_runtime/ payload"
 
         for zi in zf.infolist():
             if zi.is_dir():
@@ -172,11 +191,11 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
 
         required = {
             f"{prefix}/install.py",
-            f"{prefix}/master.md",
-            f"{prefix}/rules.md",
+            f"{prefix}/{_resolve_existing_rel('master.md')}",
+            f"{prefix}/{_resolve_existing_rel('rules.md')}",
             f"{prefix}/BOOTSTRAP.md",
             f"{prefix}/CHANGELOG.md",
-            f"{prefix}/governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+            f"{prefix}/governance_runtime/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
         }
         required.update(f"{prefix}/{rel}" for rel in _shipped_customer_scripts())
         required.update(f"{prefix}/{rel}" for rel in _shipped_workflow_templates())
@@ -188,8 +207,8 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
         assert not present_forbidden, f"TAR contains markdown files excluded for customer release: {present_forbidden}"
 
         assert any(Path(n).name.upper().startswith(("LICENSE", "LICENCE")) for n in names), "TAR missing LICENSE* file"
-        assert any(n.startswith(f"{prefix}/profiles/") for n in names), "TAR missing profiles/ payload"
-        assert any(n.startswith(f"{prefix}/governance/") for n in names), "TAR missing governance/ payload"
+        assert any(n.startswith(f"{prefix}/profiles/") or n.startswith(f"{prefix}/governance_content/profiles/") for n in names), "TAR missing profiles payload"
+        assert any(n.startswith(f"{prefix}/governance_runtime/") for n in names), "TAR missing governance_runtime/ payload"
 
         for m in members:
             assert m.mtime == 0, f"Non-deterministic TAR mtime for {m.name}: {m.mtime}"

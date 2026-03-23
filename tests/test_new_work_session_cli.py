@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from governance.entrypoints import new_work_session
+from governance_runtime.entrypoints import new_work_session
 
 from .test_new_work_session_entrypoint import _setup_workspace
 

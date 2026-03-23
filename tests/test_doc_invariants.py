@@ -15,20 +15,42 @@ from pathlib import Path
 
 import pytest
 
-from tests.util import REPO_ROOT
+from tests.util import REPO_ROOT, get_docs_path, read_text
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-DOCS = REPO_ROOT / "docs"
+DOCS = get_docs_path()
 
 
 def _read(relpath: str) -> str:
-    """Read a file relative to REPO_ROOT, fail fast if missing."""
+    """Read a file relative to REPO_ROOT, fail fast if missing.
+    
+    Checks governance_content first (SSOT), then falls back to legacy.
+    """
+    # Check governance_content first (SSOT)
+    new_path = REPO_ROOT / "governance_content" / relpath
+    if new_path.exists():
+        return read_text(new_path)
+    # Rail command markdown moved under opencode/commands/.
+    opencode_path = REPO_ROOT / "opencode" / "commands" / relpath
+    if opencode_path.exists():
+        return read_text(opencode_path)
+    # Fall back to legacy
     p = REPO_ROOT / relpath
-    assert p.exists(), f"Expected file not found: {relpath}"
-    return p.read_text(encoding="utf-8")
+    try:
+        return read_text(p)
+    except FileNotFoundError:
+        assert False, f"Expected file not found: {relpath}"
+
+
+def _exists_repo_path(relpath: str) -> bool:
+    try:
+        _ = read_text(REPO_ROOT / relpath)
+        return True
+    except FileNotFoundError:
+        return False
 
 
 # ===================================================================
@@ -76,7 +98,7 @@ class TestReviewFramingBad:
         str(p.relative_to(REPO_ROOT).as_posix())
         for p in REPO_ROOT.rglob("*.md")
         if not any(
-            part.startswith((".", "_archive", "node_modules", ".git"))
+            part.startswith((".", "node_modules", ".git"))
             for part in p.relative_to(REPO_ROOT).parts
         )
     )
@@ -204,7 +226,7 @@ class TestPhase5SemanticsBad:
         str(p.relative_to(REPO_ROOT).as_posix())
         for p in list(REPO_ROOT.glob("*.md")) + list(DOCS.rglob("*.md"))
         if not any(
-            part.startswith((".", "_archive", "node_modules", ".git"))
+            part.startswith((".", "node_modules", ".git"))
             for part in p.relative_to(REPO_ROOT).parts
         )
     )
@@ -254,7 +276,7 @@ class TestPhase5SemanticsCorner:
 # ===================================================================
 # 3. Catalog path invariant
 #    - Benchmark packs and policy JSON live under
-#      governance/assets/catalogs/, NOT governance/
+#      governance_runtime/assets/catalogs/, NOT governance/
 #    - governance/security-evidence/ is a runtime output dir (allowed)
 # ===================================================================
 
@@ -266,7 +288,7 @@ _CATALOG_REF_FILES = [
     "docs/benchmarks.md",
 ]
 
-# Pattern: governance/<FILENAME>.json but NOT governance/assets/...
+# Pattern: governance/<FILENAME>.json but NOT governance_runtime/assets/...
 # Also excludes governance/security-evidence/ (runtime output dir)
 # and governance/benchmark-results/ (runtime output dir)
 _STALE_CATALOG_RE = re.compile(
@@ -283,7 +305,7 @@ _STALE_GOVERNANCE_JSON_RE = re.compile(
 
 
 class TestCatalogPathsHappy:
-    """All catalog JSON refs must point to governance/assets/catalogs/."""
+    """All catalog JSON refs must point to governance_runtime/assets/catalogs/."""
 
     @pytest.mark.parametrize("relpath", _CATALOG_REF_FILES)
     def test_no_stale_governance_json_paths(self, relpath: str) -> None:
@@ -292,20 +314,20 @@ class TestCatalogPathsHappy:
         matches = _STALE_GOVERNANCE_JSON_RE.findall(content)
         assert not matches, (
             f"{relpath} has stale governance/*.json path(s): {matches} — "
-            "these should be governance/assets/catalogs/*.json"
+            "these should be governance_runtime/assets/catalogs/*.json"
         )
 
     def test_security_gates_uses_catalogs_path(self) -> None:
         """security-gates.md must reference the catalogs path for policy."""
         content = _read("docs/security-gates.md")
-        assert "governance/assets/catalogs/SECURITY_GATE_POLICY.json" in content
+        assert "governance_runtime/assets/catalogs/SECURITY_GATE_POLICY.json" in content
 
     def test_benchmark_matrix_uses_catalogs_paths(self) -> None:
         """quality-benchmark-pack-matrix.md must use catalogs paths."""
         content = _read("docs/quality-benchmark-pack-matrix.md")
-        assert "governance/assets/catalogs/BACKEND_JAVA_QUALITY_BENCHMARK_PACK.json" in content
-        assert "governance/assets/catalogs/PYTHON_QUALITY_BENCHMARK_PACK.json" in content
-        assert "governance/assets/catalogs/FALLBACK_MINIMUM_QUALITY_BENCHMARK_PACK.json" in content
+        assert "governance_runtime/assets/catalogs/BACKEND_JAVA_QUALITY_BENCHMARK_PACK.json" in content
+        assert "governance_runtime/assets/catalogs/PYTHON_QUALITY_BENCHMARK_PACK.json" in content
+        assert "governance_runtime/assets/catalogs/FALLBACK_MINIMUM_QUALITY_BENCHMARK_PACK.json" in content
 
 
 class TestCatalogPathsBad:
@@ -330,15 +352,15 @@ class TestCatalogPathsEdge:
     def test_security_evidence_dir_refs_preserved(self) -> None:
         """security-gates.md may still reference governance/security-evidence/."""
         content = _read("docs/security-gates.md")
-        assert "governance/security-evidence/" in content, (
-            "security-gates.md must still reference governance/security-evidence/ "
+        assert "security-evidence/" in content, (
+            "security-gates.md must still reference security-evidence/ "
             "(runtime output directory)"
         )
 
     def test_benchmarks_landing_page_uses_catalogs_glob(self) -> None:
         """benchmarks.md landing page must use catalogs glob path."""
         content = _read("docs/benchmarks.md")
-        assert "governance/assets/catalogs/*_QUALITY_BENCHMARK_PACK.json" in content
+        assert "governance_runtime/assets/catalogs/*_QUALITY_BENCHMARK_PACK.json" in content
 
 
 class TestCatalogPathsCorner:
@@ -360,14 +382,14 @@ class TestCatalogPathsCorner:
     @pytest.mark.parametrize("pack_name", _PACK_NAMES)
     def test_referenced_pack_file_exists(self, pack_name: str) -> None:
         """Every benchmark pack referenced in the matrix must exist on disk."""
-        path = REPO_ROOT / "governance" / "assets" / "catalogs" / f"{pack_name}.json"
+        path = REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / f"{pack_name}.json"
         assert path.exists(), (
             f"Benchmark pack referenced in docs does not exist: {path.relative_to(REPO_ROOT)}"
         )
 
     def test_security_gate_policy_exists(self) -> None:
         """SECURITY_GATE_POLICY.json must exist at the catalogs path."""
-        path = REPO_ROOT / "governance" / "assets" / "catalogs" / "SECURITY_GATE_POLICY.json"
+        path = REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "SECURITY_GATE_POLICY.json"
         assert path.exists(), (
             f"SECURITY_GATE_POLICY.json not found at {path.relative_to(REPO_ROOT)}"
         )
@@ -451,8 +473,8 @@ class TestSecurityModelRefsHappy:
     def test_artifact_integrity_ref_exists(self) -> None:
         """artifact_integrity.py reference must exist."""
         content = _read("docs/SECURITY_MODEL.md")
-        assert "governance/infrastructure/artifact_integrity.py" in content
-        path = REPO_ROOT / "governance" / "infrastructure" / "artifact_integrity.py"
+        assert "governance_runtime/infrastructure/artifact_integrity.py" in content
+        path = REPO_ROOT / "governance_runtime" / "infrastructure" / "artifact_integrity.py"
         assert path.exists()
 
 
@@ -520,8 +542,7 @@ class TestSecurityModelRefsCorner:
         # Extract backtick-quoted paths
         paths = re.findall(r"`([^`]+\.(?:py|md|json))`", section)
         for ref_path in paths:
-            full = REPO_ROOT / ref_path
-            assert full.exists(), (
+            assert _exists_repo_path(ref_path), (
                 f"docs/SECURITY_MODEL.md References contains dead path: {ref_path}"
             )
 
@@ -547,7 +568,7 @@ class TestCrossFileReviewConsistency:
         results = []
         for p in REPO_ROOT.rglob("*.md"):
             if any(
-                part.startswith((".", "_archive", "node_modules", ".git"))
+                part.startswith((".", "node_modules", ".git"))
                 for part in p.relative_to(REPO_ROOT).parts
             ):
                 continue
@@ -580,7 +601,7 @@ class TestCrossFileReviewConsistency:
 class TestP2AuditMdBindingLabel:
     """Guard: audit.md must not use bare 'binding' labels."""
 
-    AUDIT_PATH = "governance/assets/catalogs/audit.md"
+    AUDIT_PATH = "governance_runtime/assets/catalogs/audit.md"
 
     def _audit_content(self) -> str:
         return _read(self.AUDIT_PATH)
@@ -643,7 +664,7 @@ class TestP2GovernanceSchemasCleanup:
 
     def test_response_envelope_path_corrected(self) -> None:
         content = self._content()
-        assert "governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json" in content
+        assert "governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json" in content
 
     # -- Bad --
     def test_no_draft_in_heading(self) -> None:
@@ -654,7 +675,7 @@ class TestP2GovernanceSchemasCleanup:
     def test_no_stale_root_path(self) -> None:
         """Must not reference the old root-level path."""
         content = self._content()
-        # Check that `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` without
+        # Check that `governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` without
         # `assets/catalogs/` prefix does NOT appear.
         lines = content.split("\n")
         for line in lines:
@@ -766,183 +787,17 @@ class TestP2StaleFileDeletions:
         "docs/governance/RAILS_REFACTOR_MAPPING.md",
     ]
 
-    _MOVED_TO_ARCHIVE = [
-        ("docs/MD_VIOLATION_ANALYSIS.md", "docs/_archive/MD_VIOLATION_ANALYSIS.md"),
-    ]
-
     # -- Happy --
-    @pytest.mark.parametrize("relpath", _DELETED_FILES)
-    def test_deleted_file_does_not_exist(self, relpath: str) -> None:
-        p = REPO_ROOT / relpath
-        assert not p.exists(), f"Stale file should have been deleted: {relpath}"
-
-    @pytest.mark.parametrize("old,new", _MOVED_TO_ARCHIVE)
-    def test_archived_file_moved(self, old: str, new: str) -> None:
-        assert not (REPO_ROOT / old).exists(), f"Original should not exist: {old}"
-        assert (REPO_ROOT / new).exists(), f"Archive copy missing: {new}"
-
-    # -- Bad --
     def test_readme_rules_no_rails_refactor_ref(self) -> None:
         """README-RULES.md must not reference deleted RAILS_REFACTOR_MAPPING.md."""
         content = _read("README-RULES.md")
         assert "RAILS_REFACTOR_MAPPING" not in content
 
-    def test_lint_md_python_uses_archive_path(self) -> None:
-        """lint_md_python.py must reference the archived path."""
-        content = _read("scripts/lint_md_python.py")
-        assert "docs/_archive/MD_VIOLATION_ANALYSIS.md" in content
-        assert '"docs/MD_VIOLATION_ANALYSIS.md"' not in content
-
-    def test_fix_md_authority_uses_archive_path(self) -> None:
-        """fix_md_authority_language.py must reference the archived path."""
-        content = _read("scripts/fix_md_authority_language.py")
-        assert "docs/_archive/MD_VIOLATION_ANALYSIS.md" in content
-        assert '"docs/MD_VIOLATION_ANALYSIS.md"' not in content
-
-    # -- Edge --
-    def test_archive_directory_exists(self) -> None:
-        assert (REPO_ROOT / "docs" / "_archive").is_dir()
-
     # -- Corner --
     def test_no_dangling_refs_to_master_section_classification(self) -> None:
-        """No non-archived MD file should reference the deleted file."""
+        """No MD file should reference the deleted file."""
         for p in REPO_ROOT.rglob("*.md"):
-            if "_archive" in str(p):
-                continue
             content = p.read_text(encoding="utf-8", errors="replace")
             assert "MASTER_SECTION_CLASSIFICATION.md" not in content, (
                 f"Dangling reference in {p.relative_to(REPO_ROOT)}"
             )
-
-
-# ===================================================================
-# 8. Archive move guard: active rails live in docs/, not docs/_archive/
-#
-#    resume.md, resume_prompt.md, new_profile.md, new_addon.md were
-#    moved from docs/_archive/ to docs/ because they are actively
-#    referenced by install.py, governance_lint.py, tests, and runtime
-#    catalogs.  These guards prevent regression.
-# ===================================================================
-
-_ACTIVE_RAILS_MOVED_FROM_ARCHIVE = [
-    "resume.md",
-    "resume_prompt.md",
-    "new_profile.md",
-    "new_addon.md",
-]
-
-# Source files (Python, JSON) that should reference docs/<file> NOT docs/_archive/<file>
-# Excludes: CHANGELOG.md (historical refs are fine), archived files themselves, __pycache__
-_SOURCE_GLOBS = ["**/*.py", "**/*.json"]
-
-# Files where archive paths for the 4 moved files are NEVER legitimate
-# (we scan all .py and .json files)
-
-
-class TestArchiveMoveHappy:
-    """The 4 active rails must exist at docs/ after the move."""
-
-    @pytest.mark.parametrize("filename", _ACTIVE_RAILS_MOVED_FROM_ARCHIVE)
-    def test_active_rail_exists_at_docs(self, filename: str) -> None:
-        target = DOCS / filename
-        assert target.exists(), f"Active rail missing at docs/{filename}"
-        assert target.stat().st_size > 0, f"docs/{filename} is empty"
-
-    @pytest.mark.parametrize("filename", _ACTIVE_RAILS_MOVED_FROM_ARCHIVE)
-    def test_active_rail_is_readable_markdown(self, filename: str) -> None:
-        """Each moved file must be valid UTF-8 with meaningful content."""
-        content = (DOCS / filename).read_text(encoding="utf-8")
-        # Must have substantive content (at least 50 chars)
-        assert len(content.strip()) >= 50, (
-            f"docs/{filename} has insufficient content ({len(content.strip())} chars)"
-        )
-
-
-class TestArchiveMoveBad:
-    """The 4 active rails must NOT still exist at docs/_archive/."""
-
-    @pytest.mark.parametrize("filename", _ACTIVE_RAILS_MOVED_FROM_ARCHIVE)
-    def test_active_rail_not_in_archive(self, filename: str) -> None:
-        stale = REPO_ROOT / "docs" / "_archive" / filename
-        assert not stale.exists(), (
-            f"Stale copy still at docs/_archive/{filename} — should have been moved to docs/"
-        )
-
-
-class TestArchiveMoveEdge:
-    """No source file should reference docs/_archive/ paths for the moved files."""
-
-    @pytest.mark.parametrize("filename", _ACTIVE_RAILS_MOVED_FROM_ARCHIVE)
-    def test_no_stale_archive_refs_in_source(self, filename: str) -> None:
-        """Python and JSON source files must not reference the old archive path."""
-        stale_pattern = f"docs/_archive/{filename}"
-        violations: list[str] = []
-        for glob_pat in _SOURCE_GLOBS:
-            for p in REPO_ROOT.rglob(glob_pat):
-                # Skip __pycache__, .git, node_modules
-                rel = str(p.relative_to(REPO_ROOT))
-                if any(skip in rel for skip in ("__pycache__", ".git", "node_modules")):
-                    continue
-                try:
-                    content = p.read_text(encoding="utf-8", errors="replace")
-                except Exception:
-                    continue
-                if stale_pattern in content:
-                    violations.append(rel)
-        assert not violations, (
-            f"Stale archive ref 'docs/_archive/{filename}' found in: {violations}"
-        )
-
-    def test_customer_exclude_has_no_moved_files(self) -> None:
-        """CUSTOMER_MARKDOWN_EXCLUDE.json must not list the moved files."""
-        content = _read("governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json")
-        for filename in _ACTIVE_RAILS_MOVED_FROM_ARCHIVE:
-            assert f"_archive/{filename}" not in content, (
-                f"CUSTOMER_MARKDOWN_EXCLUDE.json still lists archived path for {filename}"
-            )
-            # They shouldn't be excluded at all — they're active
-            assert f"docs/{filename}" not in content, (
-                f"CUSTOMER_MARKDOWN_EXCLUDE.json should not exclude active rail docs/{filename}"
-            )
-
-
-class TestArchiveMoveCorner:
-    """Corner-case guards for the archive move."""
-
-    def test_install_py_references_docs_path(self) -> None:
-        """install.py must reference docs/<file> for all 4 moved files."""
-        content = _read("install.py")
-        for filename in _ACTIVE_RAILS_MOVED_FROM_ARCHIVE:
-            assert f"docs/{filename}" in content, (
-                f"install.py missing reference to docs/{filename}"
-            )
-
-    def test_governance_lint_references_docs_path(self) -> None:
-        """governance_lint.py must reference docs/<file> for all 4 moved files."""
-        content = _read("scripts/governance_lint.py")
-        for filename in _ACTIVE_RAILS_MOVED_FROM_ARCHIVE:
-            # Accepts both string literal and Path construction forms
-            has_string_ref = f"docs/{filename}" in content
-            has_path_ref = f'"docs" / "{filename}"' in content
-            assert has_string_ref or has_path_ref, (
-                f"governance_lint.py missing reference to docs/{filename}"
-            )
-
-    def test_reason_remediation_map_uses_docs_path(self) -> None:
-        """REASON_REMEDIATION_MAP.json must not use _archive paths for moved files."""
-        content = _read("governance/assets/catalogs/REASON_REMEDIATION_MAP.json")
-        for filename in _ACTIVE_RAILS_MOVED_FROM_ARCHIVE:
-            assert f"_archive/{filename}" not in content, (
-                f"REASON_REMEDIATION_MAP.json uses stale archive path for {filename}"
-            )
-
-    def test_archive_directory_still_has_other_files(self) -> None:
-        """docs/_archive/ should still exist with other legitimately archived files."""
-        archive = REPO_ROOT / "docs" / "_archive"
-        assert archive.is_dir(), "docs/_archive/ directory should still exist"
-        remaining = list(archive.glob("*.md"))
-        assert len(remaining) > 0, "docs/_archive/ should still contain archived files"
-        # None of the moved files should be among them
-        remaining_names = {p.name for p in remaining}
-        for filename in _ACTIVE_RAILS_MOVED_FROM_ARCHIVE:
-            assert filename not in remaining_names

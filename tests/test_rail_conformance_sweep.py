@@ -25,7 +25,10 @@ from typing import NamedTuple
 
 import pytest
 
+from tests.util import get_docs_path
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
+DOCS_ROOT = get_docs_path()
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1.  FILE INVENTORY — mirrors cross-agent-rail-spec.v1.md Section 3
@@ -119,9 +122,21 @@ _DIRECT_PYTHON_RE = re.compile(
 
 def _read(entry: _Entry) -> str:
     """Read file content, raising a clear error if missing."""
-    p = REPO_ROOT / entry.path
+    p = _resolve_entry_path(entry.path)
     assert p.exists(), f"Inventoried file missing: {entry.path}"
     return p.read_text(encoding="utf-8")
+
+
+def _resolve_entry_path(rel_path: str) -> Path:
+    if rel_path.startswith("docs/"):
+        return DOCS_ROOT / rel_path[len("docs/"):]
+    if rel_path in {"master.md", "rules.md"}:
+        return REPO_ROOT / "governance_content" / "reference" / rel_path
+    if "/" not in rel_path and rel_path.endswith(".md"):
+        command_path = REPO_ROOT / "opencode" / "commands" / rel_path
+        if command_path.exists():
+            return command_path
+    return REPO_ROOT / rel_path
 
 
 def _lines(text: str) -> list[str]:
@@ -175,7 +190,7 @@ class TestInventoryExists:
         ids=[e.path for e in _ALL_ENFORCED],
     )
     def test_file_exists(self, entry: _Entry) -> None:
-        p = REPO_ROOT / entry.path
+        p = _resolve_entry_path(entry.path)
         assert p.is_file(), f"Inventoried file does not exist: {entry.path}"
 
 
@@ -229,11 +244,13 @@ class TestRegressionGuard:
         known_docs = {
             e.path for e in _DOCS_RAILS + _DOCS_HYBRID + _DOCS_RUNBOOKS
         }
-        docs_dir = REPO_ROOT / "docs"
+        docs_dir = DOCS_ROOT
         if not docs_dir.is_dir():
             return
         for md in sorted(docs_dir.glob("*.md")):
-            relpath = md.relative_to(REPO_ROOT).as_posix()
+            relpath = f"docs/{md.name}"
+            if md.name in {Path(e.path).name for e in _ROOT_RAILS}:
+                continue
             content = md.read_text(encoding="utf-8")
             first_10 = "\n".join(content.splitlines()[:10])
             if _RAIL_TAG_RE.search(first_10) and relpath not in known_docs:

@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.model_identity_service import (
+from governance_runtime.infrastructure.model_identity_service import (
     resolve_model_identity,
     ModelIdentityResolutionResult,
 )
-from governance.domain.model_identity import ModelIdentity, TrustLevel
-from governance.domain.reason_codes import (
+from governance_runtime.domain.model_identity import ModelIdentity, TrustLevel
+from governance_runtime.domain.reason_codes import (
     BLOCKED_MODEL_CONTEXT_LIMIT_INVALID,
     BLOCKED_MODEL_CONTEXT_LIMIT_REQUIRED,
     BLOCKED_MODEL_IDENTITY_UNTRUSTED,

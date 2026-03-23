@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from governance.engine.adapters import HostCapabilities
-from governance.engine.orchestrator import run_engine_orchestrator
+from governance_runtime.engine.adapters import HostCapabilities
+from governance_runtime.engine.orchestrator import run_engine_orchestrator
 from tests.test_engine_orchestrator import StubAdapter, _make_git_root
 
 
@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_registry() -> dict[str, Any]:
-    return json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
+    return json.loads((REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
 
 
 def _registry_entries(reg: dict[str, Any]) -> list[dict[str, Any]]:

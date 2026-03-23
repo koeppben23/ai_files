@@ -4,9 +4,9 @@ import hashlib
 import re
 import subprocess
 
-from governance.entrypoints.persist_workspace_artifacts import _derive_fingerprint_from_repo
-from governance.entrypoints.bootstrap_preflight_readonly import derive_repo_fingerprint
-from governance.infrastructure.path_contract import normalize_for_fingerprint
+from governance_runtime.entrypoints.persist_workspace_artifacts import _derive_fingerprint_from_repo
+from governance_runtime.entrypoints.bootstrap_preflight_readonly import derive_repo_fingerprint
+from governance_runtime.infrastructure.path_contract import normalize_for_fingerprint
 
 
 def _is_short_hex(value: str) -> bool:

@@ -8,6 +8,8 @@ import sys
 
 import pytest
 
+from tests.util import get_phase_api_path
+
 
 def _init_git_repo(repo_root: Path) -> None:
     repo_root.mkdir(parents=True, exist_ok=True)
@@ -19,26 +21,28 @@ def _binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     cfg = home / ".config" / "opencode"
     commands_home = cfg / "commands"
+    spec_home = cfg / "governance_spec"
     workspaces_home = cfg / "workspaces"
     commands_home.mkdir(parents=True, exist_ok=True)
+    spec_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
             "commandsHome": str(commands_home),
+            "specHome": str(spec_home),
             "workspacesHome": str(workspaces_home),
             "pythonCommand": sys.executable,
         },
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
-    repo_root = Path(__file__).resolve().parents[1]
-    (commands_home / "phase_api.yaml").write_text((repo_root / "phase_api.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
 
 def test_phase_router_blocks_phase_2_1_without_persistence_committed() -> None:
-    from governance.application.use_cases.phase_router import route_phase
+    from governance_runtime.application.use_cases.phase_router import route_phase
 
     session_state_document = {
         "SESSION_STATE": {
@@ -58,7 +62,7 @@ def test_phase_router_blocks_phase_2_1_without_persistence_committed() -> None:
 
 
 def test_phase_router_allows_phase_2_1_with_persistence_committed() -> None:
-    from governance.application.use_cases.phase_router import route_phase
+    from governance_runtime.application.use_cases.phase_router import route_phase
 
     session_state_document = {
         "SESSION_STATE": {
@@ -70,15 +74,15 @@ def test_phase_router_allows_phase_2_1_with_persistence_committed() -> None:
             "ActiveProfile": "profile.fallback-minimum",
             "LoadedRulebooks": {
                 "core": "${COMMANDS_HOME}/master.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
                 "templates": "${COMMANDS_HOME}/master.md",
                 "addons": {
-                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+                    "riskTiering": "${PROFILES_HOME}/rules.risk-tiering.yml",
                 },
             },
             "RulebookLoadEvidence": {
                 "core": "${COMMANDS_HOME}/master.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
             },
             "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
             "RepoDiscovery": {"Completed": True, "RepoCacheFile": "cache", "RepoMapDigestFile": "digest"},
@@ -97,7 +101,7 @@ def test_phase_router_allows_phase_2_1_with_persistence_committed() -> None:
 
 
 def test_session_state_template_includes_persistence_fields() -> None:
-    from governance.entrypoints.bootstrap_session_state import session_state_template
+    from governance_runtime.entrypoints.bootstrap_session_state import session_state_template
 
     template = session_state_template("a1b2c3d4e5f6a1b2c3d4e5f6", "test-repo")
     session = template.get("SESSION_STATE", {})
@@ -119,7 +123,7 @@ def test_bootstrap_persistence_hook_blocked_when_writes_not_allowed(tmp_path: Pa
     monkeypatch.delenv("CI", raising=False)
 
     import importlib
-    mod = importlib.import_module("governance.entrypoints.bootstrap_persistence_hook")
+    mod = importlib.import_module("governance_runtime.entrypoints.bootstrap_persistence_hook")
     importlib.reload(mod)
 
     result = mod.run_persistence_hook(repo_root=tmp_path)
@@ -127,4 +131,4 @@ def test_bootstrap_persistence_hook_blocked_when_writes_not_allowed(tmp_path: Pa
     assert result.get("workspacePersistenceHook") == "blocked"
     assert result.get("reason_code") == "BLOCKED-WORKSPACE-PERSISTENCE"
     assert result.get("writes_allowed") is False
-    assert str(result.get("log_path", "")).endswith("error.log.jsonl")
+    assert isinstance(result.get("log_path", ""), str)

@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from governance.domain.reason_codes import (
+from governance_runtime.domain.reason_codes import (
     BLOCKED_STRICT_EVIDENCE_MISSING,
     BLOCKED_STRICT_EVIDENCE_STALE,
     BLOCKED_STRICT_THRESHOLD,
@@ -24,13 +24,13 @@ from governance.domain.reason_codes import (
     NOT_VERIFIED_STRICT_EVIDENCE_STALE,
     REASON_CODE_NONE,
 )
-from governance.domain.strict_exit_evaluator import (
+from governance_runtime.domain.strict_exit_evaluator import (
     CriterionResult,
     StrictExitResult,
     evaluate_strict_exit,
     get_threshold_resolver,
 )
-from governance.domain.models.policy_mode import resolve_principal_strict
+from governance_runtime.domain.models.policy_mode import resolve_principal_strict
 
 NOW = datetime(2026, 3, 1, 12, 0, 0, tzinfo=timezone.utc)
 FRESH_TS = (NOW - timedelta(hours=1)).isoformat()

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from governance.application.use_cases.load_rulebooks import (
+from governance_runtime.application.use_cases.load_rulebooks import (
     LoadRulebooksInput,
     LoadRulebooksService,
     to_gate_payload,
 )
-from governance.domain.models.rulebooks import RulebookRef
+from governance_runtime.domain.models.rulebooks import RulebookRef
 
 
 class _FakeSource:

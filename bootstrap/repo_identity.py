@@ -6,10 +6,10 @@ import os
 import re
 import subprocess
 
-from governance.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
-from governance.engine.adapters import LocalHostAdapter
-from governance.infrastructure.path_contract import normalize_absolute_path, normalize_for_fingerprint
-from governance.infrastructure.wiring import configure_gateway_registry
+from governance_runtime.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
+from governance_runtime.engine.adapters import LocalHostAdapter
+from governance_runtime.infrastructure.path_contract import normalize_absolute_path, normalize_for_fingerprint
+from governance_runtime.infrastructure.wiring import configure_gateway_registry
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from governance.domain.models.write_action import WriteAction, is_written, to_file_status
-from governance.infrastructure.adapters.filesystem.atomic_write import atomic_write_action
+from governance_runtime.domain.models.write_action import WriteAction, is_written, to_file_status
+from governance_runtime.infrastructure.adapters.filesystem.atomic_write import atomic_write_action
 
 
 def test_write_action_not_written_for_read_only() -> None:

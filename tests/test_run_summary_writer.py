@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.run_summary_writer import (
+from governance_runtime.infrastructure.run_summary_writer import (
     compute_run_id,
     create_run_summary,
     write_run_summary,

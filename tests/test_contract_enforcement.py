@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.contracts.enforcement import FAIL_CLOSED_MISSING_CONTRACT, require_complete_contracts
+from governance_runtime.contracts.enforcement import FAIL_CLOSED_MISSING_CONTRACT, require_complete_contracts
 
 
 def test_contract_enforcement_happy_repo_contracts_present() -> None:

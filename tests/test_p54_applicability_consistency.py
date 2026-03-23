@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.engine.gate_evaluator import evaluate_p54_business_rules_gate
+from governance_runtime.engine.gate_evaluator import evaluate_p54_business_rules_gate
 
 
 def test_p54_not_not_applicable_when_phase15_artifact_signal_exists() -> None:

@@ -1,0 +1,71 @@
+kind: core
+metadata:
+  id: core.rules
+  name: Core Rules
+  version: '1.0'
+  status: active
+authority_index:
+  entries:
+    - area: Routing/validation/transitions
+      source: phase_api.yaml
+    - area: Session-state shape and invariants
+      source: SESSION_STATE_SCHEMA.md
+    - area: Response envelope and presentation shape
+      source: governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json
+    - area: Blocked reason catalog
+      source: governance_runtime/assets/config/blocked_reason_catalog.yaml
+    - area: Persistence artifacts and targets
+      source: governance_runtime/assets/config/persistence_artifacts.yaml
+    - area: Build verification and evidence rules
+      source: governance_schemas.md
+activation:
+  type: detection
+  conditions:
+    - field: session.phase
+      operator: not_exists
+      value: null
+phase_integration:
+  phases:
+    - phase_1
+    - phase_1_5
+    - phase_2
+    - phase_3
+    - phase_4
+    - phase_5
+    - phase_6
+  required_outputs:
+    - component_scope
+    - working_set
+    - touched_surface
+  required_checks:
+    - evidence_verification
+    - gate_completeness
+evidence_contract:
+  required_artifacts:
+    - SESSION_STATE.ComponentScope
+    - SESSION_STATE.WorkingSet
+    - SESSION_STATE.TouchedSurface
+    - SESSION_STATE.BuildEvidence
+  required_fields:
+    - component_scope
+    - evidence_refs
+  acceptance_rules:
+    - field: component_scope
+      condition: not_exists
+      error_message: Component Scope must be explicit for code-producing work
+verification_commands:
+  - cmd: python scripts/governance_lint.py
+    purpose: Validate governance compliance
+references:
+  - id: ref_1
+    target: phase_api.yaml
+    type: schema
+  - id: ref_2
+    target: SESSION_STATE_SCHEMA.md
+    type: schema
+  - id: ref_3
+    target: governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json
+    type: schema
+  - id: ref_4
+    target: governance_schemas.md
+    type: schema

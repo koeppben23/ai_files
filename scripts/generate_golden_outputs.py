@@ -16,9 +16,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from governance.engine.adapters import ExecResult, HostCapabilities, OperatingMode
-from governance.engine.orchestrator import run_engine_orchestrator
-from governance.render import build_two_layer_output, route_intent
+from governance_runtime.engine.adapters import ExecResult, HostCapabilities, OperatingMode
+from governance_runtime.engine.orchestrator import run_engine_orchestrator
+from governance_runtime.render import build_two_layer_output, route_intent
 
 
 @dataclass(frozen=True)

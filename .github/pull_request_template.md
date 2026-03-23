@@ -1,5 +1,15 @@
 # Pull Request Checklist
 
+## Legacy Teardown Contract (Required)
+
+- [ ] Welche alte Autoritaet wird in diesem PR entfernt?
+- [ ] Welche neue Autoritaet ist jetzt SSOT?
+- [ ] Welche CI-Gates decken den Scope ab (`legacy-scan`, `ssot-scan`, `install-smoke`, `bootstrap-smoke`, `delete-barrier`)?
+- [ ] Welcher echte Install-/Bootstrap-Test lief lokal?
+- [ ] Welche Duplikate wurden geloescht?
+
+PRs ohne diese Angaben sind nicht mergefaehig.
+
 ## Conventional PR Title (Required)
 
 Your PR title must follow Conventional Commits.

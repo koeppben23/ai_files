@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from governance.entrypoints.human_approval_persist import apply_human_approval
-from governance.infrastructure.workspace_paths import run_dir
-from governance.infrastructure.work_run_archive import archive_active_run
+from governance_runtime.entrypoints.human_approval_persist import apply_human_approval
+from governance_runtime.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.work_run_archive import archive_active_run
 
 
 def _write_session_state(path: Path) -> dict[str, object]:

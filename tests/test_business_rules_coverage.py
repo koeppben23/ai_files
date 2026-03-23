@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from governance.engine.business_rules_code_extraction import CodeSurface
-from governance.engine.business_rules_coverage import (
+from governance_runtime.engine.business_rules_code_extraction import CodeSurface
+from governance_runtime.engine.business_rules_coverage import (
     RC_CODE_COVERAGE_INSUFFICIENT,
     RC_CODE_EXTRACTION_NOT_RUN,
     RC_CODE_PROVENANCE_MISSING,

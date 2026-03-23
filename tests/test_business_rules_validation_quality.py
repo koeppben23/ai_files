@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.engine.business_rules_validation import (
+from governance_runtime.engine.business_rules_validation import (
     ORIGIN_CODE,
     REASON_CODE_TEMPLATE_OVERFIT,
     REASON_CODE_TOKEN_ARTIFACT,

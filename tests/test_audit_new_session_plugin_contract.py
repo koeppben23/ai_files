@@ -6,7 +6,7 @@ import pytest
 
 from tests.util import REPO_ROOT
 
-PLUGIN_PATH = REPO_ROOT / "governance" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
+PLUGIN_PATH = REPO_ROOT / "governance_runtime" / "artifacts" / "opencode-plugins" / "audit-new-session.mjs"
 
 
 def _read_plugin() -> str:
@@ -34,7 +34,7 @@ def test_plugin_uses_node_builtins_and_spawn_args_array() -> None:
     assert "spawnSync(" in content
     assert "exec(" not in content
     assert '"-m"' in content
-    assert '"governance.entrypoints.new_work_session"' in content
+    assert '"governance_runtime.entrypoints.new_work_session"' in content
     assert '"--trigger-source"' in content
     assert '"desktop-plugin"' in content
     assert "OPENCODE_PYTHON" in content

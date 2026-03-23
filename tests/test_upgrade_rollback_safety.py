@@ -18,11 +18,13 @@ from pathlib import Path
 
 import pytest
 
+from tests.util import get_rulesets_path
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_BUILD = REPO_ROOT / "scripts" / "build_ruleset_lock.py"
 SCRIPT_MIGRATE = REPO_ROOT / "scripts" / "migrate_rulebook_schema.py"
-GOVERNANCE_RELEASES = REPO_ROOT / "rulesets" / "governance"
+GOVERNANCE_RELEASES = get_rulesets_path() / "governance"
 
 
 def _sha256(path: Path) -> str:

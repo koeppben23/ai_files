@@ -49,7 +49,7 @@ def _git_init_repo(repo: Path) -> None:
 
 def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_home: Path) -> None:
     commands_home.mkdir(parents=True, exist_ok=True)
-    for dirname in ("governance", "governance", "profiles", "scripts", "templates"):
+    for dirname in ("governance", "governance_runtime", "profiles", "scripts", "templates"):
         src = checkout_root / dirname
         if src.exists():
             shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)
@@ -58,25 +58,34 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
         if src.exists():
             shutil.copy2(src, commands_home / filename)
 
+    canonical_phase_api = checkout_root / "governance_spec" / "phase_api.yaml"
+    if canonical_phase_api.exists() and not (commands_home / "phase_api.yaml").exists():
+        shutil.copy2(canonical_phase_api, commands_home / "phase_api.yaml")
 
-def _write_governance_paths(*, config_root: Path, commands_home: Path, workspaces_home: Path) -> None:
+
+def _write_governance_paths(*, config_root: Path, commands_home: Path, workspaces_home: Path, checkout_root: Path) -> None:
     commands_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
+    local_root = checkout_root
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(config_root),
+            "localRoot": str(local_root),
             "commandsHome": str(commands_home),
-            "profilesHome": str(commands_home / "profiles"),
-            "governanceHome": str(commands_home / "governance"),
+            "profilesHome": str(local_root / "governance_content" / "profiles"),
+            "governanceHome": str(local_root / "governance_runtime"),
+            "runtimeHome": str(local_root / "governance_runtime"),
+            "contentHome": str(local_root / "governance_content"),
+            "specHome": str(local_root / "governance_spec"),
             "workspacesHome": str(workspaces_home),
-            "globalErrorLogsHome": str(commands_home / "logs"),
+            "globalErrorLogsHome": str(workspaces_home / "_global" / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces_home / "<repo_fingerprint>" / "logs"),
             "pythonCommand": sys.executable,
         },
         "generatedAt": "1970-01-01T00:00:00Z",
     }
-    (commands_home / "governance.paths.json").write_text(
+    (config_root / "governance.paths.json").write_text(
         json.dumps(payload, indent=2),
         encoding="utf-8",
     )
@@ -120,7 +129,12 @@ def test_cli_contract_uses_repo_root_and_config_root(tmp_path: Path) -> None:
     commands_home = config_root / "commands"
     workspaces_home = config_root / "workspaces"
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
-    _write_governance_paths(config_root=config_root, commands_home=commands_home, workspaces_home=workspaces_home)
+    _write_governance_paths(
+        config_root=config_root,
+        commands_home=commands_home,
+        workspaces_home=workspaces_home,
+        checkout_root=checkout_root,
+    )
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)
@@ -173,7 +187,12 @@ def test_cli_init_profile_writes_repo_policy(tmp_path: Path) -> None:
     commands_home = config_root / "commands"
     workspaces_home = config_root / "workspaces"
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
-    _write_governance_paths(config_root=config_root, commands_home=commands_home, workspaces_home=workspaces_home)
+    _write_governance_paths(
+        config_root=config_root,
+        commands_home=commands_home,
+        workspaces_home=workspaces_home,
+        checkout_root=checkout_root,
+    )
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)
@@ -213,7 +232,12 @@ def test_cli_alias_set_operating_mode_updates_existing_policy(tmp_path: Path) ->
     commands_home = config_root / "commands"
     workspaces_home = config_root / "workspaces"
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
-    _write_governance_paths(config_root=config_root, commands_home=commands_home, workspaces_home=workspaces_home)
+    _write_governance_paths(
+        config_root=config_root,
+        commands_home=commands_home,
+        workspaces_home=workspaces_home,
+        checkout_root=checkout_root,
+    )
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)

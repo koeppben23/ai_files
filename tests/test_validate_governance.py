@@ -10,21 +10,52 @@ from pathlib import Path
 
 import pytest
 
-from governance.domain import reason_codes
+from governance_runtime.domain import reason_codes
 
-from .util import REPO_ROOT, read_text, run, write_governance_paths
+from .util import (
+    REPO_ROOT,
+    read_text,
+    run,
+    write_governance_paths,
+    get_master_path,
+    get_rules_path,
+    get_profiles_path,
+    get_docs_path,
+)
+
+
+MASTER_PATH = get_master_path()
+RULES_PATH = get_rules_path()
+PROFILES_DIR = get_profiles_path()
+DOCS_DIR = get_docs_path()
+
+def _resolve(rel: str) -> Path:
+    """Resolve a relative governance/test path into an SSOT path when possible."""
+    # Profiles under governance Content mapped via PROFILES_DIR
+    if rel.startswith("profiles/"):
+        return PROFILES_DIR / rel[len("profiles/"):]
+    # Governance-owned docs may live under governance/docs/governance structure
+    if rel.startswith("governance/"):
+        return REPO_ROOT / rel.replace("governance/", "governance_runtime/", 1)
+    # Master/rules paths already normalized by helper; fallback to repo root
+    if rel == "master.md":
+        return MASTER_PATH
+    if rel == "rules.md":
+        return RULES_PATH
+    # General fallback
+    return REPO_ROOT / rel
 
 
 @pytest.mark.governance
 def test_required_files_present():
     required = [
-        "master.md",
-        "rules.md",
-        "BOOTSTRAP.md",
-        "SESSION_STATE_SCHEMA.md",
-        "STABILITY_SLA.md",
+        MASTER_PATH,
+        RULES_PATH,
+        REPO_ROOT / "BOOTSTRAP.md",
+        REPO_ROOT / "SESSION_STATE_SCHEMA.md",
+        REPO_ROOT / "STABILITY_SLA.md",
     ]
-    missing = [f for f in required if not (REPO_ROOT / f).exists()]
+    missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
     assert not missing, f"Missing: {missing}"
 
 
@@ -232,7 +263,7 @@ def test_lint_passes_valid_rulebook(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 @pytest.mark.governance
 def test_blocked_consistency_schema_vs_catalog():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
-    catalog = read_text(REPO_ROOT / "governance" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
+    catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "config" / "blocked_reason_catalog.yaml")
 
     s = set(re.findall(r"BLOCKED-[A-Z0-9-]+", schema))
     c = set(re.findall(r"BLOCKED-[A-Z0-9-]+", catalog))
@@ -257,24 +288,15 @@ def _blocked_entry_block(catalog_text: str, code: str) -> str:
 
 
 @pytest.mark.governance
-def test_blocked_catalogs_have_exact_same_blocked_code_set():
-    reasons_catalog = read_text(REPO_ROOT / "governance" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
-    config_catalog = read_text(REPO_ROOT / "governance" / "assets" / "config" / "blocked_reason_catalog.yaml")
-
-    reasons_codes = _blocked_codes_from_catalog_text(reasons_catalog)
+def test_blocked_catalog_contains_codes():
+    config_catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "config" / "blocked_reason_catalog.yaml")
     config_codes = _blocked_codes_from_catalog_text(config_catalog)
-    assert reasons_codes == config_codes, (
-        "blocked catalog code sets diverge: "
-        f"missing_in_reasons={sorted(config_codes - reasons_codes)}, "
-        f"missing_in_config={sorted(reasons_codes - config_codes)}"
-    )
+    assert config_codes, "blocked_reason_catalog.yaml must contain BLOCKED-* codes"
 
 
 @pytest.mark.governance
-def test_both_blocked_catalogs_cover_catalog_governed_domain_and_registry_blocked_codes():
-    reasons_catalog = read_text(REPO_ROOT / "governance" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
-    config_catalog = read_text(REPO_ROOT / "governance" / "assets" / "config" / "blocked_reason_catalog.yaml")
-    reasons_codes = _blocked_codes_from_catalog_text(reasons_catalog)
+def test_blocked_catalog_covers_catalog_governed_domain_and_registry_blocked_codes():
+    config_catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "config" / "blocked_reason_catalog.yaml")
     config_codes = _blocked_codes_from_catalog_text(config_catalog)
 
     schema_text = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
@@ -282,7 +304,7 @@ def test_both_blocked_catalogs_cover_catalog_governed_domain_and_registry_blocke
     catalog_governed_expected = schema_blocked | {"BLOCKED-P6-PREREQUISITES-NOT-MET"}
 
     domain_blocked = {code for code in reason_codes.CANONICAL_REASON_CODES if code.startswith("BLOCKED-")}
-    registry = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
+    registry = json.loads((REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
     blocked_entries = registry.get("blocked_reasons")
     assert isinstance(blocked_entries, list), "blocked_reasons must be an array"
     registry_blocked = {
@@ -296,26 +318,20 @@ def test_both_blocked_catalogs_cover_catalog_governed_domain_and_registry_blocke
     assert not missing_in_domain, f"catalog-governed BLOCKED codes missing in domain reason codes: {missing_in_domain}"
     assert not missing_in_registry, f"catalog-governed BLOCKED codes missing in registry: {missing_in_registry}"
 
-    missing_in_reasons = sorted(catalog_governed_expected - reasons_codes)
     missing_in_config = sorted(catalog_governed_expected - config_codes)
-    assert not missing_in_reasons, f"catalog-governed BLOCKED codes missing in assets/reasons catalog: {missing_in_reasons}"
     assert not missing_in_config, f"catalog-governed BLOCKED codes missing in assets/config catalog: {missing_in_config}"
 
 
 @pytest.mark.governance
-def test_blocked_catalog_entries_match_semantic_fields_between_catalogs():
-    reasons_catalog = read_text(REPO_ROOT / "governance" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
-    config_catalog = read_text(REPO_ROOT / "governance" / "assets" / "config" / "blocked_reason_catalog.yaml")
-    shared_codes = _blocked_codes_from_catalog_text(reasons_catalog) & _blocked_codes_from_catalog_text(config_catalog)
-
-    mismatches: list[str] = []
-    for code in sorted(shared_codes):
-        reasons_block = _blocked_entry_block(reasons_catalog, code).replace("\r\n", "\n")
-        config_block = _blocked_entry_block(config_catalog, code).replace("\r\n", "\n")
-        if reasons_block != config_block:
-            mismatches.append(code)
-
-    assert not mismatches, f"blocked catalog semantic drift detected for codes: {mismatches}"
+def test_blocked_catalog_entries_have_required_semantic_fields():
+    config_catalog = read_text(REPO_ROOT / "governance_runtime" / "assets" / "config" / "blocked_reason_catalog.yaml")
+    codes = _blocked_codes_from_catalog_text(config_catalog)
+    missing_fields: list[str] = []
+    for code in sorted(codes):
+        block = _blocked_entry_block(config_catalog, code)
+        if "description:" not in block:
+            missing_fields.append(code)
+    assert not missing_fields, f"blocked catalog entries missing required semantic fields: {missing_fields}"
 
 
 @pytest.mark.governance
@@ -324,7 +340,7 @@ def test_profiles_use_canonical_blocked_codes():
         "BLOCKED-TEMPLATES-MISSING",
         "BLOCKED-KAFKA-TEMPLATES-MISSING",
     }
-    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    profile_files = sorted(PROFILES_DIR.glob("rules*.md"))
     assert profile_files, "No profile rulebooks found under profiles/rules*.md"
 
     offenders: list[str] = []
@@ -393,7 +409,7 @@ def test_template_rulebooks_define_correctness_by_construction_contract():
 
     missing: list[str] = []
     for rel in templates:
-        text = read_text(REPO_ROOT / rel)
+        text = read_text(_resolve(rel))
         absent = [token for token in required_tokens if token not in text]
         if absent:
             missing.append(f"{rel} missing {absent}")
@@ -406,18 +422,18 @@ def test_template_rulebooks_define_correctness_by_construction_contract():
 @pytest.mark.governance
 def test_template_evidence_kinds_are_allowed():
     templates = [
-        REPO_ROOT / "profiles/rules.backend-java-templates.md",
-        REPO_ROOT / "profiles/rules.backend-java-kafka-templates.md",
-        REPO_ROOT / "profiles/rules.frontend-angular-nx-templates.md",
+        "profiles/rules.backend-java-templates.md",
+        "profiles/rules.backend-java-kafka-templates.md",
+        "profiles/rules.frontend-angular-nx-templates.md",
     ]
     allowed = {"unit-test", "integration-test", "contract-test", "e2e", "lint", "build"}
     issues: list[str] = []
 
-    for p in templates:
-        text = read_text(p)
+    for rel in templates:
+        text = read_text(_resolve(rel))
         m = re.search(r"^\s*evidence_kinds_required:\s*$", text, flags=re.MULTILINE)
         if not m:
-            issues.append(f"{p.relative_to(REPO_ROOT)}: missing evidence_kinds_required")
+            issues.append(f"{rel}: missing evidence_kinds_required")
             continue
 
         kinds: list[str] = []
@@ -431,11 +447,11 @@ def test_template_evidence_kinds_are_allowed():
             break
 
         if not kinds:
-            issues.append(f"{p.relative_to(REPO_ROOT)}: empty evidence_kinds_required")
+            issues.append(f"{rel}: empty evidence_kinds_required")
             continue
-        for kind in kinds:
-            if kind not in allowed:
-                issues.append(f"{p.relative_to(REPO_ROOT)}: unsupported evidence kind {kind}")
+            for kind in kinds:
+                if kind not in allowed:
+                    issues.append(f"{rel}: unsupported evidence kind {kind}")
 
     assert not issues, "Template evidence kinds invalid:\n" + "\n".join([f"- {i}" for i in issues])
 
@@ -443,10 +459,10 @@ def test_template_evidence_kinds_are_allowed():
 @pytest.mark.governance
 def test_ruleset_hash_changes_when_ruleset_files_change():
     files = [
-        REPO_ROOT / "master.md",
-        REPO_ROOT / "rules.md",
-        *sorted((REPO_ROOT / "profiles").glob("rules*.md")),
-        *sorted((REPO_ROOT / "profiles" / "addons").glob("*.addon.yml")),
+        MASTER_PATH,
+        RULES_PATH,
+        *sorted(PROFILES_DIR.glob("rules*.md")),
+        *sorted((PROFILES_DIR / "addons").glob("*.addon.yml")),
     ]
 
     import hashlib
@@ -460,7 +476,10 @@ def test_ruleset_hash_changes_when_ruleset_files_change():
             h.update(b"\n")
         return h.hexdigest()
 
-    baseline_contents = [(p.relative_to(REPO_ROOT).as_posix(), read_text(p)) for p in files]
+    baseline_contents = []
+    for p in files:
+        rel_path = p.relative_to(REPO_ROOT).as_posix()
+        baseline_contents.append((rel_path, read_text(_resolve(rel_path))))
     baseline = digest_for(baseline_contents)
 
     mutated_contents = list(baseline_contents)
@@ -473,7 +492,7 @@ def test_ruleset_hash_changes_when_ruleset_files_change():
 
 @pytest.mark.governance
 def test_docs_governance_addon_has_principal_reviewability_contract():
-    docs_addon = read_text(REPO_ROOT / "profiles" / "rules.docs-governance.md")
+    docs_addon = read_text(PROFILES_DIR / "rules.docs-governance.md")
 
     required_snippets = [
         "Gate review scorecard for docs checks",
@@ -490,7 +509,7 @@ def test_docs_governance_addon_has_principal_reviewability_contract():
 
 @pytest.mark.governance
 def test_all_profile_rulebooks_define_principal_excellence_contract():
-    principal_shared = read_text(REPO_ROOT / "profiles" / "rules.principal-excellence.md")
+    principal_shared = read_text(PROFILES_DIR / "rules.principal-excellence.md")
     required_shared_tokens = [
         "## Principal Excellence Contract (Binding)",
         "### Gate Review Scorecard (binding)",
@@ -511,7 +530,7 @@ def test_all_profile_rulebooks_define_principal_excellence_contract():
         "rules.scorecard-calibration.md",
     ]
 
-    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    profile_files = sorted(PROFILES_DIR.glob("rules*.md"))
     assert profile_files, "No profile rulebooks found under profiles/rules*.md"
 
     offenders: list[str] = []
@@ -534,7 +553,7 @@ def test_all_profile_rulebooks_define_principal_excellence_contract():
 
 @pytest.mark.governance
 def test_all_profile_rulebooks_define_standard_risk_tiering_v21():
-    risk_tiering = read_text(REPO_ROOT / "profiles" / "rules.risk-tiering.md")
+    risk_tiering = read_text(PROFILES_DIR / "rules.risk-tiering.md")
     required_tokens = [
         "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
         "### RTN-1 Canonical tiers (binding)",
@@ -551,7 +570,7 @@ def test_all_profile_rulebooks_define_standard_risk_tiering_v21():
 
 @pytest.mark.governance
 def test_java_profile_delegates_shared_principal_contract_and_shared_file_contains_shape():
-    backend_java = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    backend_java = read_text(PROFILES_DIR / "rules.backend-java.md")
     delegation_tokens = [
         "Shared contract note:",
         "rules.principal-excellence.md",
@@ -566,7 +585,7 @@ def test_java_profile_delegates_shared_principal_contract_and_shared_file_contai
         [f"- {line}" for line in missing_delegation]
     )
 
-    shared = read_text(REPO_ROOT / "profiles" / "rules.principal-excellence.md")
+    shared = read_text(PROFILES_DIR / "rules.principal-excellence.md")
     required_shape = [
         "SESSION_STATE:",
         "GateScorecards:",
@@ -584,7 +603,7 @@ def test_java_profile_delegates_shared_principal_contract_and_shared_file_contai
 
 @pytest.mark.governance
 def test_java_profile_contains_principal_hardening_v2_controls():
-    text = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    text = read_text(PROFILES_DIR / "rules.backend-java.md")
     required = [
         "## Java-first Principal Hardening v2 (Binding)",
         "### JPH2-1 Risk tiering by touched surface (binding)",
@@ -604,7 +623,7 @@ def test_java_profile_contains_principal_hardening_v2_controls():
 
 @pytest.mark.governance
 def test_backend_java_tool_gating_handles_non_runnable_tools_conservatively():
-    text = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    text = read_text(PROFILES_DIR / "rules.backend-java.md")
     required = [
         "and is runnable in the current environment",
         "If a tool exists but is not runnable in the current environment",
@@ -619,7 +638,7 @@ def test_backend_java_tool_gating_handles_non_runnable_tools_conservatively():
 
 @pytest.mark.governance
 def test_backend_java_uses_shared_tiering_and_avoids_parallel_tier_taxonomy():
-    text = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    text = read_text(PROFILES_DIR / "rules.backend-java.md")
     required = [
         "using the canonical tiering contract from `rules.risk-tiering.md`",
         "does not define a parallel tier system",
@@ -678,7 +697,7 @@ def test_java_templates_and_kafka_include_v2_hardening_sections():
 
 @pytest.mark.governance
 def test_frontend_cypress_addon_contains_principal_hardening_v2_controls():
-    text = read_text(REPO_ROOT / "profiles" / "rules.frontend-cypress-testing.md")
+    text = read_text(PROFILES_DIR / "rules.frontend-cypress-testing.md")
     required = [
         "## Principal Hardening v2 - Cypress Critical Quality (Binding)",
         "### CPH2-1 Required scorecard criteria (binding)",
@@ -696,7 +715,7 @@ def test_frontend_cypress_addon_contains_principal_hardening_v2_controls():
 
 @pytest.mark.governance
 def test_frontend_openapi_ts_addon_contains_principal_hardening_v2_controls():
-    text = read_text(REPO_ROOT / "profiles" / "rules.frontend-openapi-ts-client.md")
+    text = read_text(PROFILES_DIR / "rules.frontend-openapi-ts-client.md")
     required = [
         "## Principal Hardening v2 - Frontend OpenAPI TS Client (Binding)",
         "### FOPH2-1 Required scorecard criteria (binding)",
@@ -714,7 +733,7 @@ def test_frontend_openapi_ts_addon_contains_principal_hardening_v2_controls():
 
 @pytest.mark.governance
 def test_fallback_profile_contains_principal_hardening_v2_controls():
-    text = read_text(REPO_ROOT / "profiles" / "rules.fallback-minimum.md")
+    text = read_text(PROFILES_DIR / "rules.fallback-minimum.md")
     required = [
         "## Principal Hardening v2 - Fallback Minimum Safety (Binding)",
         "### FMPH2-1 Baseline scorecard criteria (binding)",
@@ -732,7 +751,7 @@ def test_fallback_profile_contains_principal_hardening_v2_controls():
 
 @pytest.mark.governance
 def test_addon_rulebooks_use_standard_risk_tiering_v21():
-    shared = read_text(REPO_ROOT / "profiles" / "rules.risk-tiering.md")
+    shared = read_text(PROFILES_DIR / "rules.risk-tiering.md")
     required_shared_tokens = [
         "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
         "### RTN-1 Canonical tiers (binding)",
@@ -748,7 +767,7 @@ def test_addon_rulebooks_use_standard_risk_tiering_v21():
         [f"- {line}" for line in missing_shared]
     )
 
-    addon_rulebooks = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    addon_rulebooks = sorted(PROFILES_DIR.glob("rules*.md"))
     assert addon_rulebooks, "No profile rulebooks found under profiles/rules*.md"
 
     required_delegation = [
@@ -776,7 +795,7 @@ def test_addon_rulebooks_use_standard_risk_tiering_v21():
 
 @pytest.mark.governance
 def test_addon_rulebooks_use_scorecard_calibration_v211():
-    shared = read_text(REPO_ROOT / "profiles" / "rules.scorecard-calibration.md")
+    shared = read_text(PROFILES_DIR / "rules.scorecard-calibration.md")
     required_shared_tokens = [
         "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
         "### CAL-1 Standard criterion weights by tier (binding)",
@@ -793,7 +812,7 @@ def test_addon_rulebooks_use_scorecard_calibration_v211():
         [f"- {line}" for line in missing_shared]
     )
 
-    addon_rulebooks = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    addon_rulebooks = sorted(PROFILES_DIR.glob("rules*.md"))
     assert addon_rulebooks, "No profile rulebooks found under profiles/rules*.md"
 
     required_delegation = [
@@ -821,6 +840,13 @@ def test_addon_rulebooks_use_scorecard_calibration_v211():
 
 @pytest.mark.governance
 def test_factory_commands_exist_and_define_principal_generation_contracts():
+    def _resolve(rel: str) -> Path:
+        if rel.startswith("docs/"):
+            return DOCS_DIR / rel[len("docs/"):]
+        if rel.startswith("profiles/"):
+            return PROFILES_DIR / rel[len("profiles/"):]
+        return REPO_ROOT / rel
+
     targets = {
         "docs/new_profile.md": [
             "# Governance Factory - New Profile",
@@ -875,7 +901,7 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
 
     missing: list[str] = []
     for rel, required in targets.items():
-        p = REPO_ROOT / rel
+        p = _resolve(rel)
         if not p.exists():
             missing.append(f"missing file: {rel}")
             continue
@@ -902,7 +928,7 @@ def test_reviewed_rulebooks_include_examples_and_troubleshooting_sections():
 
     missing: list[str] = []
     for rel, tokens in required.items():
-        text = read_text(REPO_ROOT / rel)
+        text = read_text(_resolve(rel))
         absent = [token for token in tokens if token not in text]
         if absent:
             missing.append(f"{rel} missing {absent}")
@@ -941,8 +967,8 @@ def test_docs_governance_marks_blocked_aliases_as_legacy_non_emitting():
 
 @pytest.mark.governance
 def test_factory_contract_diagnostic_exists_and_is_calibrated():
-    p = REPO_ROOT / "governance" / "assets" / "catalogs" / "PROFILE_ADDON_FACTORY_CONTRACT.json"
-    assert p.exists(), "Missing governance/PROFILE_ADDON_FACTORY_CONTRACT.json"
+    p = REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "PROFILE_ADDON_FACTORY_CONTRACT.json"
+    assert p.exists(), "Missing governance_runtime/PROFILE_ADDON_FACTORY_CONTRACT.json"
 
     text = read_text(p)
     required_tokens = [
@@ -982,12 +1008,12 @@ def test_session_state_schema_includes_risk_tiering_contract_shape():
 
 @pytest.mark.governance
 def test_session_state_bootstrap_recovery_script_exists():
-    p = REPO_ROOT / "governance" / "entrypoints" / "bootstrap_session_state.py"
-    assert p.exists(), "Missing governance/entrypoints/bootstrap_session_state.py"
+    p = REPO_ROOT / "governance_runtime" / "entrypoints" / "bootstrap_session_state.py"
+    assert p.exists(), "Missing governance_runtime/entrypoints/bootstrap_session_state.py"
 
     text = read_text(p)
     
-    pointer_ssot = REPO_ROOT / "governance" / "infrastructure" / "session_pointer.py"
+    pointer_ssot = REPO_ROOT / "governance_runtime" / "infrastructure" / "session_pointer.py"
     pointer_text = read_text(pointer_ssot) if pointer_ssot.exists() else ""
     
     required_tokens = [
@@ -1002,8 +1028,8 @@ def test_session_state_bootstrap_recovery_script_exists():
         "BLOCKED-START-REQUIRED",
         "\"OutputMode\": \"ARCHITECT\"",
         "\"DecisionSurface\": {}",
-        "\"quality_index\": \"${COMMANDS_HOME}/QUALITY_INDEX.md\"",
-        "\"conflict_resolution\": \"${COMMANDS_HOME}/CONFLICT_RESOLUTION.md\"",
+        "\"quality_index\": \"${CONTENT_HOME}/QUALITY_INDEX.md\"",
+        "\"conflict_resolution\": \"${CONTENT_HOME}/CONFLICT_RESOLUTION.md\"",
         "--repo-fingerprint",
         "--repo-name",
         "--config-root",
@@ -1019,7 +1045,7 @@ def test_session_state_bootstrap_recovery_script_exists():
 
 @pytest.mark.governance
 def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "bootstrap_session_state.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "bootstrap_session_state.py"
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
@@ -1042,8 +1068,8 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
 
 @pytest.mark.governance
 def test_workspace_persistence_backfill_script_exists_and_defines_required_targets():
-    p = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
-    assert p.exists(), "Missing governance/entrypoints/persist_workspace_artifacts.py"
+    p = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
+    assert p.exists(), "Missing governance_runtime/entrypoints/persist_workspace_artifacts.py"
 
     text = read_text(p)
     required_tokens = [
@@ -1069,7 +1095,7 @@ def test_workspace_persistence_backfill_script_exists_and_defines_required_targe
 
 @pytest.mark.governance
 def test_workspace_persistence_backfill_script_creates_missing_artifacts(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
@@ -1104,7 +1130,7 @@ def test_workspace_persistence_backfill_script_creates_missing_artifacts(tmp_pat
 
 @pytest.mark.governance
 def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     write_governance_paths(cfg)
@@ -1144,7 +1170,7 @@ def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_p
 
 @pytest.mark.governance
 def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extracted(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
@@ -1186,7 +1212,7 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
 
 @pytest.mark.governance
 def test_workspace_persistence_backfill_writes_business_rules_status_for_gap_detected(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
@@ -1246,7 +1272,7 @@ def test_workspace_persistence_backfill_writes_business_rules_status_for_gap_det
 
 @pytest.mark.governance
 def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_force(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
@@ -1304,7 +1330,7 @@ def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_fo
 
 @pytest.mark.governance
 def test_workspace_persistence_normalizes_legacy_decision_pack_and_emits_event(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
@@ -1372,7 +1398,7 @@ def test_workspace_persistence_normalizes_legacy_decision_pack_and_emits_event(t
 
 @pytest.mark.governance
 def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fields(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     non_repo_root = tmp_path / "not-a-repo"
     non_repo_root.mkdir(parents=True, exist_ok=True)
@@ -1421,8 +1447,8 @@ def test_bootstrap_doc_excludes_preflight_hook_markers():
 def test_bootstrap_doc_avoids_helper_path_instructions():
     text = read_text(REPO_ROOT / "BOOTSTRAP.md")
     forbidden = [
-        "governance/entrypoints/bootstrap_binding_evidence.py",
-        "governance/entrypoints/bootstrap_preflight_readonly.py",
+        "governance_runtime/entrypoints/bootstrap_binding_evidence.py",
+        "governance_runtime/entrypoints/bootstrap_preflight_readonly.py",
         "Implementation Reference:",
     ]
     found = [token for token in forbidden if token in text]
@@ -1433,7 +1459,7 @@ def test_bootstrap_doc_avoids_helper_path_instructions():
 
 @pytest.mark.governance
 def test_preflight_readonly_remains_non_persistence_surface():
-    text = read_text(REPO_ROOT / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py")
+    text = read_text(REPO_ROOT / "governance_runtime" / "entrypoints" / "bootstrap_preflight_readonly.py")
     assert "commit_workspace_identity(" not in text
     assert "write_unresolved_runtime_context(" not in text
     assert "workspacePersistenceHook" in text
@@ -1441,29 +1467,29 @@ def test_preflight_readonly_remains_non_persistence_surface():
 
 @pytest.mark.governance
 def test_persist_helper_does_not_hardcode_bash_next_command_profile():
-    text = read_text(REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py")
+    text = read_text(REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py")
     assert "cmd_profiles[\"bash\"]" not in text
     assert "_preferred_shell_command(cmd_profiles)" in text
 
 
 @pytest.mark.governance
 def test_persist_helper_bootstrap_uses_binding_python_command_argv():
-    text = read_text(REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py")
+    text = read_text(REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py")
     assert "python_argv = [\"py\", \"-3\"]" in text
     assert "cmd = [\n        *python_argv," in text
 
 
 @pytest.mark.governance
 def test_persist_helper_legacy_placeholder_normalization_uses_atomic_write():
-    text = read_text(REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py")
+    text = read_text(REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py")
     assert "path.write_text(updated" not in text
     assert "_atomic_write_text(path, updated)" in text
 
 
 @pytest.mark.governance
 def test_reason_code_quickfix_template_catalog_is_defined():
-    catalog = REPO_ROOT / "governance" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json"
-    assert catalog.exists(), "governance/assets/catalogs/QUICKFIX_TEMPLATES.json missing"
+    catalog = REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json"
+    assert catalog.exists(), "governance_runtime/assets/catalogs/QUICKFIX_TEMPLATES.json missing"
     payload = json.loads(read_text(catalog))
     assert payload.get("$schema") == "opencode.quickfix-templates.v1"
     assert isinstance(payload.get("templates"), dict) and payload["templates"], "Quick-fix templates catalog is empty"
@@ -1471,8 +1497,8 @@ def test_reason_code_quickfix_template_catalog_is_defined():
 
 @pytest.mark.governance
 def test_tool_requirements_catalog_exists_and_has_required_sections():
-    p = REPO_ROOT / "governance" / "assets" / "catalogs" / "tool_requirements.json"
-    assert p.exists(), "Missing governance/tool_requirements.json"
+    p = REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "tool_requirements.json"
+    assert p.exists(), "Missing governance_runtime/tool_requirements.json"
 
     payload = json.loads(read_text(p))
     assert payload.get("schema") == "opencode-tool-requirements.v1", "Unexpected tool requirements schema"
@@ -1501,7 +1527,7 @@ def test_tool_requirements_catalog_exists_and_has_required_sections():
 
 @pytest.mark.governance
 def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks():
-    catalog_path = REPO_ROOT / "governance" / "assets" / "catalogs" / "tool_requirements.json"
+    catalog_path = REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "tool_requirements.json"
     catalog = json.loads(read_text(catalog_path))
 
     catalog_cmds = set()
@@ -1513,10 +1539,10 @@ def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks(
                     catalog_cmds.add(cmd)
 
     flow_files = [
-        REPO_ROOT / "master.md",
+        get_master_path(),
         REPO_ROOT / "BOOTSTRAP.md",
     ]
-    flow_files.extend(sorted((REPO_ROOT / "profiles").glob("rules*.md")))
+    flow_files.extend(sorted(PROFILES_DIR.glob("rules*.md")))
 
     token_re = re.compile(r"`([^`\n]+)`")
     cmd_re = re.compile(r"^[a-z][a-z0-9.-]*$")
@@ -1578,15 +1604,15 @@ def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks(
     assert not missing, (
         "tool_requirements.json missing commands referenced in flow rulebooks:\n"
         + "\n".join([f"- {m}" for m in missing])
-        + "\nAdd each command to governance/tool_requirements.json (required_now/required_later/optional)."
+        + "\nAdd each command to governance_runtime/tool_requirements.json (required_now/required_later/optional)."
     )
 
 
 @pytest.mark.governance
 def test_bootstrap_mode_mixed_phrase_is_absent_in_core_docs():
     core_docs = [
-        REPO_ROOT / "master.md",
-        REPO_ROOT / "rules.md",
+        MASTER_PATH,
+        RULES_PATH,
         REPO_ROOT / "BOOTSTRAP.md",
     ]
     offenders: list[str] = []
@@ -1602,8 +1628,8 @@ def test_bootstrap_mode_mixed_phrase_is_absent_in_core_docs():
 @pytest.mark.governance
 def test_start_mode_mixed_phrase_is_absent_in_core_docs():
     core_docs = [
-        REPO_ROOT / "master.md",
-        REPO_ROOT / "rules.md",
+        MASTER_PATH,
+        RULES_PATH,
         REPO_ROOT / "BOOTSTRAP.md",
     ]
     offenders: list[str] = []
@@ -1619,12 +1645,12 @@ def test_start_mode_mixed_phrase_is_absent_in_core_docs():
 @pytest.mark.governance
 def test_governance_boundary_and_thematic_rails_docs_exist():
     required = [
-        REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md",
-        REPO_ROOT / "docs" / "governance" / "rails" / "planning.md",
-        REPO_ROOT / "docs" / "governance" / "rails" / "implementation.md",
-        REPO_ROOT / "docs" / "governance" / "rails" / "testing.md",
-        REPO_ROOT / "docs" / "governance" / "rails" / "pr_review.md",
-        REPO_ROOT / "docs" / "governance" / "rails" / "failure_handling.md",
+        DOCS_DIR / "governance" / "RESPONSIBILITY_BOUNDARY.md",
+        DOCS_DIR / "governance" / "rails" / "planning.md",
+        DOCS_DIR / "governance" / "rails" / "implementation.md",
+        DOCS_DIR / "governance" / "rails" / "testing.md",
+        DOCS_DIR / "governance" / "rails" / "pr_review.md",
+        DOCS_DIR / "governance" / "rails" / "failure_handling.md",
     ]
     missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
     assert not missing, "Missing governance boundary/thematic rails docs:\n" + "\n".join([f"- {m}" for m in missing])
@@ -1633,7 +1659,7 @@ def test_governance_boundary_and_thematic_rails_docs_exist():
 @pytest.mark.governance
 def test_rails_refactor_mapping_removed():
     """RAILS_REFACTOR_MAPPING.md was deleted as stale; verify it stays removed."""
-    path = REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md"
+    path = DOCS_DIR / "governance" / "RAILS_REFACTOR_MAPPING.md"
     assert not path.exists(), (
         f"RAILS_REFACTOR_MAPPING.md should have been deleted but still exists at {path}"
     )
@@ -1641,7 +1667,7 @@ def test_rails_refactor_mapping_removed():
 
 @pytest.mark.governance
 def test_responsibility_boundary_uses_bindend_vs_nicht_bindend_terms():
-    text = read_text(REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md")
+    text = read_text(DOCS_DIR / "governance" / "RESPONSIBILITY_BOUNDARY.md")
     required = ["bindend", "nicht-bindend", "Kernel", "Schemas"]
     missing = [t for t in required if t not in text]
     assert not missing, "RESPONSIBILITY_BOUNDARY.md missing explicit boundary terms:\n" + "\n".join([f"- {m}" for m in missing])
@@ -1649,8 +1675,8 @@ def test_responsibility_boundary_uses_bindend_vs_nicht_bindend_terms():
 
 @pytest.mark.governance
 def test_canonical_response_envelope_schema_contract_is_defined():
-    schema_path = REPO_ROOT / "governance" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
-    assert schema_path.exists(), "Missing governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json"
+    schema_path = REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
+    assert schema_path.exists(), "Missing governance_runtime/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json"
     schema_text = read_text(schema_path)
 
     schema_required = [
@@ -1681,7 +1707,7 @@ def test_canonical_response_envelope_schema_contract_is_defined():
 
 @pytest.mark.governance
 def test_backfill_decision_pack_includes_phase_15_prompt_decision():
-    text = read_text(REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py")
+    text = read_text(REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py")
     required_tokens = [
         "D-001: Record Business Rules bootstrap outcome",
         "Status: automatic",
@@ -1696,7 +1722,7 @@ def test_backfill_decision_pack_includes_phase_15_prompt_decision():
 
 @pytest.mark.governance
 def test_audit_pretty_summary_layout_tokens_present():
-    audit = read_text(REPO_ROOT / "governance" / "assets" / "catalogs" / "audit.md")
+    audit = read_text(REPO_ROOT / "governance_runtime" / "assets" / "catalogs" / "audit.md")
     required = [
         "[AUDIT-SUMMARY]",
         "Status`, `Phase/Gate`, `PrimaryReason`, `TopRecovery`",
@@ -1704,12 +1730,12 @@ def test_audit_pretty_summary_layout_tokens_present():
         "[/AUDIT-SUMMARY]",
     ]
     missing = [token for token in required if token not in audit]
-    assert not missing, "governance/audit.md missing pretty summary layout tokens:\n" + "\n".join([f"- {m}" for m in missing])
+    assert not missing, "governance_runtime/audit.md missing pretty summary layout tokens:\n" + "\n".join([f"- {m}" for m in missing])
 
 
 @pytest.mark.governance
 def test_business_rules_write_failure_does_not_redirect_to_workspace_memory_target():
-    helper = read_text(REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py")
+    helper = read_text(REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py")
 
     helper_required = [
         "ERR-BUSINESS-RULES-PERSIST-WRITE-FAILED",
@@ -1723,8 +1749,8 @@ def test_business_rules_write_failure_does_not_redirect_to_workspace_memory_targ
 
 @pytest.mark.governance
 def test_error_logger_helper_exists_and_defines_required_log_shape():
-    p = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
-    assert p.exists(), "Missing governance/error_logs.py"
+    p = REPO_ROOT / "governance_runtime" / "entrypoints" / "error_logs.py"
+    assert p.exists(), "Missing governance_runtime/error_logs.py"
 
     text = read_text(p)
     required_tokens = [
@@ -1745,9 +1771,9 @@ def test_error_logger_helper_exists_and_defines_required_log_shape():
 
 @pytest.mark.governance
 def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    module_path = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
+    module_path = REPO_ROOT / "governance_runtime" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
-    assert spec and spec.loader, "Failed to load governance/error_logs.py module spec"
+    assert spec and spec.loader, "Failed to load governance_runtime/error_logs.py module spec"
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
     mod = importlib.util.module_from_spec(spec)
@@ -1765,6 +1791,7 @@ def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.Monk
         phase="test",
         gate="test",
         mode="repo-aware",
+        repo_fingerprint="88b39b036804c534",
         command="pytest",
         component="test-suite",
     )
@@ -1776,9 +1803,9 @@ def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.Monk
 
 @pytest.mark.governance
 def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    module_path = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
+    module_path = REPO_ROOT / "governance_runtime" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
-    assert spec and spec.loader, "Failed to load governance/error_logs.py module spec"
+    assert spec and spec.loader, "Failed to load governance_runtime/error_logs.py module spec"
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
     mod = importlib.util.module_from_spec(spec)
@@ -1809,9 +1836,9 @@ def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path, m
 def test_error_logger_uses_ssot_write_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """error_logs.py uses write_policy.writes_allowed() as SSOT."""
 
-    module_path = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
+    module_path = REPO_ROOT / "governance_runtime" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_ssot", module_path)
-    assert spec and spec.loader, "Failed to load governance/error_logs.py module spec"
+    assert spec and spec.loader, "Failed to load governance_runtime/error_logs.py module spec"
     
     # CI=true without FORCE_READ_ONLY should allow writes (SSOT)
     monkeypatch.setenv("CI", "true")
@@ -1867,7 +1894,7 @@ def test_selected_rulebooks_reference_core_precedence_contract():
 
 @pytest.mark.governance
 def test_profile_rulebooks_use_stable_precedence_anchor_not_section_numbers():
-    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    profile_files = sorted(PROFILES_DIR.glob("rules*.md"))
     assert profile_files, "No profile rulebooks found under profiles/rules*.md"
 
     missing_anchor: list[str] = []
@@ -1889,7 +1916,7 @@ def test_profile_rulebooks_use_stable_precedence_anchor_not_section_numbers():
 
 @pytest.mark.governance
 def test_profile_rulebooks_include_standard_operational_wrapper_headings():
-    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    profile_files = sorted(PROFILES_DIR.glob("rules*.md"))
     assert profile_files, "No profile rulebooks found under profiles/rules*.md"
 
     required_headings = [
@@ -1929,7 +1956,7 @@ def test_lint_catches_catalog_with_non_semver3_version(tmp_path: Path, monkeypat
     """check_catalog_version_format flags catalogs with non-semver-3 version."""
     lint = _import_governance_lint()
     fake_root = tmp_path / "repo"
-    catalogs = fake_root / "governance" / "assets" / "catalogs"
+    catalogs = fake_root / "governance_runtime" / "assets" / "catalogs"
     catalogs.mkdir(parents=True)
     (catalogs / "MY_CATALOG.json").write_text(
         json.dumps({"schema": "test.v1", "version": "1.0"}),
@@ -1947,7 +1974,7 @@ def test_lint_catches_catalog_with_legacy_version_key(tmp_path: Path, monkeypatc
     """check_catalog_version_format flags catalogs using catalog_version instead of version."""
     lint = _import_governance_lint()
     fake_root = tmp_path / "repo"
-    catalogs = fake_root / "governance" / "assets" / "catalogs"
+    catalogs = fake_root / "governance_runtime" / "assets" / "catalogs"
     catalogs.mkdir(parents=True)
     (catalogs / "MY_CATALOG.json").write_text(
         json.dumps({"schema": "test.v1", "catalog_version": 1, "version": "1.0.0"}),
@@ -2000,3 +2027,34 @@ def test_lint_passes_clean_version_and_hash_state():
     lint.check_catalog_version_format(issues)
     lint.check_artifact_hash_integrity(issues)
     assert not issues, f"Expected clean state, got: {issues}"
+
+
+@pytest.mark.governance
+def test_lint_hash_integrity_tolerates_crlf_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Hash integrity remains stable when checkout line endings are CRLF."""
+    lint = _import_governance_lint()
+    fake_root = tmp_path / "repo"
+
+    release_dir = fake_root / "governance_spec" / "rulesets" / "governance" / "0.1.0"
+    release_dir.mkdir(parents=True)
+
+    manifest_text_lf = '{\n  "version": "0.1.0"\n}\n'
+    lock_text_lf = '{\n  "files": []\n}\n'
+
+    (release_dir / "manifest.json").write_bytes(manifest_text_lf.replace("\n", "\r\n").encode("utf-8"))
+    (release_dir / "lock.json").write_bytes(lock_text_lf.replace("\n", "\r\n").encode("utf-8"))
+
+    (release_dir / "hashes.json").write_text(
+        json.dumps(
+            {
+                "manifest.json": hashlib.sha256(manifest_text_lf.encode("utf-8")).hexdigest(),
+                "lock.json": hashlib.sha256(lock_text_lf.encode("utf-8")).hexdigest(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(lint, "ROOT", fake_root)
+    issues: list[str] = []
+    lint.check_artifact_hash_integrity(issues)
+    assert not issues, f"Expected CRLF-tolerant hash integrity, got: {issues}"

@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.infrastructure.workspace_paths import run_dir
-from governance.infrastructure.work_run_archive import archive_active_run
+from governance_runtime.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.work_run_archive import archive_active_run
 
 
 def test_archive_writes_provenance_record_with_required_fields(tmp_path: Path) -> None:
@@ -34,7 +34,7 @@ def test_archive_writes_provenance_record_with_required_fields(tmp_path: Path) -
     assert record["run_id"] == "run-prov"
     assert record["trigger"] == "new_work_session_created"
     assert record["policy_fingerprint"] == "sha256:policy123"
-    assert record["launcher"] == "governance.entrypoints.new_work_session"
+    assert record["launcher"] == "governance_runtime.entrypoints.new_work_session"
     assert record["timestamps"]["materialized_at"] == "2026-03-10T12:00:00Z"
 
 

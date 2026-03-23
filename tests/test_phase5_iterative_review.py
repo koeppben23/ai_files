@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.application.use_cases.phase5_iterative_review import (
+from governance_runtime.application.use_cases.phase5_iterative_review import (
     Phase5ReviewFeedback,
     Phase5ReviewResult,
     Phase5ReviewState,
@@ -16,7 +16,7 @@ from governance.application.use_cases.phase5_iterative_review import (
     record_review_feedback,
     validate_review_criteria,
 )
-from governance.application.use_cases.phase5_review_config import (
+from governance_runtime.application.use_cases.phase5_review_config import (
     get_max_iterations,
     is_human_escalation_enabled,
     is_fail_fast_enabled,

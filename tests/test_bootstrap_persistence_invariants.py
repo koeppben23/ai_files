@@ -9,7 +9,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from governance.application.use_cases.phase_router import route_phase
+from governance_runtime.application.use_cases.phase_router import route_phase
 
 
 def _set_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> None:
@@ -59,7 +59,7 @@ def test_bootstrap_persistence_hook_commits_fingerprint_and_artifacts(tmp_path: 
     _write_governance_paths_json(home=home, commands_home=Path(__file__).resolve().parents[1], workspaces_home=workspaces_home)
 
     import importlib
-    import governance.entrypoints.bootstrap_persistence_hook as hook
+    import governance_runtime.entrypoints.bootstrap_persistence_hook as hook
     importlib.reload(hook)
 
     with patch.object(hook, "COMMANDS_HOME", Path(__file__).resolve().parents[1]):
@@ -84,9 +84,9 @@ def test_bootstrap_identity_blocks_when_git_is_disabled(monkeypatch: pytest.Monk
     _init_git_repo(tmp_path)
     monkeypatch.setenv("OPENCODE_DISABLE_GIT", "1")
 
-    from governance.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
-    from governance.engine.adapters import LocalHostAdapter
-    from governance.infrastructure.wiring import configure_gateway_registry
+    from governance_runtime.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
+    from governance_runtime.engine.adapters import LocalHostAdapter
+    from governance_runtime.infrastructure.wiring import configure_gateway_registry
 
     configure_gateway_registry()
     adapter = LocalHostAdapter()

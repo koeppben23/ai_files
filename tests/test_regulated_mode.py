@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.domain.regulated_mode import (
+from governance_runtime.domain.regulated_mode import (
     CONTRACT_VERSION,
     RegulatedModeState,
     RegulatedModeConstraint,

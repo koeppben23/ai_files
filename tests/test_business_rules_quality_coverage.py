@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from governance.engine.business_rules_code_extraction import CodeSurface
-from governance.engine.business_rules_coverage import (
+from governance_runtime.engine.business_rules_code_extraction import CodeSurface
+from governance_runtime.engine.business_rules_coverage import (
     LARGE_REPO_FILE_THRESHOLD,
     MAX_ARTIFACT_RATIO,
     MIN_VALID_RULE_RATIO_LARGE_REPO,

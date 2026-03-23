@@ -1,0 +1,40 @@
+{
+  "id": "R-NEXT-ACTION-001",
+  "title": "Exactly one canonical next action",
+  "criticality": "release_blocking",
+  "owner_test": "tests/test_contract_seed_requirements.py::test_r_next_action_001_owner",
+  "live_proof_key": "lp-next-action-footer",
+  "required_behavior": [
+    "Standard output contains exactly one line starting with 'Next action:'",
+    "That line is the final operative line"
+  ],
+  "forbidden_behavior": [
+    "More than one 'Next action:'",
+    "Missing 'Next action:'",
+    "Recovery action in happy path"
+  ],
+  "user_visible_expectation": [
+    "User always sees exactly one concrete next step"
+  ],
+  "state_expectation": [
+    "next_action_resolved=true"
+  ],
+  "code_hotspots": [
+    "governance_runtime/engine/next_action_resolver.py",
+    "governance_runtime/entrypoints/session_reader.py"
+  ],
+  "verification_methods": [
+    "static_verification",
+    "behavioral_verification",
+    "user_surface_verification",
+    "live_flow_verification"
+  ],
+  "acceptance_tests": [
+    "tests/test_session_reader_guided_contract.py::test_guided_bad_blocker_contains_blocker_section_and_single_next_action"
+  ],
+  "done_rule": {
+    "require_all_verifications_pass": true,
+    "fail_closed_on_missing_evidence": true,
+    "fail_on_forbidden_observation": true
+  }
+}

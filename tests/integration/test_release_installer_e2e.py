@@ -9,6 +9,8 @@ import zipfile
 from pathlib import Path
 import pytest
 
+from tests.util import get_phase_api_path
+
 
 def _check_pyyaml_in_subprocess() -> bool:
     """Check if PyYAML is importable when HOME is overridden (as the E2E tests do).
@@ -108,12 +110,23 @@ def _extract_zip(zip_path: Path, dest: Path) -> Path:
     return entries[0]
 
 
-def test_release_zip_installer_creates_launcher(tmp_path: Path) -> None:
+@pytest.fixture(scope="module")
+def _release_extracted_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
     repo_root = Path(__file__).resolve().parents[2]
-    dist = tmp_path / "dist"
+    base = tmp_path_factory.mktemp("release_e2e")
+    dist = base / "dist"
     release_zip = _build_release(repo_root, dist)
+    return _extract_zip(release_zip, base / "unzipped")
 
-    extracted_root = _extract_zip(release_zip, tmp_path / "unzipped")
+
+def _copy_extracted_template(src_root: Path, dest_root: Path) -> Path:
+    target = dest_root / src_root.name
+    shutil.copytree(src_root, target, dirs_exist_ok=True)
+    return target
+
+
+def test_release_zip_installer_creates_launcher(tmp_path: Path, _release_extracted_template: Path) -> None:
+    extracted_root = _copy_extracted_template(_release_extracted_template, tmp_path / "unzipped")
     extracted_commands = extracted_root / "commands"
     extracted_commands.mkdir(parents=True, exist_ok=True)
     if not (extracted_commands / "phase_api.yaml").exists():
@@ -140,11 +153,8 @@ def test_release_zip_installer_creates_launcher(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
 
-def test_release_zip_invalid_python_command_fails(tmp_path: Path) -> None:
-    repo_root = Path(__file__).resolve().parents[2]
-    dist = tmp_path / "dist"
-    release_zip = _build_release(repo_root, dist)
-    extracted_root = _extract_zip(release_zip, tmp_path / "unzipped")
+def test_release_zip_invalid_python_command_fails(tmp_path: Path, _release_extracted_template: Path) -> None:
+    extracted_root = _copy_extracted_template(_release_extracted_template, tmp_path / "unzipped")
     install_py = extracted_root / "install.py"
     assert install_py.exists(), "install.py missing from release zip"
 
@@ -159,7 +169,7 @@ def test_release_zip_invalid_python_command_fails(tmp_path: Path) -> None:
     proc = _run([_python_executable(), str(install_py), "--no-backup"], cwd=extracted_root, env=env)
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
-    binding_path = config_root / "commands" / "governance.paths.json"
+    binding_path = config_root / "governance.paths.json"
     binding_path.parent.mkdir(parents=True, exist_ok=True)
     binding_path.write_text(
         "{\n  \"schema\": \"opencode-governance.paths.v1\",\n  \"paths\": {\n    \"configRoot\": \""
@@ -177,12 +187,8 @@ def test_release_zip_invalid_python_command_fails(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(not HAS_PYYAML_IN_SUBPROCESS, reason="pyyaml required in subprocess Python for E2E bootstrap test")
-def test_release_zip_installer_bootstrap_e2e(tmp_path: Path) -> None:
-    repo_root = Path(__file__).resolve().parents[2]
-    dist = tmp_path / "dist"
-    release_zip = _build_release(repo_root, dist)
-
-    extracted_root = _extract_zip(release_zip, tmp_path / "unzipped")
+def test_release_zip_installer_bootstrap_e2e(tmp_path: Path, _release_extracted_template: Path) -> None:
+    extracted_root = _copy_extracted_template(_release_extracted_template, tmp_path / "unzipped")
     install_py = extracted_root / "install.py"
     assert install_py.exists(), "install.py missing from release zip"
 
@@ -203,8 +209,8 @@ def test_release_zip_installer_bootstrap_e2e(tmp_path: Path) -> None:
     # Use the real phase_api.yaml from the repo (the kernel requires the real
     # schema: top-level 'phases' list with token/phase/route_strategy entries
     # and a 'start_token' field).
-    real_phase_api = repo_root / "phase_api.yaml"
-    assert real_phase_api.exists(), "phase_api.yaml missing from repo root"
+    real_phase_api = get_phase_api_path()
+    assert real_phase_api.exists(), "phase_api.yaml missing from repository"
 
     # Place it in commands_home — the single location the kernel resolves via
     # COMMANDS_HOME / governance.paths.json.

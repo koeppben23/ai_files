@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.engine.error_reason_router import canonicalize_reason_payload_failure
+from governance_runtime.engine.error_reason_router import canonicalize_reason_payload_failure
 
 
 def test_reason_router_maps_contract_violation_bucket():

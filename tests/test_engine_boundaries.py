@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from governance.engine.gate_evaluator import (
+from governance_runtime.engine.gate_evaluator import (
     evaluate_gate,
     evaluate_p53_test_quality_gate,
     evaluate_p54_business_rules_gate,
     evaluate_p56_rollback_safety_gate,
     evaluate_p6_prerequisites,
 )
-from governance.engine.reason_codes import (
+from governance_runtime.engine.reason_codes import (
     BLOCKED_P5_3_TEST_QUALITY_GATE,
     BLOCKED_P5_4_BUSINESS_RULES_GATE,
     BLOCKED_P5_6_ROLLBACK_SAFETY_GATE,
@@ -17,8 +17,8 @@ from governance.engine.reason_codes import (
     BLOCKED_UNSPECIFIED,
     REASON_CODE_NONE,
 )
-from governance.engine.invariants import check_single_recovery_action
-from governance.engine.state_machine import build_state, transition_to
+from governance_runtime.engine.invariants import check_single_recovery_action
+from governance_runtime.engine.state_machine import build_state, transition_to
 
 
 @pytest.mark.governance

@@ -22,7 +22,7 @@ from .util import REPO_ROOT
 
 
 def _load_orchestrator_module():
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts_orchestrator.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts_orchestrator.py"
     spec = importlib.util.spec_from_file_location("persist_workspace_artifacts_orchestrator", script)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -334,7 +334,7 @@ class TestOrchestratorCodeCandidatesEdge:
         module = _load_orchestrator_module()
         # These are imported at module scope — if they failed, _load_orchestrator_module()
         # would have raised. But let's verify they're accessible:
-        from governance.engine.business_rules_validation import (
+        from governance_runtime.engine.business_rules_validation import (
             ORIGIN_CODE,
             ORIGIN_DOC,
             ProvenanceRecord,

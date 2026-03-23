@@ -26,9 +26,10 @@ from typing import Mapping
 
 import pytest
 
-from governance.kernel.phase_kernel import KernelResult, RuntimeContext, execute
-from governance.entrypoints import new_work_session
-from governance.infrastructure.workspace_paths import run_dir
+from governance_runtime.kernel.phase_kernel import KernelResult, RuntimeContext, execute
+from governance_runtime.entrypoints import new_work_session
+from governance_runtime.infrastructure.workspace_paths import run_dir
+from tests.util import get_phase_api_path
 
 # ────────────────────────────────────────────────────────────────────
 # Shared fixtures and helpers
@@ -38,15 +39,15 @@ RULEBOOK_BASE: dict[str, object] = {
     "ActiveProfile": "profile.fallback-minimum",
     "LoadedRulebooks": {
         "core": "${COMMANDS_HOME}/rules.md",
-        "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+        "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
         "templates": "${COMMANDS_HOME}/master.md",
         "addons": {
-            "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+            "riskTiering": "${PROFILES_HOME}/rules.risk-tiering.yml",
         },
     },
     "RulebookLoadEvidence": {
         "core": "${COMMANDS_HOME}/rules.md",
-        "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+        "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
     },
     "AddonsEvidence": {
         "riskTiering": {"status": "loaded"},
@@ -55,10 +56,24 @@ RULEBOOK_BASE: dict[str, object] = {
 
 
 def _write_phase_api(commands_home: Path) -> None:
-    repo_spec = Path(__file__).resolve().parents[1] / "phase_api.yaml"
     commands_home.mkdir(parents=True, exist_ok=True)
-    (commands_home / "phase_api.yaml").write_text(
-        repo_spec.read_text(encoding="utf-8"), encoding="utf-8"
+    spec_home = commands_home.parent / "governance_spec"
+    spec_home.mkdir(parents=True, exist_ok=True)
+    (spec_home / "phase_api.yaml").write_text(
+        get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    payload = {
+        "schema": "opencode-governance.paths.v1",
+        "paths": {
+            "configRoot": str(commands_home.parent),
+            "commandsHome": str(commands_home),
+            "specHome": str(spec_home),
+            "workspacesHome": str(commands_home.parent / "workspaces"),
+            "pythonCommand": "python3",
+        },
+    }
+    (commands_home.parent / "governance.paths.json").write_text(
+        json.dumps(payload), encoding="utf-8"
     )
 
 
@@ -1268,7 +1283,7 @@ class TestCLILifecycleEntrypoint:
         config_root = short_tmp / "config"
         commands_home = config_root / "commands"
         _write_json(
-            commands_home / "governance.paths.json",
+            config_root / "governance.paths.json",
             {
                 "schema": "opencode-governance.paths.v1",
                 "paths": {

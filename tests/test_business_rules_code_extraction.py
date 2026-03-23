@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.engine.business_rules_code_extraction import (
+from governance_runtime.engine.business_rules_code_extraction import (
     discover_code_surfaces,
     extract_code_rule_candidates,
 )
-from governance.engine.business_rules_validation import (
+from governance_runtime.engine.business_rules_validation import (
     REASON_CODE_DOC_CONFLICT,
     extract_validated_business_rules_with_diagnostics,
 )

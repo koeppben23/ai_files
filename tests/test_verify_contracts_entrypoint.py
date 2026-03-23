@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.entrypoints import verify_contracts as entrypoint
+from governance_runtime.entrypoints import verify_contracts as entrypoint
 
 
 def _write_session(path: Path) -> None:
@@ -22,9 +22,14 @@ def _write_session(path: Path) -> None:
 def test_main_happy_persists_completion_matrix(monkeypatch, tmp_path: Path, capsys) -> None:
     session_path = tmp_path / "SESSION_STATE.json"
     events_path = tmp_path / "events.jsonl"
+    workspace_dir = tmp_path
     _write_session(session_path)
 
-    monkeypatch.setattr(entrypoint, "_resolve_active_session_path", lambda: (session_path, events_path))
+    monkeypatch.setattr(
+        entrypoint,
+        "resolve_active_session_paths",
+        lambda: (session_path, "fingerprint", workspace_dir, workspace_dir)
+    )
     monkeypatch.setattr(
         entrypoint,
         "run_contract_verification",
@@ -55,9 +60,14 @@ def test_main_happy_persists_completion_matrix(monkeypatch, tmp_path: Path, caps
 def test_main_bad_blocks_when_verification_fails(monkeypatch, tmp_path: Path, capsys) -> None:
     session_path = tmp_path / "SESSION_STATE.json"
     events_path = tmp_path / "events.jsonl"
+    workspace_dir = tmp_path
     _write_session(session_path)
 
-    monkeypatch.setattr(entrypoint, "_resolve_active_session_path", lambda: (session_path, events_path))
+    monkeypatch.setattr(
+        entrypoint,
+        "resolve_active_session_paths",
+        lambda: (session_path, "fingerprint", workspace_dir, workspace_dir)
+    )
     monkeypatch.setattr(
         entrypoint,
         "run_contract_verification",

@@ -22,8 +22,8 @@ from unittest.mock import patch
 
 import pytest
 
-from governance.kernel.phase_kernel import RuntimeContext, execute
-from governance.engine.gate_evaluator import (
+from governance_runtime.kernel.phase_kernel import RuntimeContext, execute
+from governance_runtime.engine.gate_evaluator import (
     evaluate_p54_business_rules_gate,
     evaluate_p55_technical_debt_gate,
     evaluate_p6_prerequisites,
@@ -31,17 +31,18 @@ from governance.engine.gate_evaluator import (
     P55GateEvaluation,
     P6PrerequisiteEvaluation,
 )
-from governance.entrypoints.review_decision_persist import (
+from governance_runtime.entrypoints.review_decision_persist import (
     apply_review_decision,
     VALID_DECISIONS,
 )
-from governance.entrypoints.session_reader import (
+from governance_runtime.entrypoints.session_reader import (
     _canonicalize_legacy_p5x_surface,
     _sync_conditional_p5_gate_states,
     _normalize_phase6_p5_state,
     _resolve_next_action_line,
     _should_emit_continue_next_action,
 )
+from tests.util import get_phase_api_path
 
 
 # ---------------------------------------------------------------------------
@@ -52,15 +53,15 @@ RULEBOOK_BASE = {
     "ActiveProfile": "profile.fallback-minimum",
     "LoadedRulebooks": {
         "core": "${COMMANDS_HOME}/rules.md",
-        "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+        "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
         "templates": "${COMMANDS_HOME}/master.md",
         "addons": {
-            "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+            "riskTiering": "${PROFILES_HOME}/rules.risk-tiering.yml",
         },
     },
     "RulebookLoadEvidence": {
         "core": "${COMMANDS_HOME}/rules.md",
-        "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+        "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
     },
     "AddonsEvidence": {
         "riskTiering": {"status": "loaded"},
@@ -83,10 +84,9 @@ ALL_P5_GATES_PASSED = {
 
 
 def _write_phase_api(commands_home: Path) -> None:
-    repo_spec = Path(__file__).resolve().parents[1] / "phase_api.yaml"
     commands_home.mkdir(parents=True, exist_ok=True)
     (commands_home / "phase_api.yaml").write_text(
-        repo_spec.read_text(encoding="utf-8"), encoding="utf-8"
+        get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8"
     )
 
 
@@ -1175,7 +1175,7 @@ class TestConditionalP5GateSync:
             "TestStrategy": "legacy-tests-not-applicable",
         }}
         with patch(
-            "governance.engine.gate_evaluator.evaluate_p53_test_quality_gate",
+            "governance_runtime.engine.gate_evaluator.evaluate_p53_test_quality_gate",
             return_value=type("P53Eval", (), {"status": "not-applicable"})(),
         ):
             _sync_conditional_p5_gate_states(state_doc=state_doc)

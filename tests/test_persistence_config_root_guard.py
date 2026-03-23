@@ -11,7 +11,7 @@ from .util import REPO_ROOT, run, write_governance_paths
 
 @pytest.mark.governance
 def test_persist_workspace_artifacts_blocks_config_root_inside_repo(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
     (repo_root / ".git").mkdir()
@@ -42,7 +42,7 @@ def test_persist_workspace_artifacts_blocks_config_root_inside_repo(tmp_path: Pa
 
 @pytest.mark.governance
 def test_bootstrap_session_state_blocks_config_root_inside_repo(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "bootstrap_session_state.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "bootstrap_session_state.py"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
     (repo_root / ".git").mkdir()
@@ -70,7 +70,7 @@ def test_bootstrap_session_state_blocks_config_root_inside_repo(tmp_path: Path):
 
 @pytest.mark.governance
 def test_persist_workspace_artifacts_blocks_when_binding_file_missing(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
 
     result = run(
@@ -92,7 +92,7 @@ def test_persist_workspace_artifacts_blocks_when_binding_file_missing(tmp_path: 
 
 @pytest.mark.governance
 def test_bootstrap_session_state_blocks_when_binding_file_missing(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "bootstrap_session_state.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "bootstrap_session_state.py"
     cfg = tmp_path / "opencode-config"
 
     result = run(
@@ -112,7 +112,7 @@ def test_bootstrap_session_state_blocks_when_binding_file_missing(tmp_path: Path
 
 @pytest.mark.governance
 def test_persist_workspace_artifacts_blocks_relative_config_root_traversal(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
     (repo_root / ".git").mkdir()
@@ -140,7 +140,7 @@ def test_persist_workspace_artifacts_blocks_relative_config_root_traversal(tmp_p
 
 @pytest.mark.governance
 def test_persist_workspace_artifacts_never_creates_repo_local_c_artifact(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
     (repo_root / ".git").mkdir()
@@ -170,7 +170,7 @@ def test_persist_workspace_artifacts_never_creates_repo_local_c_artifact(tmp_pat
 
 @pytest.mark.governance
 def test_persist_workspace_artifacts_blocks_when_repo_root_not_detectable(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     write_governance_paths(cfg)
     non_repo = tmp_path / "non-repo"
@@ -197,7 +197,7 @@ def test_persist_workspace_artifacts_blocks_when_repo_root_not_detectable(tmp_pa
 
 @pytest.mark.governance
 def test_persist_workspace_artifacts_blocks_legacy_decision_pack_before_phase4(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
     (repo_root / ".git").mkdir()
@@ -236,7 +236,7 @@ def test_persist_workspace_artifacts_blocks_legacy_decision_pack_before_phase4(t
 
 @pytest.mark.governance
 def test_persist_workspace_artifacts_normalizes_legacy_decision_pack_on_write_path(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
     (repo_root / ".git").mkdir()
@@ -277,7 +277,7 @@ def test_persist_workspace_artifacts_normalizes_legacy_decision_pack_on_write_pa
 
 @pytest.mark.governance
 def test_persist_workspace_artifacts_allows_repo_local_config_root_for_non_git_dirs(tmp_path: Path):
-    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "persist_workspace_artifacts.py"
     repo_root = tmp_path / "artifact-extract"
     repo_root.mkdir(parents=True, exist_ok=True)
     # Create a .git marker so the script accepts the directory as a repo root.

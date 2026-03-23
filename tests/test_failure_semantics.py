@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.workspace_paths import run_dir
-from governance.infrastructure.work_run_archive import archive_active_run
+from governance_runtime.infrastructure.workspace_paths import run_dir
+from governance_runtime.infrastructure.work_run_archive import archive_active_run
 
 
 def test_archive_failure_persists_failed_run_state(tmp_path: Path) -> None:

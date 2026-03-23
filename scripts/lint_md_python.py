@@ -70,8 +70,7 @@ EXECUTION_CONTROL_PATTERNS = [
 ]
 
 ALLOWLIST_DIRS = {
-    "docs/MD_PYTHON_POLICY.md",  # This document describes the patterns
-    "docs/_archive/MD_VIOLATION_ANALYSIS.md",  # Documents violations (examples); archived
+    "governance_content/docs/MD_PYTHON_POLICY.md",  # This document describes the patterns
 }
 
 EXEMPTION_PATTERNS = [
@@ -226,7 +225,7 @@ def main() -> int:
                 print(f"    ... and {len(warnings) - 3} more")
             print()
     
-    print("See docs/MD_PYTHON_POLICY.md for allowed patterns.")
+    print("See governance_content/docs/MD_PYTHON_POLICY.md for allowed patterns.")
     return 1 if all_errors else 0
 
 

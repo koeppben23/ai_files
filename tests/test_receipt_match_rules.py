@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from governance.receipts.match import ReceiptMatchContext, validate_receipt_match
+from governance_runtime.receipts.match import ReceiptMatchContext, validate_receipt_match
 
 
 def _context() -> ReceiptMatchContext:

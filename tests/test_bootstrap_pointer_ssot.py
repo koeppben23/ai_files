@@ -26,12 +26,12 @@ class TestPointerSSOT:
 
     @pytest.mark.governance
     def test_pointer_written_before_persistence_committed(self, tmp_path: Path):
-        from governance.entrypoints.bootstrap_session_state import (
+        from governance_runtime.entrypoints.bootstrap_session_state import (
             _atomic_write_text,
             pointer_payload,
             session_state_template,
         )
-        from governance.infrastructure.fs_atomic import atomic_write_text
+        from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 
         config_root = tmp_path / "config"
         config_root.mkdir(parents=True)
@@ -61,7 +61,7 @@ class TestPointerSSOT:
 
     @pytest.mark.governance
     def test_pointer_schema_is_canonical(self, tmp_path: Path):
-        from governance.entrypoints.bootstrap_session_state import pointer_payload
+        from governance_runtime.entrypoints.bootstrap_session_state import pointer_payload
 
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
         session_file = tmp_path / "SESSION_STATE.json"
@@ -73,7 +73,7 @@ class TestPointerSSOT:
 
     @pytest.mark.governance
     def test_workspace_session_state_path_in_pointer(self, tmp_path: Path):
-        from governance.entrypoints.bootstrap_session_state import pointer_payload
+        from governance_runtime.entrypoints.bootstrap_session_state import pointer_payload
 
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
         session_file = tmp_path / "workspaces" / repo_fp / "SESSION_STATE.json"
@@ -88,7 +88,7 @@ class TestCanonicalFingerprint:
 
     @pytest.mark.governance
     def test_canonical_fingerprint_validation(self):
-        from governance.entrypoints.bootstrap_session_state import (
+        from governance_runtime.entrypoints.bootstrap_session_state import (
             _is_canonical_fingerprint,
             _validate_canonical_fingerprint,
         )
@@ -107,7 +107,7 @@ class TestCanonicalFingerprint:
 
     @pytest.mark.governance
     def test_slug_fingerprint_rejected(self):
-        from governance.entrypoints.persist_workspace_artifacts import _is_canonical_fingerprint
+        from governance_runtime.entrypoints.persist_workspace_artifacts import _is_canonical_fingerprint
 
         assert _is_canonical_fingerprint("github.com-koeppben23-ai_files") is False
         assert _is_canonical_fingerprint("a1b2c3d4e5f6a1b2c3d4e5f6") is True
@@ -131,7 +131,7 @@ class TestPointerVerification:
 
     @pytest.mark.governance
     def test_verify_pointer_exists_success(self, tmp_path: Path):
-        from governance.entrypoints.bootstrap_persistence_hook import _verify_pointer_exists
+        from governance_runtime.entrypoints.bootstrap_persistence_hook import _verify_pointer_exists
 
         opencode_home = tmp_path
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
@@ -159,7 +159,7 @@ class TestPointerVerification:
 
     @pytest.mark.governance
     def test_verify_pointer_missing_fails(self, tmp_path: Path):
-        from governance.entrypoints.bootstrap_persistence_hook import _verify_pointer_exists
+        from governance_runtime.entrypoints.bootstrap_persistence_hook import _verify_pointer_exists
 
         opencode_home = tmp_path
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
@@ -170,7 +170,7 @@ class TestPointerVerification:
 
     @pytest.mark.governance
     def test_verify_pointer_fingerprint_mismatch_fails(self, tmp_path: Path):
-        from governance.entrypoints.bootstrap_persistence_hook import _verify_pointer_exists
+        from governance_runtime.entrypoints.bootstrap_persistence_hook import _verify_pointer_exists
 
         opencode_home = tmp_path
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
@@ -189,7 +189,7 @@ class TestPointerVerification:
 
     @pytest.mark.governance
     def test_verify_workspace_session_exists_success(self, tmp_path: Path):
-        from governance.entrypoints.bootstrap_persistence_hook import _verify_workspace_session_exists
+        from governance_runtime.entrypoints.bootstrap_persistence_hook import _verify_workspace_session_exists
 
         workspaces_home = tmp_path
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
@@ -211,7 +211,7 @@ class TestPointerVerification:
 
     @pytest.mark.governance
     def test_verify_workspace_session_not_committed_fails(self, tmp_path: Path):
-        from governance.entrypoints.bootstrap_persistence_hook import _verify_workspace_session_exists
+        from governance_runtime.entrypoints.bootstrap_persistence_hook import _verify_workspace_session_exists
 
         workspaces_home = tmp_path
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
@@ -264,7 +264,7 @@ class TestSchemaDriftElimination:
 
     @pytest.mark.governance
     def test_legacy_schema_migrated_on_read(self, tmp_path: Path):
-        from governance.infrastructure.workspace_ready_gate import (
+        from governance_runtime.infrastructure.workspace_ready_gate import (
             CANONICAL_POINTER_SCHEMA,
             read_pointer_file,
         )
@@ -287,7 +287,7 @@ class TestSchemaDriftElimination:
 
     @pytest.mark.governance
     def test_canonical_schema_accepted(self, tmp_path: Path):
-        from governance.infrastructure.workspace_ready_gate import (
+        from governance_runtime.infrastructure.workspace_ready_gate import (
             CANONICAL_POINTER_SCHEMA,
             read_pointer_file,
         )
@@ -312,7 +312,7 @@ class TestPhase2Artifacts:
 
     @pytest.mark.governance
     def test_phase2_artifacts_written_on_persist(self, tmp_path: Path):
-        from governance.entrypoints.persist_workspace_artifacts import (
+        from governance_runtime.entrypoints.persist_workspace_artifacts import (
             PHASE2_ARTIFACTS,
             _verify_phase2_artifacts_exist,
         )
@@ -329,7 +329,7 @@ class TestPhase2Artifacts:
 
     @pytest.mark.governance
     def test_phase2_artifacts_missing_detected(self, tmp_path: Path):
-        from governance.entrypoints.persist_workspace_artifacts import (
+        from governance_runtime.entrypoints.persist_workspace_artifacts import (
             _verify_phase2_artifacts_exist,
         )
 
@@ -345,7 +345,7 @@ class TestPhase2Artifacts:
 
     @pytest.mark.governance
     def test_phase2_artifact_paths_from_utility(self, tmp_path: Path):
-        from governance.infrastructure.workspace_paths import (
+        from governance_runtime.infrastructure.workspace_paths import (
             phase2_artifact_paths,
             repo_cache_path,
             repo_map_digest_path,
@@ -371,7 +371,7 @@ class TestPhase2Artifacts:
 
     @pytest.mark.governance
     def test_phase2_complete_status_reflects_artifacts(self, tmp_path: Path):
-        from governance.entrypoints.persist_workspace_artifacts import (
+        from governance_runtime.entrypoints.persist_workspace_artifacts import (
             _verify_phase2_artifacts_exist,
         )
 

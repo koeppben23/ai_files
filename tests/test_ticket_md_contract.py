@@ -12,8 +12,8 @@ from .util import REPO_ROOT
 
 @pytest.mark.governance
 def test_ticket_md_exists_and_documents_intake_bridge() -> None:
-    ticket_path = REPO_ROOT / "ticket.md"
-    assert ticket_path.exists(), "ticket.md must exist in repo root"
+    ticket_path = REPO_ROOT / "opencode" / "commands" / "ticket.md"
+    assert ticket_path.exists(), "opencode/commands/ticket.md must exist"
     content = ticket_path.read_text(encoding="utf-8")
     assert "--ticket-persist" in content
     assert "phase4_intake_persist" not in content

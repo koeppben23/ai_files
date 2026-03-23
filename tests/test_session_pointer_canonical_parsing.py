@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.infrastructure.session_pointer import (
+from governance_runtime.infrastructure.session_pointer import (
     CANONICAL_POINTER_SCHEMA,
     build_pointer_payload,
     is_session_pointer_document,

@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
+from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event
 
 
 def test_write_jsonl_event_append_writes_multiple_lines(tmp_path: Path) -> None:
@@ -36,7 +36,7 @@ def test_write_jsonl_event_append_multiprocess_smoke(tmp_path: Path) -> None:
     target = tmp_path / "logs" / "error.log.jsonl"
     script = (
         "from pathlib import Path\n"
-        "from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event\n"
+        "from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event\n"
         "target=Path(r'" + str(target).replace("\\", "\\\\") + "')\n"
         "for i in range(25):\n"
         "    write_jsonl_event(target, {'n': i}, append=True)\n"

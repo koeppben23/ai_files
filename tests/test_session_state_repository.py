@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.reason_codes import (
+from governance_runtime.engine.reason_codes import (
     BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED,
     BLOCKED_STATE_OUTDATED,
     REASON_CODE_NONE,
     WARN_SESSION_STATE_LEGACY_COMPAT_MODE,
 )
-from governance.engine import session_state_repository as session_repo_module
-from governance.infrastructure import fs_atomic
-from governance.engine.session_state_repository import (
+from governance_runtime.engine import session_state_repository as session_repo_module
+from governance_runtime.infrastructure import fs_atomic
+from governance_runtime.engine.session_state_repository import (
     CURRENT_SESSION_STATE_VERSION,
     ENV_SESSION_STATE_LEGACY_COMPAT_MODE,
     ROLLOUT_PHASE_DUAL_READ,

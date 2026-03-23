@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from governance.verification.behavioral_verifier import run_behavioral_verification
+from governance_runtime.verification.behavioral_verifier import run_behavioral_verification
 
 
 def test_behavioral_verifier_uses_registry_and_pytest_runner(tmp_path: Path) -> None:

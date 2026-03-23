@@ -18,13 +18,13 @@ from pathlib import Path
 
 import pytest
 
-from governance.domain.classification import ClassificationLevel
-from governance.domain.retention import (
+from governance_runtime.domain.classification import ClassificationLevel
+from governance_runtime.domain.retention import (
     ArchiveFormat,
     LegalHold,
     LegalHoldStatus,
 )
-from governance.infrastructure.archive_export import (
+from governance_runtime.infrastructure.archive_export import (
     ALL_EXPORT_FILES,
     EXPORT_MANIFEST_SCHEMA,
     LEGAL_HOLD_SCHEMA,

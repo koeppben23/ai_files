@@ -11,11 +11,11 @@ import re
 
 import pytest
 
-from governance.domain.reason_codes import CANONICAL_REASON_CODES
+from governance_runtime.domain.reason_codes import CANONICAL_REASON_CODES
+from tests.util import get_ruleset_profiles_path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 SHARED_YAMLS = sorted(
-    (REPO_ROOT / "rulesets" / "profiles").glob("rules.*.yml")
+    get_ruleset_profiles_path().glob("rules.*.yml")
 )
 
 

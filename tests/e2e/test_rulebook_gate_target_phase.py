@@ -1,4 +1,4 @@
-from governance.application.use_cases.route_phase import RoutePhaseInput, RoutePhaseService
+from governance_runtime.application.use_cases.route_phase import RoutePhaseInput, RoutePhaseService
 
 
 _FULL_PERSISTENCE = {
@@ -10,8 +10,8 @@ _FULL_PERSISTENCE = {
 
 _FULL_RULEBOOKS = {
     "core": "${COMMANDS_HOME}/rules.md",
-    "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
-    "addons": {"riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml"},
+    "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
+    "addons": {"riskTiering": "${PROFILES_HOME}/rules.risk-tiering.yml"},
 }
 
 

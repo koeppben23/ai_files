@@ -1,0 +1,75 @@
+{
+  "status": "PASS",
+  "merge_allowed": true,
+  "merge_reason": "merge_allowed",
+  "matrix": {
+    "completion_matrix": [
+      {
+        "id": "R-COMPLETION-001",
+        "static_verification": "PASS",
+        "behavioral_verification": "PASS",
+        "user_surface_verification": "PASS",
+        "live_flow_verification": "PASS",
+        "receipts_verification": "PASS",
+        "overall": "PASS"
+      },
+      {
+        "id": "R-IMPLEMENT-001",
+        "static_verification": "PASS",
+        "behavioral_verification": "PASS",
+        "user_surface_verification": "PASS",
+        "live_flow_verification": "PASS",
+        "receipts_verification": "PASS",
+        "overall": "PASS"
+      },
+      {
+        "id": "R-MERGE-POLICY-001",
+        "static_verification": "PASS",
+        "behavioral_verification": "PASS",
+        "user_surface_verification": "PASS",
+        "live_flow_verification": "PASS",
+        "receipts_verification": "PASS",
+        "overall": "PASS"
+      },
+      {
+        "id": "R-NEXT-ACTION-001",
+        "static_verification": "PASS",
+        "behavioral_verification": "PASS",
+        "user_surface_verification": "PASS",
+        "live_flow_verification": "PASS",
+        "receipts_verification": "PASS",
+        "overall": "PASS"
+      },
+      {
+        "id": "R-OUTPUT-001",
+        "static_verification": "PASS",
+        "behavioral_verification": "PASS",
+        "user_surface_verification": "PASS",
+        "live_flow_verification": "PASS",
+        "receipts_verification": "PASS",
+        "overall": "PASS"
+      },
+      {
+        "id": "R-REVIEW-DECISION-001",
+        "static_verification": "PASS",
+        "behavioral_verification": "PASS",
+        "user_surface_verification": "PASS",
+        "live_flow_verification": "PASS",
+        "receipts_verification": "PASS",
+        "overall": "PASS"
+      },
+      {
+        "id": "R-REVIEW-PR-001",
+        "static_verification": "PASS",
+        "behavioral_verification": "PASS",
+        "user_surface_verification": "PASS",
+        "live_flow_verification": "PASS",
+        "receipts_verification": "PASS",
+        "overall": "PASS"
+      }
+    ],
+    "overall_status": "PASS",
+    "release_blocking_requirements_failed": [],
+    "release_blocking_requirements_unverified": []
+  }
+}

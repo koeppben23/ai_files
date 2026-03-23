@@ -1,4 +1,4 @@
-from governance.engine.next_action_resolver import resolve_next_action
+from governance_runtime.engine.next_action_resolver import resolve_next_action
 
 
 def _impl() -> None:

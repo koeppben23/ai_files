@@ -13,17 +13,17 @@ from pathlib import Path
 
 import pytest
 
-from governance.domain.regulated_mode import (
+from governance_runtime.domain.regulated_mode import (
     DEFAULT_CONFIG,
     RegulatedModeConfig,
     RegulatedModeState,
 )
-from governance.domain.retention import (
+from governance_runtime.domain.retention import (
     DeletionDecision,
     LegalHold,
     LegalHoldStatus,
 )
-from governance.infrastructure.governance_retention_guard import (
+from governance_runtime.infrastructure.governance_retention_guard import (
     RetentionGuardResult,
     check_archive_retention,
     check_batch_archive_retention,

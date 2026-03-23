@@ -9,7 +9,7 @@ import pytest
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_quality_benchmark.py"
-PACK = Path(__file__).resolve().parents[1] / "governance" / "assets" / "catalogs" / "PYTHON_QUALITY_BENCHMARK_PACK.json"
+PACK = Path(__file__).resolve().parents[1] / "governance_runtime" / "assets" / "catalogs" / "PYTHON_QUALITY_BENCHMARK_PACK.json"
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess[str]:

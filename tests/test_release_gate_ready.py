@@ -34,6 +34,14 @@ from pathlib import Path
 
 import pytest
 
+from tests.util import (
+    get_master_path,
+    get_phase_api_path,
+    get_profiles_path,
+    get_rules_path,
+    get_templates_path,
+)
+
 
 def _check_pyyaml_in_subprocess() -> bool:
     try:
@@ -78,32 +86,50 @@ def _git_init_repo(repo: Path) -> None:
     )
 
 
-def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_root: Path) -> None:
+def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_root: Path, checkout_root: Path) -> None:
+    local_root = checkout_root
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(config_root),
+            "localRoot": str(local_root),
             "commandsHome": str(commands_home),
-            "profilesHome": str(commands_home / "profiles"),
-            "governanceHome": str(commands_home / "governance"),
+            "profilesHome": str(local_root / "governance_content" / "profiles"),
+            "governanceHome": str(local_root / "governance_runtime"),
+            "runtimeHome": str(local_root / "governance_runtime"),
+            "contentHome": str(local_root / "governance_content"),
+            "specHome": str(local_root / "governance_spec"),
             "workspacesHome": str(workspaces_home),
-            "globalErrorLogsHome": str(commands_home / "logs"),
+            "globalErrorLogsHome": str(workspaces_home / "_global" / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces_home / "<repo_fingerprint>" / "logs"),
             "pythonCommand": sys.executable,
         },
         "generatedAt": "1970-01-01T00:00:00Z",
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (config_root / "governance.paths.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_home: Path) -> None:
     commands_home.mkdir(parents=True, exist_ok=True)
-    for dirname in ("governance", "governance", "profiles", "scripts", "templates"):
-        src = checkout_root / dirname
+    dir_sources: dict[str, Path] = {
+        "governance": checkout_root / "governance",
+        "governance_runtime": checkout_root / "governance_runtime",
+        "profiles": get_profiles_path(),
+        "scripts": checkout_root / "scripts",
+        "templates": get_templates_path(),
+    }
+    for dirname, src in dir_sources.items():
         if src.exists():
             shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)
-    for filename in ("master.md", "rules.md", "QUALITY_INDEX.md", "CONFLICT_RESOLUTION.md", "phase_api.yaml"):
-        src = checkout_root / filename
+
+    file_sources: dict[str, Path] = {
+        "master.md": get_master_path(),
+        "rules.md": get_rules_path(),
+        "QUALITY_INDEX.md": checkout_root / "QUALITY_INDEX.md",
+        "CONFLICT_RESOLUTION.md": checkout_root / "CONFLICT_RESOLUTION.md",
+        "phase_api.yaml": get_phase_api_path(),
+    }
+    for filename, src in file_sources.items():
         if src.exists():
             shutil.copy2(src, commands_home / filename)
 
@@ -152,7 +178,7 @@ def isolated_env(tmp_path: Path):
     workspaces_home.mkdir(parents=True, exist_ok=True)
     
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
-    _write_governance_paths(commands_home, workspaces_home, config_root)
+    _write_governance_paths(commands_home, workspaces_home, config_root, checkout_root)
     
     env = dict(os.environ)
     env["HOME"] = str(home)
@@ -379,7 +405,7 @@ class TestE2ETestMatrix:
         repo = tmp_path / "repo"
         _git_init_repo(repo)
         
-        (isolated_env["commands_home"] / "governance.paths.json").write_text(
+        (isolated_env["config_root"] / "governance.paths.json").write_text(
             '{"schema": "invalid", "paths": {}}', encoding="utf-8"
         )
         
@@ -460,12 +486,10 @@ class TestE2ETestMatrix:
 
     def test_t7_router_blocks_without_rulebooks(self, isolated_env, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """T7: Phase router checks rulebooks for Phase>=4."""
-        from governance.application.use_cases.phase_router import route_phase
+        from governance_runtime.application.use_cases.phase_router import route_phase
         from pathlib import Path
 
         monkeypatch.setattr(Path, "home", staticmethod(lambda: isolated_env["home"]))
-        phase_api_src = Path(__file__).resolve().parents[1] / "phase_api.yaml"
-        (isolated_env["commands_home"] / "phase_api.yaml").write_text(phase_api_src.read_text(encoding="utf-8"), encoding="utf-8")
         
         ss_with_rulebooks = {
             "Phase": "4",
@@ -476,13 +500,13 @@ class TestE2ETestMatrix:
             "ActiveProfile": "profile.fallback-minimum",
             "LoadedRulebooks": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
                 "templates": "${COMMANDS_HOME}/master.md",
-                "addons": {"riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml"},
+                "addons": {"riskTiering": "${PROFILES_HOME}/rules.risk-tiering.yml"},
             },
             "RulebookLoadEvidence": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
             },
             "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
             "RepoFingerprint": "test12345678901234567890",
@@ -527,7 +551,7 @@ class TestP1WindowsAtomicWrite:
     
     def test_atomic_write_creates_temp_in_same_dir(self, isolated_env, tmp_path: Path):
         """Atomic write should create temp file in same directory as target."""
-        from governance.infrastructure.fs_atomic import atomic_write_text
+        from governance_runtime.infrastructure.fs_atomic import atomic_write_text
         
         target = tmp_path / "test.txt"
         atomic_write_text(target, "content\n")
@@ -540,7 +564,7 @@ class TestP1WindowsAtomicWrite:
 
     def test_atomic_write_replaces_atomically(self, isolated_env, tmp_path: Path):
         """Atomic write should use os.replace for atomic replacement."""
-        from governance.infrastructure.fs_atomic import atomic_write_text
+        from governance_runtime.infrastructure.fs_atomic import atomic_write_text
         
         target = tmp_path / "test.txt"
         target.write_text("old\n", encoding="utf-8")
@@ -551,7 +575,7 @@ class TestP1WindowsAtomicWrite:
 
     def test_atomic_write_handles_unicode(self, isolated_env, tmp_path: Path):
         """Atomic write should handle unicode content."""
-        from governance.infrastructure.fs_atomic import atomic_write_text
+        from governance_runtime.infrastructure.fs_atomic import atomic_write_text
         
         target = tmp_path / "unicode.txt"
         unicode_content = "Hello \u00e4\u00f6\u00fc \u4e2d\u6587\n"

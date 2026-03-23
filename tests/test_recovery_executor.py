@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from governance.domain.failure_model import (
+from governance_runtime.domain.failure_model import (
     FailureReport,
     RecoveryAction,
     RecoveryStrategy,
 )
-from governance.infrastructure.recovery_executor import (
+from governance_runtime.infrastructure.recovery_executor import (
     build_resume_token,
     execute_recovery,
     resume_recovery,

@@ -5,6 +5,108 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 
 ## [Unreleased]
 
+> **This release contains 414 commits since [1.1.0-RC.2]** (2026-02-09). The following is a thematic summary of major changes; see individual commit history for full detail.
+
+### Architecture — Governance Layer Separation
+
+- Complete governance layer separation: productive runtime moved to `governance_runtime/`, authority contracts anchored to `governance_spec/`, `commands/` strictly as command surface
+- Remove legacy `governance/` package surface; enforce hard CI gates against reintroduction
+- Decouple bootstrap paths from legacy `governance/` entrypoints
+- Consolidate legacy `application/`, `infrastructure/`, and `kernel/` bridges; export private compatibility symbols for full-suite imports
+- Freeze compatibility surface via R10 proof authority; harden final-state proof with frozen compatibility surface and no-planned-contract invariants
+
+### Architecture — Canonical State Model (Sprint E)
+
+- Introduce canonical state model with `CanonicalSessionState` TypedDict in `governance_runtime/application/dto/canonical_state.py`
+- Centralize alias resolution in `state_normalizer.py` with `normalize_to_canonical()` function
+- Migrate kernel code (`phase5_normalizer.py`, `phase6_review_orchestrator/orchestrator.py`) to read state via canonical model
+- Refactor `state_accessor.py` to delegate alias resolution to `state_normalizer` instead of own chains
+- Migrate `session_reader.py` critical paths to use canonical state helpers
+- Add architecture test `test_alias_resolution_only_in_allowed_modules` to enforce alias resolution policy
+- Legacy state fields still supported via alias mappings; entrypoints and legacy compat modules remain in allowlist for gradual migration
+
+### Installer / Runtime — Dual-Root Contracts
+
+- Dual-root contracts established: `CONFIG_ROOT` for user-owned config, `LOCAL_ROOT` for payload
+- Installer now ships `governance_runtime/` to `LOCAL_ROOT/governance_runtime/`
+- Binding evidence (`governance.paths.json`) relocated from `commands/` to `CONFIG_ROOT/`
+- Manifest generation restored with config-root paths; root entrypoint refactored to thin runtime delegator
+- Uninstall now purges `commands/` and `LOCAL_ROOT` completely
+- Installer enforces strict commands allowlist and dual-root runtime contracts; explicit exclusion of filesystem metadata artifacts (`.DS_Store`, `._*`, `__MACOSX`, `Icon\r`)
+
+### Phase API — specHome Authority
+
+- Phase API authority anchored to `SPEC_HOME/phase_api.yaml` (under `governance_spec/`)
+- `commands/phase_api.yaml` removed as resolver candidate; no fallback to legacy path
+- Bootstrap and delete barrier smoke gates hardened with synthetic binding setup (configRoot, localRoot, specHome, pythonCommand) and symlink-safe `.resolve()` path normalization
+- `verify_setup.py` binding path corrected to `governance.paths.json` at config_root
+
+### CI / Pipeline — Hardening
+
+- Bootstrap smoke and delete barrier gates stabilized with robust synthetic binding setup and pyyaml dependency installation
+- Ship surface guard added: prevents archived files in install artifacts
+- Contract verification made bindingless for CI environment compatibility (direct function call instead of subprocess)
+- SSOT scan stabilized with `.gitkeep` files for required empty layout directories
+- Artifact smoke test paths corrected from legacy `governance/entrypoints` to `governance_runtime/entrypoints`
+- Add `OPENCODE_CONFIG_ROOT` env for persist helper to fix install surface regression
+- Legacy surface guard hardened for whitespace variants of forbidden tokens; ssot_guard duplicate detection fixed for non-byte-identical files
+
+### OpenCode Desktop — instructions Schema
+
+- `opencode.json` schema changed from `command_files` to `instructions` key; resolves Desktop startup failure
+- Installer actively removes legacy `command_files` on merge to prevent regression
+- `OPENCODE_COMMAND_FILES` constant renamed to `OPENCODE_INSTRUCTIONS`
+
+### Docs / Contracts — Authority Alignment
+
+- All governance docs aligned from `${COMMANDS_HOME}/phase_api.yaml` to `${SPEC_HOME}/phase_api.yaml` as canonical authority
+- Legacy `${COMMANDS_HOME}` binding guidance removed from runtime catalogs and remediation texts
+- Single canonical README surface enforced; consolidated governance_content README and quickstart surfaces
+- Unified operator truth across master and runbook surfaces; README and quickstart wording aligned with final-state runtime authority
+- Install layout contract docs updated with correct `governance.paths.json` location and `PROFILES_HOME` source reference
+
+### Session State / Bootstrap
+
+- Bootstrap default launcher local root changed to `~/.local/opencode`
+- Session reader legacy `commands_home` fallback chain removed
+- Workspace persistence hook calls backfill helper when available; auto-materializes `${REPO_BUSINESS_RULES_FILE}`
+- Post-delete tests and guards moved to `governance_runtime/`
+- `repo-identity-map.yaml` relocated to repo workspace scope (`workspaces/<repo_fingerprint>/`)
+
+### Fixed
+
+- Bootstrap workspace persistence hook failure now emits canonical `BLOCKED-WORKSPACE-PERSISTENCE` and writes structured runtime error logs
+- Bootstrap governance coverage logs missing backfill helper events (`ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING`) instead of silently skipping
+- Business Rules inventory read path uses canonical `${REPO_BUSINESS_RULES_FILE}` instead of non-canonical fallback
+- Backend-java evidence gate wording blocks pass at Phase 5.3/6 when required evidence is missing
+- Phase routing made non-blocking in workspace-only log mode
+- Workspace artifact routing safety: backfill helper resolves repo fingerprint from git metadata before global pointer fallback
+- `persist_workspace_artifacts.py --quiet` now emits structured reason fields for direct `SESSION_STATE.Diagnostics.ReasonPayloads` integration
+- Governance runtime helpers (`bootstrap_session_state.py`, `persist_workspace_artifacts.py`, `error_logs.py`) included in release artifacts
+- Unresolved addon manifests (`profiles/addons/*.addon.yml`) included in release artifacts
+- Installer distribution completeness gate coverage for required normative files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`, `STABILITY_SLA.md`, `SESSION_STATE_SCHEMA.md`)
+- Response-contract validator added with governance checks for blocked-envelope coherence and RulebookLoadEvidence presence
+
+### Changed
+
+- Governance release marker promoted to `1.1.0-RC.2` across canonical version sources (`master.md`, `install.py`)
+- Governance release marker promoted to `1.1.0-RC.1` across canonical version sources
+- Operator UX render contracts improved: one-screen operator view, reason-to-action card, diff-first governance delta, last-3 transition timeline, claim evidence panel
+- Mode-policy orchestration hardened: widening constraints require explicit approval semantics and emit deterministic precedence events with hash refs
+- `[NEXT-ACTION]` footer contract extended with required `PhaseGate` line and phase progress bar
+- Bootstrap binding hook failure reporting improved with explicit `missing_evidence` and `next_command` fields
+- Enterprise-restricted fallback guidance emits explicit `required_operator_action`, `feedback_required`, `missing_evidence`, and deterministic `next_command` fields
+- Workspace backfill placeholder phrasing normalized on subsequent persistence runs
+- Shared governance advisory addon activation signals narrowed from unbounded `**/*` to explicit governance entry signals (`master.md`)
+
+### Security
+
+- Principal-grade declaration rules tightened: incomplete or non-comparable scorecard data must emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and remain `not-verified`
+- Fail-closed behavior strengthened for required addon/rulebook absence and missing evidence scenarios
+- Release pipeline blocks execution on dirty git working trees
+
+---
+
 ### Added
 - Add 4 CRITICAL gate checks for Phase 5-6 determinism (P5.3 Test Quality, P5.4 Business Rules, P5.6 Rollback Safety, P6 Prerequisites) with corresponding reason codes.
 - Add path invariant validation for SESSION_STATE canonical path fields (forbidden patterns: drive prefixes, backslashes, parent traversal; degenerate patterns: single drive letter, drive root token, single-segment without variable).
@@ -73,6 +175,10 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`docs/new_profile.md`, `docs/new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- OpenCode Desktop integration now writes `instructions` key in `opencode.json` instead of `command_files`, resolving Desktop startup failure on command_files schema; installer actively removes legacy `command_files` on merge to prevent regression.
+- Rename `OPENCODE_COMMAND_FILES` constant to `OPENCODE_INSTRUCTIONS` in `install.py` to align code nomenclature with Desktop schema.
+- Align all governance docs from `${COMMANDS_HOME}/phase_api.yaml` to `${SPEC_HOME}/phase_api.yaml` as canonical authority (phases.md, governance_invariants.md, master.md, rules.md, responsibility_boundary.md, QUICKSTART.md, SESSION_STATE_SCHEMA.md, README-RULES.md, audit.md).
+- Remove legacy `${COMMANDS_HOME}` binding guidance from runtime catalogs and remediation texts (REASON_REMEDIATION_MAP.json, reason_codes.registry.json, blocked_reason_catalog.yaml, bootstrap_policy.yaml, QUICKFIX_TEMPLATES.json, audit.md).
 - Harden mode-policy orchestration: widening constraints now require explicit approval semantics and emit deterministic precedence events with hash refs.
 - Flatten code-specific reason payload context fields into emitted reason payload dictionaries for schema/audit alignment.
 - Tighten reason payload JSON schemas (`additionalProperties: false`) with optional `extensions` escape hatch.
@@ -250,6 +356,16 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add installer distribution completeness gate coverage for required normative files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`, `STABILITY_SLA.md`, `SESSION_STATE_SCHEMA.md`) and addon-manifest rulebook resolvability after install.
 - Add top-tier load-evidence contract fields for `QUALITY_INDEX.md` / `CONFLICT_RESOLUTION.md` (`RulebookLoadEvidence.top_tier.*`) in master/schema and governance tests.
 - Add a response-contract validator (`scripts/validate_response_contract.py`) with governance checks for blocked-envelope coherence and RulebookLoadEvidence presence when rulebooks are loaded.
+- Stabilize bootstrap and delete barrier smoke gates with robust synthetic binding setup (configRoot, localRoot, specHome, pythonCommand) and symlink-safe path normalization via `.resolve()` to fix specHome.parent alignment failures.
+- Add pyyaml dependency installation to Bootstrap Smoke and Delete Barrier CI jobs to fix BLOCKED_PHASE_API_MISSING from yaml loader failures.
+- Make governance contract verifier bindingless by calling `run_contract_verification()` directly instead of subprocess, removing false-negative failures in CI environment without local binding.
+- Track empty required layout directories with `.gitkeep` files (governance_spec/contracts, governance_spec/schemas, governance_spec/config, governance_runtime/bin, governance_runtime/scripts, session_state) to prevent SSOT scan failures.
+- Fix CI artifact smoke test paths from legacy `governance/entrypoints` to `governance_runtime/entrypoints` and add OPENCODE_CONFIG_ROOT env for persist helper to fix install surface regression.
+- Skip archived files during local payload copy in installer to keep install surface lean and prevent ship_surface_guard failures.
+- Make governance_runtime/common/__init__.py a non-marker module exporting `normalize_for_fingerprint` and remove it from marker-only baseline to fix repo_hygiene_guard violations.
+- Fix verify_setup.py binding path from `commands/governance.paths.json` to `governance.paths.json` at config_root and update install-layout-contract source reference for PROFILES_HOME.
+- Align session_state test mock paths from `/mock/commands/phase_api.yaml` to `/mock/specHome/phase_api.yaml` for specHome authority consistency.
+- Fix legacy_surface_guard to handle whitespace variants of forbidden command surface tokens and fix ssot_guard duplicate detection for non-byte-identical review.md files.
 
 ### Security
 - Tighten principal-grade declaration rules: incomplete or non-comparable scorecard data must emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and remain `not-verified`.

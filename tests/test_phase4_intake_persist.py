@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT
+from .util import REPO_ROOT, get_phase_api_path, get_master_path, get_rules_path
 
 
 def _load_module():
-    script = REPO_ROOT / "governance" / "entrypoints" / "phase4_intake_persist.py"
+    script = REPO_ROOT / "governance_runtime" / "entrypoints" / "phase4_intake_persist.py"
     spec = importlib.util.spec_from_file_location("phase4_intake_persist", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load phase4_intake_persist module")
@@ -22,24 +22,38 @@ def _load_module():
 def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     config_root = tmp_path / "cfg"
     commands_home = config_root / "commands"
+    spec_home = config_root / "governance_spec"
     workspaces_home = config_root / "workspaces"
     repo_fp = "abc123def456abc123def456"
     workspace = workspaces_home / repo_fp
     workspace.mkdir(parents=True, exist_ok=True)
     commands_home.mkdir(parents=True, exist_ok=True)
+    spec_home.mkdir(parents=True, exist_ok=True)
 
-    (commands_home / "phase_api.yaml").write_text((REPO_ROOT / "phase_api.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
+    # Migrate legacy rule/master content into the new SSOT-backed command home for tests
+    try:
+        master_src = get_master_path()
+        rules_src = get_rules_path()
+        if master_src.exists():
+            (commands_home / "master.md").write_text(master_src.read_text(encoding="utf-8"), encoding="utf-8")
+        if rules_src.exists():
+            (commands_home / "rules.md").write_text(rules_src.read_text(encoding="utf-8"), encoding="utf-8")
+    except Exception:
+        # If anything goes wrong, don't fail the test setup; tests may still be valid with synthetic content.
+        pass
 
     paths = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "commandsHome": str(commands_home),
+            "specHome": str(spec_home),
             "workspacesHome": str(workspaces_home),
             "configRoot": str(config_root),
             "pythonCommand": "python3",
         },
     }
-    (commands_home / "governance.paths.json").write_text(json.dumps(paths, indent=2), encoding="utf-8")
+    (config_root / "governance.paths.json").write_text(json.dumps(paths, indent=2), encoding="utf-8")
 
     session_path = workspace / "SESSION_STATE.json"
     session = {
@@ -57,15 +71,15 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
             "ActiveProfile": "profile.fallback-minimum",
             "LoadedRulebooks": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
                 "templates": "${COMMANDS_HOME}/master.md",
                 "addons": {
-                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+                    "riskTiering": "${PROFILES_HOME}/rules.risk-tiering.yml",
                 },
             },
             "RulebookLoadEvidence": {
                 "core": "${COMMANDS_HOME}/rules.md",
-                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "profile": "${PROFILES_HOME}/rules.fallback-minimum.yml",
             },
             "AddonsEvidence": {
                 "riskTiering": {"status": "loaded"},

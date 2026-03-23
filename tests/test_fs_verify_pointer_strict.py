@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from governance.entrypoints.io.fs_verify import verify_pointer
+from governance_runtime.entrypoints.io.fs_verify import verify_pointer
 
 
 def test_verify_pointer_requires_required_session_fields(tmp_path: Path) -> None:
