@@ -286,6 +286,7 @@ _ALIAS_RESOLUTION_ALLOWLIST: set[str] = {
     "governance_runtime/application/use_cases/bootstrap_persistence.py",
     "governance_runtime/application/use_cases/session_state_helpers.py",
     "governance_runtime/session_state/transitions.py",
+    "governance_runtime/application/services/state_invariants.py",
 }
 
 
