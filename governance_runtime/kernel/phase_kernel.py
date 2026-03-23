@@ -644,6 +644,45 @@ def _phase6_evidence_presentation_gate_active(state: Mapping[str, object]) -> bo
     return False
 
 
+def pipeline_auto_approve_eligible(state: Mapping[str, object]) -> bool:
+    """Check if pipeline mode is eligible for auto-approve at Evidence Presentation Gate.
+
+    Eligibility conditions (ALL must be true):
+    - effective_operating_mode == "pipeline" (NOT agents_strict)
+    - Internal review is complete
+    - At Evidence Presentation Gate
+    - No existing review decision recorded
+
+    This function is used by the kernel to determine if a pipeline auto-approve
+    transition is possible. The actual state mutation is handled by the separate
+    pipeline_auto_approve entrypoint.
+
+    Args:
+        state: Current session state mapping
+
+    Returns:
+        True if eligible for pipeline auto-approve, False otherwise
+    """
+    effective_mode = str(state.get("effective_operating_mode", "")).strip()
+
+    if effective_mode != "pipeline":
+        return False
+
+    if not _phase6_internal_review_complete(state):
+        return False
+
+    if not _phase6_evidence_presentation_gate_active(state):
+        return False
+
+    if _user_review_decision(state):
+        return False
+
+    if _workflow_complete(state):
+        return False
+
+    return True
+
+
 def _phase6_rework_clarification_pending(state: Mapping[str, object]) -> bool:
     """Return True when Phase 6 is waiting for rework clarification."""
 
@@ -982,6 +1021,13 @@ def _select_transition(
                     transition.next_gate_condition,
                 )
             if when == "implementation_review_complete" and _phase6_internal_review_complete(state):
+                if pipeline_auto_approve_eligible(state):
+                    return (
+                        transition.next_token,
+                        "pipeline-auto-approve",
+                        "Pipeline Auto-Approved",
+                        "Workflow auto-approved in pipeline mode. Implementation authorized.",
+                    )
                 return (
                     transition.next_token,
                     transition.source,
