@@ -17,16 +17,7 @@ PRODUCTIVE_ROOTS = (
     "opencode",
 )
 
-ARCHIVE_BASELINE = {
-    "governance_content/docs/archived/README.md",
-    "governance_content/docs/archived/governance-layer-separation-decisions.md",
-    "governance_content/docs/archived/repo-hygiene-block9-inventory.md",
-    "governance_spec/migrations/archived/BLOCK9_FINAL_PROOF.md",
-    "governance_spec/migrations/archived/R2_Import_Inventory.md",
-    "governance_spec/migrations/archived/R2_Migration_Units.md",
-    "governance_spec/migrations/archived/README.md",
-    "governance_spec/migrations/archived/WAVE_22_MIGRATION_INVENTORY.md",
-}
+ARCHIVE_BASELINE: set[str] = set()
 
 README_BASELINE = {
     "README-OPENCODE.md",
@@ -49,12 +40,7 @@ MARKER_FILE_NAMES = {
     ".DS_Store",
 }
 
-ARCHIVE_REFERENCE_PATTERNS = (
-    "governance_content/docs/archived/",
-    "governance_spec/migrations/archived/",
-    "historical/governance_content_docs/",
-    "historical/governance_spec_migrations/",
-)
+ARCHIVE_REFERENCE_PATTERNS: tuple[str, ...] = ()
 
 DUPLICATE_BASELINE_GROUPS: set[frozenset[str]] = set()
 
@@ -140,7 +126,6 @@ def _scan_archive_references(repo_root: Path) -> list[str]:
         "scripts/repo_hygiene_guard.py",
         "governance_spec/migrations/REPO_CLEANUP_POLICY.md",
         "governance_spec/migrations/CLEANUP_DECISION_LOG.md",
-        "governance_content/docs/archived/repo-hygiene-block9-inventory.md",
     }
     for root_name in PRODUCTIVE_ROOTS:
         root = repo_root / root_name

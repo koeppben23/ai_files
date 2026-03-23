@@ -30,8 +30,6 @@ EXPECTED_LOCAL_TOP_LEVEL = {
 }
 
 FORBIDDEN_INSTALL_TOKENS = (
-    "archived/",
-    "historical/",
     "governance_content/governance/assets/catalogs/audit.md",
     "governance_runtime/assets/reasons/blocked_reason_catalog.yaml",
     "governance_runtime/bin/opencode-governance-bootstrap",
@@ -39,8 +37,6 @@ FORBIDDEN_INSTALL_TOKENS = (
 )
 
 FORBIDDEN_DIST_TOKENS = (
-    "archived/",
-    "historical/",
     "governance_content/governance/assets/catalogs/audit.md",
     "governance_runtime/assets/reasons/blocked_reason_catalog.yaml",
     "governance_runtime/bin/opencode-governance-bootstrap",

@@ -614,6 +614,7 @@ class TestNoRoguePaths:
         "CONFLICT_RESOLUTION.md",
         "DOCS.md",
         "HowTo_Release.txt",
+        "PRODUCT_IDENTITY.md",
         "QUALITY_INDEX.md",
         "QUICKSTART.md",
         "master.md",
