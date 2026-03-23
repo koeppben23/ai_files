@@ -249,6 +249,20 @@ On success, bootstrap prints:
 - `resolvedOperatingMode default = <profile>`
 - `policyPath = <repo>/.opencode/governance-repo-policy.json`
 
+### Governance Mode Activation
+
+When `--profile regulated` is specified during bootstrap:
+
+1. `.opencode/governance-repo-policy.json` is created with `operatingMode: "regulated"`
+2. `governance-mode.json` is created at repo root with `state: "active"`
+3. The governance runtime enforces regulated constraints:
+   - Retention lock (framework-specific minimum retention)
+   - Four-eyes approval for archive operations
+   - Immutable archives
+   - Tamper-evident export
+
+**Note:** The regulated profile maps to `agents_strict` runtime mode, not `pipeline`. Pipeline auto-approve does NOT apply to regulated/agents_strict mode.
+
 ### Troubleshooting Bootstrap
 
 - **Repository root not found:** Verify you are inside the target repository, rerun from the repository root, or provide `--repo-root` explicitly.
@@ -417,7 +431,13 @@ Kernel routing follows one deterministic priority chain:
 
 ### Phase 6 Review Decision
 
-At the Evidence Presentation Gate (`implementation_review_complete`), the operator must run `/review-decision`:
+At the Evidence Presentation Gate (`implementation_review_complete`), the workflow depends on the profile:
+
+**Team Profile (pipeline mode):**
+When internal review is complete and eligibility conditions are met, the workflow auto-approves automatically. No manual `/review-decision` required.
+
+**Solo/Regulated Profiles:**
+The operator must run `/review-decision`:
 
 | Decision | Effect |
 |----------|--------|
@@ -425,7 +445,7 @@ At the Evidence Presentation Gate (`implementation_review_complete`), the operat
 | `changes_requested` | Enter Rework Clarification Gate in Phase 6 — clarify in chat first, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`) |
 | `reject` | Back to Phase 4 — restart from planning (Ticket Input Gate) |
 
-**Key:** `/continue` does NOT advance past the Evidence Presentation Gate. The operator must explicitly run `/review-decision`.
+**Key:** `/continue` does NOT advance past the Evidence Presentation Gate in solo/regulated modes. The operator must explicitly run `/review-decision` (or workflow auto-completes in team/pipeline mode).
 
 ---
 
