@@ -17,6 +17,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from governance_runtime.application.services.phase5_gate_constants import (
+    GATE_TO_PHASE_NEXT,
+    P5_GATE_PRIORITY_ORDER,
+    P5_GATE_TERMINAL_VALUES,
+    reason_code_for_gate,
+)
 from governance_runtime.application.services.phase5_gate_evaluators import (
     GateEvaluationResult,
     evaluate_p53_test_quality,
@@ -28,24 +34,6 @@ from governance_runtime.application.services.phase5_gate_evaluators import (
 from governance_runtime.application.services.state_normalizer import (
     normalize_to_canonical,
 )
-
-_BLOCKED_P6_PREREQUISITES_NOT_MET = "BLOCKED-P6-PREREQUISITES-NOT-MET"
-_BLOCKED_P5_3_TEST_QUALITY_GATE = "BLOCKED-P5-3-TEST-QUALITY-GATE"
-_BLOCKED_P5_4_BUSINESS_RULES_GATE = "BLOCKED-P5-4-BUSINESS-RULES-GATE"
-_BLOCKED_P5_5_TECHNICAL_DEBT_GATE = "BLOCKED-P5-5-TECHNICAL-DEBT-GATE"
-_BLOCKED_P5_6_ROLLBACK_SAFETY_GATE = "BLOCKED-P5-6-ROLLBACK-SAFETY-GATE"
-
-_GATE_TO_REASON_CODE: dict[str, str] = {
-    "P5-Architecture": _BLOCKED_P6_PREREQUISITES_NOT_MET,
-    "P5.3-TestQuality": _BLOCKED_P5_3_TEST_QUALITY_GATE,
-    "P5.4-BusinessRules": _BLOCKED_P5_4_BUSINESS_RULES_GATE,
-    "P5.5-TechnicalDebt": _BLOCKED_P5_5_TECHNICAL_DEBT_GATE,
-    "P5.6-RollbackSafety": _BLOCKED_P5_6_ROLLBACK_SAFETY_GATE,
-}
-
-
-def _gate_reason_code_for_gate(gate_key: str) -> str:
-    return _GATE_TO_REASON_CODE.get(gate_key, _BLOCKED_P6_PREREQUISITES_NOT_MET)
 
 
 @dataclass(frozen=True)
@@ -254,21 +242,9 @@ def normalize_phase6_p5_state(
 
     if gate_constants is None:
         gate_constants = GateConstants(
-            priority_order=(
-                "P5-Architecture",
-                "P5.3-TestQuality",
-                "P5.4-BusinessRules",
-                "P5.5-TechnicalDebt",
-                "P5.6-RollbackSafety",
-            ),
-            terminal_values={
-                "P5-Architecture": ("approved",),
-                "P5.3-TestQuality": ("pass", "pass-with-exceptions", "not-applicable"),
-                "P5.4-BusinessRules": ("compliant", "compliant-with-exceptions", "not-applicable"),
-                "P5.5-TechnicalDebt": ("approved", "not-applicable"),
-                "P5.6-RollbackSafety": ("approved", "not-applicable"),
-            },
-            reason_code_for_gate=_gate_reason_code_for_gate,
+            priority_order=P5_GATE_PRIORITY_ORDER,
+            terminal_values=P5_GATE_TERMINAL_VALUES,
+            reason_code_for_gate=reason_code_for_gate,
         )
     
     if gate_evaluators is None:
@@ -327,14 +303,7 @@ def normalize_phase6_p5_state(
     first_open = open_gates[0]
     blocking_reason_code = gate_constants.reason_code_for_gate(first_open)
 
-    gate_to_phase_next: dict[str, tuple[str, str, str]] = {
-        "P5.3-TestQuality": ("5.3-TestQuality", "5.3", "Test Quality Gate"),
-        "P5.4-BusinessRules": ("5.4-BusinessRules", "5.4", "Business Rules Validation"),
-        "P5.5-TechnicalDebt": ("5.5-TechnicalDebt", "5.5", "Technical Debt Review"),
-        "P5.6-RollbackSafety": ("5.6-RollbackSafety", "5.6", "Rollback Safety Review"),
-        "P5-Architecture": ("5-ArchitectureReview", "5", "Architecture Review Gate"),
-    }
-    corrected_phase, corrected_next, corrected_gate = gate_to_phase_next.get(
+    corrected_phase, corrected_next, corrected_gate = GATE_TO_PHASE_NEXT.get(
         first_open,
         ("5-ArchitectureReview", "5", "Architecture Review Gate"),
     )
