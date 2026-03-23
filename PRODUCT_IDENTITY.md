@@ -39,11 +39,13 @@ For individual engineers who want structured execution, explicit checkpoints, an
 
 For engineering teams that need repeatable planning, review visibility, and shared execution discipline across contributors.
 
+**CI/CD Integration:** The team profile enables non-interactive auto-approve at the Evidence Presentation Gate. When internal review is complete and eligibility conditions are met, the workflow auto-approves without manual intervention. This is designed for automated pipelines.
+
 ### Regulated
 
 For organizations that require controlled approvals, auditable decisions, retained evidence, redaction support, and fail-closed governance behavior.
 
-**Note:** The regulated profile maps to `agents_strict` runtime mode, not `pipeline`. This ensures stricter enforcement and prevents silent downgrade in CI environments.
+**Note:** The regulated profile maps to `agents_strict` runtime mode, not `pipeline`. This ensures stricter enforcement and prevents silent downgrade in CI environments. Pipeline auto-approve does NOT apply to regulated/agents_strict mode.
 
 ---
 
