@@ -86,8 +86,8 @@ class LLMCaller:
         elif env_reader is not None:
             self._executor_cmd = env_reader("OPENCODE_IMPLEMENT_LLM_CMD") or ""
         else:
-            import os
-            self._executor_cmd = os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD", "")
+            # Require injection via env_reader or executor_cmd
+            self._executor_cmd = ""
 
     @property
     def is_configured(self) -> bool:

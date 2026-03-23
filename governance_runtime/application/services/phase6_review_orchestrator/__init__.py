@@ -62,7 +62,8 @@ def _get_llm_caller():
     """Get the LLM caller instance (can be mocked in tests)."""
     global _llm_caller_instance
     if _llm_caller_instance is None:
-        _llm_caller_instance = LLMCaller()
+        import os
+        _llm_caller_instance = LLMCaller(env_reader=lambda key: os.environ.get(key))
     return _llm_caller_instance
 
 

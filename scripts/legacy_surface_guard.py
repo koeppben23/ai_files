@@ -73,6 +73,7 @@ ALLOW_WRITE_TEXT = (
 )
 ALLOW_ENV_ACCESS = (
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py",
+    "governance_runtime/application/services/phase6_review_orchestrator/__init__.py",
 )
 RESTRICTED_ENV_PARTS = {
     ("governance_runtime", "application"),

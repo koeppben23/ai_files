@@ -39,10 +39,13 @@ _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
         "L84:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
         "L264:datetime.now",    # Composition-Root: default clock for load_effective_review_policy
     },
-    # llm_caller.py: Composition-Root reads env for default LLM executor
+    # llm_caller.py: Composition-Root uses injected env_reader
     "governance_runtime/application/services/phase6_review_orchestrator/llm_caller.py": {
         "L71:subprocess.run",   # Composition-Root: default subprocess runner for LLM execution
-        "L90:os.environ",       # Composition-Root: env_reader for OPENCODE_IMPLEMENT_LLM_CMD
+    },
+    # __init__.py: Composition-Root creates LLMCaller with env_reader
+    "governance_runtime/application/services/phase6_review_orchestrator/__init__.py": {
+        "L66:os.environ",       # Composition-Root: env_reader for LLMCaller
     },
 }
 
