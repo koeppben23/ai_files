@@ -1,4 +1,4 @@
-# Phase 5: Presentation/Messages herauslösen (v2 - Strict with cross-ref validation)
+# Phase 5: Presentation/Messages herauslösen (v3 - Explicit state_id + event fields)
 
 **Status:** Completed  
 **Date:** 2026-03-24  
@@ -27,8 +27,9 @@ state_messages:
     ...
 
 transition_messages:
-  - id: "msg.trans.5.default"  # Stable ID format: msg.trans.<source>-<event>
-    transition_key: "5-default"
+  - id: "msg.trans.5.default"  # Stable ID format: msg.trans.<state_id>-<event>
+    state_id: "5"
+    event: "default"
     ...
 ```
 
@@ -64,6 +65,7 @@ Instructions that reference commands are validated against command_policy:
 - `/continue`, `/review` are universal (always allowed)
 - For Phase 6, commands for `6.approved`/`6.presentation` are recognized
 - Cross-ref ensures no drift between messages and command policy
+- **Whitelist enforcement**: All command references must be in `ALLOWED_COMMAND_REFERENCES`
 
 ### 2.5 Category Definitions
 
@@ -92,7 +94,7 @@ Instructions that reference commands are validated against command_policy:
 
 ### 3.2 `tests/architecture/test_messages.py`
 
-30 Tests:
+31 Tests:
 
 | Testklasse | Tests | Beschreibung |
 |------------|-------|--------------|
@@ -100,22 +102,30 @@ Instructions that reference commands are validated against command_policy:
 | `TestContextContract` | 3 | Context Contract Validierung |
 | `TestMessageIds` | 4 | Stabile Message-IDs |
 | `TestStateMessages` | 3 | State Message Validierung |
-| `TestTransitionMessages` | 4 | Transition Message Validierung |
+| `TestTransitionMessages` | 4 | Transition Message Validierung (state_id + event) |
 | `TestCrossRefTopology` | 3 | Cross-Ref: Messages → Topology |
-| `TestConformanceCommandPolicy` | 2 | Cross-Ref: Messages ↔ Command-Policy |
+| `TestConformanceCommandPolicy` | 3 | Cross-Ref: Messages ↔ Command-Policy + Whitelist |
 | `TestPresentationOnlyLayer` | 3 | Presentation-only Absicherung |
 | `TestMessageNegative` | 4 | Negative Tests |
 
 ## 4. Testergebnisse
 
 ```
-tests/architecture/test_messages.py ... 30 passed
+tests/architecture/test_messages.py ... 31 passed
 tests/architecture/test_command_policy.py ... 42 passed
 tests/architecture/test_guards.py ... 33 passed
 tests/architecture/test_topology.py ... 34 passed
 tests/architecture/test_spec_inventory.py ... 18 passed
-Total: 173 passed
+Total: 174 passed
 ```
+
+### v3 Changes
+
+1. **Explicit fields**: Replaced composite `transition_key` with explicit `state_id` + `event` fields
+2. **Bug fix**: Fixed `test_message_ids_unique` (was using `set()` which can never detect duplicates)
+3. **Hard assertion**: Enabled strict validation for transition events in topology
+4. **Whitelist enforcement**: Added `test_instructions_reference_whitelisted_commands` test
+5. **Event format**: Strengthened validation to require snake_case events
 
 ## 5. Nächste Schritte
 
