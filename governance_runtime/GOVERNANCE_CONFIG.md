@@ -136,10 +136,17 @@ if errors:
 
 ## Architecture Notes
 
-1. **Single Source of Truth:** Configuration is loaded via `governance_config_loader.py`
+1. **Configuration Loader:** `governance_config_loader.py` provides the main API (`load_governance_config`, `get_review_iterations`)
 2. **Fail-Closed:** Invalid config raises errors rather than silently falling back
-3. **Workspace-Scoped:** Each workspace can have its own configuration
+3. **Workspace-Scoped:** Each workspace can have its own configuration (via fingerprint)
 4. **State Override:** Runtime state values always take precedence over config defaults
+5. **Schema Validation:** Currently uses manual validation; JSON schema file serves as formal contract
+
+## Implementation Status
+
+- **V1 Complete:** Review iteration configuration for Phase 5 and Phase 6
+- **Workspace Resolution:** Distributed across call sites (session_reader, phase_kernel, phase5_plan_record_persist)
+- **Loader Cache:** No workspace-keyed cache in V1; correctness over optimization
 
 ## Related Files
 
@@ -148,10 +155,11 @@ if errors:
 - Loader: `governance_runtime/infrastructure/governance_config_loader.py`
 - Phase5 wiring: `governance_runtime/entrypoints/phase5_plan_record_persist.py`
 - Phase6 wiring: `governance_runtime/kernel/phase_kernel.py`
+- Session reader: `governance_runtime/entrypoints/session_reader.py`
 
 ## Future Considerations
 
+- Central workspace resolution helper (consolidate fingerprint/config-path resolution)
+- Workspace-keyed loader cache for performance
 - CLI override for V2
-- Workspace-keyed loader cache
-- Central workspace resolution helper
 - Multi-workspace integration tests
