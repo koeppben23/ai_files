@@ -49,12 +49,18 @@ Phase 0 ist abgeschlossen, wenn:
 
 ## Abbruchkriterien
 
-Refactoring wird abgebrochen wenn:
+Refactoring wird abgebrochen oder pausiert wenn:
 
-- Golden-Flow-Vergleich zeigt unbeabsichtigte Verhaltensänderungen
-- Performance-Regression > 100% in Hot-Path
-- Test-Coverage fällt unter 90% für geänderte Module
-- Doku-Drift超过 2 Wochen unaddressed
+| Kriterium | Schwellwert | Aktion |
+|-----------|-------------|--------|
+| Golden-Flow-Vergleich | unbeabsichtigte Verhaltensänderung (nicht dokumentierte Änderung) | Blockiert |
+| Performance-Regression CI | > 50% langsamer in Hot-Path | Blockiert |
+| Performance-Regression lokal | > 100% langsamer | Warnung |
+| Test-Coverage | < 90% für geänderte Module | Blockiert |
+| Doku-Drift | Dokumentation nicht innerhalb von 2 Wochen nach Merge aktualisiert | Warnung |
+| Spec-Validation | Spec validiert nicht grün | Blockiert |
+
+**Hinweis:** Geplante, bewusste Verhaltensänderungen werden separat dokumentiert und sind kein Abbruchsgrund.
 
 ---
 

@@ -11,7 +11,20 @@ IDs für States, Transitions, Guards, Commands und Messages müssen konsistent, 
 
 ## Decision
 
-**Runtime-IDs sind stabil, maschinenlesbar und canonical - unabhängig von Display-Darstellung.**
+**Runtime-IDs sind stabil, maschinenlesbar und canonical.**
+
+### V1 Runtime-IDs sind FINAL
+
+Für V1 gelten die kurzen IDs als **kanonische, finale Runtime-IDs**:
+
+```
+1, 2, 3, 3A, 4, 5, 6.execution, 6.internal_review, 6.presentation, 
+6.approved, 6.blocked, 6.rework, 6.rejected, 6.complete
+```
+
+Diese sind **nicht** nur pragmatische Zwischenlösungen, sondern die **explizit festgelegten finalen IDs**.
+
+Optional kann später eine separate Display-Schicht ergänzt werden, **ohne die Runtime-IDs zu ändern**.
 
 ### ID-Schema
 
@@ -31,16 +44,14 @@ IDs für States, Transitions, Guards, Commands und Messages müssen konsistent, 
 3. **Stabil: IDs ändern sich nie ohne Migration**
 4. **Kanonisch: Eine Entity = Eine ID**
 
-### Display-Trennung (Optional für V1)
+### Display-Trennung (Erweiterbar, optional)
 
-Falls Separate Display-Tokens benötigt werden:
+Display-Trennung kann später ergänzt werden **ohne Runtime-IDs zu ändern**:
 ```yaml
 states:
-  - id: "6.execution"           # Runtime-ID (stabil)
-    display: "Phase 6 Execution"  # Display (optional)
+  - id: "6.execution"               # Runtime-ID (FINAL, stabil)
+    display_name: "Phase 6 Execution"  # Optional für UI
 ```
-
-Für V1: Runtime-IDs = Display IDs, aber Struktur erlaubt Trennung.
 
 ## Consequences
 

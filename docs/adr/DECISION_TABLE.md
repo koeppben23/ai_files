@@ -17,7 +17,10 @@ Diese Tabelle dokumentiert alle expliziten Architekturentscheidungen, die vor Im
 | Enthält Topologie UX-Texte? | **NEIN** - nur Struktur | Zweite Wahrheit vermeiden | ADR-001 |
 | `active_gate` in Topologie? | **VERBOTEN** | Gehört in Messages | ADR-001 |
 | `next_gate_condition` in Topologie? | **VERBOTEN** | Gehört in Messages | ADR-001 |
-| `description` in State? | **VERBOTEN** | Nur ids, parent, is_terminal | ADR-001 |
+| `description` in State? | **ERLAUBT als non-runtime metadata** | Debugging, Diagramm | ADR-001 |
+| `tags` in State? | **ERLAUBT als non-runtime metadata** | Klassifikation | ADR-001 |
+| `display_name` in State? | **ERLAUBT als non-runtime metadata** | UI-Trennung | ADR-001 |
+| Non-runtime metadata für Guard/Routing? | **NEIN** - nie | Nur id/parent für Resolution | ADR-001 |
 | `parent` in State? | **ERLAUBT** (informativ nur) | Nicht für Resolution | ADR-001 |
 
 ## 2. Guard-Syntax
@@ -27,7 +30,7 @@ Diese Tabelle dokumentiert alle expliziten Architekturentscheidungen, die vor Im
 | String-DSL für Conditions? | **NEIN** - nur strukturiert | Eine Semantik, kein Parser | ADR-002 |
 | `description` in Guard? | **PFICHT** | Debugging, Audit | ADR-002 |
 | `fail_mode` in Guard? | **PFICHT** | `block` oder `fail_closed` | ADR-002 |
-| `error_code` in Guard? | **OPTIONAL** | Für strukturierte Fehler | ADR-002 |
+| `error_code` in Guard? | **OPTIONAL** - stabiles Schema (z.B. `GUARD_MISSING_REQUIRED_KEY`) | Für strukturierte Fehler | ADR-002 |
 | `priority` in Guard? | **OPTIONAL** (int, höher=wichtiger) | Konfliktlösung | ADR-002 |
 | Erlaubte Condition-Typen | `all_of`, `any_of`, `key_present`, `key_equals`, `numeric_gte`, `state_flag` | Strukturiert, kein String | ADR-002 |
 
@@ -67,9 +70,9 @@ Diese Tabelle dokumentiert alle expliziten Architekturentscheidungen, die vor Im
 | Entscheidung | Ziellösung | Begründung | ADR |
 |-------------|------------|------------|-----|
 | ID-Format | `{entity}.{qualifier}` oder `{parent}.{qualifier}` | Stabil, lesbar | ADR-006 |
-| State-IDs technisch? | **JA** - Runtime-IDs stabil | Revisionssicher | ADR-006 |
+| V1 Runtime-IDs | **FINALE kanonische IDs** | `1`, `3A`, `6.execution` usw. | ADR-006 |
 | `start_token` | **`start_state_id`** | Semantisch sauberer | ADR-006 |
-| Display-Trennung | Optional (nicht für V1) | Erweiterbar | ADR-006 |
+| Display-Trennung | Optional, ergänzbar ohne Runtime-ID-Änderung | Erweiterbar | ADR-006 |
 | ID-Uniqueness validiert? | **JA** - Loader prüft | Fail-closed | ADR-006 |
 
 ## 7. Kompatibilität und Migration
@@ -99,6 +102,7 @@ Diese Tabelle dokumentiert alle expliziten Architekturentscheidungen, die vor Im
 | Events pro State definiert? | **JA** - `allowed_events_per_state` | Klarheit |
 | Block bei Ambiguität? | **JA** - `blocking_on_ambiguity: true` | Fail-closed |
 | Hidden Mutation verboten? | **JA** - `never_hidden_mutation: true` | Sicherheit |
+| Event pro State eindeutig? | **JA** - `event_per_state_must_be_unique: true` | Determinismus |
 
 ## 10. Teststrategie
 

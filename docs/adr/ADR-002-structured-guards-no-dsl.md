@@ -46,7 +46,7 @@ condition:
 g.example:
   description: "Beschreibung ist Pflicht"    # PFICHT
   fail_mode: "block"                          # PFICHT
-  error_code: "E guards example missing"      # optional
+  error_code: "GUARD_MISSING_REQUIRED_KEY"    # optional (stabiles Schema)
   priority: 50                                # optional
   condition:                                   # PFICHT
     key_present: "required_key"

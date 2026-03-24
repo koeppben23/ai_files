@@ -41,6 +41,10 @@ commands:
     
   - id: "continue"
     event_mapping: "determined_by_state"  # Spezialfall
+    constraints:                           # NEU: Explizite Einschränkungen
+      blocking_on_ambiguity: true          # Blockiert bei Mehrdeutigkeit
+      never_hidden_mutation: true          # Keine versteckten Spezialoperationen
+      event_per_state_must_be_unique: true # Pro State eindeutiges Event
 
 system_events:
   - id: "iteration_complete"
