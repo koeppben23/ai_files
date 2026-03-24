@@ -1,4 +1,4 @@
-# Phase 5: Presentation/Messages herauslösen
+# Phase 5: Presentation/Messages herauslösen (v2 - Strict with cross-ref validation)
 
 **Status:** Completed  
 **Date:** 2026-03-24  
@@ -10,94 +10,111 @@
 
 Extrahiere die Presentation/Messages aus der monolithischen `phase_api.yaml` in eine separate `messages.yaml`-Datei.
 
-Die Messages enthalten **alle** UX-Texte und Display-Inhalte - getrennt von der Runtime-Spezifikation.
+**Key Features:**
+- Stable message IDs for cross-spec conformance
+- Defined context contract (allowed keys, fallbacks)
+- Presentation-only layer (no runtime fields)
+- Command conformance checks (hints match allowed commands)
 
 ## 2. Prinzipien
 
-### 2.1 Keine UX-Felder in Runtime-Spec
-
-**In Runtime-Spec (topology.yaml, guards.yaml) verboten:**
-- `phase` (Display-Name)
-- `active_gate` (Gate-Message)
-- `next_gate_condition` (Instruction)
-
-**In messages.yaml erlaubt:**
-- `display_name` (statt `phase`)
-- `gate_message` (statt `active_gate`)
-- `instruction` (statt `next_gate_condition`)
-
-### 2.2 State Messages
+### 2.1 Stable Message IDs
 
 ```yaml
 state_messages:
-  - state_id: "5"
-    display_name: "5-ArchitectureReview"  # Non-runtime
-    gate_message: "Plan Record Preparation Gate"  # Non-runtime
-    instruction: "When plan_record_versions < 1, create..."  # Non-runtime
+  - id: "msg.state.5"        # Stable ID format: msg.state.<state_id>
+    state_id: "5"
+    ...
+
+transition_messages:
+  - id: "msg.trans.5.default"  # Stable ID format: msg.trans.<source>-<event>
+    transition_key: "5-default"
+    ...
 ```
 
-### 2.3 Transition Messages
+### 2.2 Context Contract
+
+Defines allowed context keys and fallback rules:
 
 ```yaml
-transition_messages:
-  - transition_key: "5-plan_record_missing"  # Format: <source>-<event>
-    gate_message: "Plan Record Preparation Gate"  # Non-runtime
-    instruction: "Plan record v1 is required..."  # Non-runtime
+context_contract:
+  allowed_keys:
+    - "state_id"          # Current state ID
+    - "event"             # Triggering event name
+    - "command"           # Command that triggered
+    - "iteration_count"   # For review loops
+    - "max_iterations"    # Maximum iterations
+    - "required_evidence" # Required evidence keys
+  fallback_rules:
+    missing_state_id: "ERROR: state_id context required"
+    unknown_key: "ERROR: unknown context key '{key}'"
 ```
 
-**Transition Key Format:** `<source_state_id>-<event_name>`
+### 2.3 Presentation-Only Layer
 
-### 2.4 Cross-Spec Konsistenz
+Messages contain NO runtime fields. Tests verify:
+- No `next`, `route_strategy`, `transitions`, `terminal` (state messages)
+- No `next`, `source`, `when` (transition messages)
+- No `condition`, `guard_ref`, `exit_required_keys` (no guard fields)
+- No `allowed_in`, `mutating`, `produces_events` (no command fields)
 
-- `state_id` in messages muss in topology existieren (oder future state)
-- `transition_key` source muss in topology existieren
-- Future states from ADR-003 sind erlaubt (6.approved, 6.presentation, etc.)
+### 2.4 Command Conformance
+
+Instructions that reference commands are validated against command_policy:
+- `/continue`, `/review` are universal (always allowed)
+- For Phase 6, commands for `6.approved`/`6.presentation` are recognized
+- Cross-ref ensures no drift between messages and command policy
+
+### 2.5 Category Definitions
+
+| Category | Purpose | Example |
+|----------|---------|---------|
+| `display_name` | Pure state identifier for UI | "5-ArchitectureReview" |
+| `gate_message` | Current gate/status display | "Plan Record Preparation Gate" |
+| `instruction` | Next action hints | "Use /continue to proceed" |
 
 ## 3. Erstellte Dateien
 
 ### 3.1 `governance_spec/messages.yaml`
 
 **State Messages (18):**
-| State ID | Display Name | Gate Message |
-|----------|--------------|--------------|
-| 0 | 0-None | Bootstrap Required |
-| 1.1 | 1.1-Bootstrap | Workspace Ready Gate |
-| 1 | 1-WorkspacePersistence | Persistence Gate |
-| ... | ... | ... |
-| 5.3 | 5.3-TestQuality | Test Quality Gate |
-| 6 | 6-Implementation | Implementation Internal Review |
+- Stable IDs: `msg.state.<state_id>`
+- Display name, gate message, instruction per state
 
-**Transition Messages (26):**
-| Key | Gate Message |
-|-----|--------------|
-| 1.2-default | Rulebook Load Gate |
-| 2.1-business_rules_execute | Business Rules Bootstrap |
-| 3A-no_apis | Ticket Input Gate |
-| 5-plan_record_missing | Plan Record Preparation Gate |
-| 5.3-default | Implementation Internal Review |
-| 6-review_changes_requested | Changes Requested |
-| ... | ... |
+**Transition Messages (27):**
+- Stable IDs: `msg.trans.<source>-<event>`
+- Gate message, instruction per transition
+
+**Context Contract:**
+- 6 allowed keys
+- 3 fallback rules
+- 2 allowed value types
 
 ### 3.2 `tests/architecture/test_messages.py`
 
-19 Tests für die strikte Messages-Validierung:
+30 Tests:
 
 | Testklasse | Tests | Beschreibung |
 |------------|-------|--------------|
 | `TestMessagesStructure` | 4 | Grundlegende Struktur |
-| `TestStateMessages` | 6 | State Message Validierung |
-| `TestTransitionMessages` | 7 | Transition Message Validierung |
-| `TestMessagesTopologyConsistency` | 2 | Cross-Spec Konsistenz |
+| `TestContextContract` | 3 | Context Contract Validierung |
+| `TestMessageIds` | 4 | Stabile Message-IDs |
+| `TestStateMessages` | 3 | State Message Validierung |
+| `TestTransitionMessages` | 4 | Transition Message Validierung |
+| `TestCrossRefTopology` | 3 | Cross-Ref: Messages → Topology |
+| `TestConformanceCommandPolicy` | 2 | Cross-Ref: Messages ↔ Command-Policy |
+| `TestPresentationOnlyLayer` | 3 | Presentation-only Absicherung |
+| `TestMessageNegative` | 4 | Negative Tests |
 
 ## 4. Testergebnisse
 
 ```
-tests/architecture/test_messages.py ... 19 passed
+tests/architecture/test_messages.py ... 30 passed
 tests/architecture/test_command_policy.py ... 42 passed
 tests/architecture/test_guards.py ... 33 passed
 tests/architecture/test_topology.py ... 34 passed
 tests/architecture/test_spec_inventory.py ... 18 passed
-Total: 162 passed
+Total: 173 passed
 ```
 
 ## 5. Nächste Schritte
