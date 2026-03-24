@@ -441,6 +441,70 @@ class TestPipelineAutoApproveFailClosed:
             f"Empty decision in Phase 5 must block, got: {result}"
         )
 
+    def test_approve_without_phase6_review_block_blocks(self, tmp_path: Path):
+        """apply_review_decision without Phase6Review block must fail-closed.
+
+        Phase6Review block is required for approval decision.
+        """
+        session_path = tmp_path / "SESSION_STATE.json"
+        state = _make_state(effective_operating_mode="pipeline")
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        state.pop("Phase6Review", None)
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+
+        assert result["status"] == "error", (
+            f"Approve without Phase6Review block must fail-closed, got: {result}"
+        )
+        assert "reason_code" in result, "Error must include reason_code"
+
+    def test_approve_without_session_path_blocks(self, tmp_path: Path):
+        """apply_review_decision without session_path existing must fail-closed.
+
+        Missing session state file is a critical error.
+        """
+        session_path = tmp_path / "nonexistent" / "SESSION_STATE.json"
+
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+
+        assert result["status"] == "error", (
+            f"Approve without session_path must fail-closed, got: {result}"
+        )
+
+    def test_approve_in_phase3_blocks(self, tmp_path: Path):
+        """apply_review_decision in Phase 3 must fail-closed.
+
+        Approval decision is only valid at Phase 6.
+        """
+        session_path = tmp_path / "SESSION_STATE.json"
+        state = _make_state(
+            effective_operating_mode="pipeline",
+            phase="3-Bootstrap",
+            active_gate="Bootstrap Gate",
+        )
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+
+        assert result["status"] == "error", (
+            f"Approve in Phase 3 must fail-closed, got: {result}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Idempotency Tests: Duplicate Auto-Approve Calls
@@ -1012,3 +1076,145 @@ class TestPipelineAutoApproveE2E:
         canonical = ss.get("canonical", ss) if isinstance(ss, dict) else ss
         assert canonical.get("workflow_complete") is True
         assert canonical.get("UserReviewDecision", {}).get("source") == "pipeline_auto_approve"
+
+
+# ---------------------------------------------------------------------------
+# Regulated Mode E2E Tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.governance
+class TestRegulatedModeE2E:
+    """E2E tests for regulated/agents_strict mode with governance-mode.json.
+
+    These tests prove that regulated mode:
+    - Creates governance-mode.json at repo root
+    - Kernel does NOT signal auto-approve even with eligible conditions
+    - Explicit approval is required
+    """
+
+    def test_regulated_mode_with_governance_mode_json_blocks_auto_approve(self, tmp_path: Path):
+        """Regulated mode with governance-mode.json does NOT auto-approve.
+
+        This test proves the regulated governance promise end-to-end:
+        1. governance-mode.json exists for regulated mode
+        2. Kernel eligibility check returns False for agents_strict
+        3. Empty decision returns error, not auto-approve
+        """
+        import governance_runtime.entrypoints.session_reader as session_reader_module
+        from governance_runtime.kernel.phase_kernel import KernelResult
+
+        config_root = tmp_path / "config_root"
+        commands_home = config_root / "commands"
+        commands_home.mkdir(parents=True)
+
+        ws_dir = config_root / "workspaces" / "test-repo"
+        ws_dir.mkdir(parents=True, exist_ok=True)
+        session_path = ws_dir / "SESSION_STATE.json"
+        events_path = ws_dir / "events.jsonl"
+        repo_root = ws_dir
+
+        governance_mode_path = repo_root / "governance-mode.json"
+        governance_mode_path.write_text(json.dumps({
+            "schema": "governance-mode.v1",
+            "state": "active",
+            "activated_by": "bootstrap-cli",
+            "activated_at": "2026-03-23T12:00:00Z",
+            "minimum_retention_days": 3650,
+        }), encoding="utf-8")
+
+        pointer = {
+            "schema": "opencode-session-pointer.v1",
+            "activeSessionStateFile": str(session_path),
+            "activeRepoFingerprint": "test-repo",
+        }
+        (config_root / "SESSION_STATE.json").write_text(json.dumps(pointer), encoding="utf-8")
+
+        state = _make_state(effective_operating_mode="agents_strict")
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        state["repo_fingerprint"] = "test-repo"
+        state["PersistenceCommitted"] = True
+        state["WorkspaceReadyGateCommitted"] = True
+        state["WorkspaceArtifactsCommitted"] = True
+        state["PointerVerified"] = True
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        (commands_home / "phase_api.yaml").write_text(
+            textwrap.dedent("""\
+                schema: opencode.governance.phase-api.v1
+                phases:
+                  "6":
+                    next_token: "6"
+                    route_strategy: stay
+                    entries:
+                      - entry: start
+                        when: implementation_review_complete
+                        next_token: "6"
+                        source: phase-6-review-complete
+                        active_gate: Evidence Presentation Gate
+                        next_gate_condition: Human review required in regulated mode.
+            """),
+            encoding="utf-8",
+        )
+
+        kernel_result = KernelResult(
+            phase="6",
+            next_token="6",
+            active_gate="Evidence Presentation Gate",
+            next_gate_condition="Human review required in regulated mode.",
+            workspace_ready=True,
+            source="phase-6-review-complete",
+            status="OK",
+            spec_hash="abc",
+            spec_path=str(commands_home / "phase_api.yaml"),
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-regulated-001",
+            route_strategy="stay",
+            plan_record_status="active",
+            plan_record_versions=1,
+            transition_evidence_met=False,
+        )
+
+        with patch("governance_runtime.kernel.phase_kernel.execute", return_value=kernel_result):
+            snapshot = session_reader_module.read_session_snapshot(
+                commands_home=commands_home,
+                materialize=True,
+            )
+
+        assert snapshot.get("status") == "OK"
+        assert snapshot.get("active_gate") == "Evidence Presentation Gate", (
+            f"Regulated mode should stay at Evidence Gate, got: {snapshot.get('active_gate')}"
+        )
+
+        on_disk = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = on_disk.get("SESSION_STATE", on_disk)
+        canonical = ss.get("canonical", ss) if isinstance(ss, dict) else ss
+        assert canonical.get("workflow_complete") is not True, (
+            "Regulated mode should NOT auto-approve, workflow_complete should not be True"
+        )
+
+        result = apply_review_decision(
+            decision="",
+            session_path=session_path,
+        )
+        assert result["status"] == "error", (
+            f"Empty decision in regulated mode must error, got: {result}"
+        )
+        assert "reason_code" in result, "Error must include reason_code"
+
+    def test_regulated_kernel_does_not_signal_auto_approve(self, tmp_path: Path):
+        """Kernel does NOT signal auto-approve for agents_strict mode.
+
+        Even if all other eligibility conditions are met, the kernel should NOT
+        signal source="pipeline-auto-approve" for agents_strict mode.
+        """
+        state = _make_state(effective_operating_mode="agents_strict")
+        state["phase6_review_iterations"] = 3
+        state["phase6_max_review_iterations"] = 3
+
+        eligible = pipeline_auto_approve_eligible(state)
+        assert eligible is False, (
+            f"agents_strict mode should not be eligible for auto-approve, got: {eligible}"
+        )
