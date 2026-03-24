@@ -1,0 +1,6 @@
+{
+  "review": {
+    "phase5_max_review_iterations": 3,
+    "phase6_max_review_iterations": 3
+  }
+}

@@ -1,7 +1,7 @@
 # Governance Configuration
 
 **Status:** Implemented  
-**Feature Branch:** `feat/governance-config-json`
+**Feature Branch:** `feat/governance-config-installer-materialize`
 
 ## Overview
 
@@ -10,32 +10,28 @@
 ## Location
 
 ```
-<workspace-root>/governance-config.json
+~/.config/opencode/workspaces/<repo-fingerprint>/governance-config.json
 ```
 
-Where `<workspace-root>` is typically:
-```
-~/.config/opencode/workspaces/<repo-fingerprint>/
-```
+## Bootstrap Materialization
+
+During workspace bootstrap, `governance-config.json` is automatically materialized to the workspace directory if not already present. This ensures every workspace has sensible defaults out-of-the-box.
+
+**Idempotent:** Existing configurations are never overwritten. Custom configurations take precedence.
+
+**Graceful degradation:** If the default asset cannot be read (e.g., packaging issues), bootstrap continues without error and falls back to hardcoded defaults.
 
 ## Schema
 
 **File:** `governance_runtime/assets/schemas/governance-config.v1.schema.json`
 
+**Note:** `$schema` is optional. The default asset intentionally omits it to avoid resolution issues at the fp-scoped path.
+
 ```json
 {
-  "$schema": "governance-config.v1.schema.json",
   "review": {
     "phase5_max_review_iterations": 3,
     "phase6_max_review_iterations": 3
-  },
-  "pipeline": {
-    "allow_pipeline_mode": true,
-    "auto_approve_enabled": true
-  },
-  "regulated": {
-    "allow_auto_approve": false,
-    "require_governance_mode_active": true
   }
 }
 ```
@@ -53,33 +49,25 @@ Controls review loop iteration limits.
 
 **Bounds:** 1 - 100
 
-### `pipeline`
-
-Controls pipeline mode behavior.
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `allow_pipeline_mode` | boolean | true | Whether pipeline mode is allowed |
-| `auto_approve_enabled` | boolean | true | Whether auto-approve is enabled in pipeline mode |
-
-### `regulated`
-
-Controls regulated mode behavior.
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `allow_auto_approve` | boolean | false | Whether auto-approve is allowed in regulated mode (should remain false) |
-| `require_governance_mode_active` | boolean | true | Whether governance-mode.json must be active for regulated enforcement |
-
 ## Behavior Rules
 
 | Scenario | Behavior |
-|----------|----------|
+|----------|---------|
 | File missing | Return defaults (backward compatible) |
 | File present + valid | Use loaded values |
 | File present + invalid | Fail-closed (RuntimeError) |
 | Unknown keys | Rejected (validation error) |
 | State value present | Takes precedence over config |
+
+## Canonical Source
+
+`governance-config.json` is the **single source of truth** for:
+- `phase5_max_review_iterations` — used by Phase 5 review loop
+- `phase6_max_review_iterations` — used by Phase 6 review loop
+
+**This is a direct runtime knob.** Setting `phase5_max_review_iterations = 5` in governance-config.json means Phase 5 review loops run for a maximum of 5 iterations.
+
+> **Note:** The legacy `phase5_review_config.yaml` file is no longer used for max_iterations. It is deprecated for this purpose.
 
 ## Usage
 
@@ -88,7 +76,10 @@ Controls regulated mode behavior.
 ```python
 from governance_runtime.infrastructure.governance_config_loader import load_governance_config
 
-config = load_governance_config(workspace_root)
+workspace_dir = Path("~/.config/opencode/workspaces/<fingerprint>")
+config = load_governance_config(workspace_dir)
+# Or pass None to get defaults:
+config = load_governance_config(None)
 ```
 
 ### Getting Review Iterations
@@ -96,7 +87,8 @@ config = load_governance_config(workspace_root)
 ```python
 from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
 
-phase5_max, phase6_max = get_review_iterations(workspace_root)
+workspace_dir = Path("~/.config/opencode/workspaces/<fingerprint>")
+phase5_max, phase6_max = get_review_iterations(workspace_dir)
 # Returns (3, 3) by default
 ```
 
@@ -107,7 +99,8 @@ The Phase 5 self-review loop uses governance config:
 ```python
 from governance_runtime.entrypoints.phase5_plan_record_persist import _get_phase5_max_review_iterations
 
-max_iterations = _get_phase5_max_review_iterations(workspace_root)
+workspace_dir = Path("~/.config/opencode/workspaces/<fingerprint>")
+max_iterations = _get_phase5_max_review_iterations(workspace_dir)
 ```
 
 ### Phase6 Usage
@@ -137,29 +130,34 @@ if errors:
 ## Architecture Notes
 
 1. **Configuration Loader:** `governance_config_loader.py` provides the main API (`load_governance_config`, `get_review_iterations`)
-2. **Fail-Closed:** Invalid config raises errors rather than silently falling back
-3. **Workspace-Scoped:** Each workspace can have its own configuration (via fingerprint)
-4. **State Override:** Runtime state values always take precedence over config defaults
-5. **Schema Validation:** Currently uses manual validation; JSON schema file serves as formal contract
+2. **Bootstrap Materialization:** Config is automatically materialized during workspace bootstrap (idempotent)
+3. **Fail-Closed:** Invalid config raises errors rather than silently falling back
+4. **Workspace-Scoped:** Each workspace can have its own configuration (via fingerprint)
+5. **State Override:** Runtime state values always take precedence over config defaults
+6. **Central Resolver:** `workspace_resolver.py` provides single source of truth for workspace path resolution
+7. **Package Resources:** Asset loading uses `importlib.resources` for robust resolution
 
 ## Implementation Status
 
 - **V1 Complete:** Review iteration configuration for Phase 5 and Phase 6
-- **Workspace Resolution:** Distributed across call sites (session_reader, phase_kernel, phase5_plan_record_persist)
+- **Bootstrap Materialization:** Config automatically materialized during workspace bootstrap
+- **Central Workspace Resolver:** `workspace_resolver.py` consolidates fingerprint/config-path resolution
 - **Loader Cache:** No workspace-keyed cache in V1; correctness over optimization
 
 ## Related Files
 
+- Default Asset: `governance_runtime/assets/config/governance-config.json`
 - Schema: `governance_runtime/assets/schemas/governance-config.v1.schema.json`
 - Defaults: `governance_runtime/domain/default_governance_config.py`
 - Loader: `governance_runtime/infrastructure/governance_config_loader.py`
+- Workspace Resolver: `governance_runtime/infrastructure/workspace_resolver.py`
+- Bootstrap Materialization: `governance_runtime/application/use_cases/bootstrap_persistence.py`
 - Phase5 wiring: `governance_runtime/entrypoints/phase5_plan_record_persist.py`
 - Phase6 wiring: `governance_runtime/kernel/phase_kernel.py`
 - Session reader: `governance_runtime/entrypoints/session_reader.py`
 
 ## Future Considerations
 
-- Central workspace resolution helper (consolidate fingerprint/config-path resolution)
 - Workspace-keyed loader cache for performance
 - CLI override for V2
 - Multi-workspace integration tests

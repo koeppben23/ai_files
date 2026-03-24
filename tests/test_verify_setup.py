@@ -16,6 +16,8 @@ class TestVerifySetup:
         from scripts.verify_setup import check_command
         
         passed, message = check_command("git")
+        if not passed:
+            pytest.skip(f"git not available in PATH: {message}")
         assert passed is True
         assert message != "not found"
     

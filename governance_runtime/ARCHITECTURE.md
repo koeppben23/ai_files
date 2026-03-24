@@ -149,19 +149,24 @@ The team profile (`--profile team`) enables non-interactive auto-approve at the 
 
 ### Governance Configuration (governance-config.json)
 
-The `governance-config.json` file at workspace root provides policy knobs for governance behavior.
+The `governance-config.json` file provides policy knobs for governance behavior.
 
-**Location:** `<workspace>/governance-config.json`
+**Location:** `~/.config/opencode/workspaces/<repo-fingerprint>/governance-config.json`
 
-**Configuration Sections:**
-- `review`: Review iteration limits (phase5_max_review_iterations, phase6_max_review_iterations)
-- `pipeline`: Pipeline mode settings (allow_pipeline_mode, auto_approve_enabled)
-- `regulated`: Regulated mode settings (allow_auto_approve, require_governance_mode_active)
+**Bootstrap Materialization:** During workspace bootstrap, the default config is automatically materialized to the workspace if not present. This is idempotent — existing configs are never overwritten.
+
+**V1 Configuration (review iteration limits):**
+- `review.phase5_max_review_iterations`: Max iterations for Phase 5
+- `review.phase6_max_review_iterations`: Max iterations for Phase 6
 
 **Behavior:**
 - File missing → use defaults (backward compatible)
 - File present + valid → use loaded values
 - File present + invalid → fail-closed (RuntimeError)
+
+**Implementation:**
+- Asset loading uses `importlib.resources` for robust resolution
+- Central workspace resolution via `workspace_resolver.py`
 
 **See Also:** `GOVERNANCE_CONFIG.md` for full documentation.
 

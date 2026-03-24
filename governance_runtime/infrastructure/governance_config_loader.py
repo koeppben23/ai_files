@@ -311,18 +311,19 @@ def clear_caches() -> None:
 # ---------------------------------------------------------------------------
 
 def load_governance_config(
-    workspace_root: Path,
+    workspace_dir: Path | None,
     *,
     require_valid: bool = True,
 ) -> dict[str, object]:
-    """Load governance configuration from workspace root.
+    """Load governance configuration from repository workspace.
 
-    This function loads the governance-config.json file from the workspace root
-    and validates it. If the file is missing, it returns default values.
+    This function loads the governance-config.json file from the repository workspace
+    directory (~/.config/opencode/workspaces/<fingerprint>/) and validates it.
+    If the file is missing or workspace_dir is None, it returns default values.
     If the file is present but invalid, it raises RuntimeError (if require_valid=True).
 
     Args:
-        workspace_root: Path to the workspace root directory.
+        workspace_dir: Path to the repository workspace directory. If None, returns defaults.
         require_valid: If True, raise RuntimeError for invalid configs.
                       If False, return defaults on error (including missing file).
 
@@ -333,6 +334,7 @@ def load_governance_config(
         RuntimeError: If require_valid=True and config file is present but invalid.
 
     Design:
+        - workspace_dir is None → return defaults (backward compatible)
         - File missing → return defaults (backward compatible)
         - File present + valid → use loaded values
         - File present + invalid → fail-closed (require_valid=True) or defaults
@@ -342,7 +344,10 @@ def load_governance_config(
         get_default_governance_config,
     )
 
-    config_path = workspace_root / "governance-config.json"
+    if workspace_dir is None:
+        return get_default_governance_config()
+
+    config_path = workspace_dir / "governance-config.json"
 
     if not config_path.is_file():
         return get_default_governance_config()
@@ -378,70 +383,43 @@ def _validate_governance_config_schema(config: dict[str, object]) -> list[str]:
 
     Returns a list of error messages (empty = valid).
     Unknown keys cause validation failure to prevent silent misconfiguration.
+    $schema is optional but recommended for IDE support.
     """
     errors: list[str] = []
 
-    if "$schema" not in config:
-        errors.append("missing required key: $schema")
-    elif config["$schema"] != GOVERNANCE_CONFIG_SCHEMA_ID:
+    if "$schema" in config and config["$schema"] != GOVERNANCE_CONFIG_SCHEMA_ID:
         errors.append(f"invalid $schema value: expected '{GOVERNANCE_CONFIG_SCHEMA_ID}', got '{config['$schema']}'")
 
-    for section in ("review", "pipeline", "regulated"):
-        if section not in config:
-            errors.append(f"missing required section: {section}")
-        elif not isinstance(config[section], dict):
-            errors.append(f"section '{section}' must be an object")
-        else:
-            errors.extend(_validate_section(section, config[section]))
+    if "review" not in config:
+        errors.append("missing required section: review")
+    elif not isinstance(config["review"], dict):
+        errors.append("section 'review' must be an object")
+    else:
+        errors.extend(_validate_review_section(config["review"]))
 
-    unknown_keys = set(config.keys()) - {"$schema", "review", "pipeline", "regulated"}
+    unknown_keys = set(config.keys()) - {"$schema", "review"}
     if unknown_keys:
         errors.append(f"unknown top-level keys: {', '.join(sorted(unknown_keys))}")
 
     return errors
 
 
-def _validate_section(section: str, section_config: dict) -> list[str]:
-    """Validate a single config section."""
+def _validate_review_section(section_config: dict) -> list[str]:
+    """Validate the review config section."""
     errors: list[str] = []
-
-    if section == "review":
-        required = {"phase5_max_review_iterations", "phase6_max_review_iterations"}
-        if not required.issubset(section_config.keys()):
-            missing = required - section_config.keys()
-            errors.append(f"review: missing required keys: {', '.join(sorted(missing))}")
-        for key, value in section_config.items():
-            if key not in required:
-                errors.append(f"review: unknown key '{key}'")
-                continue
-            if not isinstance(value, int):
-                errors.append(f"review.{key} must be integer, got {type(value).__name__}")
-            elif value < 1 or value > 100:
-                errors.append(f"review.{key} must be between 1 and 100, got {value}")
-
-    elif section == "pipeline":
-        required = {"allow_pipeline_mode", "auto_approve_enabled"}
-        if not required.issubset(section_config.keys()):
-            missing = required - section_config.keys()
-            errors.append(f"pipeline: missing required keys: {', '.join(sorted(missing))}")
-        for key, value in section_config.items():
-            if key not in required:
-                errors.append(f"pipeline: unknown key '{key}'")
-                continue
-            if not isinstance(value, bool):
-                errors.append(f"pipeline.{key} must be boolean, got {type(value).__name__}")
-
-    elif section == "regulated":
-        required = {"allow_auto_approve", "require_governance_mode_active"}
-        if not required.issubset(section_config.keys()):
-            missing = required - section_config.keys()
-            errors.append(f"regulated: missing required keys: {', '.join(sorted(missing))}")
-        for key, value in section_config.items():
-            if key not in required:
-                errors.append(f"regulated: unknown key '{key}'")
-                continue
-            if not isinstance(value, bool):
-                errors.append(f"regulated.{key} must be boolean, got {type(value).__name__}")
+    required = {"phase5_max_review_iterations", "phase6_max_review_iterations"}
+    
+    if not required.issubset(section_config.keys()):
+        missing = required - section_config.keys()
+        errors.append(f"review: missing required keys: {', '.join(sorted(missing))}")
+    for key, value in section_config.items():
+        if key not in required:
+            errors.append(f"review: unknown key '{key}'")
+            continue
+        if not isinstance(value, int):
+            errors.append(f"review.{key} must be integer, got {type(value).__name__}")
+        elif value < 1 or value > 100:
+            errors.append(f"review.{key} must be between 1 and 100, got {value}")
 
     return errors
 

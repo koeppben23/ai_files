@@ -889,13 +889,10 @@ class TestGetPhase5MaxReviewIterations:
         module._clear_phase5_max_iterations_cache()
         
         config = {
-            "$schema": "governance-config.v1.schema.json",
             "review": {
                 "phase5_max_review_iterations": 7,
                 "phase6_max_review_iterations": 5,
             },
-            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
-            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
         }
         (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
         
@@ -908,13 +905,10 @@ class TestGetPhase5MaxReviewIterations:
         module._clear_phase5_max_iterations_cache()
         
         config = {
-            "$schema": "governance-config.v1.schema.json",
             "review": {
                 "phase5_max_review_iterations": 5,
                 "phase6_max_review_iterations": 5,
             },
-            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
-            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
         }
         (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
         

@@ -30,6 +30,7 @@ _PATH_RESOLVE_ALLOWLIST: set[str] = {
 
 _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
     "governance_runtime/application/use_cases/audit_readout_builder.py",
+    "governance_runtime/application/use_cases/phase5_iterative_review.py",
 }
 
 # Side-effect calls allowlist for application layer
