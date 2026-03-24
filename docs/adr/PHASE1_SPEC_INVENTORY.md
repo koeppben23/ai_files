@@ -23,7 +23,7 @@
 
 | Feld | Quelle | Zielschicht | Bemerkung |
 |------|--------|-------------|-----------|
-| `transitions[].when` | phase_api.yaml | **Guard** | Condition selector → `guard_ref` Referenz |
+| `transitions[].when` | phase_api.yaml | **Guard** | Transition condition / guard input (migrates toward `guard_ref` in V2) |
 | `transitions[].next` | phase_api.yaml | **Topologie** | Ziel-State-ID |
 | `transitions[].source` | phase_api.yaml | **Topologie** | Provenance label (z.B. "6.execution → 6.internal_review") |
 | `transitions[].active_gate` | phase_api.yaml | **Messaging** | → `messages` |

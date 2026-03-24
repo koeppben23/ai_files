@@ -22,21 +22,27 @@ import yaml
 from pathlib import Path
 
 
-def _find_spec_path() -> Path:
-    """Find phase_api.yaml relative to test file location."""
+def _find_spec_path() -> Path | None:
+    """Find phase_api.yaml relative to test file location.
+    
+    Returns None if not found - caller should handle the case.
+    """
     current = Path(__file__).resolve()
     # Search upward from test file location
     for parent in current.parents:
         candidate = parent / "governance_spec" / "phase_api.yaml"
         if candidate.exists():
             return candidate
-    pytest.skip("phase_api.yaml not found - test requires spec file")
+    return None
 
 
 @pytest.fixture
 def spec_path():
     """Provides the spec path, skipping test if not found."""
-    return _find_spec_path()
+    path = _find_spec_path()
+    if path is None:
+        pytest.skip("phase_api.yaml not found - test requires spec file")
+    return path
 
 
 @pytest.fixture
