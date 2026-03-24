@@ -1,0 +1,269 @@
+version: 1
+schema: opencode.messages.v1
+
+# ============================================================================
+# State Messages
+# ============================================================================
+# UX/Presentation content for each state.
+# This is the canonical source for display names, gate messages, and instructions.
+# Runtime does NOT use these fields - they are for UI/CLI display only.
+
+state_messages:
+  - state_id: "0"
+    display_name: "0-None"
+    gate_message: "Bootstrap Required"
+    instruction: "Run bootstrap before governance execution."
+
+  - state_id: "1.1"
+    display_name: "1.1-Bootstrap"
+    gate_message: "Workspace Ready Gate"
+    instruction: "Complete workspace persistence and pointer verification."
+
+  - state_id: "1"
+    display_name: "1-WorkspacePersistence"
+    gate_message: "Persistence Gate"
+    instruction: "Persist bootstrap artifacts and verify workspace state."
+
+  - state_id: "1.2"
+    display_name: "1.2-ActivationIntent"
+    gate_message: "Activation Intent"
+    instruction: "Activation intent committed; continue to repository discovery."
+
+  - state_id: "1.3"
+    display_name: "1.3-RulebookLoad"
+    gate_message: "Rulebook Load Gate"
+    instruction: "Load core/profile/templates/addons rulebooks with evidence."
+
+  - state_id: "2"
+    display_name: "2-RepoDiscovery"
+    gate_message: "Repo Discovery"
+    instruction: "Run repository discovery and cache artifacts."
+
+  - state_id: "2.1"
+    display_name: "2.1-DecisionPack"
+    gate_message: "Decision Pack"
+    instruction: "Resolve business rules path, then continue."
+
+  - state_id: "1.5"
+    display_name: "1.5-BusinessRules"
+    gate_message: "Business Rules Bootstrap"
+    instruction: "Business rules persisted; continue with API inventory."
+
+  - state_id: "3A"
+    display_name: "3A-API-Inventory"
+    gate_message: "API Inventory"
+    instruction: "Inventory APIs and decide whether deep validation applies."
+
+  - state_id: "3B-1"
+    display_name: "3B-1"
+    gate_message: "API Logical Validation"
+    instruction: "Validate API logic constraints and continue."
+
+  - state_id: "3B-2"
+    display_name: "3B-2"
+    gate_message: "Contract Validation"
+    instruction: "Validate API contracts and continue to ticket intake."
+
+  - state_id: "4"
+    display_name: "4"
+    gate_message: "Ticket Input Gate"
+    instruction: "Collect ticket and planning constraints (or run /review for read-only feedback with no state change)."
+
+  - state_id: "5"
+    display_name: "5-ArchitectureReview"
+    gate_message: "Plan Record Preparation Gate"
+    instruction: "When plan_record_versions < 1, create and persist plan-record v1 in Plan Record Preparation Gate. When plan_record_versions >= 1, stay in Architecture Review Gate until deterministic internal self-review completes before advancing to Phase 5.3."
+
+  - state_id: "5.3"
+    display_name: "5.3-TestQuality"
+    gate_message: "Test Quality Gate"
+    instruction: "Validate tests and quality checks."
+
+  - state_id: "5.4"
+    display_name: "5.4-BusinessRules"
+    gate_message: "Business Rules Validation"
+    instruction: "Validate business-rules consistency when Phase 1.5 was executed."
+
+  - state_id: "5.5"
+    display_name: "5.5-TechnicalDebt"
+    gate_message: "Technical Debt Review"
+    instruction: "Capture and control technical debt."
+
+  - state_id: "5.6"
+    display_name: "5.6-RollbackSafety"
+    gate_message: "Rollback Safety Gate"
+    instruction: "Validate rollback safety requirements."
+
+  - state_id: "6"
+    display_name: "6-Implementation"
+    gate_message: "Implementation Internal Review"
+    instruction: "Phase 5 checks complete; start internal implementation review."
+
+# ============================================================================
+# Transition Messages
+# ============================================================================
+# UX/Presentation content for specific transitions.
+# Key format: "<source_state>-<event>" or "<source_state>-<default>"
+
+transition_messages:
+  # Phase 1.2 transitions
+  - transition_key: "1.2-default"
+    gate_message: "Rulebook Load Gate"
+    instruction: "Execute Phase 1.3 Rulebook Load (auto)"
+
+  # Phase 2.1 transitions
+  - transition_key: "2.1-business_rules_execute"
+    gate_message: "Business Rules Bootstrap"
+    instruction: "Auto-bootstrap business rules placeholder when inventory is missing, then continue to Phase 3A"
+
+  - transition_key: "2.1-default"
+    gate_message: "API Validation Routing"
+    instruction: "Execute Phase 3A API Inventory; if no APIs are detected, record not-applicable and proceed to Phase 4"
+
+  # Phase 1.5 transitions
+  - transition_key: "1.5-default"
+    gate_message: "API Validation Routing"
+    instruction: "Execute Phase 3A API Inventory; if no APIs are detected, record not-applicable and proceed to Phase 4"
+
+  # Phase 3A transitions
+  - transition_key: "3A-no_apis"
+    gate_message: "Ticket Input Gate"
+    instruction: "Phase 3A completed with not-applicable (no APIs detected); continue via /continue, then provide ticket/task input or run /review for read-only feedback at Phase 4"
+
+  - transition_key: "3A-default"
+    gate_message: "API Logical Validation"
+    instruction: "APIs detected; proceed to Phase 3B-1 logical validation"
+
+  # Phase 3B-1 transitions
+  - transition_key: "3B-1-default"
+    gate_message: "Contract Validation"
+    instruction: "Phase 3B-1 complete; proceed to Phase 3B-2 contract validation"
+
+  # Phase 3B-2 transitions
+  - transition_key: "3B-2-default"
+    gate_message: "Ticket Input Gate"
+    instruction: "Phase 3B-2 complete; continue via /continue, then provide ticket/task input or run /review for read-only feedback at Phase 4"
+
+  # Phase 4 transitions
+  - transition_key: "4-ticket_present"
+    gate_message: "Plan Record Preparation Gate"
+    instruction: "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review"
+
+  - transition_key: "4-default"
+    gate_message: "Ticket Input Gate"
+    instruction: "Provide ticket/task details to continue from Phase 4 to Phase 5, or run /review for read-only review feedback (no state change)"
+
+  # Phase 5 transitions
+  - transition_key: "5-plan_record_missing"
+    gate_message: "Plan Record Preparation Gate"
+    instruction: "Plan record v1 is required. Produce a plan draft and persist plan-record evidence before architecture review."
+
+  - transition_key: "5-self_review_iterations_pending"
+    gate_message: "Architecture Review Gate"
+    instruction: "Plan record is present. Continue deterministic internal self-review until completion condition is met (max 3, or unchanged digest after minimum iterations)."
+
+  - transition_key: "5-self_review_iterations_met"
+    gate_message: "Architecture Review Gate"
+    instruction: "Plan review loop complete (hard-stop at max iterations or early-stop on unchanged digest after minimum iterations). Proceed to Phase 5.3 test-quality gate."
+
+  - transition_key: "5-default"
+    gate_message: "Architecture Review Gate"
+    instruction: "Stay in Phase 5 until plan-record evidence and required internal self-review iterations are complete."
+
+  # Phase 5.3 transitions
+  - transition_key: "5.3-business_rules_gate_required"
+    gate_message: "Business Rules Validation"
+    instruction: "Phase 1.5 executed; Phase 5.4 is mandatory before proceeding"
+
+  - transition_key: "5.3-technical_debt_proposed"
+    gate_message: "Technical Debt Gate"
+    instruction: "Technical debt proposed; evaluate in Phase 5.5"
+
+  - transition_key: "5.3-rollback_required"
+    gate_message: "Rollback Safety Gate"
+    instruction: "Rollback safety checks required in Phase 5.6"
+
+  - transition_key: "5.3-default"
+    gate_message: "Implementation Internal Review"
+    instruction: "Phase 5 checks complete; start internal implementation review."
+
+  # Phase 5.4 transitions
+  - transition_key: "5.4-technical_debt_proposed"
+    gate_message: "Technical Debt Gate"
+    instruction: "Business rules validation complete; technical debt proposed"
+
+  - transition_key: "5.4-rollback_required"
+    gate_message: "Rollback Safety Gate"
+    instruction: "Business rules validation complete; rollback checks required"
+
+  - transition_key: "5.4-default"
+    gate_message: "Implementation Internal Review"
+    instruction: "Business rules validation complete; start internal implementation review."
+
+  # Phase 5.5 transitions
+  - transition_key: "5.5-rollback_required"
+    gate_message: "Rollback Safety Gate"
+    instruction: "Technical debt reviewed; rollback safety checks required"
+
+  - transition_key: "5.5-default"
+    gate_message: "Implementation Internal Review"
+    instruction: "Technical debt reviewed; proceed to implementation review"
+
+  # Phase 5.6 transitions
+  - transition_key: "5.6-default"
+    gate_message: "Implementation Internal Review"
+    instruction: "Rollback safety validated; proceed to implementation review"
+
+  # Phase 6 transitions
+  - transition_key: "6-implementation_accepted"
+    gate_message: "Implementation Execution"
+    instruction: "Implementation accepted; continue execution"
+
+  - transition_key: "6-implementation_blocked"
+    gate_message: "Implementation Blocked"
+    instruction: "Implementation blocked by unresolved critical findings. Resolve blockers and rerun /implement."
+
+  - transition_key: "6-implementation_rework_clarification_pending"
+    gate_message: "Rework Clarification"
+    instruction: "Clarify implementation rework in chat, then run /implement to apply revisions."
+
+  - transition_key: "6-implementation_presentation_ready"
+    gate_message: "Implementation Presentation"
+    instruction: "Implementation package is ready. Submit /implementation-decision <approve|changes_requested|reject>."
+
+  - transition_key: "6-workflow_approved"
+    gate_message: "Workflow Approved"
+    instruction: "Workflow approved. Governance is complete and implementation is authorized. Run /implement to start the implementation phase."
+
+  - transition_key: "6-review_changes_requested"
+    gate_message: "Changes Requested"
+    instruction: "Changes requested by reviewer. Clarify requested changes in chat, then run the directed next rail (/ticket, /plan, or /continue)."
+
+  - transition_key: "6-rework_clarification_pending"
+    gate_message: "Rework Clarification Required"
+    instruction: "Clarification is still required. Describe requested changes in chat; then run exactly one directed rail (/ticket, /plan, or /continue)."
+
+  - transition_key: "6-implementation_review_complete"
+    gate_message: "Review Decision Required"
+    instruction: "Implementation review loop is complete. Present evidence and submit final review decision via /review-decision (approve | changes_requested | reject)."
+
+  # Phase 6 self-transitions (generic gate messages)
+  - transition_key: "6-implementation_started"
+    gate_message: "Implementation Started"
+    instruction: "Implementation execution has started."
+
+  - transition_key: "6-implementation_execution_in_progress"
+    gate_message: "Implementation In Progress"
+    instruction: "Implementation execution is in progress."
+
+  - transition_key: "6-implementation_review_pending"
+    gate_message: "Review Pending"
+    instruction: "Implementation review is pending."
+
+  - transition_key: "6-review_rejected"
+    gate_message: "Review Rejected"
+    instruction: "Review rejected. Return to Phase 4 for rework."
+
+  - transition_key: "6-default"
+    gate_message: "Implementation Review"
+    instruction: "Continue implementation review process."
