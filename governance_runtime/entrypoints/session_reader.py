@@ -46,6 +46,47 @@ from governance_runtime.receipts.store import build_presentation_receipt
 POINTER_SCHEMA = CANONICAL_POINTER_SCHEMA
 
 
+# ---------------------------------------------------------------------------
+# Governance config helpers
+# ---------------------------------------------------------------------------
+
+def _get_workspace_dir(config_root: Path, pointer: dict) -> Path | None:
+    """Derive workspace_dir from config_root and session pointer.
+    
+    Supports both:
+    - activeRepoFingerprint (preferred) -> config_root/workspaces/{fingerprint}
+    - activeSessionStateFile (legacy) -> parent dir of the absolute path
+    
+    Returns workspace directory path or None if unavailable.
+    """
+    fingerprint = pointer.get("activeRepoFingerprint")
+    if fingerprint:
+        return config_root / "workspaces" / str(fingerprint)
+    
+    session_state_file = pointer.get("activeSessionStateFile")
+    if session_state_file:
+        session_path = Path(session_state_file)
+        if session_path.is_absolute():
+            return session_path.parent
+        return None
+    
+    return None
+
+
+def _get_phase6_max_review_iterations(workspace_dir: Path | None) -> int:
+    """Get phase6 max review iterations from governance config.
+    
+    Args:
+        workspace_dir: Path to workspace root. If None, uses default value 3.
+    
+    Returns:
+        Max review iterations (3 by default).
+    """
+    from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
+    _, phase6 = get_review_iterations(workspace_dir)
+    return phase6
+
+
 def _derive_commands_home() -> Path:
     """Resolve commands_home in strict dual-root order.
 
@@ -794,6 +835,9 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             "error": f"StateDocument validation failed: {'; '.join(error_details)}",
         }
 
+    workspace_dir = _get_workspace_dir(config_root, pointer)
+    phase6_max_iterations = _get_phase6_max_review_iterations(workspace_dir)
+
     _canonicalize_legacy_p5x_surface(state_doc=state)
 
     if materialize:
@@ -1146,9 +1190,9 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             else:
                 _p6_delta = "changed"
         else:
-            _p6_iter, _p6_max, _p6_min, _p6_delta = 0, 3, 1, "changed"
+            _p6_iter, _p6_max, _p6_min, _p6_delta = 0, phase6_max_iterations, 1, "changed"
 
-        _p6_max = _p6_max if _p6_max >= 1 else 3
+        _p6_max = _p6_max if _p6_max >= 1 else phase6_max_iterations
         _p6_min = max(1, min(_p6_min, _p6_max)) if _p6_min >= 1 else 1
         _p6_complete = (
             _p6_iter >= _p6_max

@@ -3323,6 +3323,101 @@ class TestPhase6ImplementationReviewDiagnostics:
         assert result["implementation_review_complete"] is False
 
 
+class TestPhase6GovernanceConfigWiring:
+    """Wire phase6_max_review_iterations to governance-config.json."""
+
+    def test_default_phase6_max_from_governance_config(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Missing ImplementationReview uses governance config default (3)."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_max_review_iterations"] == 3
+
+    def test_custom_phase6_max_from_governance_config(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Custom phase6_max_review_iterations from governance-config.json."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+            }
+        })
+
+        governance_config = {
+            "$schema": "governance-config.v1.schema.json",
+            "review": {
+                "phase5_max_review_iterations": 3,
+                "phase6_max_review_iterations": 7,
+            },
+            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
+            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
+        }
+        workspace_dir = fake_config / "workspaces" / "abc123"
+        workspace_dir.mkdir(parents=True, exist_ok=True)
+        (workspace_dir / "governance-config.json").write_text(
+            json.dumps(governance_config), encoding="utf-8"
+        )
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_max_review_iterations"] == 7
+
+    def test_state_phase6_max_overrides_governance_config(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """State-provided phase6_max_review_iterations takes precedence."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+                "ImplementationReview": {
+                    "iteration": 1,
+                    "max_iterations": 5,
+                    "min_self_review_iterations": 1,
+                    "prev_impl_digest": "sha256:abc",
+                    "curr_impl_digest": "sha256:abc",
+                },
+            }
+        })
+
+        governance_config = {
+            "$schema": "governance-config.v1.schema.json",
+            "review": {
+                "phase5_max_review_iterations": 3,
+                "phase6_max_review_iterations": 7,
+            },
+            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
+            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
+        }
+        workspace_dir = fake_config / "workspaces" / "abc123"
+        workspace_dir.mkdir(parents=True, exist_ok=True)
+        (workspace_dir / "governance-config.json").write_text(
+            json.dumps(governance_config), encoding="utf-8"
+        )
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_max_review_iterations"] == 5  # from state, not config
+
+
 class TestPhase6NextActionLine:
     """Fix 3.4 (B13): _resolve_next_action_line handles Phase 6 review loop.
 
