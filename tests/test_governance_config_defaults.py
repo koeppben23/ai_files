@@ -19,10 +19,9 @@ class TestGovernanceConfigCanonicalDefaults:
     """Tests verifying canonical V1 defaults are consistent across codebase."""
 
     def test_default_config_matches_loader_defaults(self) -> None:
-        """Asset defaults must match hardcoded loader defaults (structure + values).
+        """Asset defaults must match hardcoded loader defaults.
         
         Note: Asset intentionally omits $schema to avoid resolution issues.
-        Compare only the policy content (review, pipeline, regulated sections).
         """
         from governance_runtime.domain.default_governance_config import get_default_governance_config
         
@@ -33,12 +32,11 @@ class TestGovernanceConfigCanonicalDefaults:
         
         asset_content = json.loads(asset_path.read_text(encoding="utf-8"))
         
-        assert set(asset_content.keys()) == {"review", "pipeline", "regulated"}, \
-            f"Unexpected top-level keys: {set(asset_content.keys()) - {'review', 'pipeline', 'regulated'}}"
-        
-        assert asset_content["review"] == loader_defaults["review"]
-        assert asset_content["pipeline"] == loader_defaults["pipeline"]
-        assert asset_content["regulated"] == loader_defaults["regulated"]
+        assert asset_content == {
+            "review": loader_defaults["review"],
+            "pipeline": loader_defaults["pipeline"],
+            "regulated": loader_defaults["regulated"],
+        }
 
     def test_default_config_schema_valid(self) -> None:
         """Asset must be valid against governance-config schema."""

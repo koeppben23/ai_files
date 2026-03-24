@@ -311,19 +311,19 @@ def clear_caches() -> None:
 # ---------------------------------------------------------------------------
 
 def load_governance_config(
-    workspace_root: Path | None,
+    workspace_dir: Path | None,
     *,
     require_valid: bool = True,
 ) -> dict[str, object]:
-    """Load governance configuration from workspace root.
+    """Load governance configuration from repository workspace.
 
-    This function loads the governance-config.json file from the workspace root
-    and validates it. If the file is missing or workspace_root is None,
-    it returns default values. If the file is present but invalid,
-    it raises RuntimeError (if require_valid=True).
+    This function loads the governance-config.json file from the repository workspace
+    directory (~/.config/opencode/workspaces/<fingerprint>/) and validates it.
+    If the file is missing or workspace_dir is None, it returns default values.
+    If the file is present but invalid, it raises RuntimeError (if require_valid=True).
 
     Args:
-        workspace_root: Path to the workspace root directory. If None, returns defaults.
+        workspace_dir: Path to the repository workspace directory. If None, returns defaults.
         require_valid: If True, raise RuntimeError for invalid configs.
                       If False, return defaults on error (including missing file).
 
@@ -334,7 +334,7 @@ def load_governance_config(
         RuntimeError: If require_valid=True and config file is present but invalid.
 
     Design:
-        - workspace_root is None → return defaults (backward compatible)
+        - workspace_dir is None → return defaults (backward compatible)
         - File missing → return defaults (backward compatible)
         - File present + valid → use loaded values
         - File present + invalid → fail-closed (require_valid=True) or defaults
@@ -344,10 +344,10 @@ def load_governance_config(
         get_default_governance_config,
     )
 
-    if workspace_root is None:
+    if workspace_dir is None:
         return get_default_governance_config()
 
-    config_path = workspace_root / "governance-config.json"
+    config_path = workspace_dir / "governance-config.json"
 
     if not config_path.is_file():
         return get_default_governance_config()
