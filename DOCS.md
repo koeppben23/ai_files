@@ -69,11 +69,14 @@ opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
 
 After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/continue`.
 
-If `/continue` lands in Phase 4, run `/ticket` to persist the ticket/task, then run `/plan`.
+If `/continue` lands in Phase 4, choose:
 
-**Review Commands:**
-- `/review` — Read-only snapshot of current state, plan, and progress (use anytime)
-- `/review-decision <approve|changes_requested|reject>` — Final decision at Phase 6 Evidence Presentation Gate
+| Command | Purpose |
+|---------|---------|
+| `/ticket` | Persist ticket/task intake, then run `/plan` |
+| `/review <target>` | Independent PR/file/directory review (parallel to `/ticket`) |
+
+At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` for the final decision.
 
 ---
 
@@ -433,28 +436,40 @@ Kernel routing follows one deterministic priority chain:
 | `/plan` | `governance_runtime.entrypoints.phase5_plan_record_persist` | Auto-generates plan from Ticket/Task via LLM, runs self-review, persists plan-record evidence |
 | `/implement` | `governance_runtime.entrypoints.implement_start` | Starts implementation execution (Phase 6) |
 | `/review-decision` | `governance_runtime.entrypoints.review_decision_persist --decision <approve\|changes_requested\|reject>` | Final review decision at Evidence Presentation Gate |
-| `/review` | `governance_runtime.entrypoints.session_reader` (read-only) | Read-only rail for review-depth feedback — shows current state, plan, implementation status without advancing phase |
+| `/review` | `opencode/commands/review.md` (read-only rail) | Independent PR/file/directory review — runs parallel to `/ticket` in Phase 4, returns verdict + findings without changing state |
 
-### `/review` — Read-only Review Rail
+### `/review` — Independent Review Rail (Phase 4)
 
-Use `/review` at any time to get a detailed review-depth snapshot of the current workflow state.
+`/review` is an independent, parallel review command for Phase 4. It lives alongside `/ticket` as its own workflow — it does not require ticket intake and does not depend on `/ticket` having been run.
 
-**What it shows:**
-- Current phase and gate status
-- Plan record (if Phase 5 complete)
-- Implementation progress (if Phase 6 active)
-- Review feedback history (if available)
-- Next recommended action
+**Syntax:**
+```
+/review <target>
+```
+
+Where `<target>` is:
+- PR URL: `https://github.com/owner/repo/pull/123`
+- GitLab MR or Bitbucket PR
+- File path: `src/main.py`
+- Directory path: `src/`
+
+**What it does:**
+1. Fetches content (PR diff, file contents)
+2. Applies review mandate (falsification-first, evidence-only)
+3. Returns structured findings:
+   - Verdict: `approve` or `changes_requested`
+   - Findings table
+   - Paste-ready PR comments
 
 **What it does NOT do:**
 - Does NOT advance the phase
-- Does NOT persist any changes
-- Does NOT trigger LLM calls
+- Does NOT persist any state changes
+- Does NOT mutate session state
 
 **When to use:**
-- Before `/plan` to understand current scope
-- Before `/review-decision` to assess implementation quality
-- After `/continue` to verify state transition
+- Review a PR before implementing
+- Get feedback on existing code changes
+- Independent review workflow (parallel to `/ticket`)
 
 ### Phase 6 Review Decision
 
