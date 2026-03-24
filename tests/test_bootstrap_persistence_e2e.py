@@ -276,6 +276,11 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     assert (workspace / "repo-cache.yaml").exists()
     assert (workspace / "workspace-memory.yaml").exists()
     assert (workspace / "decision-pack.md").exists()
+    assert (workspace / "governance-config.json").exists(), "governance-config.json should be materialized during bootstrap"
+    gov_config = json.loads((workspace / "governance-config.json").read_text(encoding="utf-8"))
+    assert "review" in gov_config
+    assert "phase5_max_review_iterations" in gov_config["review"]
+    assert "phase6_max_review_iterations" in gov_config["review"]
 
     state = json.loads((workspace / "SESSION_STATE.json").read_text(encoding="utf-8"))
     ss = state.get("SESSION_STATE", {})

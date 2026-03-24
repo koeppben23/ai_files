@@ -25,6 +25,7 @@
 14. [Key Tests](#14-key-tests)
 15. [Output Codes](#15-output-codes)
 16. [Further Reading](#16-further-reading)
+17. [Governance Configuration](#17-governance-configuration)
 
 ---
 
@@ -68,7 +69,14 @@ opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
 
 After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/continue`.
 
-If `/continue` lands in Phase 4, run `/ticket` to persist the ticket/task, then run `/plan`. Use `/review` as a read-only rail entrypoint for review-depth feedback. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` for the final decision.
+If `/continue` lands in Phase 4, choose:
+
+| Command | Purpose |
+|---------|---------|
+| `/ticket` | Persist ticket/task intake, then run `/plan` |
+| `/review <target>` | Independent PR/file/directory review (parallel to `/ticket`) |
+
+At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` for the final decision.
 
 ---
 
@@ -428,6 +436,40 @@ Kernel routing follows one deterministic priority chain:
 | `/plan` | `governance_runtime.entrypoints.phase5_plan_record_persist` | Auto-generates plan from Ticket/Task via LLM, runs self-review, persists plan-record evidence |
 | `/implement` | `governance_runtime.entrypoints.implement_start` | Starts implementation execution (Phase 6) |
 | `/review-decision` | `governance_runtime.entrypoints.review_decision_persist --decision <approve\|changes_requested\|reject>` | Final review decision at Evidence Presentation Gate |
+| `/review` | `opencode/commands/review.md` (read-only rail) | Independent PR/file/directory review — runs parallel to `/ticket` in Phase 4, returns verdict + findings without changing state |
+
+### `/review` — Independent Review Rail (Phase 4)
+
+`/review` is an independent, parallel review command for Phase 4. It lives alongside `/ticket` as its own workflow — it does not require ticket intake and does not depend on `/ticket` having been run.
+
+**Syntax:**
+```
+/review <target>
+```
+
+Where `<target>` is:
+- PR URL: `https://github.com/owner/repo/pull/123`
+- GitLab MR or Bitbucket PR
+- File path: `src/main.py`
+- Directory path: `src/`
+
+**What it does:**
+1. Fetches content (PR diff, file contents)
+2. Applies review mandate (falsification-first, evidence-only)
+3. Returns structured findings:
+   - Verdict: `approve` or `changes_requested`
+   - Findings table
+   - Paste-ready PR comments
+
+**What it does NOT do:**
+- Does NOT advance the phase
+- Does NOT persist any state changes
+- Does NOT mutate session state
+
+**When to use:**
+- Review a PR before implementing
+- Get feedback on existing code changes
+- Independent review workflow (parallel to `/ticket`)
 
 ### Phase 6 Review Decision
 
@@ -1006,4 +1048,37 @@ These documents remain the authoritative sources for their respective domains:
 | Document | Purpose |
 |----------|---------|
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
-| [ADR.md](ADR.md) | Architecture decision records | |
+| [ADR.md](ADR.md) | Architecture decision records |
+
+---
+
+## 17. Governance Configuration
+
+`governance-config.json` allows customization of governance behavior at the workspace level.
+
+### Location
+
+```
+~/.config/opencode/workspaces/<repo-fingerprint>/governance-config.json
+```
+
+### Bootstrap Materialization
+
+During workspace bootstrap, the default `governance-config.json` is automatically materialized to the workspace if not already present. This ensures every workspace has sensible defaults out-of-the-box.
+
+**Idempotent:** Existing configurations are never overwritten.
+
+**Graceful degradation:** If the default asset cannot be read, bootstrap continues and falls back to hardcoded defaults.
+
+### Configuration Sections
+
+| Section | Purpose | Default |
+|---------|---------|---------|
+| `review.phase5_max_review_iterations` | Max self-review loops in Phase 5 | 3 |
+| `review.phase6_max_review_iterations` | Max self-review loops in Phase 6 | 3 |
+
+> **Note:** V1 only includes review iteration knobs. Other governance settings (pipeline, regulated) are controlled elsewhere.
+
+### Reference
+
+For full documentation, see [GOVERNANCE_CONFIG.md](governance_runtime/GOVERNANCE_CONFIG.md).

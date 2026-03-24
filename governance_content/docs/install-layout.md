@@ -73,6 +73,9 @@ After bundle install, operator-usable assets are available under config/local sp
 - `<config_root>/commands/`: exactly 8 canonical rail markdown files
 - `<config_root>/plugins/`: desktop plugin artifact
 - `<config_root>/workspaces/`: repo-scoped and global logs/state
+- `<config_root>/workspaces/<repo_fingerprint>/`: workspace directory
+  - `governance-config.json` — policy knobs (automatically materialized during bootstrap)
+  - `SESSION_STATE.json` — current session state
 - `<config_root>/`: `opencode.json`, `INSTALL_HEALTH.json`, `INSTALL_MANIFEST.json`, `governance.paths.json`, `SESSION_STATE.json`, `governance.activation_intent.json`
 - `<local_root>/governance_runtime/`: canonical runtime authority
 - `<local_root>/governance_content/`: content payload

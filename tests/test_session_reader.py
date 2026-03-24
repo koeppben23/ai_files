@@ -3358,13 +3358,10 @@ class TestPhase6GovernanceConfigWiring:
         })
 
         governance_config = {
-            "$schema": "governance-config.v1.schema.json",
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,
             },
-            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
-            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
         }
         workspace_dir = fake_config / "workspaces" / "abc123"
         workspace_dir.mkdir(parents=True, exist_ok=True)
@@ -3398,13 +3395,10 @@ class TestPhase6GovernanceConfigWiring:
         })
 
         governance_config = {
-            "$schema": "governance-config.v1.schema.json",
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,
             },
-            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
-            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
         }
         workspace_dir = fake_config / "workspaces" / "abc123"
         workspace_dir.mkdir(parents=True, exist_ok=True)
@@ -3465,13 +3459,10 @@ class TestPhase6KernelGovernanceConfigWiring:
         )
         
         governance_config = {
-            "$schema": "governance-config.v1.schema.json",
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,
             },
-            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
-            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
         }
         workspace_dir = fake_config / "workspaces" / "abc123"
         workspace_dir.mkdir(parents=True, exist_ok=True)
@@ -3500,13 +3491,10 @@ class TestPhase6KernelGovernanceConfigWiring:
         
         ws_state = _write_pointer(fake_config)
         governance_config = {
-            "$schema": "governance-config.v1.schema.json",
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,
             },
-            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
-            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
         }
         workspace_dir = fake_config / "workspaces" / "abc123"
         workspace_dir.mkdir(parents=True, exist_ok=True)

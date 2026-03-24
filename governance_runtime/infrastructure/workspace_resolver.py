@@ -7,7 +7,7 @@ phase_kernel, and other modules.
 Design:
     - Single source of truth for workspace resolution
     - Uses BindingEvidenceResolver for path configuration
-    - Raises RuntimeError if workspace cannot be determined
+    - Returns None if fingerprint unavailable or binding evidence missing
 """
 
 from __future__ import annotations
@@ -49,10 +49,7 @@ def resolve_workspace_dir_from_state(
         env: Optional environment dict. If None, uses os.environ.
 
     Returns:
-        Path to workspace directory, or None if fingerprint unavailable.
-
-    Raises:
-        RuntimeError: If binding evidence is unavailable.
+        Path to workspace directory, or None if fingerprint/binding evidence is unavailable.
     """
     fingerprint = _extract_fingerprint_from_state(state)
     if not fingerprint:
