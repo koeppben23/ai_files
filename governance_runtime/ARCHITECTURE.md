@@ -155,10 +155,9 @@ The `governance-config.json` file provides policy knobs for governance behavior.
 
 **Bootstrap Materialization:** During workspace bootstrap, the default config is automatically materialized to the workspace if not present. This is idempotent — existing configs are never overwritten.
 
-**Configuration Sections:**
-- `review`: Review iteration limits (phase5_max_review_iterations, phase6_max_review_iterations)
-- `pipeline`: Pipeline mode settings (allow_pipeline_mode, auto_approve_enabled)
-- `regulated`: Regulated mode settings (allow_auto_approve, require_governance_mode_active)
+**V1 Configuration (review iteration limits):**
+- `review.phase5_max_review_iterations`: Max iterations for Phase 5
+- `review.phase6_max_review_iterations`: Max iterations for Phase 6
 
 **Behavior:**
 - File missing → use defaults (backward compatible)

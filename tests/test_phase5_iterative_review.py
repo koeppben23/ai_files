@@ -247,8 +247,6 @@ class TestPhase5ReviewStateAgentsStrictMode:
                 "phase5_max_review_iterations": 5,
                 "phase6_max_review_iterations": 7,
             },
-            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
-            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
         }
         import json
         (tmp_path / "governance-config.json").write_text(json.dumps(custom_config), encoding="utf-8")

@@ -32,14 +32,6 @@ During workspace bootstrap, `governance-config.json` is automatically materializ
   "review": {
     "phase5_max_review_iterations": 3,
     "phase6_max_review_iterations": 3
-  },
-  "pipeline": {
-    "allow_pipeline_mode": true,
-    "auto_approve_enabled": true
-  },
-  "regulated": {
-    "allow_auto_approve": false,
-    "require_governance_mode_active": true
   }
 }
 ```
@@ -56,24 +48,6 @@ Controls review loop iteration limits.
 | `phase6_max_review_iterations` | integer | 3 | Maximum self-review iterations for Phase 6 (Implementation Review) |
 
 **Bounds:** 1 - 100
-
-### `pipeline`
-
-Controls pipeline mode behavior.
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `allow_pipeline_mode` | boolean | true | Whether pipeline mode is allowed |
-| `auto_approve_enabled` | boolean | true | Whether auto-approve is enabled in pipeline mode |
-
-### `regulated`
-
-Controls regulated mode behavior.
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `allow_auto_approve` | boolean | false | Whether auto-approve is allowed in regulated mode (should remain false) |
-| `require_governance_mode_active` | boolean | true | Whether governance-mode.json must be active for regulated enforcement |
 
 ## Behavior Rules
 

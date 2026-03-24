@@ -129,8 +129,8 @@ def test_materializes_governance_config_when_not_present(tmp_path: Path) -> None
     assert str(config_path) in fs.written
     content = json.loads(fs.written[str(config_path)])
     assert "review" in content
-    assert "pipeline" in content
-    assert "regulated" in content
+    assert "phase5_max_review_iterations" in content["review"]
+    assert "phase6_max_review_iterations" in content["review"]
 
 
 @pytest.mark.governance
@@ -143,14 +143,6 @@ def test_does_not_overwrite_existing_governance_config(tmp_path: Path) -> None:
         "review": {
             "phase5_max_review_iterations": 99,
             "phase6_max_review_iterations": 99,
-        },
-        "pipeline": {
-            "allow_pipeline_mode": False,
-            "auto_approve_enabled": False,
-        },
-        "regulated": {
-            "allow_auto_approve": True,
-            "require_governance_mode_active": False,
         },
     }, indent=2)
 
@@ -220,10 +212,6 @@ def test_read_default_governance_config_returns_content(tmp_path: Path) -> None:
     assert content
     data = json.loads(content)
     assert "review" in data
-    assert "pipeline" in data
-    assert "regulated" in data
-
-
 @pytest.mark.governance
 def test_materialized_config_matches_default_asset(tmp_path: Path) -> None:
     """Materialized config matches the default asset content."""
@@ -272,14 +260,6 @@ def test_materialize_writes_valid_json(tmp_path: Path) -> None:
     assert "review" in data
     assert "phase5_max_review_iterations" in data["review"]
     assert "phase6_max_review_iterations" in data["review"]
-
-    assert "pipeline" in data
-    assert "allow_pipeline_mode" in data["pipeline"]
-    assert "auto_approve_enabled" in data["pipeline"]
-
-    assert "regulated" in data
-    assert "allow_auto_approve" in data["regulated"]
-    assert "require_governance_mode_active" in data["regulated"]
 
 
 @pytest.mark.governance

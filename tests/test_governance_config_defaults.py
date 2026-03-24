@@ -5,6 +5,8 @@ and is schema-conform. This prevents drift between:
 - Hardcoded loader defaults
 - Installer asset
 - Documentation
+
+V1 only includes review iteration knobs.
 """
 
 from __future__ import annotations
@@ -32,11 +34,7 @@ class TestGovernanceConfigCanonicalDefaults:
         
         asset_content = json.loads(asset_path.read_text(encoding="utf-8"))
         
-        assert asset_content == {
-            "review": loader_defaults["review"],
-            "pipeline": loader_defaults["pipeline"],
-            "regulated": loader_defaults["regulated"],
-        }
+        assert asset_content == loader_defaults
 
     def test_default_config_schema_valid(self) -> None:
         """Asset must be valid against governance-config schema."""
@@ -51,22 +49,15 @@ class TestGovernanceConfigCanonicalDefaults:
         assert not errors, f"Asset validation failed: {errors}"
 
     def test_default_config_has_all_required_v1_keys(self) -> None:
-        """Asset must contain all V1 configuration keys (excluding optional $schema)."""
+        """Asset must contain all V1 configuration keys (review section only)."""
         asset_path = Path(__file__).resolve().parents[1] / "governance_runtime" / "assets" / "config" / "governance-config.json"
         assert asset_path.exists(), f"governance-config.json asset not found at {asset_path}"
         
         asset_content = json.loads(asset_path.read_text(encoding="utf-8"))
         
         assert "review" in asset_content
-        assert "pipeline" in asset_content
-        assert "regulated" in asset_content
-        
         assert "phase5_max_review_iterations" in asset_content["review"]
         assert "phase6_max_review_iterations" in asset_content["review"]
-        assert "allow_pipeline_mode" in asset_content["pipeline"]
-        assert "auto_approve_enabled" in asset_content["pipeline"]
-        assert "allow_auto_approve" in asset_content["regulated"]
-        assert "require_governance_mode_active" in asset_content["regulated"]
 
     def test_default_config_values_within_bounds(self) -> None:
         """Default values must be within schema bounds."""
@@ -77,10 +68,6 @@ class TestGovernanceConfigCanonicalDefaults:
         
         assert 1 <= asset_content["review"]["phase5_max_review_iterations"] <= 100
         assert 1 <= asset_content["review"]["phase6_max_review_iterations"] <= 100
-        assert isinstance(asset_content["pipeline"]["allow_pipeline_mode"], bool)
-        assert isinstance(asset_content["pipeline"]["auto_approve_enabled"], bool)
-        assert isinstance(asset_content["regulated"]["allow_auto_approve"], bool)
-        assert isinstance(asset_content["regulated"]["require_governance_mode_active"], bool)
 
 
 class TestGovernanceConfigLoaderDefaults:
@@ -145,18 +132,9 @@ class TestGovernanceConfigLoaderDefaults:
         workspace_dir.mkdir()
         
         config_with_unknown = {
-            "$schema": "governance-config.v1.schema.json",
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 3,
-            },
-            "pipeline": {
-                "allow_pipeline_mode": True,
-                "auto_approve_enabled": True,
-            },
-            "regulated": {
-                "allow_auto_approve": False,
-                "require_governance_mode_active": True,
             },
             "unknown_key": "should fail",
         }
@@ -173,18 +151,9 @@ class TestGovernanceConfigLoaderDefaults:
         workspace_dir.mkdir()
         
         custom_config = {
-            "$schema": "governance-config.v1.schema.json",
             "review": {
                 "phase5_max_review_iterations": 7,
                 "phase6_max_review_iterations": 5,
-            },
-            "pipeline": {
-                "allow_pipeline_mode": True,
-                "auto_approve_enabled": False,
-            },
-            "regulated": {
-                "allow_auto_approve": False,
-                "require_governance_mode_active": True,
             },
         }
         (workspace_dir / "governance-config.json").write_text(json.dumps(custom_config), encoding="utf-8")
@@ -193,7 +162,6 @@ class TestGovernanceConfigLoaderDefaults:
         
         assert result["review"]["phase5_max_review_iterations"] == 7
         assert result["review"]["phase6_max_review_iterations"] == 5
-        assert result["pipeline"]["auto_approve_enabled"] is False
 
 
 class TestGetReviewIterationsDefaults:
@@ -228,18 +196,9 @@ class TestGetReviewIterationsDefaults:
         workspace_dir.mkdir()
         
         custom_config = {
-            "$schema": "governance-config.v1.schema.json",
             "review": {
                 "phase5_max_review_iterations": 5,
                 "phase6_max_review_iterations": 7,
-            },
-            "pipeline": {
-                "allow_pipeline_mode": True,
-                "auto_approve_enabled": True,
-            },
-            "regulated": {
-                "allow_auto_approve": False,
-                "require_governance_mode_active": True,
             },
         }
         (workspace_dir / "governance-config.json").write_text(json.dumps(custom_config), encoding="utf-8")

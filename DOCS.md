@@ -1035,10 +1035,8 @@ During workspace bootstrap, the default `governance-config.json` is automaticall
 |---------|---------|---------|
 | `review.phase5_max_review_iterations` | Max self-review loops in Phase 5 | 3 |
 | `review.phase6_max_review_iterations` | Max self-review loops in Phase 6 | 3 |
-| `pipeline.allow_pipeline_mode` | Whether pipeline mode is allowed | true |
-| `pipeline.auto_approve_enabled` | Auto-approve in pipeline mode | true |
-| `regulated.allow_auto_approve` | Auto-approve in regulated mode | false |
-| `regulated.require_governance_mode_active` | Require governance-mode.json active | true |
+
+> **Note:** V1 only includes review iteration knobs. Other governance settings (pipeline, regulated) are controlled elsewhere.
 
 ### Reference
 

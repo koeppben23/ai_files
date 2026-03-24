@@ -321,18 +321,9 @@ class TestValidationBad:
 
 def _valid_config() -> dict:
     return {
-        "$schema": "governance-config.v1.schema.json",
         "review": {
             "phase5_max_review_iterations": 3,
             "phase6_max_review_iterations": 3,
-        },
-        "pipeline": {
-            "allow_pipeline_mode": True,
-            "auto_approve_enabled": True,
-        },
-        "regulated": {
-            "allow_auto_approve": False,
-            "require_governance_mode_active": True,
         },
     }
 
@@ -347,13 +338,8 @@ class TestGovernanceConfigJsonHappy:
 
         result = load_governance_config(tmp_path)
 
-        assert result["$schema"] == "governance-config.v1.schema.json"
         assert result["review"]["phase5_max_review_iterations"] == 3
         assert result["review"]["phase6_max_review_iterations"] == 3
-        assert result["pipeline"]["allow_pipeline_mode"] is True
-        assert result["pipeline"]["auto_approve_enabled"] is True
-        assert result["regulated"]["allow_auto_approve"] is False
-        assert result["regulated"]["require_governance_mode_active"] is True
 
     def test_load_config_with_custom_iterations(self, tmp_path: Path):
         """Custom review iterations are respected."""
@@ -391,10 +377,6 @@ class TestGovernanceConfigJsonDefaults:
 
         assert defaults["review"]["phase5_max_review_iterations"] == 3
         assert defaults["review"]["phase6_max_review_iterations"] == 3
-        assert defaults["pipeline"]["allow_pipeline_mode"] is True
-        assert defaults["pipeline"]["auto_approve_enabled"] is True
-        assert defaults["regulated"]["allow_auto_approve"] is False
-        assert defaults["regulated"]["require_governance_mode_active"] is True
 
 
 class TestGovernanceConfigJsonInvalid:
@@ -426,8 +408,12 @@ class TestGovernanceConfigJsonInvalid:
 
     def test_optional_schema_key(self, tmp_path: Path):
         """Missing $schema key is allowed (optional field)."""
-        config = _valid_config()
-        del config["$schema"]
+        config = {
+            "review": {
+                "phase5_max_review_iterations": 3,
+                "phase6_max_review_iterations": 3,
+            },
+        }
         (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
 
         result = load_governance_config(tmp_path)
@@ -486,22 +472,13 @@ class TestGovernanceConfigJsonTypeValidation:
         with pytest.raises(RuntimeError, match="must be integer"):
             load_governance_config(tmp_path)
 
-    def test_allow_pipeline_mode_must_be_boolean(self, tmp_path: Path):
-        """allow_pipeline_mode must be boolean."""
+    def test_pipeline_section_not_allowed(self, tmp_path: Path):
+        """pipeline section is not part of V1 and raises error."""
         config = _valid_config()
-        config["pipeline"]["allow_pipeline_mode"] = "yes"
+        config["pipeline"] = {"allow_pipeline_mode": True, "auto_approve_enabled": True}
         (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
 
-        with pytest.raises(RuntimeError, match="must be boolean"):
-            load_governance_config(tmp_path)
-
-    def test_allow_auto_approve_must_be_boolean(self, tmp_path: Path):
-        """allow_auto_approve must be boolean."""
-        config = _valid_config()
-        config["regulated"]["allow_auto_approve"] = "yes"
-        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
-
-        with pytest.raises(RuntimeError, match="must be boolean"):
+        with pytest.raises(RuntimeError, match="unknown top-level keys"):
             load_governance_config(tmp_path)
 
 

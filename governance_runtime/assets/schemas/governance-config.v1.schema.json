@@ -4,7 +4,7 @@
   "title": "Governance Configuration",
   "description": "Policy knobs for governance behavior. Located at repository workspace: ~/.config/opencode/workspaces/<fingerprint>/governance-config.json",
   "type": "object",
-  "required": ["review", "pipeline", "regulated"],
+  "required": ["review"],
   "additionalProperties": false,
   "properties": {
     "$schema": {
@@ -21,45 +21,13 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 100,
-          "description": "Maximum review iterations for Phase 5"
+          "description": "Maximum review iterations for Phase 5 (Plan Architecture Review)"
         },
         "phase6_max_review_iterations": {
           "type": "integer",
           "minimum": 1,
           "maximum": 100,
-          "description": "Maximum review iterations for Phase 6"
-        }
-      }
-    },
-    "pipeline": {
-      "type": "object",
-      "description": "Pipeline mode configuration",
-      "required": ["allow_pipeline_mode", "auto_approve_enabled"],
-      "additionalProperties": false,
-      "properties": {
-        "allow_pipeline_mode": {
-          "type": "boolean",
-          "description": "Whether pipeline mode is allowed"
-        },
-        "auto_approve_enabled": {
-          "type": "boolean",
-          "description": "Whether auto-approve is enabled in pipeline mode"
-        }
-      }
-    },
-    "regulated": {
-      "type": "object",
-      "description": "Regulated mode configuration",
-      "required": ["allow_auto_approve", "require_governance_mode_active"],
-      "additionalProperties": false,
-      "properties": {
-        "allow_auto_approve": {
-          "type": "boolean",
-          "description": "Whether auto-approve is allowed in regulated mode (should be false)"
-        },
-        "require_governance_mode_active": {
-          "type": "boolean",
-          "description": "Whether governance-mode.json must be active for regulated enforcement"
+          "description": "Maximum review iterations for Phase 6 (Implementation Review)"
         }
       }
     }
