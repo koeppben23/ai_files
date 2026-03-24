@@ -38,7 +38,7 @@ from governance_runtime.application.services.state_accessor import (
 from governance_runtime.application.services.state_normalizer import (
     normalize_with_conflicts,
 )
-from governance_runtime.kernel.phase_kernel import pipeline_auto_approve_eligible
+from governance_runtime.kernel.phase_kernel import pipeline_auto_approve_eligible, _workflow_complete as _workflow_complete_state
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
@@ -312,6 +312,14 @@ def apply_review_decision(
         eligible = pipeline_auto_approve_eligible(state)
         if eligible:
             return _apply_pipeline_auto_approve(session_path=session_path, events_path=events_path)
+
+        # Idempotent: empty decision on already-completed workflow returns ok
+        if _workflow_complete_state(state):
+            return _payload(
+                status="ok",
+                message="Workflow already approved. No action taken.",
+                decision="already_approved",
+            )
 
     if normalized not in VALID_DECISIONS:
         return _payload(
