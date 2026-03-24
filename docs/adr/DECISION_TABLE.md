@@ -1,8 +1,10 @@
 # Entscheidungstabelle: Architektur-Freeze Phase 0
 
-**Status:** Frozen  
+**Status:** Frozen (with operational follow-ups)  
 **Date:** 2026-03-24  
 **Scope:** State-Machine Refactoring v2
+
+> Kern-Entscheidungen sind eingefroren. Einige operationale Items (CI-Guardrail-Werte, Benchmark-Tools) bleiben offen.
 
 ## Zusammenfassung
 

@@ -47,7 +47,7 @@ Die aktuelle `phase_api.yaml` mischt Struktur (States, Transitions) mit UX-Texte
 ## Validation
 
 ```python
-UX_FIELDS = ["active_gate", "next_gate_condition"]
+UX_FIELDS = ["active_gate", "next_gate_condition", "phase"]  # phase = altes Display-Format
 
 def test_no_ux_in_topology():
     for state in topology.states:

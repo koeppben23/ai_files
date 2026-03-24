@@ -3,7 +3,7 @@
 **Status:** Accepted  
 **Date:** 2026-03-24  
 **Decision Makers:** Architecture Team  
-**Related:** command_policy.yaml, audit_events
+**Related:** command_policy.yaml, audit_events.py
 
 ## Context
 

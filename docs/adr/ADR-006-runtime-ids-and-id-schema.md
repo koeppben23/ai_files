@@ -49,9 +49,11 @@ Optional kann später eine separate Display-Schicht ergänzt werden, **ohne die 
 Display-Trennung kann später ergänzt werden **ohne Runtime-IDs zu ändern**:
 ```yaml
 states:
-  - id: "6.execution"               # Runtime-ID (FINAL, stabil)
-    display_name: "Phase 6 Execution"  # Optional für UI
+  - id: "6.execution"                   # Runtime-ID (FINAL, stabil)
+    display_name: "Phase 6 Execution"   # Separates Display-Label (optional)
 ```
+
+**Klarstellung:** Die optionale Display-Schicht fügt ein `display_name` hinzu, ändert aber **nie** die Runtime-ID.
 
 ## Consequences
 
