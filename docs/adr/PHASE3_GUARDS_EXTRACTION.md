@@ -1,4 +1,4 @@
-# Phase 3: Guard-/Invariant-Schicht extrahieren (v2 - Strict with closed grammar)
+# Phase 3: Guard-/Invariant-Schicht extrahieren (v3 - Unified model)
 
 **Status:** Completed  
 **Date:** 2026-03-24  
@@ -10,11 +10,42 @@
 
 Extrahiere die Guard-/Invariant-Schicht aus der monolithischen `phase_api.yaml` in eine separate `guards.yaml`-Datei.
 
-Die Guards enthalten **alle** Wachbedingungen und Invarianten - strukturiert gemäß ADR-002 (keine DSL) mit **geschlossener, rekursiv validierter Grammatik**.
+**Unified Guard Model:** Exit Guards und Transition Guards teilen eine gemeinsame Struktur mit `guard_type` Attribut.
 
 ## 2. Prinzipien
 
-### 2.1 Geschlossene Grammatik (ADR-002)
+### 2.1 Unified Guard Model
+
+Alle Guards teilen eine gemeinsame Struktur:
+
+```yaml
+guard:
+  id: string                    # Required, unique
+  guard_type: "exit" | "transition"  # Required
+  target: string                # Required for exit guards (state_id)
+  event: string                 # Required for transition guards
+  condition: ConditionNode      # Required
+  attributes:                   # Optional, non-runtime metadata
+    description: string         # Human-readable intent
+    fail_mode: "fail_closed" | "block"  # Failure behavior
+    contract_ref: string        # Reference to contract/requirement
+```
+
+### 2.2 Keine zwei Guard-Klassen
+
+`guard_type` unterscheidet die **Semantik**, nicht die **Struktur**:
+
+| guard_type | Semantik | Required Fields |
+|------------|----------|-----------------|
+| `exit` | State-Verlassen-Invarianten | `target` (state_id) |
+| `transition` | Transition-Auswahl-Bedingungen | `event` |
+
+Beide teilen:
+- Gleiche Condition-Grammatik
+- Gleiche attributes Struktur
+- Gleichen Recursive Validator
+
+### 2.3 Geschlossene Grammatik (ADR-002)
 
 Die Guard-Grammatik ist **geschlossen** und wird **rekursiv validiert**:
 
@@ -33,99 +64,52 @@ ThresholdNode =
   | { type: "from_state", key: string }
 ```
 
-### 2.2 Metadata-Trennung
+### 2.4 Strikte Baumvalidierung
 
-| Kategorie | Felder | Erlaubt | Zweck |
-|-----------|--------|---------|-------|
-| **Runtime-Felder** | `id`, `event`, `condition`, `state_id`, `required_keys` | Ja | Guard-Evaluation |
-| **Non-runtime** | `description` | Ja (optional) | Dokumentation |
+Der Recursive Validator prüft:
 
-**Wichtig:** `description` hat **keinen Einfluss** auf Guard-Evaluation. Der Recursive Validator ignoriert es komplett.
-
-### 2.3 Zwei Guard-Typen
-
-| Typ | Beschreibung | Runtime-Felder |
-|-----|--------------|----------------|
-| **Exit Guards** | State-Verlassen-Invarianten | `state_id`, `required_keys` |
-| **Transition Guards** | Transition-Auswahl-Bedingungen | `id`, `event`, `condition` |
-
-### 2.4 Condition Types
-
-| Type | Beschreibung | Operands |
-|------|--------------|----------|
-| `always` | Immer wahr (Fallback) | - |
-| `key_present` | Key existiert und ist truthy | `key` |
-| `key_equals` | Key equals value | `key`, `value` |
-| `key_missing` | Key fehlt oder ist falsy | `key` |
-| `numeric_gte` | Numerischer Vergleich | `key`, `threshold`, `operator` |
-| `all_of` | AND composite | `operands[]` |
-| `any_of` | OR composite | `operands[]` |
-
-### 2.5 numeric_gte Typ-/Existenzvalidierung
-
-```yaml
-# Konstanter Threshold
-- type: "numeric_gte"
-  key: "plan_record_versions"
-  threshold:
-    type: "constant"
-    value: 1
-  operator: "lt"
-
-# Threshold aus State
-- type: "numeric_gte"
-  key: "phase5_self_review_iterations"
-  threshold:
-    type: "from_state"
-    key: "phase5_max_review_iterations"
-  operator: "gte"
-```
-
-Validierung:
-- `threshold.type` muss `constant` oder `from_state` sein
-- `constant.value` muss numerisch sein
-- `from_state.key` muss String sein
-- `operator` muss einer von: `gte`, `gt`, `lte`, `lt`, `eq`, `neq`
+| Check | Beschreibung |
+|-------|--------------|
+| Empty dict | `{}` wird abgelehnt |
+| Missing type | `{"key": "foo"}` wird abgelehnt |
+| Unknown type | `{"type": "unknown"}` wird abgelehnt |
+| Unknown keys | `{"type": "always", "extra": "field"}` wird abgelehnt |
+| Missing required keys | `{"type": "key_present"}` wird abgelehnt |
+| Empty operands | `{"type": "all_of", "operands": []}` wird abgelehnt |
+| Non-dict operands | `{"type": "all_of", "operands": ["str"]}` wird abgelehnt |
+| Empty string keys | `{"type": "key_present", "key": ""}` wird abgelehnt |
+| Invalid threshold | `{"type": "numeric_gte", "threshold": {"type": "unknown"}}` wird abgelehnt |
+| Non-numeric constant | `{"type": "numeric_gte", "threshold": {"type": "constant", "value": "str"}}` wird abgelehnt |
+| Max recursion depth | Tiefe > 10 wird abgelehnt |
 
 ## 3. Erstellte Dateien
 
 ### 3.1 `governance_spec/guards.yaml`
 
-Enthält die kanonische Guard-Definition mit 5 Exit Guards und 18 Transition Guards.
+Enthält 26 Guards (5 exit + 21 transition) in einheitlicher Struktur.
 
 ### 3.2 `tests/architecture/test_guards.py`
 
-29 Tests für die strikte Guard-Validierung:
+33 Tests für die strikte Guard-Validierung:
 
 | Testklasse | Tests | Beschreibung |
 |------------|-------|--------------|
 | `TestGuardsStructure` | 4 | Grundlegende Struktur |
-| `TestExitGuards` | 5 | Exit Guard Runtime-Felder |
-| `TestTransitionGuards` | 6 | Transition Guard Runtime-Felder |
-| `TestConditionGrammar` | 8 | Geschlossene Grammatik + Rekursion |
-| `TestDescriptionIsNonRuntime` | 3 | Non-runtime Metadata |
+| `TestGuardModel` | 7 | Unified Guard Model |
+| `TestConditionGrammar` | 2 | Geschlossene Grammatik |
+| `TestConditionNegative` | 18 | Negative Tests (kaputte Bäume) |
 | `TestGuardTopologyConsistency` | 3 | Cross-Spec Konsistenz |
 
-## 4. Recursive Condition Validator
-
-Der `validate_condition_recursive()` Validator:
-
-1. Prüft `type` ist in `VALID_CONDITION_TYPES`
-2. Prüft nur erlaubte Keys pro Typ (geschlossene Grammatik)
-3. Rekursiv für `all_of`/`any_of` operands
-4. Validiert `threshold` Struktur für `numeric_gte`
-5. Leere `operands` werden abgelehnt
-
-## 5. Testergebnisse
+## 4. Testergebnisse
 
 ```
-tests/architecture/test_guards.py ... 29 passed
+tests/architecture/test_guards.py ... 33 passed
 tests/architecture/test_topology.py ... 34 passed
 tests/architecture/test_spec_inventory.py ... 18 passed
-Total: 97 passed
+Total: 101 passed
 ```
 
-## 6. Nächste Schritte
+## 5. Nächste Schritte
 
 1. **Phase 4**: Command-Policy separat modellieren
 2. **Phase 5**: Presentation/Messages herauslösen

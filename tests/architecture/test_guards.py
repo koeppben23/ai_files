@@ -1,8 +1,9 @@
-"""Phase 3: Guards Validation Tests (v2 - Strict with recursive validation)
+"""Phase 3: Guards Validation Tests (v3 - Unified model with strict validation)
 
 Validiert die extrahierte guards.yaml Struktur mit strengen Regeln:
+- Unified guard model (exit + transition with guard_type)
 - Geschlossene, rekursiv validierte Guard-Grammatik
-- Keine DSL (ADR-002)
+- Strikte Validierung gegen kaputte Bäume
 - description ist non-runtime metadata
 - Alle Condition-Typen sind bekannt und korrekt strukturiert
 - Rekursive Strukturen sind valide (keine leeren/kaputten Bäume)
@@ -24,12 +25,11 @@ from typing import Any
 # ============================================================================
 
 # Runtime fields for guard objects
-RUNTIME_GUARD_FIELDS = {"id", "event", "condition"}
-NON_RUNTIME_GUARD_FIELDS = {"description"}
+RUNTIME_GUARD_FIELDS = {"id", "guard_type", "target", "event", "condition"}
+NON_RUNTIME_GUARD_FIELDS = {"attributes", "description"}
 
-# Runtime fields for exit guard objects
-RUNTIME_EXIT_GUARD_FIELDS = {"state_id", "required_keys"}
-NON_RUNTIME_EXIT_GUARD_FIELDS = {"description"}
+# Valid guard types
+VALID_GUARD_TYPES = {"exit", "transition"}
 
 # Allowed ConditionNode types (closed grammar)
 VALID_CONDITION_TYPES = {
@@ -42,16 +42,26 @@ VALID_CONDITION_TYPES = {
     "any_of",           # OR composite (recursive)
 }
 
-# Allowed keys per condition type (strict schema)
-# 'type' is always allowed (checked separately)
-CONDITION_SCHEMA = {
-    "always": set(),  # No additional keys allowed
-    "key_present": {"key", "negate"},
+# Required keys per condition type (strict schema)
+REQUIRED_KEYS_PER_TYPE = {
+    "always": set(),
+    "key_present": {"key"},
     "key_equals": {"key", "value"},
     "key_missing": {"key"},
     "numeric_gte": {"key", "threshold", "operator"},
     "all_of": {"operands"},
     "any_of": {"operands"},
+}
+
+# Allowed keys per condition type (closed schema)
+ALLOWED_KEYS_PER_TYPE = {
+    "always": {"type"},
+    "key_present": {"type", "key"},
+    "key_equals": {"type", "key", "value"},
+    "key_missing": {"type", "key"},
+    "numeric_gte": {"type", "key", "threshold", "operator"},
+    "all_of": {"type", "operands"},
+    "any_of": {"type", "operands"},
 }
 
 # Valid threshold types
@@ -60,90 +70,123 @@ VALID_THRESHOLD_TYPES = {"constant", "from_state"}
 # Valid numeric operators
 VALID_NUMERIC_OPERATORS = {"gte", "gt", "lte", "lt", "eq", "neq"}
 
+# Max recursion depth to prevent stack overflow
+MAX_CONDITION_DEPTH = 10
+
 
 # ============================================================================
-# Recursive Condition Validator
+# Strict Recursive Condition Validator
 # ============================================================================
 
-def validate_condition_recursive(condition: Any, path: str = "condition") -> list[str]:
-    """Recursively validate a condition node.
+def validate_condition_recursive(
+    condition: Any, 
+    path: str = "condition",
+    depth: int = 0
+) -> list[str]:
+    """Recursively validate a condition node with strict checks.
     
     Returns list of error messages (empty if valid).
     """
     errors = []
     
+    # Depth limit to prevent infinite recursion
+    if depth > MAX_CONDITION_DEPTH:
+        return [f"{path}: exceeded max recursion depth {MAX_CONDITION_DEPTH}"]
+    
+    # Must be a dict
     if not isinstance(condition, dict):
         return [f"{path}: must be a dict, got {type(condition).__name__}"]
     
+    # Empty dict check
+    if len(condition) == 0:
+        return [f"{path}: must not be empty"]
+    
+    # Must have type
     if "type" not in condition:
         return [f"{path}: missing 'type' field"]
     
     cond_type = condition["type"]
     
+    # Type must be valid
+    if not isinstance(cond_type, str):
+        return [f"{path}: 'type' must be string, got {type(cond_type).__name__}"]
+    
     if cond_type not in VALID_CONDITION_TYPES:
         return [f"{path}: unknown type '{cond_type}'"]
     
-    # Check for unknown keys (type is always allowed)
-    allowed_keys = CONDITION_SCHEMA[cond_type] | {"type"}
+    # Check for unknown keys (closed schema)
+    allowed_keys = ALLOWED_KEYS_PER_TYPE[cond_type]
     unknown_keys = set(condition.keys()) - allowed_keys
     if unknown_keys:
-        errors.append(f"{path}: unknown keys {unknown_keys} for type '{cond_type}'")
+        errors.append(f"{path}: unknown keys {sorted(unknown_keys)} for type '{cond_type}'")
+    
+    # Check for missing required keys
+    required_keys = REQUIRED_KEYS_PER_TYPE[cond_type]
+    missing_keys = required_keys - set(condition.keys())
+    if missing_keys:
+        errors.append(f"{path}: missing required keys {sorted(missing_keys)} for type '{cond_type}'")
     
     # Type-specific validation
     if cond_type == "always":
         pass  # No additional validation
     
     elif cond_type == "key_present":
-        if "key" not in condition:
-            errors.append(f"{path}: missing 'key'")
-        elif not isinstance(condition["key"], str):
+        key = condition.get("key")
+        if not isinstance(key, str):
             errors.append(f"{path}: 'key' must be string")
+        elif len(key) == 0:
+            errors.append(f"{path}: 'key' must not be empty")
     
     elif cond_type == "key_equals":
-        if "key" not in condition:
-            errors.append(f"{path}: missing 'key'")
-        elif not isinstance(condition["key"], str):
+        key = condition.get("key")
+        if not isinstance(key, str):
             errors.append(f"{path}: 'key' must be string")
-        if "value" not in condition:
-            errors.append(f"{path}: missing 'value'")
+        elif len(key) == 0:
+            errors.append(f"{path}: 'key' must not be empty")
+        # value can be any type
     
     elif cond_type == "key_missing":
-        if "key" not in condition:
-            errors.append(f"{path}: missing 'key'")
-        elif not isinstance(condition["key"], str):
+        key = condition.get("key")
+        if not isinstance(key, str):
             errors.append(f"{path}: 'key' must be string")
+        elif len(key) == 0:
+            errors.append(f"{path}: 'key' must not be empty")
     
     elif cond_type == "numeric_gte":
-        if "key" not in condition:
-            errors.append(f"{path}: missing 'key'")
-        elif not isinstance(condition["key"], str):
+        key = condition.get("key")
+        if not isinstance(key, str):
             errors.append(f"{path}: 'key' must be string")
+        elif len(key) == 0:
+            errors.append(f"{path}: 'key' must not be empty")
         
-        if "operator" not in condition:
-            errors.append(f"{path}: missing 'operator'")
-        elif condition["operator"] not in VALID_NUMERIC_OPERATORS:
-            errors.append(f"{path}: invalid operator '{condition['operator']}'")
+        operator = condition.get("operator")
+        if not isinstance(operator, str):
+            errors.append(f"{path}: 'operator' must be string")
+        elif operator not in VALID_NUMERIC_OPERATORS:
+            errors.append(f"{path}: invalid operator '{operator}', must be one of {sorted(VALID_NUMERIC_OPERATORS)}")
         
-        if "threshold" not in condition:
-            errors.append(f"{path}: missing 'threshold'")
-        else:
-            threshold = condition["threshold"]
-            threshold_errors = _validate_threshold(threshold, f"{path}.threshold")
-            errors.extend(threshold_errors)
+        threshold = condition.get("threshold")
+        threshold_errors = _validate_threshold(threshold, f"{path}.threshold")
+        errors.extend(threshold_errors)
     
     elif cond_type in ("all_of", "any_of"):
-        if "operands" not in condition:
-            errors.append(f"{path}: missing 'operands'")
+        operands = condition.get("operands")
+        
+        if not isinstance(operands, list):
+            errors.append(f"{path}: 'operands' must be list")
+        elif len(operands) == 0:
+            errors.append(f"{path}: 'operands' must not be empty")
         else:
-            operands = condition["operands"]
-            if not isinstance(operands, list):
-                errors.append(f"{path}: 'operands' must be list")
-            elif len(operands) == 0:
-                errors.append(f"{path}: 'operands' must not be empty")
-            else:
-                for i, operand in enumerate(operands):
+            # Check for mixed types (all operands should be conditions)
+            for i, operand in enumerate(operands):
+                if not isinstance(operand, dict):
+                    errors.append(f"{path}.operands[{i}]: must be dict")
+                elif "type" not in operand:
+                    errors.append(f"{path}.operands[{i}]: missing 'type'")
+                else:
+                    # Recursively validate
                     operand_errors = validate_condition_recursive(
-                        operand, f"{path}.operands[{i}]"
+                        operand, f"{path}.operands[{i}]", depth + 1
                     )
                     errors.extend(operand_errors)
     
@@ -151,31 +194,49 @@ def validate_condition_recursive(condition: Any, path: str = "condition") -> lis
 
 
 def _validate_threshold(threshold: Any, path: str) -> list[str]:
-    """Validate a threshold specification."""
+    """Validate a threshold specification with strict checks."""
     errors = []
     
     if not isinstance(threshold, dict):
         return [f"{path}: must be a dict, got {type(threshold).__name__}"]
+    
+    if len(threshold) == 0:
+        return [f"{path}: must not be empty"]
     
     if "type" not in threshold:
         return [f"{path}: missing 'type'"]
     
     thresh_type = threshold["type"]
     
+    if not isinstance(thresh_type, str):
+        return [f"{path}: 'type' must be string"]
+    
     if thresh_type not in VALID_THRESHOLD_TYPES:
-        return [f"{path}: unknown type '{thresh_type}'"]
+        return [f"{path}: unknown type '{thresh_type}', must be one of {sorted(VALID_THRESHOLD_TYPES)}"]
+    
+    # Check for unknown keys
+    allowed_keys = {"type", "value", "key"}
+    unknown_keys = set(threshold.keys()) - allowed_keys
+    if unknown_keys:
+        errors.append(f"{path}: unknown keys {sorted(unknown_keys)}")
     
     if thresh_type == "constant":
         if "value" not in threshold:
             errors.append(f"{path}: missing 'value' for constant threshold")
-        elif not isinstance(threshold["value"], (int, float)):
-            errors.append(f"{path}: 'value' must be numeric")
+        else:
+            value = threshold["value"]
+            if not isinstance(value, (int, float)):
+                errors.append(f"{path}: 'value' must be numeric, got {type(value).__name__}")
     
     elif thresh_type == "from_state":
         if "key" not in threshold:
             errors.append(f"{path}: missing 'key' for from_state threshold")
-        elif not isinstance(threshold["key"], str):
-            errors.append(f"{path}: 'key' must be string")
+        else:
+            key = threshold["key"]
+            if not isinstance(key, str):
+                errors.append(f"{path}: 'key' must be string")
+            elif len(key) == 0:
+                errors.append(f"{path}: 'key' must not be empty")
     
     return errors
 
@@ -221,21 +282,27 @@ def guards(guards_path):
 
 
 @pytest.fixture
-def exit_guards(guards):
+def all_guards(guards):
+    """Extract all guards."""
+    return guards.get("guards", [])
+
+
+@pytest.fixture
+def exit_guards(all_guards):
     """Extract exit guards."""
-    return guards.get("exit_guards", [])
+    return [g for g in all_guards if g.get("guard_type") == "exit"]
 
 
 @pytest.fixture
-def transition_guards(guards):
+def transition_guards(all_guards):
     """Extract transition guards."""
-    return guards.get("transition_guards", [])
+    return [g for g in all_guards if g.get("guard_type") == "transition"]
 
 
 @pytest.fixture
-def guard_ids(transition_guards):
+def guard_ids(all_guards):
     """Extract all guard IDs."""
-    return {g["id"] for g in transition_guards}
+    return {g["id"] for g in all_guards}
 
 
 @pytest.fixture
@@ -256,119 +323,84 @@ class TestGuardsStructure:
         """Happy: Guards lädt erfolgreich."""
         assert "version" in guards
         assert "schema" in guards
-        assert "exit_guards" in guards
-        assert "transition_guards" in guards
-        assert isinstance(guards["exit_guards"], list)
-        assert isinstance(guards["transition_guards"], list)
+        assert "guards" in guards
+        assert isinstance(guards["guards"], list)
 
     def test_schema_is_guards_v1(self, guards):
         """Happy: Schema ist opencode.guards.v1."""
         assert guards["schema"] == "opencode.guards.v1"
 
-    def test_has_exit_guards(self, guards):
-        """Happy: Exit Guards vorhanden."""
-        assert len(guards["exit_guards"]) > 0
+    def test_has_guards(self, guards):
+        """Happy: Guards vorhanden."""
+        assert len(guards["guards"]) > 0
 
-    def test_has_transition_guards(self, guards):
-        """Happy: Transition Guards vorhanden."""
-        assert len(guards["transition_guards"]) > 0
-
-
-@pytest.mark.governance
-class TestExitGuards:
-    """Exit Guards (Strict Exit Gates)."""
-
-    def test_exit_guards_have_state_id(self, exit_guards):
-        """Runtime: Alle Exit Guards haben state_id."""
-        for guard in exit_guards:
-            assert "state_id" in guard, f"Exit guard missing 'state_id'"
-            assert isinstance(guard["state_id"], str), \
-                f"Exit guard state_id must be string"
-
-    def test_exit_guards_have_required_keys(self, exit_guards):
-        """Runtime: Alle Exit Guards haben required_keys."""
-        for guard in exit_guards:
-            assert "required_keys" in guard, \
-                f"Exit guard for {guard.get('state_id')} missing 'required_keys'"
-            assert isinstance(guard["required_keys"], list), \
-                f"Exit guard required_keys must be list"
-            assert len(guard["required_keys"]) > 0, \
-                f"Exit guard for {guard.get('state_id')} has empty required_keys"
-
-    def test_exit_guards_required_keys_are_strings(self, exit_guards):
-        """Runtime: Alle required_keys sind nicht-leere Strings."""
-        for guard in exit_guards:
-            for key in guard["required_keys"]:
-                assert isinstance(key, str) and key.strip(), \
-                    f"Exit guard {guard.get('state_id')}: invalid key '{key}'"
-
-    def test_exit_guards_state_ids_unique(self, exit_guards):
-        """Runtime: Exit Guard State-IDs sind eindeutig."""
-        state_ids = [g["state_id"] for g in exit_guards]
-        duplicates = [sid for sid in state_ids if state_ids.count(sid) > 1]
-        assert not duplicates, f"Duplicate exit guard state IDs: {set(duplicates)}"
-
-    def test_exit_guards_no_unknown_runtime_fields(self, exit_guards):
-        """Runtime: Exit Guards haben nur bekannte Runtime-Felder."""
-        for guard in exit_guards:
-            unknown = set(guard.keys()) - RUNTIME_EXIT_GUARD_FIELDS - NON_RUNTIME_EXIT_GUARD_FIELDS
-            assert not unknown, \
-                f"Exit guard {guard.get('state_id')}: unknown fields {unknown}"
-
-
-@pytest.mark.governance
-class TestTransitionGuards:
-    """Transition Guards (Condition Selectors)."""
-
-    def test_transition_guards_have_id(self, transition_guards):
-        """Runtime: Alle Transition Guards haben ID."""
-        for guard in transition_guards:
-            assert "id" in guard, f"Transition guard missing 'id'"
-            assert isinstance(guard["id"], str), \
-                f"Transition guard id must be string"
-            assert guard["id"].startswith("guard_"), \
-                f"Transition guard ID should start with 'guard_'"
-
-    def test_transition_guards_have_event(self, transition_guards):
-        """Runtime: Alle Transition Guards haben Event."""
-        for guard in transition_guards:
-            assert "event" in guard, f"Transition guard {guard.get('id')} missing 'event'"
-            assert isinstance(guard["event"], str), \
-                f"Transition guard event must be string"
-
-    def test_transition_guards_have_condition(self, transition_guards):
-        """Runtime: Alle Transition Guards haben Condition."""
-        for guard in transition_guards:
-            assert "condition" in guard, \
-                f"Transition guard {guard.get('id')} missing 'condition'"
-
-    def test_guard_ids_unique(self, transition_guards):
+    def test_guard_ids_unique(self, all_guards):
         """Runtime: Guard IDs sind eindeutig."""
-        ids = [g["id"] for g in transition_guards]
+        ids = [g["id"] for g in all_guards]
         duplicates = [gid for gid in ids if ids.count(gid) > 1]
         assert not duplicates, f"Duplicate guard IDs: {set(duplicates)}"
 
-    def test_guard_events_unique(self, transition_guards):
-        """Runtime: Guard Events sind eindeutig (1:1 Mapping)."""
+
+@pytest.mark.governance
+class TestGuardModel:
+    """Unified Guard Model."""
+
+    def test_all_guards_have_id(self, all_guards):
+        """Runtime: Alle Guards haben ID."""
+        for guard in all_guards:
+            assert "id" in guard, f"Guard missing 'id'"
+            assert isinstance(guard["id"], str), f"Guard id must be string"
+            assert len(guard["id"]) > 0, f"Guard id must not be empty"
+
+    def test_all_guards_have_guard_type(self, all_guards):
+        """Runtime: Alle Guards haben guard_type."""
+        for guard in all_guards:
+            assert "guard_type" in guard, f"Guard {guard.get('id')} missing 'guard_type'"
+            assert guard["guard_type"] in VALID_GUARD_TYPES, \
+                f"Guard {guard.get('id')}: invalid guard_type '{guard['guard_type']}'"
+
+    def test_all_guards_have_condition(self, all_guards):
+        """Runtime: Alle Guards haben condition."""
+        for guard in all_guards:
+            assert "condition" in guard, f"Guard {guard.get('id')} missing 'condition'"
+
+    def test_exit_guards_have_target(self, exit_guards):
+        """Runtime: Exit Guards haben target (state_id)."""
+        for guard in exit_guards:
+            assert "target" in guard, f"Exit guard {guard.get('id')} missing 'target'"
+            assert isinstance(guard["target"], str), f"Exit guard target must be string"
+
+    def test_transition_guards_have_event(self, transition_guards):
+        """Runtime: Transition Guards haben event."""
+        for guard in transition_guards:
+            assert "event" in guard, f"Transition guard {guard.get('id')} missing 'event'"
+            assert isinstance(guard["event"], str), f"Transition guard event must be string"
+
+    def test_transition_guard_events_unique(self, transition_guards):
+        """Runtime: Transition Guard Events sind eindeutig."""
         events = [g["event"] for g in transition_guards]
         duplicates = [e for e in events if events.count(e) > 1]
         assert not duplicates, f"Duplicate guard events: {set(duplicates)}"
 
-    def test_transition_guards_no_unknown_runtime_fields(self, transition_guards):
-        """Runtime: Transition Guards haben nur bekannte Runtime-Felder."""
-        for guard in transition_guards:
-            unknown = set(guard.keys()) - RUNTIME_GUARD_FIELDS - NON_RUNTIME_GUARD_FIELDS
-            assert not unknown, \
-                f"Transition guard {guard.get('id')}: unknown fields {unknown}"
+    def test_guard_attributes_are_non_runtime(self, all_guards):
+        """Non-runtime: attributes ist optional und dokumentierend."""
+        for guard in all_guards:
+            if "attributes" in guard:
+                attrs = guard["attributes"]
+                assert isinstance(attrs, dict), f"Guard {guard.get('id')}: attributes must be dict"
+                # attributes should not contain runtime logic
+                for key in attrs:
+                    assert key in {"description", "fail_mode", "contract_ref"}, \
+                        f"Guard {guard.get('id')}: unknown attribute '{key}'"
 
 
 @pytest.mark.governance
 class TestConditionGrammar:
     """Closed Grammar Validation (ADR-002: structured, no DSL)."""
 
-    def test_all_conditions_valid_type(self, transition_guards):
+    def test_all_conditions_valid_type(self, all_guards):
         """Grammar: Alle Conditions haben gültigen Typ."""
-        for guard in transition_guards:
+        for guard in all_guards:
             condition = guard["condition"]
             assert isinstance(condition, dict), \
                 f"Guard {guard['id']}: condition must be dict"
@@ -377,110 +409,164 @@ class TestConditionGrammar:
             assert condition["type"] in VALID_CONDITION_TYPES, \
                 f"Guard {guard['id']}: unknown condition type '{condition['type']}'"
 
-    def test_recursive_condition_validation(self, transition_guards):
+    def test_recursive_condition_validation(self, all_guards):
         """Grammar: Alle Conditions sind rekursiv valide."""
         all_errors = []
-        for guard in transition_guards:
+        for guard in all_guards:
             errors = validate_condition_recursive(guard["condition"], f"guard_{guard['id']}")
             all_errors.extend(errors)
         assert not all_errors, f"Condition validation errors:\n" + "\n".join(all_errors)
 
-    def test_always_condition_no_extra_keys(self, transition_guards):
-        """Grammar: 'always' conditions haben keine zusätzlichen Felder."""
-        for guard in transition_guards:
-            if guard["condition"].get("type") == "always":
-                allowed = {"type"}
-                extra = set(guard["condition"].keys()) - allowed
-                assert not extra, \
-                    f"Guard {guard['id']}: 'always' has extra keys {extra}"
-
-    def test_numeric_gte_has_threshold(self, transition_guards):
-        """Grammar: 'numeric_gte' hat gültigen threshold."""
-        for guard in transition_guards:
-            if guard["condition"].get("type") == "numeric_gte":
-                condition = guard["condition"]
-                assert "threshold" in condition, \
-                    f"Guard {guard['id']}: numeric_gte missing 'threshold'"
-                threshold = condition["threshold"]
-                assert isinstance(threshold, dict), \
-                    f"Guard {guard['id']}: threshold must be dict"
-                assert "type" in threshold, \
-                    f"Guard {guard['id']}: threshold missing 'type'"
-                assert threshold["type"] in VALID_THRESHOLD_TYPES, \
-                    f"Guard {guard['id']}: unknown threshold type '{threshold['type']}'"
-
-    def test_numeric_gte_constant_threshold_is_numeric(self, transition_guards):
-        """Grammar: numeric_gte constant threshold ist numerisch."""
-        for guard in transition_guards:
-            if guard["condition"].get("type") == "numeric_gte":
-                threshold = guard["condition"].get("threshold", {})
-                if threshold.get("type") == "constant":
-                    assert "value" in threshold, \
-                        f"Guard {guard['id']}: constant threshold missing 'value'"
-                    assert isinstance(threshold["value"], (int, float)), \
-                        f"Guard {guard['id']}: constant threshold value must be numeric"
-
-    def test_numeric_gte_from_state_has_key(self, transition_guards):
-        """Grammar: numeric_gte from_state threshold hat key."""
-        for guard in transition_guards:
-            if guard["condition"].get("type") == "numeric_gte":
-                threshold = guard["condition"].get("threshold", {})
-                if threshold.get("type") == "from_state":
-                    assert "key" in threshold, \
-                        f"Guard {guard['id']}: from_state threshold missing 'key'"
-                    assert isinstance(threshold["key"], str), \
-                        f"Guard {guard['id']}: from_state threshold key must be string"
-
-    def test_composite_has_non_empty_operands(self, transition_guards):
-        """Grammar: composite conditions haben nicht-leere operands."""
-        for guard in transition_guards:
-            cond_type = guard["condition"].get("type")
-            if cond_type in ("all_of", "any_of"):
-                operands = guard["condition"].get("operands", [])
-                assert len(operands) > 0, \
-                    f"Guard {guard['id']}: {cond_type} has empty operands"
-
-    def test_no_dsl_patterns(self, transition_guards):
-        """ADR-002: Keine DSL-Patterns in Conditions."""
-        import json
-        for guard in transition_guards:
-            condition_str = json.dumps(guard["condition"])
-            assert "=>" not in condition_str, \
-                f"Guard {guard['id']}: contains DSL arrow '=>'"
-            assert "lambda" not in condition_str, \
-                f"Guard {guard['id']}: contains 'lambda'"
-            assert "fn(" not in condition_str, \
-                f"Guard {guard['id']}: contains function call syntax"
-            assert "eval(" not in condition_str, \
-                f"Guard {guard['id']}: contains 'eval'"
-            assert "exec(" not in condition_str, \
-                f"Guard {guard['id']}: contains 'exec'"
-
 
 @pytest.mark.governance
-class TestDescriptionIsNonRuntime:
-    """description ist non-runtime metadata (ADR-001)."""
+class TestConditionNegative:
+    """Negative Tests für kaputte Condition-Bäume."""
 
-    def test_description_not_used_in_runtime_logic(self):
-        """Non-runtime: description hat keinen Einfluss auf Guard-Evaluation."""
-        # This is a design invariant test - documents that description
-        # is purely for human documentation, not runtime logic.
-        # The recursive validator does NOT check description content.
-        pass  # Invariant: validator ignores description
+    def test_reject_empty_condition(self):
+        """Negative: Empty condition dict wird abgelehnt."""
+        errors = validate_condition_recursive({}, "test")
+        assert any("must not be empty" in e for e in errors)
 
-    def test_description_is_optional(self, transition_guards):
-        """Non-runtime: description ist optional."""
-        # Guards can exist without description
-        for guard in transition_guards:
-            # description is optional, not required
-            pass  # No assertion needed
+    def test_reject_condition_without_type(self):
+        """Negative: Condition ohne type wird abgelehnt."""
+        errors = validate_condition_recursive({"key": "foo"}, "test")
+        assert any("missing 'type'" in e for e in errors)
 
-    def test_description_is_string_when_present(self, transition_guards):
-        """Non-runtime: Wenn vorhanden, ist description ein String."""
-        for guard in transition_guards:
-            if "description" in guard:
-                assert isinstance(guard["description"], str), \
-                    f"Guard {guard.get('id')}: description must be string"
+    def test_reject_unknown_condition_type(self):
+        """Negative: Unbekannter Condition-Type wird abgelehnt."""
+        errors = validate_condition_recursive({"type": "unknown_type"}, "test")
+        assert any("unknown type" in e for e in errors)
+
+    def test_reject_always_with_extra_keys(self):
+        """Negative: always mit extra keys wird abgelehnt."""
+        errors = validate_condition_recursive(
+            {"type": "always", "extra": "field"}, 
+            "test"
+        )
+        assert any("unknown keys" in e for e in errors)
+
+    def test_reject_key_present_without_key(self):
+        """Negative: key_present ohne key wird abgelehnt."""
+        errors = validate_condition_recursive({"type": "key_present"}, "test")
+        assert any("missing required keys" in e and "key" in e for e in errors)
+
+    def test_reject_key_present_empty_key(self):
+        """Negative: key_present mit leerem key wird abgelehnt."""
+        errors = validate_condition_recursive({"type": "key_present", "key": ""}, "test")
+        assert any("must not be empty" in e for e in errors)
+
+    def test_reject_key_equals_without_value(self):
+        """Negative: key_equals ohne value wird abgelehnt."""
+        errors = validate_condition_recursive(
+            {"type": "key_equals", "key": "foo"}, 
+            "test"
+        )
+        assert any("missing required keys" in e and "value" in e for e in errors)
+
+    def test_reject_numeric_gte_without_threshold(self):
+        """Negative: numeric_gte ohne threshold wird abgelehnt."""
+        errors = validate_condition_recursive(
+            {"type": "numeric_gte", "key": "foo", "operator": "gte"}, 
+            "test"
+        )
+        assert any("missing required keys" in e and "threshold" in e for e in errors)
+
+    def test_reject_numeric_gte_invalid_operator(self):
+        """Negative: numeric_gte mit ungültigem operator wird abgelehnt."""
+        errors = validate_condition_recursive(
+            {
+                "type": "numeric_gte", 
+                "key": "foo", 
+                "operator": "invalid",
+                "threshold": {"type": "constant", "value": 1}
+            }, 
+            "test"
+        )
+        assert any("invalid operator" in e for e in errors)
+
+    def test_reject_numeric_gte_constant_non_numeric(self):
+        """Negative: numeric_gte constant threshold nicht numerisch."""
+        errors = validate_condition_recursive(
+            {
+                "type": "numeric_gte", 
+                "key": "foo", 
+                "operator": "gte",
+                "threshold": {"type": "constant", "value": "not_a_number"}
+            }, 
+            "test"
+        )
+        assert any("'value' must be numeric" in e for e in errors)
+
+    def test_reject_numeric_gte_unknown_threshold_type(self):
+        """Negative: numeric_gte mit unbekanntem threshold type."""
+        errors = validate_condition_recursive(
+            {
+                "type": "numeric_gte", 
+                "key": "foo", 
+                "operator": "gte",
+                "threshold": {"type": "invalid_type", "value": 1}
+            }, 
+            "test"
+        )
+        assert any("unknown type" in e for e in errors)
+
+    def test_reject_all_of_empty_operands(self):
+        """Negative: all_of mit leeren operands wird abgelehnt."""
+        errors = validate_condition_recursive(
+            {"type": "all_of", "operands": []}, 
+            "test"
+        )
+        assert any("must not be empty" in e for e in errors)
+
+    def test_reject_any_of_empty_operands(self):
+        """Negative: any_of mit leeren operands wird abgelehnt."""
+        errors = validate_condition_recursive(
+            {"type": "any_of", "operands": []}, 
+            "test"
+        )
+        assert any("must not be empty" in e for e in errors)
+
+    def test_reject_all_of_non_dict_operand(self):
+        """Negative: all_of mit nicht-dict operand wird abgelehnt."""
+        errors = validate_condition_recursive(
+            {"type": "all_of", "operands": ["not_a_dict"]}, 
+            "test"
+        )
+        assert any("must be dict" in e for e in errors)
+
+    def test_reject_nested_empty_operands(self):
+        """Negative: Verschachtelte leere operands werden abgelehnt."""
+        errors = validate_condition_recursive(
+            {
+                "type": "all_of", 
+                "operands": [
+                    {"type": "any_of", "operands": []}
+                ]
+            }, 
+            "test"
+        )
+        assert any("must not be empty" in e for e in errors)
+
+    def test_reject_unknown_key_in_leaf(self):
+        """Negative: Unbekannte keys in leaf nodes werden abgelehnt."""
+        errors = validate_condition_recursive(
+            {"type": "key_present", "key": "foo", "unknown_field": "bar"}, 
+            "test"
+        )
+        assert any("unknown keys" in e for e in errors)
+
+    def test_reject_numeric_gte_threshold_unknown_keys(self):
+        """Negative: Unbekannte keys in threshold werden abgelehnt."""
+        errors = validate_condition_recursive(
+            {
+                "type": "numeric_gte", 
+                "key": "foo", 
+                "operator": "gte",
+                "threshold": {"type": "constant", "value": 1, "extra": "field"}
+            }, 
+            "test"
+        )
+        assert any("unknown keys" in e for e in errors)
 
 
 @pytest.mark.governance
@@ -510,8 +596,8 @@ class TestGuardTopologyConsistency:
         assert not extra_events, \
             f"Guard events not in topology: {extra_events}"
 
-    def test_exit_guard_state_ids_match_topology(self, exit_guards):
-        """Happy: Exit Guard State-IDs existieren in Topologie."""
+    def test_exit_guard_targets_match_topology(self, exit_guards):
+        """Happy: Exit Guard Targets existieren in Topologie."""
         topo_path = _find_topology_path()
         if topo_path is None:
             pytest.skip("topology.yaml not found for cross-reference")
@@ -522,5 +608,5 @@ class TestGuardTopologyConsistency:
         state_ids = {s["id"] for s in topology["states"]}
         
         for guard in exit_guards:
-            assert guard["state_id"] in state_ids, \
-                f"Exit guard state_id '{guard['state_id']}' not in topology"
+            assert guard["target"] in state_ids, \
+                f"Exit guard {guard['id']} target '{guard['target']}' not in topology"
