@@ -1,4 +1,4 @@
-# Phase 4: Command-Policy separat modellieren (v3 - Deterministic /continue)
+# Phase 4: Command-Policy separat modellieren (v4 - Target architecture)
 
 **Status:** Completed  
 **Date:** 2026-03-24  
@@ -10,83 +10,71 @@
 
 Extrahiere die Command-Policy aus der monolithischen `phase_api.yaml` in eine separate `command_policy.yaml`-Datei.
 
-**Key Features:**
-- Explicit Command→Event mapping (ADR-004)
-- Deterministic /continue (exactly one guard per state)
-- No constraints/textual semantics in runtime model
-- Stable output policy IDs
-- Terminal/Blocked state command restrictions
+**This is now the TARGET architecture policy, not transitional:**
+- Phase 6 commands target substates (6.approved, 6.presentation)
+- *_via_guards is formally hardened (only /continue)
+- No constraints or textual semantics
 
 ## 2. Prinzipien
 
-### 2.1 /continue Determinism Contract
+### 2.1 Phase 6 Target Architecture (per ADR-003)
 
 ```yaml
-- id: "cmd_continue"
-  command: "/continue"
-  behavior:
-    type: "advance_routing"
-    determinism: "exactly_one_guard_per_state"  # REQUIRED
-  produces_events: "*_via_guards"  # Special: guard-determined
+/implement → allowed_in: ["6.approved"]
+/review-decision → allowed_in: ["6.presentation"]
+/implementation-decision → allowed_in: ["6.presentation"]
+```
+
+These states don't exist in topology yet (Phase 6 zerlegung pending).
+Tests handle this by recognizing future states from ADR-003.
+
+### 2.2 *_via_guards Contract
+
+```yaml
+produces_events: "*_via_guards"  # SPECIAL: only /continue may use this
 ```
 
 **Contract:**
-- For each state, exactly one guard condition evaluates to true
-- The matching transition produces exactly one event
-- No fallback, no ambiguity, no silent mutations
+- Only `/continue` may use `*_via_guards`
+- Other commands must have explicit event list `[]` or `["event1", ...]`
+- Tests enforce this strictly
 
-### 2.2 No Constraints in Runtime Model
+### 2.3 alias_of (not aliases)
 
-**FORBIDDEN fields in commands:**
-- `constraints` - Removed entirely
-- All behavioral rules must be in guards, not text
+```yaml
+behavior:
+  alias_of: "cmd_review_decision"  # Single alias reference
+```
 
-**Allowed fields:**
-- Runtime: `id`, `command`, `allowed_in`, `mutating`, `behavior`, `produces_events`
-- Non-runtime: `description` only
-
-### 2.3 Universal Read-Only Commands
-
-`/review` is universally allowed with explicit justification:
-1. Pure read-only - never mutates governance state
-2. Only produces local findings/verdict, no state events
-3. Safe during blocking, rework, or critical situations
-4. Users need review capability even when workflow is paused
-
-### 2.4 Command Restriction Rules
+### 2.4 Command Restrictions with Documented Semantics
 
 ```yaml
 command_restrictions:
   - state_pattern: "*.terminal"
-    blocked_command_types: ["persist_evidence", "start_implementation", ...]
-    reason: "Terminal states are immutable"
+    # NOTE: This matches states where terminal=true in topology,
+    # not by name convention. Runtime resolves against terminal flag.
+    blocked_command_types: [...]
+    reason: "Terminal states have terminal=true in topology, are immutable"
 ```
-
-### 2.5 Command Semantics
-
-| Command | decision_scope | Purpose |
-|---------|----------------|---------|
-| `/review-decision` | workflow | Decides workflow/plan approval |
-| `/implementation-decision` | workflow | Alias for /review-decision |
 
 ## 3. Erstellte Dateien
 
 ### 3.1 `governance_spec/command_policy.yaml`
 
 **Commands (7):**
-| Command | Mutating | Events | Determinism |
-|---------|----------|--------|-------------|
-| `/continue` | Yes | `*_via_guards` | exactly_one_guard_per_state |
-| `/review` | No | (none) | read-only |
-| `/ticket` | Yes | (via evidence) | - |
-| `/plan` | Yes | (via evidence) | - |
-| `/implement` | Yes | 2 events | - |
-| `/review-decision` | Yes | 3 events | decision_scope: workflow |
-| `/implementation-decision` | Yes | 3 events | alias: cmd_review_decision |
+| Command | Target State | Mutating | Events |
+|---------|--------------|----------|--------|
+| `/continue` | * | Yes | `*_via_guards` |
+| `/review` | * | No | `[]` |
+| `/ticket` | 4 | Yes | `[]` |
+| `/plan` | 4, 5 | Yes | `[]` |
+| `/implement` | **6.approved** | Yes | 2 events |
+| `/review-decision` | **6.presentation** | Yes | 3 events |
+| `/implementation-decision` | **6.presentation** | Yes | 3 events (alias) |
 
 ### 3.2 `tests/architecture/test_command_policy.py`
 
-39 Tests:
+42 Tests:
 
 | Testklasse | Tests | Beschreibung |
 |------------|-------|--------------|
@@ -96,6 +84,7 @@ command_restrictions:
 | `TestContinueDeterminism` | 3 | /continue determinism contract |
 | `TestReviewUniversalJustification` | 3 | /review universal access |
 | `TestCommandEventMapping` | 4 | Command→Event Mapping |
+| `TestViaGuardsContract` | 3 | *_via_guards nur für /continue |
 | `TestOutputPolicies` | 5 | Output Policy Validierung |
 | `TestPhaseOutputPolicyMap` | 4 | Phase Mapping Integrität |
 | `TestCommandRestrictions` | 4 | Terminal/Blocked rules |
@@ -104,17 +93,17 @@ command_restrictions:
 ## 4. Testergebnisse
 
 ```
-tests/architecture/test_command_policy.py ... 39 passed
+tests/architecture/test_command_policy.py ... 42 passed
 tests/architecture/test_guards.py ... 33 passed
 tests/architecture/test_topology.py ... 34 passed
 tests/architecture/test_spec_inventory.py ... 18 passed
-Total: 140 passed
+Total: 143 passed
 ```
 
 ## 5. Nächste Schritte
 
 1. **Phase 5**: Presentation/Messages herauslösen
-2. **Phase 6**: Phase 6 in echte Substates zerlegen
+2. **Phase 6**: Phase 6 in echte Substates zerlegen (6.approved, 6.presentation, etc.)
 
 ---
 

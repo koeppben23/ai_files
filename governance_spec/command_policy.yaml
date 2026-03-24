@@ -12,6 +12,7 @@ schema: opencode.command_policy.v1
 # - Each command maps to explicit events it produces
 # - produces_events is REQUIRED for mutating commands (deterministic)
 # - Empty produces_events means state change via evidence, not direct event
+# - Special value "*_via_guards" ONLY for /continue (guard-determined events)
 #
 # Runtime fields: id, command, allowed_in, mutating, behavior, produces_events
 # Non-runtime (ignored by runtime): description only
@@ -39,7 +40,7 @@ commands:
       # - The matching transition produces exactly one event
       # - No fallback, no ambiguity, no silent mutations
       determinism: "exactly_one_guard_per_state"
-    produces_events: "*_via_guards"  # Special: events determined by guard evaluation
+    produces_events: "*_via_guards"  # SPECIAL: only /continue may use this value
 
   - id: "cmd_review_readonly"
     command: "/review"
@@ -87,22 +88,17 @@ commands:
     produces_events: []  # State change via evidence, not direct event
 
   # ============================================================================
-  # Phase 6 Commands (TRANSITIONAL - per ADR-003, should be in 6.approved)
+  # Phase 6 Substate Commands (per ADR-003)
   # ============================================================================
-  # These commands currently target State "6" (Phase 6 monolith).
-  # After Phase 6 zerlegung, they will target specific substates:
-  # - /implement → 6.approved
-  # - /review-decision → 6.presentation
-  #
-  # Semantic distinction:
-  # - /review-decision: Decides on workflow/plan approval (user review)
-  # - /implementation-decision: Same functionality, alternative command name
+  # /implement is allowed in 6.approved (after implementation plan approved)
+  # /review-decision is allowed in 6.presentation (evidence presented)
+  # /implementation-decision is an alias for /review-decision
 
   - id: "cmd_implement"
     command: "/implement"
     description: "Start or continue implementation execution"
     allowed_in:
-      - "6"  # TRANSITIONAL: Ist-Zustand, per ADR-003 should be 6.approved
+      - "6.approved"  # Per ADR-003: requires approved implementation plan
     mutating: true
     behavior:
       type: "start_implementation"
@@ -114,7 +110,7 @@ commands:
     command: "/review-decision"
     description: "Submit final review decision - decides workflow/plan approval"
     allowed_in:
-      - "6"  # TRANSITIONAL: Ist-Zustand, per ADR-003 should be 6.presentation
+      - "6.presentation"  # Per ADR-003: evidence presented, ready for decision
     mutating: true
     behavior:
       type: "submit_review_decision"
@@ -130,18 +126,18 @@ commands:
 
   - id: "cmd_implementation_decision"
     command: "/implementation-decision"
-    description: "Submit implementation review decision - alternative name for /review-decision"
+    description: "Submit implementation review decision - alias for /review-decision"
     allowed_in:
-      - "6"  # TRANSITIONAL: Same scope as /review-decision
+      - "6.presentation"  # Same scope as /review-decision
     mutating: true
     behavior:
       type: "submit_review_decision"
-      decision_scope: "workflow"  # Same as /review-decision
+      decision_scope: "workflow"
       allowed_decisions:
         - "approve"
         - "changes_requested"
         - "reject"
-      aliases: "cmd_review_decision"  # This is an alias
+      alias_of: "cmd_review_decision"  # This is an alias
     produces_events:
       - "workflow_approved"
       - "review_changes_requested"
@@ -151,15 +147,20 @@ commands:
 # Command Restriction Rules
 # ============================================================================
 # Defines states where commands are restricted (beyond allowed_in).
+# state_pattern uses state_id matching, not naming conventions.
+# For terminal states, the pattern matches states where terminal=true in topology.
 
 command_restrictions:
   # Terminal states - no mutating commands allowed
+  # NOTE: This pattern matches states that have terminal=true in topology.yaml,
+  # not by name convention. The pattern "*.terminal" is a placeholder for
+  # runtime resolution against the terminal flag.
   - state_pattern: "*.terminal"
     blocked_command_types:
       - "persist_evidence"
       - "start_implementation"
       - "submit_review_decision"
-    reason: "Terminal states are immutable"
+    reason: "Terminal states have terminal=true in topology, are immutable"
 
   # Blocked implementation states
   - state_pattern: "6.blocked"

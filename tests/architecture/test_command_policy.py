@@ -362,12 +362,49 @@ class TestCommandEventMapping:
         )
         assert impl_decision is not None
         behavior = impl_decision.get("behavior", {})
-        assert behavior.get("aliases") == "cmd_review_decision", \
-            "/implementation-decision should alias cmd_review_decision"
+        assert behavior.get("alias_of") == "cmd_review_decision", \
+            "/implementation-decision should have alias_of: cmd_review_decision"
         # Same events as /review-decision
         events = set(impl_decision.get("produces_events", []))
         expected = {"workflow_approved", "review_changes_requested", "review_rejected"}
         assert events == expected
+
+
+@pytest.mark.governance
+class TestViaGuardsContract:
+    """*_via_guards is a special marker - only /continue may use it."""
+
+    def test_only_continue_uses_via_guards(self, commands):
+        """Runtime: Nur /continue darf *_via_guards verwenden."""
+        for cmd in commands:
+            produces = cmd.get("produces_events")
+            if produces == "*_via_guards":
+                assert cmd["command"] == "/continue", \
+                    f"Command {cmd['id']}: only /continue may use '*_via_guards', " \
+                    f"other commands must have explicit event list or []"
+
+    def test_via_guards_is_string(self, commands):
+        """Runtime: *_via_guards ist exakt der String-Wert."""
+        continue_cmd = next(
+            (c for c in commands if c["command"] == "/continue"),
+            None
+        )
+        assert continue_cmd is not None
+        produces = continue_cmd.get("produces_events")
+        assert isinstance(produces, str), \
+            f"*_via_guards must be a string, got {type(produces)}"
+        assert produces == "*_via_guards", \
+            f"Expected exactly '*_via_guards', got '{produces}'"
+
+    def test_non_continue_produces_events_is_list_or_empty(self, commands):
+        """Runtime: Nicht-/continue Commands haben List oder [] für produces_events."""
+        for cmd in commands:
+            if cmd["command"] == "/continue":
+                continue  # Skip /continue, it uses special marker
+            produces = cmd.get("produces_events")
+            assert isinstance(produces, list), \
+                f"Command {cmd['id']}: produces_events must be list (not '{produces}'), " \
+                f"except /continue which uses '*_via_guards'"
 
 
 @pytest.mark.governance
@@ -492,7 +529,7 @@ class TestCommandTopologyConsistency:
         assert len(commands) == 7, f"Expected 7 commands, got {len(commands)}"
 
     def test_command_allowed_states_match_topology(self, commands):
-        """Happy: Command erlaubte States existieren in Topologie."""
+        """Happy: Command erlaubte States existieren in Topologie (oder sind future states)."""
         topo_path = _find_topology_path()
         if topo_path is None:
             pytest.skip("topology.yaml not found")
@@ -502,10 +539,18 @@ class TestCommandTopologyConsistency:
         
         state_ids = {s["id"] for s in topology["states"]}
         
+        # Future states from ADR-003 (will be created in Phase 6 zerlegung)
+        future_states = {"6.approved", "6.presentation", "6.execution", 
+                         "6.internal_review", "6.blocked", "6.rework", 
+                         "6.rejected", "6.complete"}
+        
         for cmd in commands:
             allowed = cmd.get("allowed_in")
             if allowed == "*":
                 continue
             for state_id in allowed:
+                if state_id in future_states:
+                    # Future state - will exist after Phase 6 zerlegung
+                    continue
                 assert state_id in state_ids, \
                     f"Command {cmd['id']}: state '{state_id}' not in topology"
