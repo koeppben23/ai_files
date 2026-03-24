@@ -2,21 +2,22 @@ version: 1
 schema: opencode.guards.v1
 
 # ============================================================================
-# Exit Guards (Strict Exit Gates)
+# Exit Guards
 # ============================================================================
 # Guards that must be satisfied before leaving a state.
 # These are evaluated by the strict_exit_evaluator.
+#
+# Runtime fields: state_id, required_keys
+# Non-runtime: description (documentation only)
 
 exit_guards:
   - state_id: "1.2"
-    description: "Intent committed before proceeding to rulebook load"
     required_keys:
       - "Intent.Path"
       - "Intent.Sha256"
       - "Intent.EffectiveScope"
 
   - state_id: "1.3"
-    description: "Rulebooks loaded with evidence before repository discovery"
     required_keys:
       - "LoadedRulebooks.core"
       - "LoadedRulebooks.profile"
@@ -26,19 +27,16 @@ exit_guards:
       - "AddonsEvidence"
 
   - state_id: "2"
-    description: "Repository discovery completed before decision pack"
     required_keys:
       - "RepoDiscovery.Completed"
       - "RepoDiscovery.RepoCacheFile"
       - "RepoDiscovery.RepoMapDigestFile"
 
   - state_id: "1.5"
-    description: "Business rules persisted before API inventory"
     required_keys:
       - "BusinessRules.Inventory.sha256"
 
   - state_id: "3A"
-    description: "API inventory status recorded before validation"
     required_keys:
       - "APIInventory.Status"
 
@@ -47,6 +45,16 @@ exit_guards:
 # ============================================================================
 # Conditions that determine which transition to take.
 # These are evaluated by the phase_kernel to select the correct transition.
+#
+# Closed Grammar (ADR-002):
+# - condition is always a ConditionNode
+# - ConditionNode.type is one of: always, key_present, key_equals, key_missing, numeric_gte
+# - ConditionNode.type is one of: all_of, any_of (composite)
+# - Recursion: composite nodes contain ConditionNode[] operands
+# - Unknown types/fields are rejected
+#
+# Runtime fields: id, event, condition
+# Non-runtime: description (documentation only)
 
 transition_guards:
   # Default guard - always true, fallback transition
@@ -59,184 +67,204 @@ transition_guards:
   - id: "guard_business_rules_execute"
     event: "business_rules_execute"
     condition:
-      type: "state_check"
+      type: "key_missing"
       key: "BusinessRules.Inventory"
-      operator: "missing_or_empty"
 
   # Phase 3A: No APIs detected
   - id: "guard_no_apis"
     event: "no_apis"
     condition:
-      type: "state_check"
+      type: "key_equals"
       key: "APIInventory.Status"
-      operator: "equals"
       value: "not_applicable"
 
-  # Phase 4: Ticket present
+  # Phase 4: Ticket present (ticket OR task)
   - id: "guard_ticket_present"
     event: "ticket_present"
     condition:
-      type: "composite"
-      operator: "or"
+      type: "any_of"
       operands:
-        - type: "state_check"
+        - type: "key_present"
           key: "ticket_recorded"
-          operator: "truthy"
-        - type: "state_check"
+        - type: "key_present"
           key: "task_recorded"
-          operator: "truthy"
 
   # Phase 5: Plan record missing
   - id: "guard_plan_record_missing"
     event: "plan_record_missing"
     condition:
-      type: "state_check"
+      type: "numeric_gte"
       key: "plan_record_versions"
-      operator: "less_than"
-      value: 1
+      threshold:
+        type: "constant"
+        value: 1
+      operator: "lt"
 
   # Phase 5: Self-review iterations pending
   - id: "guard_self_review_iterations_pending"
     event: "self_review_iterations_pending"
     condition:
-      type: "derived"
-      evaluator: "phase5_review_loop_complete"
-      expected: false
+      type: "all_of"
+      operands:
+        - type: "key_present"
+          key: "phase5_self_review_iterations"
+        - type: "numeric_gte"
+          key: "phase5_self_review_iterations"
+          threshold:
+            type: "constant"
+            value: 0
+          operator: "lt"
+        - type: "numeric_gte"
+          key: "phase5_self_review_iterations"
+          threshold:
+            type: "constant"
+            value: 3
+          operator: "lt"
 
   # Phase 5: Self-review iterations met
   - id: "guard_self_review_iterations_met"
     event: "self_review_iterations_met"
     condition:
-      type: "derived"
-      evaluator: "phase5_review_loop_complete"
-      expected: true
+      type: "any_of"
+      operands:
+        - type: "numeric_gte"
+          key: "phase5_self_review_iterations"
+          threshold:
+            type: "constant"
+            value: 3
+          operator: "gte"
+        - type: "key_present"
+          key: "Phase5Review.self_review_iterations_met"
 
   # Phase 5.3: Business rules gate required
   - id: "guard_business_rules_gate_required"
     event: "business_rules_gate_required"
     condition:
-      type: "derived"
-      evaluator: "business_rules_discovery_resolved"
-      expected: true
+      type: "key_present"
+      key: "BusinessRules.DiscoveryResolved"
 
   # Phase 5.3: Technical debt proposed
   - id: "guard_technical_debt_proposed"
     event: "technical_debt_proposed"
     condition:
-      type: "state_check"
+      type: "key_present"
       key: "technical_debt_proposed"
-      operator: "truthy"
 
   # Phase 5.3: Rollback required
   - id: "guard_rollback_required"
     event: "rollback_required"
     condition:
-      type: "state_check"
+      type: "key_present"
       key: "rollback_required"
-      operator: "truthy"
 
   # Phase 6: Implementation accepted
   - id: "guard_implementation_accepted"
     event: "implementation_accepted"
     condition:
-      type: "derived"
-      evaluator: "implementation_accepted"
-      expected: true
+      type: "key_present"
+      key: "implementation_accepted"
 
   # Phase 6: Implementation blocked
   - id: "guard_implementation_blocked"
     event: "implementation_blocked"
     condition:
-      type: "derived"
-      evaluator: "implementation_blocked"
-      expected: true
+      type: "all_of"
+      operands:
+        - type: "key_equals"
+          key: "implementation_execution_status"
+          value: "blocked"
+        - type: "key_present"
+          key: "implementation_hard_blockers"
 
   # Phase 6: Implementation rework clarification pending
   - id: "guard_implementation_rework_clarification_pending"
     event: "implementation_rework_clarification_pending"
     condition:
-      type: "derived"
-      evaluator: "implementation_rework_clarification_pending"
-      expected: true
+      type: "key_present"
+      key: "implementation_rework_clarification_required"
 
   # Phase 6: Implementation presentation ready
   - id: "guard_implementation_presentation_ready"
     event: "implementation_presentation_ready"
     condition:
-      type: "derived"
-      evaluator: "implementation_presentation_ready"
-      expected: true
+      type: "all_of"
+      operands:
+        - type: "key_present"
+          key: "implementation_package_presented"
+        - type: "key_present"
+          key: "implementation_quality_stable"
 
   # Phase 6: Implementation execution in progress
   - id: "guard_implementation_execution_in_progress"
     event: "implementation_execution_in_progress"
     condition:
-      type: "derived"
-      evaluator: "implementation_execution_in_progress"
-      expected: true
+      type: "key_equals"
+      key: "implementation_execution_status"
+      value: "in_progress"
 
   # Phase 6: Implementation started
   - id: "guard_implementation_started"
     event: "implementation_started"
     condition:
-      type: "derived"
-      evaluator: "implementation_started"
-      expected: true
+      type: "key_present"
+      key: "implementation_started"
 
   # Phase 6: Workflow approved
   - id: "guard_workflow_approved"
     event: "workflow_approved"
     condition:
-      type: "derived"
-      evaluator: "workflow_complete"
-      expected: true
+      type: "key_present"
+      key: "workflow_complete"
 
   # Phase 6: Review changes requested
   - id: "guard_review_changes_requested"
     event: "review_changes_requested"
     condition:
-      type: "state_check"
+      type: "key_equals"
       key: "user_review_decision"
-      operator: "equals"
       value: "changes_requested"
 
   # Phase 6: Rework clarification pending
   - id: "guard_rework_clarification_pending"
     event: "rework_clarification_pending"
     condition:
-      type: "derived"
-      evaluator: "phase6_rework_clarification_pending"
-      expected: true
+      type: "key_present"
+      key: "rework_clarification_consumed"
 
   # Phase 6: Review rejected
   - id: "guard_review_rejected"
     event: "review_rejected"
     condition:
-      type: "state_check"
+      type: "key_equals"
       key: "user_review_decision"
-      operator: "equals"
       value: "reject"
 
-  # Phase 6: Implementation review pending
+  # Phase 6: Implementation review pending (internal review not complete)
   - id: "guard_implementation_review_pending"
     event: "implementation_review_pending"
     condition:
-      type: "derived"
-      evaluator: "phase6_internal_review_complete"
-      expected: false
+      type: "all_of"
+      operands:
+        - type: "numeric_gte"
+          key: "phase6_review_iterations"
+          threshold:
+            type: "constant"
+            value: 3
+          operator: "lt"
+        - type: "key_missing"
+          key: "ImplementationReview.revision_complete"
 
   # Phase 6: Implementation review complete
   - id: "guard_implementation_review_complete"
     event: "implementation_review_complete"
     condition:
-      type: "derived"
-      evaluator: "phase6_internal_review_complete"
-      expected: true
-
-# ============================================================================
-# Guard References (for Phase 8 cross-spec conformance)
-# ============================================================================
-# Maps transition IDs to guard IDs.
-# This will be populated when guard_ref is added to topology.yaml.
-
-guard_references: []
+      type: "any_of"
+      operands:
+        - type: "numeric_gte"
+          key: "phase6_review_iterations"
+          threshold:
+            type: "constant"
+            value: 3
+          operator: "gte"
+        - type: "key_present"
+          key: "ImplementationReview.revision_complete"
