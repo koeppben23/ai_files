@@ -23,9 +23,9 @@
 
 | Feld | Quelle | Zielschicht | Bemerkung |
 |------|--------|-------------|-----------|
-| `transitions[].when` | phase_api.yaml | **Guard** | → `guard_ref` Referenz |
+| `transitions[].when` | phase_api.yaml | **Guard** | Condition selector → `guard_ref` Referenz |
 | `transitions[].next` | phase_api.yaml | **Topologie** | Ziel-State-ID |
-| `transitions[].source` | phase_api.yaml | **Topologie** | Transition-ID |
+| `transitions[].source` | phase_api.yaml | **Topologie** | Provenance label (z.B. "6.execution → 6.internal_review") |
 | `transitions[].active_gate` | phase_api.yaml | **Messaging** | → `messages` |
 | `transitions[].next_gate_condition` | phase_api.yaml | **Messaging** | → `messages` |
 
@@ -34,7 +34,7 @@
 | Feld | Quelle | Zielschicht | Bemerkung |
 |------|--------|-------------|-----------|
 | `exit_required_keys` | phase_api.yaml | **Guard** | → `guards.exit_guards` |
-| `output_policy` | phase_api.yaml | **Command-Policy** | → `command_policy` |
+| `output_policy` | phase_api.yaml | **Command-Policy** | → `command_policy` (vorsichtig: nur Policy-Teil, nicht gesamte Command-Registry) |
 
 ### 1.4 Meta Fields
 
@@ -155,7 +155,7 @@ Phase 6 ist aktuell ein einziges Token `"6"` mit `route_strategy: "stay"`.
 | `/ticket` | 4 | Mutating | Ticket/Task persistieren |
 | `/plan` | 4, 5 | Mutating | Plan generieren |
 | `/review` | 4 | **Read-only** | PR/Datei reviewen |
-| `/implement` | 6.presentation | Mutating | Implementierung starten |
+| `/implement` | 6.presentation *(Ist-Zustand)* | Mutating | Implementierung starten (nach ADR-003: sollte in 6.approved sein) |
 | `/review-decision` | 6.presentation | Mutating | Finale Review-Entscheidung |
 
 ### 5.2 `/review` Semantik

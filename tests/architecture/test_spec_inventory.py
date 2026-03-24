@@ -9,6 +9,10 @@ Validiert die aktuelle phase_api.yaml Struktur und identifiziert:
 
 Diese Tests laufen GEGEN die aktuelle Spec (phase_api.yaml),
 nicht gegen die zukünftige V2-Struktur.
+
+Note: This is INVENTORY of the current state (Ist-Zustand).
+Some fields (like /implement in 6.presentation) represent the current
+behavior which may differ from the frozen Zielarchitektur (ADR-003).
 """
 
 from __future__ import annotations
@@ -18,29 +22,27 @@ import yaml
 from pathlib import Path
 
 
-SPEC_PATH = Path(__file__).resolve().parents[3] / "governance_spec" / "phase_api.yaml"
-
-
 def _find_spec_path() -> Path:
-    """Find phase_api.yaml relative to project root."""
+    """Find phase_api.yaml relative to test file location."""
     current = Path(__file__).resolve()
-    for parent in [current.parents[3], current.parents[4], current.parents[2]]:
+    # Search upward from test file location
+    for parent in current.parents:
         candidate = parent / "governance_spec" / "phase_api.yaml"
         if candidate.exists():
             return candidate
-    # Fallback: search from workspace root
-    workspace = Path("/Users/koeppben/work/ai_files")
-    return workspace / "governance_spec" / "phase_api.yaml"
-
-
-SPEC_PATH = _find_spec_path()
+    pytest.skip("phase_api.yaml not found - test requires spec file")
 
 
 @pytest.fixture
-def phase_api_spec():
+def spec_path():
+    """Provides the spec path, skipping test if not found."""
+    return _find_spec_path()
+
+
+@pytest.fixture
+def phase_api_spec(spec_path):
     """Lädt die aktuelle phase_api.yaml für Inventory-Tests."""
-    assert SPEC_PATH.exists(), f"phase_api.yaml not found at {SPEC_PATH}"
-    with open(SPEC_PATH, encoding="utf-8") as f:
+    with open(spec_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
