@@ -19,6 +19,8 @@ from typing import Any, Mapping, Optional
 
 import yaml
 
+GOVERNANCE_CONFIG_SCHEMA_ID = "governance-config.v1.schema.json"
+
 
 # ---------------------------------------------------------------------------
 # Path resolution
@@ -312,19 +314,19 @@ def load_governance_config(
     """Load governance configuration from workspace root.
 
     This function loads the governance-config.json file from the workspace root
-    and validates it against the schema. If the file is missing, it returns
-    default values. If the file is present but invalid, it raises RuntimeError.
+    and validates it. If the file is missing, it returns default values.
+    If the file is present but invalid, it raises RuntimeError (if require_valid=True).
 
     Args:
         workspace_root: Path to the workspace root directory.
         require_valid: If True, raise RuntimeError for invalid configs.
-                      If False, return defaults on any error.
+                      If False, return defaults on error (including missing file).
 
     Returns:
         A dict with the validated governance configuration.
 
     Raises:
-        RuntimeError: If require_valid=True and config is missing or invalid.
+        RuntimeError: If require_valid=True and config file is present but invalid.
 
     Design:
         - File missing → return defaults (backward compatible)
@@ -334,7 +336,6 @@ def load_governance_config(
     """
     from governance_runtime.domain.default_governance_config import (
         get_default_governance_config,
-        SCHEMA_VERSION,
     )
 
     config_path = workspace_root / "governance-config.json"
@@ -378,8 +379,8 @@ def _validate_governance_config_schema(config: dict[str, object]) -> list[str]:
 
     if "$schema" not in config:
         errors.append("missing required key: $schema")
-    elif config["$schema"] != "governance-config.v1.schema.json":
-        errors.append(f"invalid $schema value: expected 'governance-config.v1.schema.json', got '{config['$schema']}'")
+    elif config["$schema"] != GOVERNANCE_CONFIG_SCHEMA_ID:
+        errors.append(f"invalid $schema value: expected '{GOVERNANCE_CONFIG_SCHEMA_ID}', got '{config['$schema']}'")
 
     for section in ("review", "pipeline", "regulated"):
         if section not in config:

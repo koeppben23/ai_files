@@ -15,7 +15,9 @@ Defaults are intentionally conservative and match existing behavior:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+
+
+SCHEMA_ID = "governance-config.v1.schema.json"
 
 
 @dataclass(frozen=True)
@@ -48,8 +50,6 @@ DEFAULT_PIPELINE = PipelineDefaults()
 DEFAULT_REGULATED = RegulatedDefaults()
 DEFAULT_GOVERNANCE_CONFIG = GovernanceConfigDefaults()
 
-SCHEMA_VERSION = "governance-config.v1.schema.json"
-
 
 def get_default_review_config() -> dict:
     return {
@@ -74,7 +74,7 @@ def get_default_regulated_config() -> dict:
 
 def get_default_governance_config() -> dict:
     return {
-        "$schema": SCHEMA_VERSION,
+        "$schema": SCHEMA_ID,
         "review": get_default_review_config(),
         "pipeline": get_default_pipeline_config(),
         "regulated": get_default_regulated_config(),
@@ -90,7 +90,7 @@ __all__ = [
     "DEFAULT_PIPELINE",
     "DEFAULT_REGULATED",
     "DEFAULT_GOVERNANCE_CONFIG",
-    "SCHEMA_VERSION",
+    "SCHEMA_ID",
     "get_default_review_config",
     "get_default_pipeline_config",
     "get_default_regulated_config",
