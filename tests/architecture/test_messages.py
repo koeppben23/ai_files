@@ -1,11 +1,11 @@
-"""Phase 5: Messages Tests (v2 - Strict with cross-ref validation)
+"""Phase 5: Messages Tests (v3 - Strict with cross-ref validation)
 
 Validiert die extrahierte messages.yaml Struktur:
 - Stabile Message-IDs (id field)
 - Context Contract ist definiert
 - Keine Runtime-Felder in Messages
 - Cross-Ref: state_id muss in Topologie existieren
-- Cross-Ref: transition_key source muss in Topologie existieren
+- Cross-Ref: state_id + event Kombination muss in Topologie existieren
 - Conformance: Commands in instructions müssen in Command-Policy erlaubt sein
 - Negative Tests für unbekannte Contexts/IDs
 
@@ -116,12 +116,12 @@ def state_ids_from_messages(state_messages):
 
 @pytest.fixture
 def message_ids(messages):
-    """Extract all message IDs."""
-    ids = set()
+    """Extract all message IDs (as list to detect duplicates)."""
+    ids = []
     for m in messages.get("state_messages", []):
-        ids.add(m["id"])
+        ids.append(m["id"])
     for m in messages.get("transition_messages", []):
-        ids.add(m["id"])
+        ids.append(m["id"])
     return ids
 
 
@@ -273,8 +273,7 @@ class TestMessageIds:
 
     def test_message_ids_unique(self, message_ids):
         """Runtime: Message IDs sind eindeutig."""
-        ids_list = list(message_ids)
-        duplicates = [mid for mid in ids_list if ids_list.count(mid) > 1]
+        duplicates = [mid for mid in message_ids if message_ids.count(mid) > 1]
         assert not duplicates, f"Duplicate message IDs: {set(duplicates)}"
 
     def test_state_message_id_matches_state_id(self, state_messages):
@@ -325,24 +324,25 @@ class TestTransitionMessages:
         """Runtime: Alle Transition Messages haben Pflichtfelder."""
         for msg in transition_messages:
             assert "id" in msg
-            assert "transition_key" in msg
+            assert "state_id" in msg
+            assert "event" in msg
             assert "gate_message" in msg
             assert "instruction" in msg
 
-    def test_transition_keys_unique(self, transition_messages):
-        """Runtime: Transition Keys sind eindeutig."""
-        keys = [m["transition_key"] for m in transition_messages]
-        duplicates = [k for k in keys if keys.count(k) > 1]
-        assert not duplicates, f"Duplicate transition keys: {set(duplicates)}"
+    def test_transition_state_event_combinations_unique(self, transition_messages):
+        """Runtime: State-ID + Event Kombinationen sind eindeutig."""
+        combinations = [(m["state_id"], m["event"]) for m in transition_messages]
+        duplicates = [combo for combo in combinations if combinations.count(combo) > 1]
+        assert not duplicates, f"Duplicate state+event combinations: {set(duplicates)}"
 
-    def test_transition_key_format(self, transition_messages):
-        """Runtime: Transition Keys haben korrektes Format."""
-        # Format: "<source_state>-<event>"
-        pattern = re.compile(r"^[a-zA-Z0-9.\-]+-[a-z_]+$")
+    def test_transition_event_format(self, transition_messages):
+        """Runtime: Events haben korrektes Format (snake_case)."""
+        # Events should be snake_case
+        pattern = re.compile(r"^[a-z][a-z0-9_]*$")
         for msg in transition_messages:
-            key = msg["transition_key"]
-            assert pattern.match(key), \
-                f"Invalid transition key format: '{key}'"
+            event = msg["event"]
+            assert pattern.match(event), \
+                f"Invalid event format: '{event}' (expected snake_case)"
 
     def test_transition_messages_no_runtime_fields(self, transition_messages):
         """Runtime: Transition Messages enthalten KEINE Runtime-Felder."""
@@ -368,39 +368,34 @@ class TestCrossRefTopology:
         missing = topology_state_ids - state_ids_from_messages - FUTURE_STATES
         assert not missing, f"Topology states without messages: {missing}"
 
-    def test_transition_key_source_in_topology(self, transition_messages, topology_state_ids):
-        """Cross-Ref: Transition Key Quelle existiert in Topologie."""
+    def test_transition_state_id_in_topology(self, transition_messages, topology_state_ids):
+        """Cross-Ref: Transition State-ID existiert in Topologie."""
         if not topology_state_ids:
             pytest.skip("topology.yaml not found")
         
         invalid = []
         for msg in transition_messages:
-            key = msg["transition_key"]
-            source = key.rsplit("-", 1)[0]  # Everything before last "-"
-            if source not in topology_state_ids and source not in FUTURE_STATES:
-                invalid.append(f"{key}: source '{source}' not in topology")
-        assert not invalid, f"Transition keys with unknown source: {invalid}"
+            state_id = msg["state_id"]
+            if state_id not in topology_state_ids and state_id not in FUTURE_STATES:
+                invalid.append(f"{msg['id']}: state_id '{state_id}' not in topology")
+        assert not invalid, f"Transitions with unknown state_id: {invalid}"
 
-    def test_transition_key_event_in_topology(self, transition_messages, topology_transition_events):
-        """Cross-Ref: Transition Key Event existiert in Topologie."""
+    def test_transition_event_in_topology(self, transition_messages, topology_transition_events):
+        """Cross-Ref: Transition Event existiert in Topologie."""
         if not topology_transition_events:
             pytest.skip("topology.yaml not found")
         
         invalid = []
         for msg in transition_messages:
-            key = msg["transition_key"]
-            parts = key.rsplit("-", 1)
-            if len(parts) != 2:
-                continue
-            source, event = parts
-            if source in FUTURE_STATES:
+            state_id = msg["state_id"]
+            event = msg["event"]
+            if state_id in FUTURE_STATES:
                 continue  # Future state, skip validation
-            source_events = topology_transition_events.get(source, set())
+            source_events = topology_transition_events.get(state_id, set())
             if event not in source_events:
-                invalid.append(f"{key}: event '{event}' not in topology for state '{source}'")
-        # Some transition messages may be for generic states (e.g., 6-default)
-        # This is a soft check for now
-        # assert not invalid, f"Transition keys with unknown events: {invalid}"
+                invalid.append(f"{msg['id']}: event '{event}' not in topology for state '{state_id}'")
+        # Fail on any violations - deterministic validation
+        assert not invalid, f"Transitions with unknown events: {invalid}"
 
 
 @pytest.mark.governance
@@ -415,8 +410,7 @@ class TestConformanceCommandPolicy:
         violations = []
         for msg in transition_messages:
             instruction = msg.get("instruction", "")
-            key = msg["transition_key"]
-            source_state = key.rsplit("-", 1)[0]
+            state_id = msg["state_id"]
             
             # Extract command references
             commands_in_instruction = COMMAND_REFERENCE_PATTERN.findall(instruction)
@@ -428,10 +422,10 @@ class TestConformanceCommandPolicy:
                 
                 # Build allowed commands for source state
                 allowed_universal = allowed_commands_by_state.get("*", set())
-                allowed_in_state = allowed_commands_by_state.get(source_state, set())
+                allowed_in_state = allowed_commands_by_state.get(state_id, set())
                 
                 # For Phase 6, also allow commands for future substates
-                if source_state == "6":
+                if state_id == "6":
                     allowed_in_state = allowed_in_state | \
                         allowed_commands_by_state.get("6.approved", set()) | \
                         allowed_commands_by_state.get("6.presentation", set())
@@ -440,10 +434,27 @@ class TestConformanceCommandPolicy:
                 
                 if cmd not in all_allowed:
                     violations.append(
-                        f"{key}: references '{cmd}' which is not allowed in state '{source_state}'"
+                        f"{msg['id']}: references '{cmd}' which is not allowed in state '{state_id}'"
                     )
         
         assert not violations, f"Command conformance violations: {violations}"
+
+    def test_instructions_reference_whitelisted_commands(self, transition_messages):
+        """Conformance: Commands in instructions sind in ALLOWED_COMMAND_REFERENCES whitelist."""
+        violations = []
+        for msg in transition_messages:
+            instruction = msg.get("instruction", "")
+            
+            # Extract command references
+            commands_in_instruction = COMMAND_REFERENCE_PATTERN.findall(instruction)
+            
+            for cmd in commands_in_instruction:
+                if cmd not in ALLOWED_COMMAND_REFERENCES:
+                    violations.append(
+                        f"{msg['id']}: references '{cmd}' which is not in ALLOWED_COMMAND_REFERENCES whitelist"
+                    )
+        
+        assert not violations, f"Command whitelist violations: {violations}"
 
     def test_review_described_as_readonly(self, transition_messages, command_policy):
         """Conformance: /review ist immer als read-only beschrieben."""
@@ -513,11 +524,11 @@ class TestMessageNegative:
         # Already tested in TestStateMessages.test_state_ids_unique
         pass
 
-    def test_no_duplicate_transition_keys(self, transition_messages):
-        """Negative: Keine Duplikate bei transition_key."""
-        keys = [m["transition_key"] for m in transition_messages]
-        duplicates = [k for k in keys if keys.count(k) > 1]
-        assert not duplicates, f"Duplicate transition keys: {set(duplicates)}"
+    def test_no_duplicate_transition_state_event_combinations(self, transition_messages):
+        """Negative: Keine Duplikate bei state_id + event Kombinationen."""
+        combinations = [(m["state_id"], m["event"]) for m in transition_messages]
+        duplicates = [combo for combo in combinations if combinations.count(combo) > 1]
+        assert not duplicates, f"Duplicate state+event combinations: {set(duplicates)}"
 
     def test_state_message_instruction_not_empty(self, state_messages):
         """Negative: State instruction ist nicht leer."""
