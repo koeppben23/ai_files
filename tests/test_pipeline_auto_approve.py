@@ -483,7 +483,6 @@ class TestPipelineAutoApproveIdempotency:
         ss = state_after_first.get("SESSION_STATE", state_after_first)
         canonical1 = ss.get("canonical", ss) if isinstance(ss, dict) else ss
         assert canonical1.get("workflow_complete") is True
-        revision_after_first = canonical1.get("session_state_revision")
 
         result2 = apply_review_decision(
             decision="",
