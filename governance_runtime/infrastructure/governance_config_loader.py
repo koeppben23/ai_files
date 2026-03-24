@@ -8,7 +8,7 @@ Design:
     - Lazy loading with module-level cache (loaded on first access)
     - Pure validation of loaded configs against expected structure
     - Fail-closed: missing or invalid configs raise RuntimeError
-    - Zero external dependencies (stdlib + yaml)
+    - Zero external dependencies for JSON (yaml is lazy-loaded for YAML only)
 """
 
 from __future__ import annotations
@@ -17,9 +17,13 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
-import yaml
-
 GOVERNANCE_CONFIG_SCHEMA_ID = "governance-config.v1.schema.json"
+
+
+def _yaml():
+    """Lazy import of yaml to avoid hard dependency for JSON-only configs."""
+    import yaml
+    return yaml
 
 
 # ---------------------------------------------------------------------------
@@ -136,8 +140,8 @@ def load_config(name: str) -> dict[str, Any]:
         raise RuntimeError(f"governance config not found: {path}")
 
     try:
-        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (yaml.YAMLError, OSError) as exc:
+        payload = _yaml().safe_load(path.read_text(encoding="utf-8"))
+    except (Exception, OSError) as exc:
         raise RuntimeError(f"governance config unreadable: {path}: {exc}") from exc
 
     if not isinstance(payload, dict):
