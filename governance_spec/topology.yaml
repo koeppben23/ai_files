@@ -1,0 +1,156 @@
+version: 1
+schema: opencode.topology.v1
+start_state: "0"
+
+states:
+  - id: "0"
+    route_strategy: "next"
+    default_next: "1.1"
+
+  - id: "1.1"
+    route_strategy: "stay"
+    default_next: "1"
+
+  - id: "1"
+    route_strategy: "stay"
+    default_next: "1.2"
+
+  - id: "1.2"
+    route_strategy: "next"
+    default_next: "1.3"
+    transitions:
+      - when: default
+        next: "1.3"
+
+  - id: "1.3"
+    route_strategy: "stay"
+    default_next: "2"
+
+  - id: "2"
+    route_strategy: "stay"
+    default_next: "2.1"
+
+  - id: "2.1"
+    route_strategy: "next"
+    transitions:
+      - when: business_rules_execute
+        next: "1.5"
+      - when: default
+        next: "3A"
+
+  - id: "1.5"
+    route_strategy: "next"
+    default_next: "3A"
+    transitions:
+      - when: default
+        next: "3A"
+
+  - id: "3A"
+    route_strategy: "next"
+    transitions:
+      - when: no_apis
+        next: "4"
+      - when: default
+        next: "3B-1"
+
+  - id: "3B-1"
+    route_strategy: "next"
+    default_next: "3B-2"
+    transitions:
+      - when: default
+        next: "3B-2"
+
+  - id: "3B-2"
+    route_strategy: "next"
+    default_next: "4"
+    transitions:
+      - when: default
+        next: "4"
+
+  - id: "4"
+    route_strategy: "next"
+    transitions:
+      - when: ticket_present
+        next: "5"
+      - when: default
+        next: "4"
+
+  - id: "5"
+    route_strategy: "stay"
+    default_next: "5.3"
+    transitions:
+      - when: plan_record_missing
+        next: "5"
+      - when: self_review_iterations_pending
+        next: "5"
+      - when: self_review_iterations_met
+        next: "5.3"
+      - when: default
+        next: "5"
+
+  - id: "5.3"
+    route_strategy: "next"
+    transitions:
+      - when: business_rules_gate_required
+        next: "5.4"
+      - when: technical_debt_proposed
+        next: "5.5"
+      - when: rollback_required
+        next: "5.6"
+      - when: default
+        next: "6"
+
+  - id: "5.4"
+    route_strategy: "next"
+    transitions:
+      - when: technical_debt_proposed
+        next: "5.5"
+      - when: rollback_required
+        next: "5.6"
+      - when: default
+        next: "6"
+
+  - id: "5.5"
+    route_strategy: "next"
+    transitions:
+      - when: rollback_required
+        next: "5.6"
+      - when: default
+        next: "6"
+
+  - id: "5.6"
+    route_strategy: "next"
+    default_next: "6"
+    transitions:
+      - when: default
+        next: "6"
+
+  - id: "6"
+    route_strategy: "stay"
+    transitions:
+      - when: implementation_accepted
+        next: "6"
+      - when: implementation_blocked
+        next: "6"
+      - when: implementation_rework_clarification_pending
+        next: "6"
+      - when: implementation_presentation_ready
+        next: "6"
+      - when: implementation_execution_in_progress
+        next: "6"
+      - when: implementation_started
+        next: "6"
+      - when: workflow_approved
+        next: "6"
+      - when: review_changes_requested
+        next: "6"
+      - when: rework_clarification_pending
+        next: "6"
+      - when: review_rejected
+        next: "4"
+      - when: implementation_review_pending
+        next: "6"
+      - when: implementation_review_complete
+        next: "6"
+      - when: default
+        next: "6"
