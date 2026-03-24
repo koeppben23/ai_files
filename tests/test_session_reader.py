@@ -3428,10 +3428,7 @@ class TestPhase6KernelGovernanceConfigWiring:
         """Kernel uses governance config default (3) when no state value present."""
         from governance_runtime.kernel.phase_kernel import (
             _phase6_max_review_iterations,
-            _clear_phase6_default_max_cache,
         )
-        
-        _clear_phase6_default_max_cache()
         
         state = {
             "repo_fingerprint": "abc123",
@@ -3450,10 +3447,7 @@ class TestPhase6KernelGovernanceConfigWiring:
         import os
         from governance_runtime.kernel.phase_kernel import (
             _phase6_max_review_iterations,
-            _clear_phase6_default_max_cache,
         )
-        
-        _clear_phase6_default_max_cache()
         
         ws_state = _write_pointer(fake_config)
         
@@ -3502,10 +3496,7 @@ class TestPhase6KernelGovernanceConfigWiring:
         """Kernel state value overrides governance config."""
         from governance_runtime.kernel.phase_kernel import (
             _phase6_max_review_iterations,
-            _clear_phase6_default_max_cache,
         )
-        
-        _clear_phase6_default_max_cache()
         
         ws_state = _write_pointer(fake_config)
         governance_config = {
@@ -3533,6 +3524,47 @@ class TestPhase6KernelGovernanceConfigWiring:
         
         result = _phase6_max_review_iterations(state)
         assert result == 5  # from state, not config
+
+    def test_kernel_phase6_invalid_config_fails_closed(
+        self,
+        fake_config: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Invalid governance-config.json raises RuntimeError (fail-closed)."""
+        from governance_runtime.kernel.phase_kernel import (
+            _phase6_max_review_iterations,
+        )
+        
+        ws_state = _write_pointer(fake_config)
+        
+        (fake_config / "governance.paths.json").write_text(
+            json.dumps({
+                "schema": "opencode-governance.paths.v1",
+                "paths": {
+                    "configRoot": str(fake_config),
+                    "workspacesHome": str(fake_config / "workspaces"),
+                    "commandsHome": str(fake_config / "commands"),
+                    "pythonCommand": "python3",
+                }
+            }),
+            encoding="utf-8",
+        )
+        
+        workspace_dir = fake_config / "workspaces" / "abc123"
+        workspace_dir.mkdir(parents=True, exist_ok=True)
+        (workspace_dir / "governance-config.json").write_text(
+            '{"invalid": "json"'  # malformed JSON
+        )
+        
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(fake_config))
+        
+        state = {
+            "repo_fingerprint": "abc123",
+            "Phase": "6-PostFlight",
+        }
+        
+        with pytest.raises(RuntimeError):
+            _phase6_max_review_iterations(state)
 
 
 class TestPhase6NextActionLine:

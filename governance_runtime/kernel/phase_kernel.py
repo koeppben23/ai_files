@@ -524,42 +524,26 @@ def _phase6_review_iterations(state: Mapping[str, object]) -> int:
     return 0
 
 
-_phase6_default_max_cache: int | None = None
-
-
 def _get_phase6_default_max_iterations(state: Mapping[str, object]) -> int:
     """Get phase6 max review iterations default from governance config.
     
     Uses centralized governance config loader with workspace resolution from state.
-    Falls back to 3 if config unavailable or workspace not determinable.
+    Returns 3 if config unavailable (file missing). Raises on invalid config.
     """
-    global _phase6_default_max_cache
-    if _phase6_default_max_cache is not None:
-        return _phase6_default_max_cache
+    fp = _extract_fingerprint(state)
+    if not fp:
+        return 3
     
-    try:
-        fp = _extract_fingerprint(state)
-        if fp:
-            evidence = BindingEvidenceResolver(env={})
-            ev = getattr(evidence, "resolve")(mode="system")
-            workspaces_home = ev.workspaces_home
-            if workspaces_home is not None:
-                workspace_dir = workspaces_home / fp
-                from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
-                _, phase6 = get_review_iterations(workspace_dir)
-                _phase6_default_max_cache = phase6
-                return phase6
-    except Exception:
-        pass
+    evidence = BindingEvidenceResolver(env={})
+    ev = getattr(evidence, "resolve")(mode="system")
+    workspaces_home = ev.workspaces_home
+    if workspaces_home is None:
+        return 3
     
-    _phase6_default_max_cache = 3
-    return 3
-
-
-def _clear_phase6_default_max_cache() -> None:
-    """Clear the phase6 default max iterations cache (for testing)."""
-    global _phase6_default_max_cache
-    _phase6_default_max_cache = None
+    workspace_dir = workspaces_home / fp
+    from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
+    _, phase6 = get_review_iterations(workspace_dir)
+    return phase6
 
 
 def _phase6_max_review_iterations(state: Mapping[str, object]) -> int:
