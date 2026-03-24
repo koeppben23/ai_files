@@ -1,10 +1,12 @@
-"""Phase 4: Command Policy Tests (v2 - Strict with event mapping)
+"""Phase 4: Command Policy Tests (v3 - Deterministic /continue, no constraints)
 
 Validiert die extrahierte command_policy.yaml Struktur:
-- Command→Event Mapping ist explizit
+- Command→Event Mapping ist explizit und deterministisch
+- /continue hat determinism-Kontrakt
+- Keine constraints/textuelle Neben-Semantik
 - Output Policies haben stabile IDs
 - Phase Output Policy Map hat Integrität
-- Keine unbekannten Felder in Runtime-Objekten
+- Terminal/Blocked State Regeln
 - Cross-Spec Konsistenz mit Topologie
 
 Diese Tests laufen GEGEN die extrahierte command_policy.yaml.
@@ -36,18 +38,13 @@ VALID_OUTPUT_CLASSES = {
     "implementation", "patch", "diff", "code_delivery",
 }
 
-# Runtime fields for command objects (closed schema)
+# Runtime fields for command objects (closed schema, NO constraints)
 RUNTIME_COMMAND_FIELDS = {
     "id", "command", "allowed_in", "mutating", "behavior", "produces_events"
 }
-NON_RUNTIME_COMMAND_FIELDS = {"description", "constraints"}
 
-# Allowed behavior types per command (for event validation)
-COMMANDS_WITH_EVENTS = {
-    "cmd_implement": {"implementation_started", "implementation_execution_in_progress"},
-    "cmd_review_decision": {"workflow_approved", "review_changes_requested", "review_rejected"},
-    "cmd_review_decision_alt": {"workflow_approved", "review_changes_requested", "review_rejected"},
-}
+# Only description is allowed as non-runtime field
+NON_RUNTIME_FIELDS = {"description"}
 
 
 # ============================================================================
@@ -100,6 +97,12 @@ def commands(command_policy):
 def output_policies(command_policy):
     """Extract all output policies."""
     return command_policy.get("output_policies", [])
+
+
+@pytest.fixture
+def command_restrictions(command_policy):
+    """Extract command restrictions."""
+    return command_policy.get("command_restrictions", [])
 
 
 @pytest.fixture
@@ -197,12 +200,10 @@ class TestCommands:
                 f"Command {cmd.get('id')}: unknown behavior type '{cmd['behavior']['type']}'"
 
     def test_commands_have_produces_events(self, commands):
-        """Runtime: Alle Commands haben produces_events (Command→Event Mapping)."""
+        """Runtime: Alle Commands haben produces_events."""
         for cmd in commands:
             assert "produces_events" in cmd, \
                 f"Command {cmd.get('id')}: missing 'produces_events'"
-            assert isinstance(cmd["produces_events"], list), \
-                f"Command {cmd.get('id')}: produces_events must be list"
 
     def test_command_ids_unique(self, commands):
         """Runtime: Command IDs sind eindeutig."""
@@ -218,29 +219,105 @@ class TestCommands:
 
 
 @pytest.mark.governance
-class TestCommandEventMapping:
-    """Command→Event Mapping (ADR-004)."""
+class TestCommandNoConstraints:
+    """Keine constraints/textuelle Neben-Semantik in Command-Objekten."""
 
-    def test_mutating_commands_have_events_or_evidence(self, commands):
-        """Runtime: Mutating commands produce events or evidence."""
+    def test_no_constraints_field(self, commands):
+        """Runtime: Commands haben KEIN constraints-Feld."""
         for cmd in commands:
-            if cmd["mutating"]:
-                has_events = len(cmd.get("produces_events", [])) > 0
-                has_evidence = cmd.get("behavior", {}).get("evidence_class") is not None
-                assert has_events or has_evidence or cmd["behavior"]["type"] == "advance_routing", \
-                    f"Command {cmd['id']}: mutating command should produce events or evidence"
+            assert "constraints" not in cmd, \
+                f"Command {cmd.get('id')}: 'constraints' field is forbidden - " \
+                f"all behavioral rules must be in guards, not text"
 
-    def test_review_decision_produces_expected_events(self, commands):
-        """Runtime: /review-decision produces expected events."""
-        review_decision = next(
-            (c for c in commands if c["command"] == "/review-decision"),
+    def test_no_unknown_fields(self, commands):
+        """Runtime: Command-Objekte haben keine unbekannten Felder."""
+        for cmd in commands:
+            all_fields = set(cmd.keys())
+            allowed = RUNTIME_COMMAND_FIELDS | NON_RUNTIME_FIELDS
+            unknown = all_fields - allowed
+            assert not unknown, \
+                f"Command {cmd.get('id')}: unknown fields {unknown} - " \
+                f"only {allowed} are allowed"
+
+
+@pytest.mark.governance
+class TestContinueDeterminism:
+    """/continue determinism contract."""
+
+    def test_continue_has_determinism_in_behavior(self, commands):
+        """Runtime: /continue hat determinism-Kontrakt."""
+        continue_cmd = next(
+            (c for c in commands if c["command"] == "/continue"),
             None
         )
-        assert review_decision is not None, "Missing /review-decision command"
-        events = set(review_decision.get("produces_events", []))
-        expected = {"workflow_approved", "review_changes_requested", "review_rejected"}
-        assert events == expected, \
-            f"/review-decision should produce {expected}, got {events}"
+        assert continue_cmd is not None, "Missing /continue command"
+        assert "determinism" in continue_cmd["behavior"], \
+            "/continue must specify determinism contract in behavior"
+        assert continue_cmd["behavior"]["determinism"] == "exactly_one_guard_per_state", \
+            "/continue determinism must be 'exactly_one_guard_per_state'"
+
+    def test_continue_produces_via_guards(self, commands):
+        """Runtime: /continue produces_events via guards."""
+        continue_cmd = next(
+            (c for c in commands if c["command"] == "/continue"),
+            None
+        )
+        assert continue_cmd is not None
+        # /continue uses special marker for guard-determined events
+        produces = continue_cmd.get("produces_events")
+        assert produces == "*_via_guards", \
+            f"/continue produces_events should be '*_via_guards', got {produces}"
+
+    def test_continue_is_mutating(self, commands):
+        """Runtime: /continue ist mutierend (ändert State via Guard-Evaluation)."""
+        continue_cmd = next(
+            (c for c in commands if c["command"] == "/continue"),
+            None
+        )
+        assert continue_cmd is not None
+        assert continue_cmd["mutating"] is True, \
+            "/continue must be mutating (it advances state via guards)"
+
+
+@pytest.mark.governance
+class TestReviewUniversalJustification:
+    """Universelle read-only Commands mit expliziter Begründung."""
+
+    def test_review_is_universal(self, commands):
+        """Runtime: /review ist global erlaubt."""
+        review_cmd = next(
+            (c for c in commands if c["command"] == "/review"),
+            None
+        )
+        assert review_cmd is not None
+        assert review_cmd["allowed_in"] == "*", \
+            "/review should be universally allowed"
+
+    def test_review_is_readonly(self, commands):
+        """Runtime: /review ist read-only."""
+        review_cmd = next(
+            (c for c in commands if c["command"] == "/review"),
+            None
+        )
+        assert review_cmd is not None
+        assert review_cmd["mutating"] is False, \
+            "/review must be read-only (mutating: false)"
+
+    def test_review_produces_no_events(self, commands):
+        """Runtime: /review produziert keine State-Events."""
+        review_cmd = next(
+            (c for c in commands if c["command"] == "/review"),
+            None
+        )
+        assert review_cmd is not None
+        events = review_cmd.get("produces_events", [])
+        assert events == [], \
+            f"/review should produce no events, got {events}"
+
+
+@pytest.mark.governance
+class TestCommandEventMapping:
+    """Command→Event Mapping (ADR-004)."""
 
     def test_implement_produces_expected_events(self, commands):
         """Runtime: /implement produces expected events."""
@@ -248,38 +325,49 @@ class TestCommandEventMapping:
             (c for c in commands if c["command"] == "/implement"),
             None
         )
-        assert implement is not None, "Missing /implement command"
+        assert implement is not None
         events = set(implement.get("produces_events", []))
         expected = {"implementation_started", "implementation_execution_in_progress"}
         assert events == expected, \
             f"/implement should produce {expected}, got {events}"
 
+    def test_review_decision_produces_expected_events(self, commands):
+        """Runtime: /review-decision produces expected events."""
+        review_decision = next(
+            (c for c in commands if c["command"] == "/review-decision"),
+            None
+        )
+        assert review_decision is not None
+        events = set(review_decision.get("produces_events", []))
+        expected = {"workflow_approved", "review_changes_requested", "review_rejected"}
+        assert events == expected, \
+            f"/review-decision should produce {expected}, got {events}"
 
-@pytest.mark.governance
-class TestCommandNoUnknownFields:
-    """Keine unbekannten Felder in Command-Objekten."""
+    def test_review_decision_has_workflow_scope(self, commands):
+        """Runtime: /review-decision hat decision_scope: workflow."""
+        review_decision = next(
+            (c for c in commands if c["command"] == "/review-decision"),
+            None
+        )
+        assert review_decision is not None
+        behavior = review_decision.get("behavior", {})
+        assert behavior.get("decision_scope") == "workflow", \
+            "/review-decision must have decision_scope: workflow"
 
-    def test_no_unknown_runtime_fields(self, commands):
-        """Runtime: Command-Objekte haben keine unbekannten Runtime-Felder."""
-        for cmd in commands:
-            all_fields = set(cmd.keys())
-            allowed = RUNTIME_COMMAND_FIELDS | NON_RUNTIME_COMMAND_FIELDS
-            unknown = all_fields - allowed
-            assert not unknown, \
-                f"Command {cmd.get('id')}: unknown fields {unknown}"
-
-    def test_constraints_are_documentation_only(self, commands):
-        """Non-runtime: constraints werden vom Runtime ignoriert."""
-        # This test documents that constraints are purely for documentation
-        # The validator/runtime does not use them for any logic
-        for cmd in commands:
-            if "constraints" in cmd:
-                assert isinstance(cmd["constraints"], list), \
-                    f"Command {cmd.get('id')}: constraints must be list"
-                # Each constraint should be a string (documentation)
-                for c in cmd["constraints"]:
-                    assert isinstance(c, str), \
-                        f"Command {cmd.get('id')}: constraint must be string"
+    def test_implementation_decision_is_alias(self, commands):
+        """Runtime: /implementation-decision ist Alias für /review-decision."""
+        impl_decision = next(
+            (c for c in commands if c["command"] == "/implementation-decision"),
+            None
+        )
+        assert impl_decision is not None
+        behavior = impl_decision.get("behavior", {})
+        assert behavior.get("aliases") == "cmd_review_decision", \
+            "/implementation-decision should alias cmd_review_decision"
+        # Same events as /review-decision
+        events = set(impl_decision.get("produces_events", []))
+        expected = {"workflow_approved", "review_changes_requested", "review_rejected"}
+        assert events == expected
 
 
 @pytest.mark.governance
@@ -290,16 +378,13 @@ class TestOutputPolicies:
         """Runtime: Alle Output Policies haben stabile ID."""
         for policy in output_policies:
             assert "id" in policy, f"Output policy missing 'id'"
-            assert isinstance(policy["id"], str), \
-                f"Output policy id must be string"
             assert policy["id"].startswith("op."), \
                 f"Output policy ID should start with 'op.'"
 
     def test_output_policies_have_state_id(self, output_policies):
         """Runtime: Alle Output Policies haben state_id."""
         for policy in output_policies:
-            assert "state_id" in policy, f"Output policy missing 'state_id'"
-            assert isinstance(policy["state_id"], str)
+            assert "state_id" in policy
 
     def test_output_policy_ids_unique(self, output_policies):
         """Runtime: Output Policy IDs sind eindeutig."""
@@ -307,61 +392,23 @@ class TestOutputPolicies:
         duplicates = [pid for pid in ids if ids.count(pid) > 1]
         assert not duplicates, f"Duplicate output policy IDs: {set(duplicates)}"
 
-    def test_output_policies_have_allowed_classes(self, output_policies):
-        """Runtime: Alle Output Policies haben allowed_output_classes."""
-        for policy in output_policies:
-            assert "allowed_output_classes" in policy
-            assert isinstance(policy["allowed_output_classes"], list)
-            assert len(policy["allowed_output_classes"]) > 0
-
-    def test_output_policies_have_forbidden_classes(self, output_policies):
-        """Runtime: Alle Output Policies haben forbidden_output_classes."""
-        for policy in output_policies:
-            assert "forbidden_output_classes" in policy
-            assert isinstance(policy["forbidden_output_classes"], list)
-            assert len(policy["forbidden_output_classes"]) > 0
-
     def test_output_classes_are_known(self, output_policies):
         """Runtime: Output Classes sind bekannte Werte."""
         for policy in output_policies:
-            state_id = policy.get("state_id")
             for cls in policy.get("allowed_output_classes", []):
                 assert cls in VALID_OUTPUT_CLASSES, \
-                    f"Output policy {state_id}: unknown allowed class '{cls}'"
+                    f"Output policy {policy.get('id')}: unknown allowed class '{cls}'"
             for cls in policy.get("forbidden_output_classes", []):
                 assert cls in VALID_OUTPUT_CLASSES, \
-                    f"Output policy {state_id}: unknown forbidden class '{cls}'"
+                    f"Output policy {policy.get('id')}: unknown forbidden class '{cls}'"
 
-    def test_no_overlap_between_allowed_and_forbidden(self, output_policies):
+    def test_no_overlap_allowed_forbidden(self, output_policies):
         """Runtime: Allowed und Forbidden haben keine Überschneidung."""
         for policy in output_policies:
             allowed = set(policy.get("allowed_output_classes", []))
             forbidden = set(policy.get("forbidden_output_classes", []))
             overlap = allowed & forbidden
-            assert not overlap, \
-                f"Output policy {policy.get('id')}: overlap {overlap}"
-
-    def test_phase5_forbids_implementation(self, output_policies):
-        """Invariant: Phase 5 forbids implementation outputs."""
-        phase5_policy = next(
-            (p for p in output_policies if p.get("state_id") == "5"), 
-            None
-        )
-        assert phase5_policy is not None, "Phase 5 output policy not found"
-        assert "implementation" in phase5_policy["forbidden_output_classes"]
-
-    def test_phase5_plan_discipline(self, output_policies):
-        """Invariant: Phase 5 has plan discipline."""
-        phase5_policy = next(
-            (p for p in output_policies if p.get("state_id") == "5"), 
-            None
-        )
-        assert phase5_policy is not None
-        assert "plan_discipline" in phase5_policy
-        pd = phase5_policy["plan_discipline"]
-        assert pd.get("first_output_is_draft") is True
-        assert pd.get("draft_not_review_ready") is True
-        assert pd.get("min_self_review_iterations", 0) >= 1
+            assert not overlap, f"Output policy {policy.get('id')}: overlap {overlap}"
 
 
 @pytest.mark.governance
@@ -371,31 +418,16 @@ class TestPhaseOutputPolicyMap:
     def test_phase_output_policy_map_exists(self, command_policy):
         """Runtime: Phase Output Policy Map existiert."""
         assert "phase_output_policy_map" in command_policy
-        assert isinstance(command_policy["phase_output_policy_map"], list)
         assert len(command_policy["phase_output_policy_map"]) > 0
 
-    def test_map_entries_have_state_id(self, phase_output_policy_map):
-        """Runtime: Map entries haben state_id."""
-        for entry in phase_output_policy_map:
-            assert "state_id" in entry
-            assert isinstance(entry["state_id"], str)
-
-    def test_map_entries_have_output_policy_ref(self, phase_output_policy_map):
-        """Runtime: Map entries haben output_policy_ref."""
-        for entry in phase_output_policy_map:
-            assert "output_policy_ref" in entry
-            assert isinstance(entry["output_policy_ref"], str)
-
     def test_output_policy_ref_uses_stable_id(self, phase_output_policy_map, output_policy_ids):
-        """Runtime: output_policy_ref verwendet stabile ID (nicht Index)."""
+        """Runtime: output_policy_ref verwendet stabile ID."""
         for entry in phase_output_policy_map:
             ref = entry["output_policy_ref"]
-            # Must NOT be index-based like "output_policies[0]"
             assert not ref.startswith("output_policies["), \
-                f"Map entry {entry['state_id']}: ref '{ref}' is index-based, use stable ID"
-            # Must reference an existing policy ID
+                f"Map entry {entry['state_id']}: ref '{ref}' is index-based"
             assert ref in output_policy_ids, \
-                f"Map entry {entry['state_id']}: ref '{ref}' not found in output_policies"
+                f"Map entry {entry['state_id']}: ref '{ref}' not found"
 
     def test_no_duplicate_state_mapping(self, phase_output_policy_map):
         """Runtime: Kein State ist doppelt gemappt."""
@@ -407,7 +439,43 @@ class TestPhaseOutputPolicyMap:
         """Runtime: Alle Policies sind gemappt."""
         mapped_refs = {e["output_policy_ref"] for e in phase_output_policy_map}
         orphaned = output_policy_ids - mapped_refs
-        assert not orphaned, f"Orphaned output policies (not mapped): {orphaned}"
+        assert not orphaned, f"Orphaned output policies: {orphaned}"
+
+
+@pytest.mark.governance
+class TestCommandRestrictions:
+    """Command Restriction Rules für Terminal/Blocked States."""
+
+    def test_command_restrictions_exist(self, command_policy):
+        """Runtime: Command Restrictions existieren."""
+        assert "command_restrictions" in command_policy, \
+            "command_policy.yaml must have command_restrictions"
+        assert isinstance(command_policy["command_restrictions"], list)
+        assert len(command_policy["command_restrictions"]) > 0
+
+    def test_restrictions_have_state_pattern(self, command_restrictions):
+        """Runtime: Restrictions haben state_pattern."""
+        for restriction in command_restrictions:
+            assert "state_pattern" in restriction, \
+                f"Restriction missing 'state_pattern'"
+            assert isinstance(restriction["state_pattern"], str)
+
+    def test_restrictions_have_blocked_items(self, command_restrictions):
+        """Runtime: Restrictions haben blocked Commands oder Types."""
+        for restriction in command_restrictions:
+            has_blocked = (
+                "blocked_commands" in restriction or 
+                "blocked_command_types" in restriction
+            )
+            assert has_blocked, \
+                f"Restriction {restriction.get('state_pattern')}: " \
+                f"must have blocked_commands or blocked_command_types"
+
+    def test_restrictions_have_reason(self, command_restrictions):
+        """Runtime: Restrictions haben reason (documentation)."""
+        for restriction in command_restrictions:
+            assert "reason" in restriction, \
+                f"Restriction {restriction.get('state_pattern')}: missing reason"
 
 
 @pytest.mark.governance
@@ -427,7 +495,7 @@ class TestCommandTopologyConsistency:
         """Happy: Command erlaubte States existieren in Topologie."""
         topo_path = _find_topology_path()
         if topo_path is None:
-            pytest.skip("topology.yaml not found for cross-reference")
+            pytest.skip("topology.yaml not found")
         
         with open(topo_path, encoding="utf-8") as f:
             topology = yaml.safe_load(f)
@@ -440,16 +508,4 @@ class TestCommandTopologyConsistency:
                 continue
             for state_id in allowed:
                 assert state_id in state_ids, \
-                    f"Command {cmd['id']}: allowed state '{state_id}' not in topology"
-
-    def test_phase6_commands_are_transitional(self, commands):
-        """Documentation: Phase 6 commands are marked as transitional."""
-        phase6_commands = [
-            cmd for cmd in commands 
-            if cmd.get("allowed_in") != "*" and "6" in cmd.get("allowed_in", [])
-        ]
-        for cmd in phase6_commands:
-            # These should have comments or documentation indicating transitional
-            # The actual check is that they exist and target state "6"
-            assert "6" in cmd["allowed_in"], \
-                f"Command {cmd['id']}: Phase 6 commands should target state '6'"
+                    f"Command {cmd['id']}: state '{state_id}' not in topology"

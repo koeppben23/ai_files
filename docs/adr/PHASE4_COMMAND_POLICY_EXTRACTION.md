@@ -1,4 +1,4 @@
-# Phase 4: Command-Policy separat modellieren (v2 - Strict with event mapping)
+# Phase 4: Command-Policy separat modellieren (v3 - Deterministic /continue)
 
 **Status:** Completed  
 **Date:** 2026-03-24  
@@ -12,117 +12,103 @@ Extrahiere die Command-Policy aus der monolithischen `phase_api.yaml` in eine se
 
 **Key Features:**
 - Explicit Command→Event mapping (ADR-004)
-- Stable IDs for output policy references (not index-based)
-- Phase 6 commands marked as transitional
-- Closed schema with strict field validation
+- Deterministic /continue (exactly one guard per state)
+- No constraints/textual semantics in runtime model
+- Stable output policy IDs
+- Terminal/Blocked state command restrictions
 
 ## 2. Prinzipien
 
-### 2.1 Command→Event Mapping (ADR-004)
+### 2.1 /continue Determinism Contract
 
 ```yaml
-command:
-  id: string
-  command: string
-  allowed_in: "*" | string[]
-  mutating: boolean
+- id: "cmd_continue"
+  command: "/continue"
   behavior:
-    type: string
-  produces_events: string[]  # Events this command produces
+    type: "advance_routing"
+    determinism: "exactly_one_guard_per_state"  # REQUIRED
+  produces_events: "*_via_guards"  # Special: guard-determined
 ```
 
-**Semantics:**
-- Commands are user/system inputs
-- Events are machine-internal signals for state transitions
-- Each command explicitly lists the events it produces
-- Empty `produces_events` means state change via evidence, not direct event
+**Contract:**
+- For each state, exactly one guard condition evaluates to true
+- The matching transition produces exactly one event
+- No fallback, no ambiguity, no silent mutations
 
-### 2.2 Stable Output Policy References
+### 2.2 No Constraints in Runtime Model
+
+**FORBIDDEN fields in commands:**
+- `constraints` - Removed entirely
+- All behavioral rules must be in guards, not text
+
+**Allowed fields:**
+- Runtime: `id`, `command`, `allowed_in`, `mutating`, `behavior`, `produces_events`
+- Non-runtime: `description` only
+
+### 2.3 Universal Read-Only Commands
+
+`/review` is universally allowed with explicit justification:
+1. Pure read-only - never mutates governance state
+2. Only produces local findings/verdict, no state events
+3. Safe during blocking, rework, or critical situations
+4. Users need review capability even when workflow is paused
+
+### 2.4 Command Restriction Rules
 
 ```yaml
-output_policies:
-  - id: "op.phase5.review_only"  # Stable ID (not index)
-    state_id: "5"
-    ...
-
-phase_output_policy_map:
-  - state_id: "5"
-    output_policy_ref: "op.phase5.review_only"  # Stable reference
+command_restrictions:
+  - state_pattern: "*.terminal"
+    blocked_command_types: ["persist_evidence", "start_implementation", ...]
+    reason: "Terminal states are immutable"
 ```
 
-**Rules:**
-- Each output policy has a stable ID starting with `op.`
-- References use stable IDs, not indices like `output_policies[0]`
-- No orphaned policies (all policies must be mapped)
-- No duplicate state mappings
+### 2.5 Command Semantics
 
-### 2.3 Transitional Phase 6 Commands
-
-Commands targeting State "6" (Phase 6 monolith) are marked as **TRANSITIONAL**:
-
-```yaml
-- id: "cmd_implement"
-  command: "/implement"
-  allowed_in:
-    - "6"  # TRANSITIONAL: per ADR-003 should be 6.approved
-```
-
-**After Phase 6 zerlegung:**
-- `/implement` → `6.approved`
-- `/review-decision` → `6.presentation`
-
-### 2.4 Closed Schema
-
-Runtime fields for command objects:
-```python
-RUNTIME_COMMAND_FIELDS = {
-    "id", "command", "allowed_in", "mutating", "behavior", "produces_events"
-}
-NON_RUNTIME_COMMAND_FIELDS = {"description", "constraints"}
-```
-
-Unknown fields are rejected by tests.
+| Command | decision_scope | Purpose |
+|---------|----------------|---------|
+| `/review-decision` | workflow | Decides workflow/plan approval |
+| `/implementation-decision` | workflow | Alias for /review-decision |
 
 ## 3. Erstellte Dateien
 
 ### 3.1 `governance_spec/command_policy.yaml`
 
 **Commands (7):**
-| Command | Type | Mutating | Events Produced |
-|---------|------|----------|-----------------|
-| `/continue` | advance_routing | Yes | (determined by guards) |
-| `/review` | review_readonly | No | (read-only, no events) |
-| `/ticket` | persist_evidence | Yes | (via evidence) |
-| `/plan` | persist_evidence | Yes | (via evidence) |
-| `/implement` | start_implementation | Yes | implementation_started, implementation_execution_in_progress |
-| `/review-decision` | submit_review_decision | Yes | workflow_approved, review_changes_requested, review_rejected |
-| `/implementation-decision` | submit_review_decision | Yes | workflow_approved, review_changes_requested, review_rejected |
-
-**Output Policies (1):**
-- `op.phase5.review_only`: Phase 5 planning only, no implementation
+| Command | Mutating | Events | Determinism |
+|---------|----------|--------|-------------|
+| `/continue` | Yes | `*_via_guards` | exactly_one_guard_per_state |
+| `/review` | No | (none) | read-only |
+| `/ticket` | Yes | (via evidence) | - |
+| `/plan` | Yes | (via evidence) | - |
+| `/implement` | Yes | 2 events | - |
+| `/review-decision` | Yes | 3 events | decision_scope: workflow |
+| `/implementation-decision` | Yes | 3 events | alias: cmd_review_decision |
 
 ### 3.2 `tests/architecture/test_command_policy.py`
 
-35 Tests für die strikte Command-Policy-Validierung:
+39 Tests:
 
 | Testklasse | Tests | Beschreibung |
 |------------|-------|--------------|
 | `TestCommandPolicyStructure` | 3 | Grundlegende Struktur |
-| `TestCommands` | 10 | Command Definitionen |
-| `TestCommandEventMapping` | 3 | Command→Event Mapping |
-| `TestCommandNoUnknownFields` | 2 | Strikte Feldvalidierung |
-| `TestOutputPolicies` | 9 | Output Policy Validierung |
-| `TestPhaseOutputPolicyMap` | 6 | Phase Mapping Integrität |
-| `TestCommandTopologyConsistency` | 4 | Cross-Spec Konsistenz |
+| `TestCommands` | 8 | Command Definitionen |
+| `TestCommandNoConstraints` | 2 | Keine constraints Felder |
+| `TestContinueDeterminism` | 3 | /continue determinism contract |
+| `TestReviewUniversalJustification` | 3 | /review universal access |
+| `TestCommandEventMapping` | 4 | Command→Event Mapping |
+| `TestOutputPolicies` | 5 | Output Policy Validierung |
+| `TestPhaseOutputPolicyMap` | 4 | Phase Mapping Integrität |
+| `TestCommandRestrictions` | 4 | Terminal/Blocked rules |
+| `TestCommandTopologyConsistency` | 3 | Cross-Spec Konsistenz |
 
 ## 4. Testergebnisse
 
 ```
-tests/architecture/test_command_policy.py ... 35 passed
+tests/architecture/test_command_policy.py ... 39 passed
 tests/architecture/test_guards.py ... 33 passed
 tests/architecture/test_topology.py ... 34 passed
 tests/architecture/test_spec_inventory.py ... 18 passed
-Total: 136 passed
+Total: 140 passed
 ```
 
 ## 5. Nächste Schritte

@@ -6,35 +6,49 @@ schema: opencode.command_policy.v1
 # ============================================================================
 # Defines what commands are allowed in each state and what events they produce.
 #
-# Command → Event Mapping:
+# Command → Event Mapping (ADR-004):
 # - Commands are user/system inputs
 # - Events are machine-internal signals for state transitions
-# - Each command maps to zero or more events it produces
+# - Each command maps to explicit events it produces
+# - produces_events is REQUIRED for mutating commands (deterministic)
+# - Empty produces_events means state change via evidence, not direct event
 #
 # Runtime fields: id, command, allowed_in, mutating, behavior, produces_events
-# Non-runtime: description, constraints (documentation only)
-# Transitional: allowed_in may reference pre-zerlegung state IDs (marked)
+# Non-runtime (ignored by runtime): description only
+#
+# IMPORTANT: This policy does NOT contain constraints or text semantics.
+# All behavioral rules must be expressed in guards, not in command text.
 
 commands:
   # ============================================================================
-  # Universal Commands (allowed in all states)
+  # Universal Commands
   # ============================================================================
-  
+  # /continue is deterministic: per state, exactly one guard fires,
+  # producing exactly one event. No ambiguity, no silent fallback.
+  # /review is read-only: never mutates state, safe in all states.
+
   - id: "cmd_continue"
     command: "/continue"
-    description: "Advance routing based on current state and guards"
+    description: "Advance routing - exactly one guard fires per state, producing exactly one event"
     allowed_in: "*"
     mutating: true
     behavior:
       type: "advance_routing"
-    produces_events: []  # Events determined by guards, not directly
+      # Determinism contract:
+      # - For each state, exactly one guard condition evaluates to true
+      # - The matching transition produces exactly one event
+      # - No fallback, no ambiguity, no silent mutations
+      determinism: "exactly_one_guard_per_state"
+    produces_events: "*_via_guards"  # Special: events determined by guard evaluation
 
   - id: "cmd_review_readonly"
     command: "/review"
-    description: "Review PR/files in read-only mode (no state change)"
-    # NOTE: Global access justified because /review is pure read-only -
-    # it never mutates state, only produces findings/verdict locally.
-    # This is safe even during blocking/rework situations.
+    description: "Review PR/files read-only - never mutates state, safe in all states including blocked/critical"
+    # JUSTIFICATION: /review is universally allowed because:
+    # 1. It is pure read-only - never mutates governance state
+    # 2. It only produces local findings/verdict, no state events
+    # 3. Safe during blocking, rework, or critical situations
+    # 4. Users need review capability even when workflow is paused
     allowed_in: "*"
     mutating: false
     behavior:
@@ -79,6 +93,10 @@ commands:
   # After Phase 6 zerlegung, they will target specific substates:
   # - /implement → 6.approved
   # - /review-decision → 6.presentation
+  #
+  # Semantic distinction:
+  # - /review-decision: Decides on workflow/plan approval (user review)
+  # - /implementation-decision: Same functionality, alternative command name
 
   - id: "cmd_implement"
     command: "/implement"
@@ -91,42 +109,71 @@ commands:
     produces_events:
       - "implementation_started"
       - "implementation_execution_in_progress"
-    constraints:  # Documentation-only, not enforced by runtime
-      - "requires_approved_implementation_plan"
 
   - id: "cmd_review_decision"
     command: "/review-decision"
-    description: "Submit final review decision after implementation review"
+    description: "Submit final review decision - decides workflow/plan approval"
     allowed_in:
       - "6"  # TRANSITIONAL: Ist-Zustand, per ADR-003 should be 6.presentation
     mutating: true
     behavior:
       type: "submit_review_decision"
+      decision_scope: "workflow"  # This decides workflow approval
       allowed_decisions:
-        - "approve"
-        - "changes_requested"
-        - "reject"
+        - "approve"      # → workflow_approved event
+        - "changes_requested"  # → review_changes_requested event
+        - "reject"       # → review_rejected event
     produces_events:
       - "workflow_approved"
       - "review_changes_requested"
       - "review_rejected"
 
-  - id: "cmd_review_decision_alt"
+  - id: "cmd_implementation_decision"
     command: "/implementation-decision"
-    description: "Submit implementation review decision (alternative command name)"
+    description: "Submit implementation review decision - alternative name for /review-decision"
     allowed_in:
-      - "6"  # TRANSITIONAL: Same as /review-decision
+      - "6"  # TRANSITIONAL: Same scope as /review-decision
     mutating: true
     behavior:
       type: "submit_review_decision"
+      decision_scope: "workflow"  # Same as /review-decision
       allowed_decisions:
         - "approve"
         - "changes_requested"
         - "reject"
+      aliases: "cmd_review_decision"  # This is an alias
     produces_events:
       - "workflow_approved"
       - "review_changes_requested"
       - "review_rejected"
+
+# ============================================================================
+# Command Restriction Rules
+# ============================================================================
+# Defines states where commands are restricted (beyond allowed_in).
+
+command_restrictions:
+  # Terminal states - no mutating commands allowed
+  - state_pattern: "*.terminal"
+    blocked_command_types:
+      - "persist_evidence"
+      - "start_implementation"
+      - "submit_review_decision"
+    reason: "Terminal states are immutable"
+
+  # Blocked implementation states
+  - state_pattern: "6.blocked"
+    blocked_commands:
+      - "/review-decision"  # Can't approve while blocked
+      - "/implementation-decision"
+    reason: "Implementation blocked - resolve blockers first"
+
+  # Complete workflow states
+  - state_pattern: "6.complete"
+    blocked_command_types:
+      - "start_implementation"
+      - "submit_review_decision"
+    reason: "Workflow complete - no further decisions needed"
 
 # ============================================================================
 # Output Policies
