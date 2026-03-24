@@ -1,7 +1,7 @@
 """Phase 5 Iterative Review Mechanism.
 
 Enterprise-grade iterative review for implementation plans:
-- Configurable max iterations (SSOT from YAML)
+- Configurable max iterations (SSOT from governance-config.json)
 - Operating mode aware (user/pipeline/agents_strict)
 - Pipeline mode: NO human interaction
 - Structured feedback with audit trail
@@ -17,16 +17,17 @@ Contract:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal, Sequence, Any
 
 from governance_runtime.application.use_cases.phase5_review_config import (
     OperatingMode,
     Phase5ReviewConfig,
     load_phase5_review_config,
-    get_max_iterations,
     is_human_escalation_enabled,
     is_fail_fast_enabled,
 )
+from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
 
 
 ReviewStatus = Literal["approved", "rejected", "needs-human"]
@@ -77,13 +78,19 @@ class Phase5ReviewState:
     plan_version: int = 1
     plan_record_digest: str = ""
     operating_mode: OperatingMode = "user"
+    workspace_dir: Path | None = None  # For governance-config resolution
     started_at: str = ""              # Injected from infrastructure layer
     completed_at: str = ""            # Injected from infrastructure layer
     
     @property
     def max_iterations(self) -> int:
-        """Get max iterations from config (SSOT)."""
-        return get_max_iterations(self.operating_mode)
+        """Get max iterations from governance-config.json (SSOT).
+        
+        Canonical source: governance-config.json
+        Fallback: hardcoded default (3)
+        """
+        phase5_max, _ = get_review_iterations(self.workspace_dir)
+        return phase5_max
     
     @property
     def can_iterate(self) -> bool:
@@ -168,6 +175,7 @@ class Phase5ReviewResult:
 def create_initial_review_state(
     operating_mode: OperatingMode = "user",
     plan_record_digest: str = "",
+    workspace_dir: Path | None = None,
 ) -> Phase5ReviewState:
     """Create a fresh Phase 5 review state."""
     return Phase5ReviewState(
@@ -177,6 +185,7 @@ def create_initial_review_state(
         plan_version=1,
         plan_record_digest=plan_record_digest,
         operating_mode=operating_mode,
+        workspace_dir=workspace_dir,
     )
 
 
@@ -193,6 +202,9 @@ def record_review_feedback(
 ) -> Phase5ReviewState:
     """Record feedback from a review iteration and determine next state.
     
+    max_iterations: Canonical source is governance-config.json
+    Other mode-specific settings: phase5_review_config.yaml
+    
     Behavior depends on operating mode:
     - user: Escalate to human after max iterations
     - pipeline: Reject immediately (no human escalation)
@@ -202,7 +214,9 @@ def record_review_feedback(
     """
     config = load_phase5_review_config()
     mode_config = config.get_mode_config(state.operating_mode)
-    max_iter = mode_config.max_iterations
+    
+    # max_iterations from governance-config.json (canonical source)
+    max_iter = state.max_iterations
     
     new_iteration = min(state.iteration + 1, max_iter)
     
@@ -265,6 +279,7 @@ def record_review_feedback(
         plan_version=state.plan_version,
         plan_record_digest=state.plan_record_digest,
         operating_mode=state.operating_mode,
+        workspace_dir=state.workspace_dir,
         started_at=state.started_at,
         completed_at=final_completed_at,
     )
@@ -279,6 +294,7 @@ def increment_plan_version(state: Phase5ReviewState) -> Phase5ReviewState:
         plan_version=state.plan_version + 1,
         plan_record_digest=state.plan_record_digest,
         operating_mode=state.operating_mode,
+        workspace_dir=state.workspace_dir,
         started_at=state.started_at,
         completed_at=state.completed_at,
     )

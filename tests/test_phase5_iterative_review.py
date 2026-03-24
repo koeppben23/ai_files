@@ -240,9 +240,24 @@ class TestPhase5ReviewStateAgentsStrictMode:
         
         assert state.final_status == "pending"
 
-    def test_max_iterations_is_one_in_agents_strict(self):
-        state = create_initial_review_state(operating_mode="agents_strict")
-        assert state.max_iterations == 1
+    def test_max_iterations_from_governance_config(self, tmp_path: Path):
+        """max_iterations comes from governance-config.json (canonical source)."""
+        custom_config = {
+            "review": {
+                "phase5_max_review_iterations": 5,
+                "phase6_max_review_iterations": 7,
+            },
+            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
+            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
+        }
+        import json
+        (tmp_path / "governance-config.json").write_text(json.dumps(custom_config), encoding="utf-8")
+        
+        state = create_initial_review_state(
+            operating_mode="agents_strict",
+            workspace_dir=tmp_path,
+        )
+        assert state.max_iterations == 5  # From governance-config, not YAML
 
 
 @pytest.mark.governance

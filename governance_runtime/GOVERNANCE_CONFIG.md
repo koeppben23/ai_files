@@ -78,12 +78,22 @@ Controls regulated mode behavior.
 ## Behavior Rules
 
 | Scenario | Behavior |
-|----------|----------|
+|----------|---------|
 | File missing | Return defaults (backward compatible) |
 | File present + valid | Use loaded values |
 | File present + invalid | Fail-closed (RuntimeError) |
 | Unknown keys | Rejected (validation error) |
 | State value present | Takes precedence over config |
+
+## Canonical Source
+
+`governance-config.json` is the **single source of truth** for:
+- `phase5_max_review_iterations` — used by Phase 5 review loop
+- `phase6_max_review_iterations` — used by Phase 6 review loop
+
+**This is a direct runtime knob.** Setting `phase5_max_review_iterations = 5` in governance-config.json means Phase 5 review loops run for a maximum of 5 iterations.
+
+> **Note:** The legacy `phase5_review_config.yaml` file is no longer used for max_iterations. It is deprecated for this purpose.
 
 ## Usage
 
