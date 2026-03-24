@@ -257,6 +257,42 @@ class TestPhase5ReviewStateAgentsStrictMode:
         )
         assert state.max_iterations == 5  # From governance-config, not YAML
 
+    def test_can_iterate_uses_governance_config_value(self, tmp_path: Path):
+        """can_iterate is based on governance-config max_iterations."""
+        custom_config = {
+            "review": {
+                "phase5_max_review_iterations": 5,
+                "phase6_max_review_iterations": 3,
+            },
+        }
+        import json
+        (tmp_path / "governance-config.json").write_text(json.dumps(custom_config), encoding="utf-8")
+        
+        state = create_initial_review_state(
+            operating_mode="user",
+            workspace_dir=tmp_path,
+        )
+        assert state.max_iterations == 5
+        assert state.can_iterate is True
+        
+        state_at_4 = Phase5ReviewState(
+            iteration=4,
+            feedback_history=(),
+            final_status="pending",
+            operating_mode="user",
+            workspace_dir=tmp_path,
+        )
+        assert state_at_4.can_iterate is True
+        
+        state_at_5 = Phase5ReviewState(
+            iteration=5,
+            feedback_history=(),
+            final_status="pending",
+            operating_mode="user",
+            workspace_dir=tmp_path,
+        )
+        assert state_at_5.can_iterate is False
+
 
 @pytest.mark.governance
 class TestFinalizeReview:
