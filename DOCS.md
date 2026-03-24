@@ -25,6 +25,7 @@
 14. [Key Tests](#14-key-tests)
 15. [Output Codes](#15-output-codes)
 16. [Further Reading](#16-further-reading)
+17. [Governance Configuration](#17-governance-configuration)
 
 ---
 
@@ -1006,4 +1007,39 @@ These documents remain the authoritative sources for their respective domains:
 | Document | Purpose |
 |----------|---------|
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
-| [ADR.md](ADR.md) | Architecture decision records | |
+| [ADR.md](ADR.md) | Architecture decision records |
+
+---
+
+## 17. Governance Configuration
+
+`governance-config.json` allows customization of governance behavior at the workspace level.
+
+### Location
+
+```
+~/.config/opencode/workspaces/<repo-fingerprint>/governance-config.json
+```
+
+### Bootstrap Materialization
+
+During workspace bootstrap, the default `governance-config.json` is automatically materialized to the workspace if not already present. This ensures every workspace has sensible defaults out-of-the-box.
+
+**Idempotent:** Existing configurations are never overwritten.
+
+**Graceful degradation:** If the default asset cannot be read, bootstrap continues and falls back to hardcoded defaults.
+
+### Configuration Sections
+
+| Section | Purpose | Default |
+|---------|---------|---------|
+| `review.phase5_max_review_iterations` | Max self-review loops in Phase 5 | 3 |
+| `review.phase6_max_review_iterations` | Max self-review loops in Phase 6 | 3 |
+| `pipeline.allow_pipeline_mode` | Whether pipeline mode is allowed | true |
+| `pipeline.auto_approve_enabled` | Auto-approve in pipeline mode | true |
+| `regulated.allow_auto_approve` | Auto-approve in regulated mode | false |
+| `regulated.require_governance_mode_active` | Require governance-mode.json active | true |
+
+### Reference
+
+For full documentation, see [GOVERNANCE_CONFIG.md](governance_runtime/GOVERNANCE_CONFIG.md). |
