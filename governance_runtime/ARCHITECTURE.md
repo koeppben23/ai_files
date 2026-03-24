@@ -147,6 +147,24 @@ The team profile (`--profile team`) enables non-interactive auto-approve at the 
 - Regulated/agents_strict mode does NOT support pipeline auto-approve
 - Solo/user mode requires explicit `/review-decision`
 
+### Governance Configuration (governance-config.json)
+
+The `governance-config.json` file at workspace root provides policy knobs for governance behavior.
+
+**Location:** `<workspace>/governance-config.json`
+
+**Configuration Sections:**
+- `review`: Review iteration limits (phase5_max_review_iterations, phase6_max_review_iterations)
+- `pipeline`: Pipeline mode settings (allow_pipeline_mode, auto_approve_enabled)
+- `regulated`: Regulated mode settings (allow_auto_approve, require_governance_mode_active)
+
+**Behavior:**
+- File missing → use defaults (backward compatible)
+- File present + valid → use loaded values
+- File present + invalid → fail-closed (RuntimeError)
+
+**See Also:** `GOVERNANCE_CONFIG.md` for full documentation.
+
 ### Profile vs Runtime Mode vs CI Environment
 
 - **Profile**: Bootstrap-Konfiguration (solo, team, regulated)
