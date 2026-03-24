@@ -530,17 +530,12 @@ def _get_phase6_default_max_iterations(state: Mapping[str, object]) -> int:
     Uses centralized governance config loader with workspace resolution from state.
     Returns 3 if config unavailable (file missing). Raises on invalid config.
     """
-    fp = _extract_fingerprint(state)
-    if not fp:
+    from governance_runtime.infrastructure.workspace_resolver import resolve_workspace_dir_from_state
+    
+    workspace_dir = resolve_workspace_dir_from_state(state)
+    if workspace_dir is None:
         return 3
     
-    evidence = BindingEvidenceResolver(env={})
-    ev = getattr(evidence, "resolve")(mode="system")
-    workspaces_home = ev.workspaces_home
-    if workspaces_home is None:
-        return 3
-    
-    workspace_dir = workspaces_home / fp
     from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
     _, phase6 = get_review_iterations(workspace_dir)
     return phase6
