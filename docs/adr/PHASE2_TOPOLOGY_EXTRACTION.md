@@ -37,9 +37,10 @@ Die `topology.yaml` enthält **nur**:
 ### 2.3 Metadata-Trennung
 
 **Strukturelle Metadaten** (erlaubt):
-- `parent`: Referenziert übergeordneten State (nur für Hierarchie-Info)
+- `parent`: Structural metadata for grouping/diagramming
+- Not used for state resolution or transition logic
 - Muss String sein, kein komplexes Objekt
-- Hat keinen Einfluss auf Runtime-Auflösung
+- Referenziert übergeordneten State (nur für Hierarchie-Info)
 
 **Präsentations-Metadaten** (verboten):
 - `description`, `display_name`, `title`, `help_text`
