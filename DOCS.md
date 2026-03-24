@@ -1081,4 +1081,4 @@ During workspace bootstrap, the default `governance-config.json` is automaticall
 
 ### Reference
 
-For full documentation, see [GOVERNANCE_CONFIG.md](governance_runtime/GOVERNANCE_CONFIG.md). |
+For full documentation, see [GOVERNANCE_CONFIG.md](governance_runtime/GOVERNANCE_CONFIG.md).

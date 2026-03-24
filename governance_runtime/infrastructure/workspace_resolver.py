@@ -49,8 +49,7 @@ def resolve_workspace_dir_from_state(
         env: Optional environment dict. If None, uses os.environ.
 
     Returns:
-        Path to workspace directory.
-        None if: fingerprint unavailable, or binding evidence missing/unavailable.
+        Path to workspace directory, or None if fingerprint/binding evidence is unavailable.
     """
     fingerprint = _extract_fingerprint_from_state(state)
     if not fingerprint:
