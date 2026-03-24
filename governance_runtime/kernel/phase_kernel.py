@@ -524,7 +524,46 @@ def _phase6_review_iterations(state: Mapping[str, object]) -> int:
     return 0
 
 
+_phase6_default_max_cache: int | None = None
+
+
+def _get_phase6_default_max_iterations(state: Mapping[str, object]) -> int:
+    """Get phase6 max review iterations default from governance config.
+    
+    Uses centralized governance config loader with workspace resolution from state.
+    Falls back to 3 if config unavailable or workspace not determinable.
+    """
+    global _phase6_default_max_cache
+    if _phase6_default_max_cache is not None:
+        return _phase6_default_max_cache
+    
+    try:
+        fp = _extract_fingerprint(state)
+        if fp:
+            evidence = BindingEvidenceResolver(env={})
+            ev = getattr(evidence, "resolve")(mode="system")
+            workspaces_home = ev.workspaces_home
+            if workspaces_home is not None:
+                workspace_dir = workspaces_home / fp
+                from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
+                _, phase6 = get_review_iterations(workspace_dir)
+                _phase6_default_max_cache = phase6
+                return phase6
+    except Exception:
+        pass
+    
+    _phase6_default_max_cache = 3
+    return 3
+
+
+def _clear_phase6_default_max_cache() -> None:
+    """Clear the phase6 default max iterations cache (for testing)."""
+    global _phase6_default_max_cache
+    _phase6_default_max_cache = None
+
+
 def _phase6_max_review_iterations(state: Mapping[str, object]) -> int:
+    default_max = _get_phase6_default_max_iterations(state)
     for key_path in (
         "ImplementationReview.max_iterations",
         "ImplementationReview.MaxIterations",
@@ -534,8 +573,8 @@ def _phase6_max_review_iterations(state: Mapping[str, object]) -> int:
         value = _read_nested_key(state, key_path)
         parsed = _coerce_non_negative_int(value)
         if parsed is not None and parsed >= 1:
-            return min(parsed, 3)
-    return 3
+            return parsed
+    return default_max
 
 
 def _phase6_min_review_iterations(state: Mapping[str, object]) -> int:

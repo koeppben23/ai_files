@@ -3418,6 +3418,123 @@ class TestPhase6GovernanceConfigWiring:
         assert result["phase6_max_review_iterations"] == 5  # from state, not config
 
 
+class TestPhase6KernelGovernanceConfigWiring:
+    """Tests that phase_kernel uses governance-config.json for phase6_max_review_iterations."""
+
+    def test_kernel_phase6_max_uses_governance_config_default(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Kernel uses governance config default (3) when no state value present."""
+        from governance_runtime.kernel.phase_kernel import (
+            _phase6_max_review_iterations,
+            _clear_phase6_default_max_cache,
+        )
+        
+        _clear_phase6_default_max_cache()
+        
+        state = {
+            "repo_fingerprint": "abc123",
+            "Phase": "6-PostFlight",
+        }
+        
+        result = _phase6_max_review_iterations(state)
+        assert result == 3
+
+    def test_kernel_phase6_max_uses_custom_governance_config(
+        self,
+        fake_config: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Kernel uses custom governance config value (7) when no state value present."""
+        import os
+        from governance_runtime.kernel.phase_kernel import (
+            _phase6_max_review_iterations,
+            _clear_phase6_default_max_cache,
+        )
+        
+        _clear_phase6_default_max_cache()
+        
+        ws_state = _write_pointer(fake_config)
+        
+        (fake_config / "governance.paths.json").write_text(
+            json.dumps({
+                "schema": "opencode-governance.paths.v1",
+                "paths": {
+                    "configRoot": str(fake_config),
+                    "workspacesHome": str(fake_config / "workspaces"),
+                    "commandsHome": str(fake_config / "commands"),
+                    "pythonCommand": "python3",
+                }
+            }),
+            encoding="utf-8",
+        )
+        
+        governance_config = {
+            "$schema": "governance-config.v1.schema.json",
+            "review": {
+                "phase5_max_review_iterations": 3,
+                "phase6_max_review_iterations": 7,
+            },
+            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
+            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
+        }
+        workspace_dir = fake_config / "workspaces" / "abc123"
+        workspace_dir.mkdir(parents=True, exist_ok=True)
+        (workspace_dir / "governance-config.json").write_text(
+            json.dumps(governance_config), encoding="utf-8"
+        )
+        
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(fake_config))
+        
+        state = {
+            "repo_fingerprint": "abc123",
+            "Phase": "6-PostFlight",
+        }
+        
+        result = _phase6_max_review_iterations(state)
+        assert result == 7
+
+    def test_kernel_phase6_state_value_overrides_config(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Kernel state value overrides governance config."""
+        from governance_runtime.kernel.phase_kernel import (
+            _phase6_max_review_iterations,
+            _clear_phase6_default_max_cache,
+        )
+        
+        _clear_phase6_default_max_cache()
+        
+        ws_state = _write_pointer(fake_config)
+        governance_config = {
+            "$schema": "governance-config.v1.schema.json",
+            "review": {
+                "phase5_max_review_iterations": 3,
+                "phase6_max_review_iterations": 7,
+            },
+            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
+            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
+        }
+        workspace_dir = fake_config / "workspaces" / "abc123"
+        workspace_dir.mkdir(parents=True, exist_ok=True)
+        (workspace_dir / "governance-config.json").write_text(
+            json.dumps(governance_config), encoding="utf-8"
+        )
+        
+        state = {
+            "repo_fingerprint": "abc123",
+            "Phase": "6-PostFlight",
+            "ImplementationReview": {
+                "max_iterations": 5,
+            },
+        }
+        
+        result = _phase6_max_review_iterations(state)
+        assert result == 5  # from state, not config
+
+
 class TestPhase6NextActionLine:
     """Fix 3.4 (B13): _resolve_next_action_line handles Phase 6 review loop.
 
