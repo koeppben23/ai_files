@@ -2,14 +2,14 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "governance-config.v1.schema.json",
   "title": "Governance Configuration",
-  "description": "Policy knobs for governance behavior. Located at workspace root.",
+  "description": "Policy knobs for governance behavior. Located at repository workspace: ~/.config/opencode/workspaces/<fingerprint>/governance-config.json",
   "type": "object",
-  "required": ["$schema", "review", "pipeline", "regulated"],
+  "required": ["review", "pipeline", "regulated"],
   "additionalProperties": false,
   "properties": {
     "$schema": {
       "type": "string",
-      "const": "governance-config.v1.schema.json"
+      "description": "Schema identifier. Optional but recommended for IDE support."
     },
     "review": {
       "type": "object",

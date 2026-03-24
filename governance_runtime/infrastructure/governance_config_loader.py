@@ -311,18 +311,19 @@ def clear_caches() -> None:
 # ---------------------------------------------------------------------------
 
 def load_governance_config(
-    workspace_root: Path,
+    workspace_root: Path | None,
     *,
     require_valid: bool = True,
 ) -> dict[str, object]:
     """Load governance configuration from workspace root.
 
     This function loads the governance-config.json file from the workspace root
-    and validates it. If the file is missing, it returns default values.
-    If the file is present but invalid, it raises RuntimeError (if require_valid=True).
+    and validates it. If the file is missing or workspace_root is None,
+    it returns default values. If the file is present but invalid,
+    it raises RuntimeError (if require_valid=True).
 
     Args:
-        workspace_root: Path to the workspace root directory.
+        workspace_root: Path to the workspace root directory. If None, returns defaults.
         require_valid: If True, raise RuntimeError for invalid configs.
                       If False, return defaults on error (including missing file).
 
@@ -333,6 +334,7 @@ def load_governance_config(
         RuntimeError: If require_valid=True and config file is present but invalid.
 
     Design:
+        - workspace_root is None → return defaults (backward compatible)
         - File missing → return defaults (backward compatible)
         - File present + valid → use loaded values
         - File present + invalid → fail-closed (require_valid=True) or defaults
@@ -341,6 +343,9 @@ def load_governance_config(
     from governance_runtime.domain.default_governance_config import (
         get_default_governance_config,
     )
+
+    if workspace_root is None:
+        return get_default_governance_config()
 
     config_path = workspace_root / "governance-config.json"
 
@@ -378,12 +383,11 @@ def _validate_governance_config_schema(config: dict[str, object]) -> list[str]:
 
     Returns a list of error messages (empty = valid).
     Unknown keys cause validation failure to prevent silent misconfiguration.
+    $schema is optional but recommended for IDE support.
     """
     errors: list[str] = []
 
-    if "$schema" not in config:
-        errors.append("missing required key: $schema")
-    elif config["$schema"] != GOVERNANCE_CONFIG_SCHEMA_ID:
+    if "$schema" in config and config["$schema"] != GOVERNANCE_CONFIG_SCHEMA_ID:
         errors.append(f"invalid $schema value: expected '{GOVERNANCE_CONFIG_SCHEMA_ID}', got '{config['$schema']}'")
 
     for section in ("review", "pipeline", "regulated"):

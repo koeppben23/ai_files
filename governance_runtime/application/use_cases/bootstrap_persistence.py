@@ -23,6 +23,23 @@ ACTIVATION_INTENT_FILE = "governance.activation_intent.json"
 REPO_POLICY_RELATIVE_PATH = ".opencode/governance-repo-policy.json"
 
 
+def _read_default_governance_config() -> str:
+    """Read the default governance-config.json from assets.
+    
+    Returns the file content as a string, or empty string if the asset
+    cannot be read (e.g., running in a bundled environment).
+    """
+    try:
+        module_root = Path(__file__).parent.parent.parent
+        asset_path = module_root / "assets" / "config" / "governance-config.json"
+        if asset_path.is_file():
+            return asset_path.read_text(encoding="utf-8")
+    except Exception:
+        pass
+    return ""
+
+
+
 def _default_activation_intent() -> dict[str, object]:
     return {
         "schema": "opencode-activation-intent.v1",
@@ -263,6 +280,18 @@ class BootstrapPersistenceService:
             / "runs"
         )
         write_actions["workspace_dirs"] = "ensured"
+
+        # Materialize governance-config.json to workspace if not present (idempotent).
+        governance_config_path = workspace_root / "governance-config.json"
+        if not self._fs.exists(governance_config_path):
+            default_config_content = _read_default_governance_config()
+            if default_config_content:
+                self._fs.write_text_atomic(governance_config_path, default_config_content)
+                write_actions["governance_config"] = "materialized"
+            else:
+                write_actions["governance_config"] = "skipped-no-asset"
+        else:
+            write_actions["governance_config"] = "present"
 
         if payload.no_commit:
             write_actions["no_commit"] = "true"

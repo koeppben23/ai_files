@@ -1,0 +1,14 @@
+{
+  "review": {
+    "phase5_max_review_iterations": 3,
+    "phase6_max_review_iterations": 3
+  },
+  "pipeline": {
+    "allow_pipeline_mode": true,
+    "auto_approve_enabled": true
+  },
+  "regulated": {
+    "allow_auto_approve": false,
+    "require_governance_mode_active": true
+  }
+}

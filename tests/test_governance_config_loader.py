@@ -424,14 +424,14 @@ class TestGovernanceConfigJsonInvalid:
         with pytest.raises(RuntimeError, match="root must be object"):
             load_governance_config(tmp_path)
 
-    def test_missing_schema_key_raises_error(self, tmp_path: Path):
-        """Missing $schema key raises error."""
+    def test_optional_schema_key(self, tmp_path: Path):
+        """Missing $schema key is allowed (optional field)."""
         config = _valid_config()
         del config["$schema"]
         (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
 
-        with pytest.raises(RuntimeError, match="missing required key"):
-            load_governance_config(tmp_path)
+        result = load_governance_config(tmp_path)
+        assert result["review"]["phase5_max_review_iterations"] == 3
 
     def test_wrong_schema_value_raises_error(self, tmp_path: Path):
         """Wrong $schema value raises error."""
