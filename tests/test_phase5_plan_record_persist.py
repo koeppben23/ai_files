@@ -864,3 +864,60 @@ class TestPlanGeneration:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["status"] == "blocked"
         assert payload["reason_code"] == "MANDATE-SCHEMA-MISSING"
+
+
+class TestGetPhase5MaxReviewIterations:
+    """Tests for _get_phase5_max_review_iterations helper."""
+
+    def test_returns_fallback_when_no_workspace(self):
+        """Returns fallback value 3 when no workspace provided."""
+        module = _load_module()
+        module._clear_phase5_max_iterations_cache()
+        result = module._get_phase5_max_review_iterations(None)
+        assert result == 3
+
+    def test_returns_fallback_when_config_missing(self, tmp_path: Path):
+        """Returns fallback value when governance-config.json is missing."""
+        module = _load_module()
+        module._clear_phase5_max_iterations_cache()
+        result = module._get_phase5_max_review_iterations(tmp_path)
+        assert result == 3
+
+    def test_returns_custom_value_from_config(self, tmp_path: Path):
+        """Returns custom value from governance-config.json."""
+        module = _load_module()
+        module._clear_phase5_max_iterations_cache()
+        
+        config = {
+            "$schema": "governance-config.v1.schema.json",
+            "review": {
+                "phase5_max_review_iterations": 7,
+                "phase6_max_review_iterations": 5,
+            },
+            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
+            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
+        }
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+        
+        result = module._get_phase5_max_review_iterations(tmp_path)
+        assert result == 7
+
+    def test_caches_result(self, tmp_path: Path):
+        """Result is cached after first call."""
+        module = _load_module()
+        module._clear_phase5_max_iterations_cache()
+        
+        config = {
+            "$schema": "governance-config.v1.schema.json",
+            "review": {
+                "phase5_max_review_iterations": 5,
+                "phase6_max_review_iterations": 5,
+            },
+            "pipeline": {"allow_pipeline_mode": True, "auto_approve_enabled": True},
+            "regulated": {"allow_auto_approve": False, "require_governance_mode_active": True},
+        }
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+        
+        result1 = module._get_phase5_max_review_iterations(tmp_path)
+        result2 = module._get_phase5_max_review_iterations(tmp_path)
+        assert result1 == result2 == 5
