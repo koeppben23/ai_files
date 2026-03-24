@@ -53,24 +53,10 @@ POINTER_SCHEMA = CANONICAL_POINTER_SCHEMA
 def _get_workspace_dir(config_root: Path, pointer: dict) -> Path | None:
     """Derive workspace_dir from config_root and session pointer.
     
-    Supports both:
-    - activeRepoFingerprint (preferred) -> config_root/workspaces/{fingerprint}
-    - activeSessionStateFile (legacy) -> parent dir of the absolute path
-    
-    Returns workspace directory path or None if unavailable.
+    Delegates to workspace_resolver.resolve_workspace_dir_from_pointer.
     """
-    fingerprint = pointer.get("activeRepoFingerprint")
-    if fingerprint:
-        return config_root / "workspaces" / str(fingerprint)
-    
-    session_state_file = pointer.get("activeSessionStateFile")
-    if session_state_file:
-        session_path = Path(session_state_file)
-        if session_path.is_absolute():
-            return session_path.parent
-        return None
-    
-    return None
+    from governance_runtime.infrastructure.workspace_resolver import resolve_workspace_dir_from_pointer
+    return resolve_workspace_dir_from_pointer(config_root, pointer)
 
 
 def _get_phase6_max_review_iterations(workspace_dir: Path | None) -> int:
