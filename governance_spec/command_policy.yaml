@@ -1,0 +1,144 @@
+version: 1
+schema: opencode.command_policy.v1
+
+# ============================================================================
+# Command Policy
+# ============================================================================
+# Defines what commands are allowed in each state and what outputs are permitted.
+#
+# Runtime fields: state_id, allowed_commands, output_policy
+# Non-runtime: description (documentation only)
+
+commands:
+  # ============================================================================
+  # Universal Commands (allowed in all states)
+  # ============================================================================
+  
+  - id: "cmd_continue"
+    command: "/continue"
+    description: "Advance routing based on current state and guards"
+    allowed_in: "*"  # All states
+    mutating: true
+    behavior:
+      type: "advance_routing"
+
+  - id: "cmd_review_readonly"
+    command: "/review"
+    description: "Review PR/files in read-only mode (no state change)"
+    allowed_in: "*"
+    mutating: false
+    behavior:
+      type: "review_readonly"
+      inputs:
+        - "pr_url"
+        - "file_path"
+        - "directory_path"
+
+  # ============================================================================
+  # State-Specific Commands
+  # ============================================================================
+
+  - id: "cmd_ticket"
+    command: "/ticket"
+    description: "Persist ticket/task evidence for intake"
+    allowed_in:
+      - "4"
+    mutating: true
+    behavior:
+      type: "persist_evidence"
+      evidence_class: "ticket"
+
+  - id: "cmd_plan"
+    command: "/plan"
+    description: "Generate and persist plan record"
+    allowed_in:
+      - "4"
+      - "5"
+    mutating: true
+    behavior:
+      type: "persist_evidence"
+      evidence_class: "plan"
+
+  - id: "cmd_implement"
+    command: "/implement"
+    description: "Start or continue implementation execution"
+    allowed_in:
+      - "6"  # Ist-Zustand: 6.presentation (per ADR-003: should be 6.approved in future)
+    mutating: true
+    behavior:
+      type: "start_implementation"
+    constraints:
+      - "requires_approved_implementation_plan"
+
+  - id: "cmd_review_decision"
+    command: "/review-decision"
+    description: "Submit final review decision after implementation review"
+    allowed_in:
+      - "6"  # Evidence Presentation Gate (within Phase 6 monolith)
+    mutating: true
+    behavior:
+      type: "submit_review_decision"
+      allowed_decisions:
+        - "approve"
+        - "changes_requested"
+        - "reject"
+
+  - id: "cmd_review_decision_implementation"
+    command: "/implementation-decision"
+    description: "Submit implementation review decision (alternative name)"
+    allowed_in:
+      - "6"
+    mutating: true
+    behavior:
+      type: "submit_review_decision"
+      allowed_decisions:
+        - "approve"
+        - "changes_requested"
+        - "reject"
+
+# ============================================================================
+# Output Policies
+# ============================================================================
+# Controls what output classes are allowed/forbidden in each state.
+# This is the canonical source (previously in phase_api.yaml output_policy).
+
+output_policies:
+  - state_id: "5"
+    description: "Architecture review phase - planning only, no implementation"
+    allowed_output_classes:
+      - "plan"
+      - "review"
+      - "risk_analysis"
+      - "test_strategy"
+      - "gate_check"
+      - "rollback_plan"
+      - "review_questions"
+      - "consolidated_review_plan"
+    forbidden_output_classes:
+      - "implementation"
+      - "patch"
+      - "diff"
+      - "code_delivery"
+    plan_discipline:
+      first_output_is_draft: true
+      draft_not_review_ready: true
+      min_self_review_iterations: 1
+
+# ============================================================================
+# Phase Output Policy Inheritance
+# ============================================================================
+# Some phases inherit output policy from parent phases.
+# Only phases with explicit policies are listed here.
+# Other phases have unbounded output (no restrictions).
+
+phase_output_policy_map:
+  - state_id: "5"
+    output_policy_ref: "output_policies[0]"  # References output_policies[0]
+  - state_id: "5.3"
+    output_policy_ref: "output_policies[0]"  # Inherits from 5
+  - state_id: "5.4"
+    output_policy_ref: "output_policies[0]"  # Inherits from 5
+  - state_id: "5.5"
+    output_policy_ref: "output_policies[0]"  # Inherits from 5
+  - state_id: "5.6"
+    output_policy_ref: "output_policies[0]"  # Inherits from 5
