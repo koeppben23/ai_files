@@ -300,6 +300,155 @@ def clear_caches() -> None:
     _config_cache.clear()
 
 
+# ---------------------------------------------------------------------------
+# Governance Config Loader (workspace-level)
+# ---------------------------------------------------------------------------
+
+def load_governance_config(
+    workspace_root: Path,
+    *,
+    require_valid: bool = True,
+) -> dict[str, object]:
+    """Load governance configuration from workspace root.
+
+    This function loads the governance-config.json file from the workspace root
+    and validates it against the schema. If the file is missing, it returns
+    default values. If the file is present but invalid, it raises RuntimeError.
+
+    Args:
+        workspace_root: Path to the workspace root directory.
+        require_valid: If True, raise RuntimeError for invalid configs.
+                      If False, return defaults on any error.
+
+    Returns:
+        A dict with the validated governance configuration.
+
+    Raises:
+        RuntimeError: If require_valid=True and config is missing or invalid.
+
+    Design:
+        - File missing → return defaults (backward compatible)
+        - File present + valid → use loaded values
+        - File present + invalid → fail-closed (require_valid=True) or defaults
+        - Unknown keys → fail-closed
+    """
+    from governance_runtime.domain.default_governance_config import (
+        get_default_governance_config,
+        SCHEMA_VERSION,
+    )
+
+    config_path = workspace_root / "governance-config.json"
+
+    if not config_path.is_file():
+        return get_default_governance_config()
+
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        if require_valid:
+            raise RuntimeError(
+                f"governance-config.json unreadable at {config_path}: {exc}"
+            ) from exc
+        return get_default_governance_config()
+
+    if not isinstance(payload, dict):
+        if require_valid:
+            raise RuntimeError(
+                f"governance-config.json root must be object, got {type(payload).__name__}"
+            )
+        return get_default_governance_config()
+
+    errors = _validate_governance_config_schema(payload)
+    if errors:
+        error_msg = f"governance-config.json invalid at {config_path}: {'; '.join(errors)}"
+        if require_valid:
+            raise RuntimeError(error_msg)
+        return get_default_governance_config()
+
+    return payload
+
+
+def _validate_governance_config_schema(config: dict[str, object]) -> list[str]:
+    """Validate governance config against schema requirements.
+
+    Returns a list of error messages (empty = valid).
+    Unknown keys cause validation failure to prevent silent misconfiguration.
+    """
+    errors: list[str] = []
+
+    if "$schema" not in config:
+        errors.append("missing required key: $schema")
+    elif config["$schema"] != "governance-config.v1.schema.json":
+        errors.append(f"invalid $schema value: expected 'governance-config.v1.schema.json', got '{config['$schema']}'")
+
+    for section in ("review", "pipeline", "regulated"):
+        if section not in config:
+            errors.append(f"missing required section: {section}")
+        elif not isinstance(config[section], dict):
+            errors.append(f"section '{section}' must be an object")
+        else:
+            errors.extend(_validate_section(section, config[section]))
+
+    unknown_keys = set(config.keys()) - {"$schema", "review", "pipeline", "regulated"}
+    if unknown_keys:
+        errors.append(f"unknown top-level keys: {', '.join(sorted(unknown_keys))}")
+
+    return errors
+
+
+def _validate_section(section: str, section_config: dict) -> list[str]:
+    """Validate a single config section."""
+    errors: list[str] = []
+
+    if section == "review":
+        required = {"phase5_max_review_iterations", "phase6_max_review_iterations"}
+        if not required.issubset(section_config.keys()):
+            missing = required - section_config.keys()
+            errors.append(f"review: missing required keys: {', '.join(sorted(missing))}")
+        for key, value in section_config.items():
+            if key not in required:
+                errors.append(f"review: unknown key '{key}'")
+                continue
+            if not isinstance(value, int):
+                errors.append(f"review.{key} must be integer, got {type(value).__name__}")
+            elif value < 1 or value > 100:
+                errors.append(f"review.{key} must be between 1 and 100, got {value}")
+
+    elif section == "pipeline":
+        required = {"allow_pipeline_mode", "auto_approve_enabled"}
+        if not required.issubset(section_config.keys()):
+            missing = required - section_config.keys()
+            errors.append(f"pipeline: missing required keys: {', '.join(sorted(missing))}")
+        for key, value in section_config.items():
+            if key not in required:
+                errors.append(f"pipeline: unknown key '{key}'")
+                continue
+            if not isinstance(value, bool):
+                errors.append(f"pipeline.{key} must be boolean, got {type(value).__name__}")
+
+    elif section == "regulated":
+        required = {"allow_auto_approve", "require_governance_mode_active"}
+        if not required.issubset(section_config.keys()):
+            missing = required - section_config.keys()
+            errors.append(f"regulated: missing required keys: {', '.join(sorted(missing))}")
+        for key, value in section_config.items():
+            if key not in required:
+                errors.append(f"regulated: unknown key '{key}'")
+                continue
+            if not isinstance(value, bool):
+                errors.append(f"regulated.{key} must be boolean, got {type(value).__name__}")
+
+    return errors
+
+
+def validate_governance_config(config: dict[str, object]) -> list[str]:
+    """Public validation function for governance config.
+
+    Returns a list of error messages (empty = valid).
+    """
+    return _validate_governance_config_schema(config)
+
+
 __all__ = [
     "schemas_dir",
     "config_dir",
@@ -315,5 +464,7 @@ __all__ = [
     "validate_retention_config",
     "validate_operating_mode_policy_matrix_config",
     "validate_all_governance_configs",
+    "load_governance_config",
+    "validate_governance_config",
     "clear_caches",
 ]
