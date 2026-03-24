@@ -1,4 +1,4 @@
-# Phase 4: Command-Policy separat modellieren
+# Phase 4: Command-Policy separat modellieren (v2 - Strict with event mapping)
 
 **Status:** Completed  
 **Date:** 2026-03-24  
@@ -10,104 +10,122 @@
 
 Extrahiere die Command-Policy aus der monolithischen `phase_api.yaml` in eine separate `command_policy.yaml`-Datei.
 
-Die Command-Policy enthält:
-- Welche Commands in welchen States erlaubt sind
-- Welche Output-Klassen erlaubt/verboten sind
-- Plan-Discipline Regeln
+**Key Features:**
+- Explicit Command→Event mapping (ADR-004)
+- Stable IDs for output policy references (not index-based)
+- Phase 6 commands marked as transitional
+- Closed schema with strict field validation
 
 ## 2. Prinzipien
 
-### 2.1 Command Definition
+### 2.1 Command→Event Mapping (ADR-004)
 
 ```yaml
 command:
-  id: string              # Required, unique, starts with "cmd_"
-  command: string         # Required, starts with "/"
-  allowed_in: "*" | string[]  # Required: "*" or list of state IDs
-  mutating: boolean       # Required: affects state or not
-  behavior:               # Required: what the command does
-    type: string          # One of: advance_routing, review_readonly, etc.
-  description: string     # Non-runtime: human-readable
-  constraints: string[]   # Non-runtime: additional constraints
+  id: string
+  command: string
+  allowed_in: "*" | string[]
+  mutating: boolean
+  behavior:
+    type: string
+  produces_events: string[]  # Events this command produces
 ```
 
-### 2.2 Output Policy
+**Semantics:**
+- Commands are user/system inputs
+- Events are machine-internal signals for state transitions
+- Each command explicitly lists the events it produces
+- Empty `produces_events` means state change via evidence, not direct event
+
+### 2.2 Stable Output Policy References
 
 ```yaml
-output_policy:
-  state_id: string                    # Target state
-  allowed_output_classes: string[]    # What can be produced
-  forbidden_output_classes: string[]  # What is forbidden
-  plan_discipline:                    # Optional: plan-specific rules
-    first_output_is_draft: boolean
-    draft_not_review_ready: boolean
-    min_self_review_iterations: int
+output_policies:
+  - id: "op.phase5.review_only"  # Stable ID (not index)
+    state_id: "5"
+    ...
+
+phase_output_policy_map:
+  - state_id: "5"
+    output_policy_ref: "op.phase5.review_only"  # Stable reference
 ```
 
-### 2.3 Phase Output Policy Map
+**Rules:**
+- Each output policy has a stable ID starting with `op.`
+- References use stable IDs, not indices like `output_policies[0]`
+- No orphaned policies (all policies must be mapped)
+- No duplicate state mappings
 
-Maps phases to their output policies. Only phases with explicit restrictions are listed.
-Phases not in the map have unbounded output (no restrictions).
+### 2.3 Transitional Phase 6 Commands
+
+Commands targeting State "6" (Phase 6 monolith) are marked as **TRANSITIONAL**:
+
+```yaml
+- id: "cmd_implement"
+  command: "/implement"
+  allowed_in:
+    - "6"  # TRANSITIONAL: per ADR-003 should be 6.approved
+```
+
+**After Phase 6 zerlegung:**
+- `/implement` → `6.approved`
+- `/review-decision` → `6.presentation`
+
+### 2.4 Closed Schema
+
+Runtime fields for command objects:
+```python
+RUNTIME_COMMAND_FIELDS = {
+    "id", "command", "allowed_in", "mutating", "behavior", "produces_events"
+}
+NON_RUNTIME_COMMAND_FIELDS = {"description", "constraints"}
+```
+
+Unknown fields are rejected by tests.
 
 ## 3. Erstellte Dateien
 
 ### 3.1 `governance_spec/command_policy.yaml`
 
-Enthält:
-- 8 Commands (2 universal + 6 state-specific)
-- 1 Output Policy (Phase 5)
-- 5 Phase Output Policy Map entries
+**Commands (7):**
+| Command | Type | Mutating | Events Produced |
+|---------|------|----------|-----------------|
+| `/continue` | advance_routing | Yes | (determined by guards) |
+| `/review` | review_readonly | No | (read-only, no events) |
+| `/ticket` | persist_evidence | Yes | (via evidence) |
+| `/plan` | persist_evidence | Yes | (via evidence) |
+| `/implement` | start_implementation | Yes | implementation_started, implementation_execution_in_progress |
+| `/review-decision` | submit_review_decision | Yes | workflow_approved, review_changes_requested, review_rejected |
+| `/implementation-decision` | submit_review_decision | Yes | workflow_approved, review_changes_requested, review_rejected |
+
+**Output Policies (1):**
+- `op.phase5.review_only`: Phase 5 planning only, no implementation
 
 ### 3.2 `tests/architecture/test_command_policy.py`
 
-22 Tests für die strikte Command-Policy-Validierung:
+35 Tests für die strikte Command-Policy-Validierung:
 
 | Testklasse | Tests | Beschreibung |
 |------------|-------|--------------|
 | `TestCommandPolicyStructure` | 3 | Grundlegende Struktur |
-| `TestCommands` | 7 | Command Definitionen |
-| `TestOutputPolicies` | 8 | Output Policy Validierung |
-| `TestPhaseOutputPolicyMap` | 3 | Phase Mapping |
-| `TestCommandTopologyConsistency` | 2 | Cross-Spec Konsistenz |
+| `TestCommands` | 10 | Command Definitionen |
+| `TestCommandEventMapping` | 3 | Command→Event Mapping |
+| `TestCommandNoUnknownFields` | 2 | Strikte Feldvalidierung |
+| `TestOutputPolicies` | 9 | Output Policy Validierung |
+| `TestPhaseOutputPolicyMap` | 6 | Phase Mapping Integrität |
+| `TestCommandTopologyConsistency` | 4 | Cross-Spec Konsistenz |
 
-## 4. Commands
-
-| Command | Type | Mutating | Allowed In |
-|---------|------|----------|------------|
-| `/continue` | advance_routing | Yes | All (*) |
-| `/review` | review_readonly | No | All (*) |
-| `/ticket` | persist_evidence | Yes | 4 |
-| `/plan` | persist_evidence | Yes | 4, 5 |
-| `/implement` | start_implementation | Yes | 6 (Ist-Zustand) |
-| `/review-decision` | submit_review_decision | Yes | 6 |
-| `/implementation-decision` | submit_review_decision | Yes | 6 |
-
-## 5. Output Policy (Phase 5)
-
-**Allowed:**
-- plan, review, risk_analysis, test_strategy
-- gate_check, rollback_plan
-- review_questions, consolidated_review_plan
-
-**Forbidden:**
-- implementation, patch, diff, code_delivery
-
-**Plan Discipline:**
-- first_output_is_draft: true
-- draft_not_review_ready: true
-- min_self_review_iterations: 1
-
-## 6. Testergebnisse
+## 4. Testergebnisse
 
 ```
-tests/architecture/test_command_policy.py ... 22 passed
+tests/architecture/test_command_policy.py ... 35 passed
 tests/architecture/test_guards.py ... 33 passed
 tests/architecture/test_topology.py ... 34 passed
 tests/architecture/test_spec_inventory.py ... 18 passed
-Total: 123 passed
+Total: 136 passed
 ```
 
-## 7. Nächste Schritte
+## 5. Nächste Schritte
 
 1. **Phase 5**: Presentation/Messages herauslösen
 2. **Phase 6**: Phase 6 in echte Substates zerlegen

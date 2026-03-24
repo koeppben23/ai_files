@@ -4,10 +4,16 @@ schema: opencode.command_policy.v1
 # ============================================================================
 # Command Policy
 # ============================================================================
-# Defines what commands are allowed in each state and what outputs are permitted.
+# Defines what commands are allowed in each state and what events they produce.
 #
-# Runtime fields: state_id, allowed_commands, output_policy
-# Non-runtime: description (documentation only)
+# Command → Event Mapping:
+# - Commands are user/system inputs
+# - Events are machine-internal signals for state transitions
+# - Each command maps to zero or more events it produces
+#
+# Runtime fields: id, command, allowed_in, mutating, behavior, produces_events
+# Non-runtime: description, constraints (documentation only)
+# Transitional: allowed_in may reference pre-zerlegung state IDs (marked)
 
 commands:
   # ============================================================================
@@ -17,14 +23,18 @@ commands:
   - id: "cmd_continue"
     command: "/continue"
     description: "Advance routing based on current state and guards"
-    allowed_in: "*"  # All states
+    allowed_in: "*"
     mutating: true
     behavior:
       type: "advance_routing"
+    produces_events: []  # Events determined by guards, not directly
 
   - id: "cmd_review_readonly"
     command: "/review"
     description: "Review PR/files in read-only mode (no state change)"
+    # NOTE: Global access justified because /review is pure read-only -
+    # it never mutates state, only produces findings/verdict locally.
+    # This is safe even during blocking/rework situations.
     allowed_in: "*"
     mutating: false
     behavior:
@@ -33,6 +43,7 @@ commands:
         - "pr_url"
         - "file_path"
         - "directory_path"
+    produces_events: []  # No state events, only local findings
 
   # ============================================================================
   # State-Specific Commands
@@ -47,6 +58,7 @@ commands:
     behavior:
       type: "persist_evidence"
       evidence_class: "ticket"
+    produces_events: []  # State change via evidence, not direct event
 
   - id: "cmd_plan"
     command: "/plan"
@@ -58,23 +70,35 @@ commands:
     behavior:
       type: "persist_evidence"
       evidence_class: "plan"
+    produces_events: []  # State change via evidence, not direct event
+
+  # ============================================================================
+  # Phase 6 Commands (TRANSITIONAL - per ADR-003, should be in 6.approved)
+  # ============================================================================
+  # These commands currently target State "6" (Phase 6 monolith).
+  # After Phase 6 zerlegung, they will target specific substates:
+  # - /implement → 6.approved
+  # - /review-decision → 6.presentation
 
   - id: "cmd_implement"
     command: "/implement"
     description: "Start or continue implementation execution"
     allowed_in:
-      - "6"  # Ist-Zustand: 6.presentation (per ADR-003: should be 6.approved in future)
+      - "6"  # TRANSITIONAL: Ist-Zustand, per ADR-003 should be 6.approved
     mutating: true
     behavior:
       type: "start_implementation"
-    constraints:
+    produces_events:
+      - "implementation_started"
+      - "implementation_execution_in_progress"
+    constraints:  # Documentation-only, not enforced by runtime
       - "requires_approved_implementation_plan"
 
   - id: "cmd_review_decision"
     command: "/review-decision"
     description: "Submit final review decision after implementation review"
     allowed_in:
-      - "6"  # Evidence Presentation Gate (within Phase 6 monolith)
+      - "6"  # TRANSITIONAL: Ist-Zustand, per ADR-003 should be 6.presentation
     mutating: true
     behavior:
       type: "submit_review_decision"
@@ -82,12 +106,16 @@ commands:
         - "approve"
         - "changes_requested"
         - "reject"
+    produces_events:
+      - "workflow_approved"
+      - "review_changes_requested"
+      - "review_rejected"
 
-  - id: "cmd_review_decision_implementation"
+  - id: "cmd_review_decision_alt"
     command: "/implementation-decision"
-    description: "Submit implementation review decision (alternative name)"
+    description: "Submit implementation review decision (alternative command name)"
     allowed_in:
-      - "6"
+      - "6"  # TRANSITIONAL: Same as /review-decision
     mutating: true
     behavior:
       type: "submit_review_decision"
@@ -95,15 +123,20 @@ commands:
         - "approve"
         - "changes_requested"
         - "reject"
+    produces_events:
+      - "workflow_approved"
+      - "review_changes_requested"
+      - "review_rejected"
 
 # ============================================================================
 # Output Policies
 # ============================================================================
 # Controls what output classes are allowed/forbidden in each state.
-# This is the canonical source (previously in phase_api.yaml output_policy).
+# Each policy has a stable ID for reference.
 
 output_policies:
-  - state_id: "5"
+  - id: "op.phase5.review_only"
+    state_id: "5"
     description: "Architecture review phase - planning only, no implementation"
     allowed_output_classes:
       - "plan"
@@ -125,20 +158,22 @@ output_policies:
       min_self_review_iterations: 1
 
 # ============================================================================
-# Phase Output Policy Inheritance
+# Phase Output Policy Map
 # ============================================================================
-# Some phases inherit output policy from parent phases.
-# Only phases with explicit policies are listed here.
-# Other phases have unbounded output (no restrictions).
+# Maps states to their output policies using stable policy IDs.
+# States not in this map have unbounded output (no restrictions).
+# 
+# Semantics: Inheritance (child states inherit parent's policy)
+# Conflict rule: Later entries override earlier entries for same state
 
 phase_output_policy_map:
   - state_id: "5"
-    output_policy_ref: "output_policies[0]"  # References output_policies[0]
+    output_policy_ref: "op.phase5.review_only"
   - state_id: "5.3"
-    output_policy_ref: "output_policies[0]"  # Inherits from 5
+    output_policy_ref: "op.phase5.review_only"  # Inherits from 5
   - state_id: "5.4"
-    output_policy_ref: "output_policies[0]"  # Inherits from 5
+    output_policy_ref: "op.phase5.review_only"  # Inherits from 5
   - state_id: "5.5"
-    output_policy_ref: "output_policies[0]"  # Inherits from 5
+    output_policy_ref: "op.phase5.review_only"  # Inherits from 5
   - state_id: "5.6"
-    output_policy_ref: "output_policies[0]"  # Inherits from 5
+    output_policy_ref: "op.phase5.review_only"  # Inherits from 5
