@@ -524,7 +524,30 @@ def _phase6_review_iterations(state: Mapping[str, object]) -> int:
     return 0
 
 
+def _get_phase6_default_max_iterations(state: Mapping[str, object]) -> int:
+    """Get phase6 max review iterations default from governance config.
+    
+    Uses centralized governance config loader with workspace resolution from state.
+    Returns 3 if config unavailable (file missing). Raises on invalid config.
+    """
+    fp = _extract_fingerprint(state)
+    if not fp:
+        return 3
+    
+    evidence = BindingEvidenceResolver(env={})
+    ev = getattr(evidence, "resolve")(mode="system")
+    workspaces_home = ev.workspaces_home
+    if workspaces_home is None:
+        return 3
+    
+    workspace_dir = workspaces_home / fp
+    from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
+    _, phase6 = get_review_iterations(workspace_dir)
+    return phase6
+
+
 def _phase6_max_review_iterations(state: Mapping[str, object]) -> int:
+    default_max = _get_phase6_default_max_iterations(state)
     for key_path in (
         "ImplementationReview.max_iterations",
         "ImplementationReview.MaxIterations",
@@ -534,8 +557,8 @@ def _phase6_max_review_iterations(state: Mapping[str, object]) -> int:
         value = _read_nested_key(state, key_path)
         parsed = _coerce_non_negative_int(value)
         if parsed is not None and parsed >= 1:
-            return min(parsed, 3)
-    return 3
+            return parsed
+    return default_max
 
 
 def _phase6_min_review_iterations(state: Mapping[str, object]) -> int:

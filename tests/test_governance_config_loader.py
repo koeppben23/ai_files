@@ -13,12 +13,16 @@ from pathlib import Path
 import pytest
 import yaml
 
+from governance_runtime.domain.default_governance_config import (
+    get_default_governance_config,
+)
 from governance_runtime.infrastructure.governance_config_loader import (
     clear_caches,
     config_dir,
     load_all_governance_configs,
     load_all_governance_schemas,
     load_config,
+    load_governance_config,
     load_schema,
     schemas_dir,
     validate_access_control_config,
@@ -26,6 +30,7 @@ from governance_runtime.infrastructure.governance_config_loader import (
     validate_audit_contract_config,
     validate_classification_config,
     validate_config_structure,
+    validate_governance_config,
     validate_policy_metadata,
     validate_retention_config,
     validate_operating_mode_policy_matrix_config,
@@ -308,3 +313,293 @@ class TestValidationBad:
         # All real configs should pass
         for name, errors in results.items():
             assert errors == [], f"unexpected errors in {name}: {errors}"
+
+
+# ===================================================================
+# WI-24 — Governance Config JSON Tests (workspace-level)
+# ===================================================================
+
+def _valid_config() -> dict:
+    return {
+        "$schema": "governance-config.v1.schema.json",
+        "review": {
+            "phase5_max_review_iterations": 3,
+            "phase6_max_review_iterations": 3,
+        },
+        "pipeline": {
+            "allow_pipeline_mode": True,
+            "auto_approve_enabled": True,
+        },
+        "regulated": {
+            "allow_auto_approve": False,
+            "require_governance_mode_active": True,
+        },
+    }
+
+
+class TestGovernanceConfigJsonHappy:
+    """Happy path tests for governance-config.json loading."""
+
+    def test_load_valid_config_returns_loaded_values(self, tmp_path: Path):
+        """Valid governance-config.json returns loaded values."""
+        config_path = tmp_path / "governance-config.json"
+        config_path.write_text(json.dumps(_valid_config()), encoding="utf-8")
+
+        result = load_governance_config(tmp_path)
+
+        assert result["$schema"] == "governance-config.v1.schema.json"
+        assert result["review"]["phase5_max_review_iterations"] == 3
+        assert result["review"]["phase6_max_review_iterations"] == 3
+        assert result["pipeline"]["allow_pipeline_mode"] is True
+        assert result["pipeline"]["auto_approve_enabled"] is True
+        assert result["regulated"]["allow_auto_approve"] is False
+        assert result["regulated"]["require_governance_mode_active"] is True
+
+    def test_load_config_with_custom_iterations(self, tmp_path: Path):
+        """Custom review iterations are respected."""
+        config = _valid_config()
+        config["review"]["phase5_max_review_iterations"] = 5
+        config["review"]["phase6_max_review_iterations"] = 7
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        result = load_governance_config(tmp_path)
+
+        assert result["review"]["phase5_max_review_iterations"] == 5
+        assert result["review"]["phase6_max_review_iterations"] == 7
+
+
+class TestGovernanceConfigJsonDefaults:
+    """Tests for default fallback when config is missing."""
+
+    def test_missing_config_returns_defaults(self, tmp_path: Path):
+        """Missing governance-config.json returns defaults."""
+        result = load_governance_config(tmp_path)
+
+        defaults = get_default_governance_config()
+        assert result == defaults
+
+    def test_missing_config_with_require_valid_false_returns_defaults(self, tmp_path: Path):
+        """Missing config with require_valid=False returns defaults."""
+        result = load_governance_config(tmp_path, require_valid=False)
+
+        defaults = get_default_governance_config()
+        assert result == defaults
+
+    def test_defaults_match_existing_behavior(self):
+        """Defaults match the current hardcoded behavior."""
+        defaults = get_default_governance_config()
+
+        assert defaults["review"]["phase5_max_review_iterations"] == 3
+        assert defaults["review"]["phase6_max_review_iterations"] == 3
+        assert defaults["pipeline"]["allow_pipeline_mode"] is True
+        assert defaults["pipeline"]["auto_approve_enabled"] is True
+        assert defaults["regulated"]["allow_auto_approve"] is False
+        assert defaults["regulated"]["require_governance_mode_active"] is True
+
+
+class TestGovernanceConfigJsonInvalid:
+    """Tests for invalid config handling (fail-closed)."""
+
+    def test_invalid_json_raises_error(self, tmp_path: Path):
+        """Invalid JSON raises RuntimeError."""
+        config_path = tmp_path / "governance-config.json"
+        config_path.write_text("not valid json {", encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="governance-config.json unreadable"):
+            load_governance_config(tmp_path)
+
+    def test_invalid_json_with_require_valid_false_returns_defaults(self, tmp_path: Path):
+        """Invalid JSON with require_valid=False returns defaults."""
+        config_path = tmp_path / "governance-config.json"
+        config_path.write_text("not valid json {", encoding="utf-8")
+
+        result = load_governance_config(tmp_path, require_valid=False)
+
+        assert result == get_default_governance_config()
+
+    def test_root_must_be_object(self, tmp_path: Path):
+        """Root must be object, not array."""
+        (tmp_path / "governance-config.json").write_text("[1, 2, 3]", encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="root must be object"):
+            load_governance_config(tmp_path)
+
+    def test_missing_schema_key_raises_error(self, tmp_path: Path):
+        """Missing $schema key raises error."""
+        config = _valid_config()
+        del config["$schema"]
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="missing required key"):
+            load_governance_config(tmp_path)
+
+    def test_wrong_schema_value_raises_error(self, tmp_path: Path):
+        """Wrong $schema value raises error."""
+        config = _valid_config()
+        config["$schema"] = "wrong-schema.json"
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="invalid \\$schema value"):
+            load_governance_config(tmp_path)
+
+    def test_missing_review_section_raises_error(self, tmp_path: Path):
+        """Missing review section raises error."""
+        config = _valid_config()
+        del config["review"]
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="missing required section"):
+            load_governance_config(tmp_path)
+
+
+class TestGovernanceConfigJsonUnknownKeys:
+    """Tests for unknown key rejection."""
+
+    def test_unknown_top_level_key_raises_error(self, tmp_path: Path):
+        """Unknown top-level key raises error."""
+        config = _valid_config()
+        config["unknown_key"] = "value"
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="unknown top-level keys"):
+            load_governance_config(tmp_path)
+
+    def test_unknown_review_key_raises_error(self, tmp_path: Path):
+        """Unknown key in review section raises error."""
+        config = _valid_config()
+        config["review"]["unknown_key"] = "value"
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="review: unknown key"):
+            load_governance_config(tmp_path)
+
+
+class TestGovernanceConfigJsonTypeValidation:
+    """Tests for type validation of config values."""
+
+    def test_phase5_iterations_must_be_integer(self, tmp_path: Path):
+        """phase5_max_review_iterations must be integer."""
+        config = _valid_config()
+        config["review"]["phase5_max_review_iterations"] = "three"
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="must be integer"):
+            load_governance_config(tmp_path)
+
+    def test_allow_pipeline_mode_must_be_boolean(self, tmp_path: Path):
+        """allow_pipeline_mode must be boolean."""
+        config = _valid_config()
+        config["pipeline"]["allow_pipeline_mode"] = "yes"
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="must be boolean"):
+            load_governance_config(tmp_path)
+
+    def test_allow_auto_approve_must_be_boolean(self, tmp_path: Path):
+        """allow_auto_approve must be boolean."""
+        config = _valid_config()
+        config["regulated"]["allow_auto_approve"] = "yes"
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="must be boolean"):
+            load_governance_config(tmp_path)
+
+
+class TestGovernanceConfigJsonBoundaryValues:
+    """Tests for boundary values."""
+
+    def test_phase_iterations_minimum_1(self, tmp_path: Path):
+        """Phase iterations must be at least 1."""
+        config = _valid_config()
+        config["review"]["phase5_max_review_iterations"] = 0
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="must be between 1 and 100"):
+            load_governance_config(tmp_path)
+
+    def test_phase_iterations_maximum_100(self, tmp_path: Path):
+        """Phase iterations must be at most 100."""
+        config = _valid_config()
+        config["review"]["phase6_max_review_iterations"] = 101
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="must be between 1 and 100"):
+            load_governance_config(tmp_path)
+
+    def test_phase_iterations_at_boundary_1(self, tmp_path: Path):
+        """Phase iterations = 1 is valid."""
+        config = _valid_config()
+        config["review"]["phase5_max_review_iterations"] = 1
+        config["review"]["phase6_max_review_iterations"] = 1
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        result = load_governance_config(tmp_path)
+        assert result["review"]["phase5_max_review_iterations"] == 1
+        assert result["review"]["phase6_max_review_iterations"] == 1
+
+    def test_phase_iterations_at_boundary_100(self, tmp_path: Path):
+        """Phase iterations = 100 is valid."""
+        config = _valid_config()
+        config["review"]["phase5_max_review_iterations"] = 100
+        config["review"]["phase6_max_review_iterations"] = 100
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        result = load_governance_config(tmp_path)
+        assert result["review"]["phase5_max_review_iterations"] == 100
+        assert result["review"]["phase6_max_review_iterations"] == 100
+
+
+class TestGovernanceConfigJsonValidate:
+    """Tests for the public validate_governance_config function."""
+
+    def test_validate_valid_config_returns_empty_errors(self):
+        """Valid config returns empty error list."""
+        config = _valid_config()
+        errors = validate_governance_config(config)
+        assert errors == []
+
+    def test_validate_missing_required_returns_errors(self):
+        """Missing required section returns errors."""
+        config = _valid_config()
+        del config["review"]
+        errors = validate_governance_config(config)
+        assert len(errors) > 0
+        assert any("missing required section: review" in e for e in errors)
+
+    def test_validate_unknown_key_returns_errors(self):
+        """Unknown key returns errors."""
+        config = _valid_config()
+        config["unknown"] = "value"
+        errors = validate_governance_config(config)
+        assert len(errors) > 0
+        assert any("unknown top-level keys" in e for e in errors)
+
+
+class TestGetReviewIterations:
+    """Tests for get_review_iterations helper function."""
+
+    def test_get_review_iterations_no_workspace_returns_defaults(self):
+        """No workspace returns default values."""
+        from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
+        phase5, phase6 = get_review_iterations(None)
+        assert phase5 == 3
+        assert phase6 == 3
+
+    def test_get_review_iterations_missing_config_returns_defaults(self, tmp_path: Path):
+        """Missing config file returns defaults."""
+        from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
+        phase5, phase6 = get_review_iterations(tmp_path)
+        assert phase5 == 3
+        assert phase6 == 3
+
+    def test_get_review_iterations_custom_values(self, tmp_path: Path):
+        """Custom values are respected."""
+        from governance_runtime.infrastructure.governance_config_loader import get_review_iterations, load_governance_config
+        config = _valid_config()
+        config["review"]["phase5_max_review_iterations"] = 5
+        config["review"]["phase6_max_review_iterations"] = 7
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+        
+        phase5, phase6 = get_review_iterations(tmp_path)
+        assert phase5 == 5
+        assert phase6 == 7
