@@ -24,19 +24,33 @@ REPO_POLICY_RELATIVE_PATH = ".opencode/governance-repo-policy.json"
 
 
 def _read_default_governance_config() -> str:
-    """Read the default governance-config.json from assets.
+    """Read the default governance-config.json from package assets.
     
-    Returns the file content as a string, or empty string if the asset
-    cannot be read (e.g., running in a bundled environment).
+    Uses importlib.resources for robust resolution that works with:
+    - Source tree (development)
+    - Installed packages (pip install)
+    - Bundled executables (PyInstaller, etc.)
+    
+    Returns:
+        File content as string.
+        
+    Raises:
+        FileNotFoundError: If asset cannot be found or read.
     """
+    import importlib.resources
     try:
+        asset_ref = importlib.resources.files("governance_runtime.assets.config") / "governance-config.json"
+        return asset_ref.read_text(encoding="utf-8")
+    except (FileNotFoundError, TypeError) as exc:
         module_root = Path(__file__).parent.parent.parent
-        asset_path = module_root / "assets" / "config" / "governance-config.json"
-        if asset_path.is_file():
-            return asset_path.read_text(encoding="utf-8")
-    except Exception:
-        pass
-    return ""
+        fallback_path = module_root / "assets" / "config" / "governance-config.json"
+        if fallback_path.is_file():
+            return fallback_path.read_text(encoding="utf-8")
+        raise FileNotFoundError(
+            f"governance-runtime asset 'governance-config.json' not found. "
+            f"Checked: importlib.resources and {fallback_path}. "
+            f"Error: {exc}"
+        ) from exc
 
 
 
@@ -284,11 +298,18 @@ class BootstrapPersistenceService:
         # Materialize governance-config.json to workspace if not present (idempotent).
         governance_config_path = workspace_root / "governance-config.json"
         if not self._fs.exists(governance_config_path):
-            default_config_content = _read_default_governance_config()
-            if default_config_content:
+            try:
+                default_config_content = _read_default_governance_config()
                 self._fs.write_text_atomic(governance_config_path, default_config_content)
                 write_actions["governance_config"] = "materialized"
-            else:
+            except FileNotFoundError as exc:
+                self._logger.write(ErrorEvent(
+                    code="GOVERNANCE_CONFIG_ASSET_MISSING",
+                    severity="warning",
+                    message=f"governance-config.json asset not found: {exc}",
+                    expected="governance-runtime asset available",
+                    observed={"error": str(exc)},
+                ))
                 write_actions["governance_config"] = "skipped-no-asset"
         else:
             write_actions["governance_config"] = "present"

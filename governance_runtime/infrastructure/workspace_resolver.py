@@ -7,7 +7,7 @@ phase_kernel, and other modules.
 Design:
     - Single source of truth for workspace resolution
     - Uses BindingEvidenceResolver for path configuration
-    - Raises RuntimeError if workspace cannot be determined
+    - Returns None if fingerprint unavailable or binding evidence missing
 """
 
 from __future__ import annotations

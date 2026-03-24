@@ -184,7 +184,7 @@ def test_handles_missing_asset_gracefully(tmp_path: Path) -> None:
 
     with patch(
         "governance_runtime.application.use_cases.bootstrap_persistence._read_default_governance_config",
-        return_value="",
+        side_effect=FileNotFoundError("asset not found"),
     ):
         result = service.run(payload, "2024-01-01T00:00:00Z")
 
