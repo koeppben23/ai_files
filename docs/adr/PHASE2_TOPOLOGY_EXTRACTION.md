@@ -1,4 +1,4 @@
-# Phase 2: Kanonische Topologie extrahieren (v2 - Strict)
+# Phase 2: Kanonische Topologie extrahieren (v3 - Strict with bugfixes)
 
 **Status:** Completed  
 **Date:** 2026-03-24  
@@ -23,19 +23,30 @@ Die `topology.yaml` enthält **nur**:
 | `states[].id` | string | State-ID (alphanumerisch mit . und -) |
 | `states[].terminal` | boolean | Terminal-Flag |
 | `states[].transitions` | list | Liste von Transitions |
-| `states[].parent` | string? | **Optional**, non-runtime Metadaten |
+| `states[].parent` | string? | **Optional**, strukturelle Metadaten |
 
-### 2.2 Keine UX-Felder
-Verbotene Felder in Topologie (werden von Tests geprüft):
+### 2.2 Dokument-Metadaten vs Runtime-Felder
 
-**States:**
-- `phase`, `active_gate`, `next_gate_condition` (UX-Texte)
-- `description`, `display_name`, `title`, `help_text` (Non-runtime Metadata)
+| Kategorie | Felder | Erlaubt | Zweck |
+|-----------|--------|---------|-------|
+| **Dokument-Metadaten** | `version`, `schema` | Ja (Datei-Ebene) | Spec-Versionierung |
+| **Strukturelle Metadaten** | `parent` | Ja (State-Ebene) | Hierarchie-Info |
+| **Präsentations-Metadaten** | `description`, `display_name`, `title`, `help_text` | Nein | UX-Texte |
+| **UX-Felder** | `phase`, `active_gate`, `next_gate_condition` | Nein | Gate-Messages |
 
-**Transitions:**
-- `source`, `active_gate`, `next_gate_condition`, `description`
+### 2.3 Metadata-Trennung
 
-### 2.3 Strikte ID-Formate
+**Strukturelle Metadaten** (erlaubt):
+- `parent`: Referenziert übergeordneten State (nur für Hierarchie-Info)
+- Muss String sein, kein komplexes Objekt
+- Hat keinen Einfluss auf Runtime-Auflösung
+
+**Präsentations-Metadaten** (verboten):
+- `description`, `display_name`, `title`, `help_text`
+- Enthalten UX-Texte für Anzeige
+- Gehören in `messages.yaml`
+
+### 2.4 Strikte ID-Formate
 
 | ID-Typ | Schema | Beispiel |
 |--------|--------|----------|
@@ -43,17 +54,18 @@ Verbotene Felder in Topologie (werden von Tests geprüft):
 | Transition ID | `^t<source>-<target>[-<suffix>]$` | `t0-t1.1`, `t5-t5-missing` |
 | Event Name | `^[a-z][a-z0-9_]*$` | `default`, `ticket_present` |
 
-### 2.4 Transition-ID Schema
+### 2.5 Transition-ID Schema (structurally validated)
 
 Transition-IDs folgen dem Schema `t<source>-<target>[-<suffix>]`:
-- `source`: Quell-State-ID (ohne 't' prefix)
-- `target`: Ziel-State-ID
+- `source`: Quell-State-ID (ohne 't' prefix in ID)
+- `target`: Ziel-State-ID (mit 't' prefix in ID: `t<target>`)
 - `suffix`: Optional, für Self-Transitions mit gleichem Target
 
 **Beispiele:**
 - `t0-t1.1` - Transition von State `0` zu State `1.1`
 - `t4-t4` - Self-Transition von State `4` zu State `4`
 - `t5-t5-missing` - Self-Transition mit Suffix (plan_record_missing)
+- `t6-t6-review-pending` - Self-Transition mit Suffix (review_changes_requested)
 
 ## 3. Erstellte Dateien
 
@@ -61,60 +73,42 @@ Transition-IDs folgen dem Schema `t<source>-<target>[-<suffix>]`:
 
 Enthält die kanonische Runtime-Topologie mit 18 States und allen Transitions.
 
-**Struktur:**
-```yaml
-version: 1
-schema: opencode.topology.v1
-start_state_id: "0"
-
-states:
-  - id: "0"
-    terminal: false
-    transitions:
-      - id: "t0-t1.1"
-        event: default
-        target: "1.1"
-  # ... weitere States
-```
-
 ### 3.2 `tests/architecture/test_topology.py`
 
-31 Tests für die strikte Topologie-Validierung:
+34 Tests für die strikte Topologie-Validierung:
 
 | Testklasse | Tests | Beschreibung |
 |------------|-------|--------------|
-| `TestTopologyStructure` | 7 | Grundlegende Struktur |
+| `TestTopologyStructure` | 7 | Grundlegende Struktur, Dokument-Metadaten |
 | `TestStateIdFormat` | 3 | Strikte State-ID Validierung |
-| `TestTransitionIdFormat` | 5 | Transition-ID Validierung |
+| `TestTransitionIdFormat` | 6 | Transition-ID Validierung (structurally) |
 | `TestTransitionIntegrity` | 3 | Transition-Referenzen |
 | `TestNoUxInTopology` | 2 | UX-Felder in YAML (YAML-Ebene) |
-| `TestNoUxInLoadedModel` | 1 | UX-Felder im Modell (Model-Ebene) |
-| `TestTerminalStates` | 2 | Terminal-Flags |
+| `TestNoUxInLoadedModel` | 2 | UX-Felder im Modell + Strukturelle Metadaten |
+| `TestTerminalStates` | 3 | Terminal-Flags (terminal-aware) |
 | `TestTopologyReachability` | 1 | Erreichbarkeit |
 | `TestPhase6Monolith` | 4 | Phase 6 Struktur |
-| `TestParentMetadata` | 2 | Parent als non-runtime |
-| `TestCrossSpecConformance` | 1 | Guard-Ref Vorbereitung (Phase 8) |
+| `TestParentMetadata` | 2 | Parent als strukturelle Metadaten |
+| `TestCrossSpecConformance` | 1 | Guard-Ref Phase 2 scope boundary |
 
-## 4. Testergebnisse
+## 4. Bugfixes in v3
+
+| Issue | Fix |
+|-------|-----|
+| `test_transition_ids_unique` used set | Changed fixture to return list |
+| `test_transition_id_target_state_exists` used substring | Structural validation with `t<target>` parsing |
+| `test_no_version_or_schema_leak` was empty | Replaced with `test_document_metadata_allowed` |
+| `test_all_states_have_transitions` not terminal-aware | Split into terminal-aware tests |
+| `test_potential_terminal_states` asserted 0 | Removed global assertion |
+| `parent` vs `description` semantics unclear | Documented structural vs presentation metadata |
+
+## 5. Testergebnisse
 
 ```
-tests/architecture/test_topology.py ... 31 passed
+tests/architecture/test_topology.py ... 34 passed
 tests/architecture/test_spec_inventory.py ... 18 passed
+Total: 68 passed
 ```
-
-## 5. Änderungen gegenüber Phase 2 v1
-
-| Aspect | Phase 2 v1 | Phase 2 v2 (Strict) |
-|--------|------------|---------------------|
-| `start_token` | ✗ | `start_state_id` ✓ |
-| `route_strategy` | enthalten | **entfernt** |
-| `default_next` | enthalten | **entfernt** |
-| `terminal` | fehlt | enthalten |
-| `parent` | fehlt | **optional** |
-| Transition-ID | abgeleitet | **stabil: t\<source\>-\<target\>[-\<suffix\>]** |
-| State-ID Schema | permissiv | **strikt: alphanumerisch mit . und -** |
-| UX Check | YAML only | **YAML + Model** |
-| Guard-Ref Test | enthalten | **Phase 8 vorbehalten** |
 
 ## 6. Nächste Schritte
 
