@@ -450,6 +450,30 @@ def validate_governance_config(config: dict[str, object]) -> list[str]:
     return _validate_governance_config_schema(config)
 
 
+def get_review_iterations(
+    workspace_root: Path | None = None,
+) -> tuple[int, int]:
+    """Get phase5 and phase6 review iterations from governance config.
+
+    Args:
+        workspace_root: Path to the workspace root directory.
+                      If None, returns defaults.
+
+    Returns:
+        A tuple of (phase5_max, phase6_max) review iterations.
+    """
+    if workspace_root is None:
+        from governance_runtime.domain.default_governance_config import get_default_review_config
+        defaults = get_default_review_config()
+        return (defaults["phase5_max_review_iterations"], defaults["phase6_max_review_iterations"])
+
+    config = load_governance_config(workspace_root)
+    return (
+        config["review"]["phase5_max_review_iterations"],
+        config["review"]["phase6_max_review_iterations"],
+    )
+
+
 __all__ = [
     "schemas_dir",
     "config_dir",
@@ -467,5 +491,6 @@ __all__ = [
     "validate_all_governance_configs",
     "load_governance_config",
     "validate_governance_config",
+    "get_review_iterations",
     "clear_caches",
 ]

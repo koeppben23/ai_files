@@ -573,3 +573,33 @@ class TestGovernanceConfigJsonValidate:
         errors = validate_governance_config(config)
         assert len(errors) > 0
         assert any("unknown top-level keys" in e for e in errors)
+
+
+class TestGetReviewIterations:
+    """Tests for get_review_iterations helper function."""
+
+    def test_get_review_iterations_no_workspace_returns_defaults(self):
+        """No workspace returns default values."""
+        from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
+        phase5, phase6 = get_review_iterations(None)
+        assert phase5 == 3
+        assert phase6 == 3
+
+    def test_get_review_iterations_missing_config_returns_defaults(self, tmp_path: Path):
+        """Missing config file returns defaults."""
+        from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
+        phase5, phase6 = get_review_iterations(tmp_path)
+        assert phase5 == 3
+        assert phase6 == 3
+
+    def test_get_review_iterations_custom_values(self, tmp_path: Path):
+        """Custom values are respected."""
+        from governance_runtime.infrastructure.governance_config_loader import get_review_iterations, load_governance_config
+        config = _valid_config()
+        config["review"]["phase5_max_review_iterations"] = 5
+        config["review"]["phase6_max_review_iterations"] = 7
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+        
+        phase5, phase6 = get_review_iterations(tmp_path)
+        assert phase5 == 5
+        assert phase6 == 7

@@ -45,8 +45,31 @@ class MandateSchemaInvalidStructureError(Exception):
     pass
 class MandateSchemaUnavailableError(Exception):
     pass
-_PHASE5_REVIEW_MAX_ITERATIONS = 3
 _PHASE5_REVIEW_MIN_ITERATIONS = 1
+
+
+def _get_phase5_max_review_iterations(workspace_root: Path | None = None) -> int:
+    """Get phase5 max review iterations from governance config.
+    
+    Args:
+        workspace_root: Path to workspace root. If None, uses default value 3.
+    
+    Returns:
+        Max review iterations (3 by default).
+    """
+    from governance_runtime.infrastructure.governance_config_loader import get_review_iterations
+    phase5, _ = get_review_iterations(workspace_root)
+    return phase5
+
+
+def _clear_phase5_max_iterations_cache() -> None:
+    """Clear the phase5 max iterations cache (for testing).
+    
+    Note: Cache is centralized in governance_config_loader. This function
+    exists for API compatibility during transition.
+    """
+    pass
+
 
 _MANDATE_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 
@@ -939,7 +962,10 @@ def _run_internal_phase5_self_review(
     plan_text: str,
     state: Mapping[str, object] | None = None,
     commands_home: Path | None = None,
+    max_iterations: int | None = None,
 ) -> dict[str, object]:
+    if max_iterations is None:
+        max_iterations = _get_phase5_max_review_iterations(None)
     current_text = _canonicalize_text(plan_text)
     if not current_text:
         return {
@@ -1001,7 +1027,7 @@ def _run_internal_phase5_self_review(
     llm_review_results: list[dict[str, object]] = []
     has_executor = _has_any_llm_executor()
 
-    while iteration < _PHASE5_REVIEW_MAX_ITERATIONS:
+    while iteration < max_iterations:
         iteration += 1
 
         llm_result: dict[str, object] = {"llm_invoked": False, "verdict": "changes_requested", "findings": []}
@@ -1052,9 +1078,9 @@ def _run_internal_phase5_self_review(
         revision_delta = "none" if current_digest == prev_digest else "changed"
 
         review_met = (
-            iteration >= _PHASE5_REVIEW_MAX_ITERATIONS
+            iteration >= max_iterations
             or (verdict == "approve" and revision_delta == "none" and iteration >= _PHASE5_REVIEW_MIN_ITERATIONS)
-            or (mechanical_findings and iteration >= _PHASE5_REVIEW_MAX_ITERATIONS)
+            or (mechanical_findings and iteration >= max_iterations)
         )
         outcome = "completed" if review_met else "revised"
         completion_status = "phase5-complete" if review_met else "phase5-in-progress"
@@ -1083,7 +1109,7 @@ def _run_internal_phase5_self_review(
         "blocked": False,
         "final_plan_text": current_text,
         "iterations": iteration,
-        "max_iterations": _PHASE5_REVIEW_MAX_ITERATIONS,
+        "max_iterations": max_iterations,
         "min_iterations": _PHASE5_REVIEW_MIN_ITERATIONS,
         "revision_delta": revision_delta,
         "self_review_iterations_met": True,
@@ -1123,7 +1149,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Load session state early (needed for auto-generation) ──
     try:
-        session_path, repo_fingerprint, _, _ = resolve_active_session_paths()
+        session_path, repo_fingerprint, _, workspace_dir = resolve_active_session_paths()
         document = _load_json(session_path)
         state = document.get("SESSION_STATE")
         if not isinstance(state, dict):
@@ -1304,7 +1330,8 @@ def main(argv: list[str] | None = None) -> int:
         evidence = getattr(resolver, "resolve")(mode="user")
         commands_home = evidence.commands_home
 
-        review_result = _run_internal_phase5_self_review(plan_text, state=state, commands_home=commands_home)
+        max_iterations = _get_phase5_max_review_iterations(workspace_dir)
+        review_result = _run_internal_phase5_self_review(plan_text, state=state, commands_home=commands_home, max_iterations=max_iterations)
         if review_result.get("blocked") is True:
             payload = _payload(
                 "blocked",
@@ -1406,7 +1433,7 @@ def main(argv: list[str] | None = None) -> int:
                     "plan_record_digest": f"sha256:{review_digest}",
                     "review": {
                         "iterations": _as_int(review_result.get("iterations"), 0),
-                        "max_iterations": _as_int(review_result.get("max_iterations"), _PHASE5_REVIEW_MAX_ITERATIONS),
+                        "max_iterations": _as_int(review_result.get("max_iterations"), max_iterations),
                         "revision_delta": str(review_result.get("revision_delta") or "changed"),
                         "completion_status": str(review_result.get("completion_status") or "phase5-completed"),
                         "findings_summary": _as_list(review_result.get("findings_summary")),
@@ -1439,7 +1466,7 @@ def main(argv: list[str] | None = None) -> int:
         state["phase5_blocker_code"] = "none"
         state["self_review_iterations_met"] = bool(review_result.get("self_review_iterations_met"))
         state["phase5_self_review_iterations"] = _as_int(review_result.get("iterations"), 0)
-        state["phase5_max_review_iterations"] = _as_int(review_result.get("max_iterations"), _PHASE5_REVIEW_MAX_ITERATIONS)
+        state["phase5_max_review_iterations"] = _as_int(review_result.get("max_iterations"), max_iterations)
         state["phase5_revision_delta"] = str(review_result.get("revision_delta") or "changed")
         state["requirement_contracts_present"] = contracts_count > 0
         state["requirement_contracts_count"] = contracts_count
@@ -1447,7 +1474,7 @@ def main(argv: list[str] | None = None) -> int:
         state["requirement_contracts_source"] = str(_contracts_path(session_path))
         state["Phase5Review"] = {
             "iteration": _as_int(review_result.get("iterations"), 0),
-            "max_iterations": _as_int(review_result.get("max_iterations"), _PHASE5_REVIEW_MAX_ITERATIONS),
+            "max_iterations": _as_int(review_result.get("max_iterations"), max_iterations),
             "min_iterations": _as_int(review_result.get("min_iterations"), _PHASE5_REVIEW_MIN_ITERATIONS),
             "prev_plan_digest": str(review_result.get("prev_digest") or f"sha256:{plan_digest}"),
             "curr_plan_digest": str(review_result.get("curr_digest") or f"sha256:{review_digest}"),
@@ -1561,7 +1588,7 @@ def main(argv: list[str] | None = None) -> int:
         plan_record_version=latest_version,
         phase5_completed=bool(review_result.get("phase5_completed")),
         self_review_iterations=_as_int(review_result.get("iterations"), 0),
-        max_iterations=_as_int(review_result.get("max_iterations"), _PHASE5_REVIEW_MAX_ITERATIONS),
+        max_iterations=_as_int(review_result.get("max_iterations"), max_iterations),
         revision_delta=str(review_result.get("revision_delta") or "changed"),
         self_review_iterations_met=bool(review_result.get("self_review_iterations_met")),
     )
