@@ -69,7 +69,11 @@ opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
 
 After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/continue`.
 
-If `/continue` lands in Phase 4, run `/ticket` to persist the ticket/task, then run `/plan`. Use `/review` as a read-only rail entrypoint for review-depth feedback. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` for the final decision.
+If `/continue` lands in Phase 4, run `/ticket` to persist the ticket/task, then run `/plan`.
+
+**Review Commands:**
+- `/review` — Read-only snapshot of current state, plan, and progress (use anytime)
+- `/review-decision <approve|changes_requested|reject>` — Final decision at Phase 6 Evidence Presentation Gate
 
 ---
 
@@ -429,6 +433,28 @@ Kernel routing follows one deterministic priority chain:
 | `/plan` | `governance_runtime.entrypoints.phase5_plan_record_persist` | Auto-generates plan from Ticket/Task via LLM, runs self-review, persists plan-record evidence |
 | `/implement` | `governance_runtime.entrypoints.implement_start` | Starts implementation execution (Phase 6) |
 | `/review-decision` | `governance_runtime.entrypoints.review_decision_persist --decision <approve\|changes_requested\|reject>` | Final review decision at Evidence Presentation Gate |
+| `/review` | `governance_runtime.entrypoints.session_reader` (read-only) | Read-only rail for review-depth feedback — shows current state, plan, implementation status without advancing phase |
+
+### `/review` — Read-only Review Rail
+
+Use `/review` at any time to get a detailed review-depth snapshot of the current workflow state.
+
+**What it shows:**
+- Current phase and gate status
+- Plan record (if Phase 5 complete)
+- Implementation progress (if Phase 6 active)
+- Review feedback history (if available)
+- Next recommended action
+
+**What it does NOT do:**
+- Does NOT advance the phase
+- Does NOT persist any changes
+- Does NOT trigger LLM calls
+
+**When to use:**
+- Before `/plan` to understand current scope
+- Before `/review-decision` to assess implementation quality
+- After `/continue` to verify state transition
 
 ### Phase 6 Review Decision
 
