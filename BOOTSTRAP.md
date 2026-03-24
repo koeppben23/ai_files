@@ -89,7 +89,10 @@ opencode-governance-bootstrap.cmd init --profile team --repo-root C:\path\to\rep
   - `commands/`, `plugins/`, `workspaces/`, `bin/`
 - Local root (default): `~/.local/opencode`
   - `governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, `VERSION`
-- Workspace logs: `~/.config/opencode/workspaces/<repo_fingerprint>/logs/`
+- Workspace files: `~/.config/opencode/workspaces/<repo_fingerprint>/`
+  - `governance-config.json` — policy knobs (automatically materialized during bootstrap)
+  - `SESSION_STATE.json` — current session state
+  - `logs/` — workspace logs
 - Global logs: `~/.config/opencode/workspaces/_global/logs/`
 
 ### Operating mode setup surface
