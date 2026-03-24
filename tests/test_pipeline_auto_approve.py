@@ -84,12 +84,58 @@ class TestPipelineAutoApproveEligibility:
         assert pipeline_auto_approve_eligible(state) is False
 
     def test_not_eligible_in_agents_strict_mode(self):
-        """agents_strict (regulated) mode is NOT eligible for auto-approve."""
+        """agents_strict (regulated) mode is NOT eligible for auto-approve.
+
+        This test directly protects the core governance promise: regulated/agents_strict
+        mode must NOT auto-approve, even when all other conditions are met.
+        """
         state = _make_state(
             effective_operating_mode="agents_strict",
             active_gate="Evidence Presentation Gate",
         )
-        assert pipeline_auto_approve_eligible(state) is False
+        assert pipeline_auto_approve_eligible(state) is False, (
+            "agents_strict mode must NOT be eligible for auto-approve"
+        )
+
+    def test_agents_strict_remains_ineligible_even_with_complete_review(self):
+        """agents_strict mode with complete review is still NOT eligible.
+
+        This is a critical governance boundary: even if internal review is complete
+        and all other conditions are met, agents_strict mode must NOT auto-approve.
+        """
+        state = _make_state(
+            effective_operating_mode="agents_strict",
+            active_gate="Evidence Presentation Gate",
+            phase6_review_iterations=3,
+            phase6_max_review_iterations=3,
+        )
+        assert pipeline_auto_approve_eligible(state) is False, (
+            "agents_strict mode with complete review must NOT be eligible for auto-approve"
+        )
+
+    def test_agents_strict_ineligible_at_any_gate(self):
+        """agents_strict mode is NOT eligible at any gate, not just Evidence Gate.
+
+        Extends the governance promise: agents_strict must never auto-approve,
+        regardless of which gate the session is at.
+        """
+        gates = [
+            "Implementation Internal Review",
+            "Implementation Verification",
+            "Implementation Review Complete",
+            "Evidence Presentation Gate",
+            "Rework Clarification Gate",
+        ]
+        for gate in gates:
+            state = _make_state(
+                effective_operating_mode="agents_strict",
+                active_gate=gate,
+                phase6_review_iterations=3,
+                phase6_max_review_iterations=3,
+            )
+            assert pipeline_auto_approve_eligible(state) is False, (
+                f"agents_strict mode at '{gate}' must NOT be eligible for auto-approve"
+            )
 
     def test_not_eligible_without_review_complete(self):
         """Pipeline mode without complete review is NOT eligible."""
@@ -190,9 +236,16 @@ class TestPipelineAutoApproveIntegration:
         assert result["status"] == "error"
 
     def test_review_decision_blocks_in_agents_strict_mode(self, tmp_path: Path):
-        """apply_review_decision with empty decision blocks in agents_strict mode."""
+        """apply_review_decision with empty decision blocks in agents_strict mode.
+
+        This test proves the fail-closed behavior for regulated/agents_strict:
+        Empty decision in agents_strict must return error, not auto-approve.
+        """
         session_path = tmp_path / "SESSION_STATE.json"
         state = _make_state(effective_operating_mode="agents_strict")
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
         session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
 
         result = apply_review_decision(
@@ -200,7 +253,37 @@ class TestPipelineAutoApproveIntegration:
             session_path=session_path,
         )
 
-        assert result["status"] == "error"
+        assert result["status"] == "error", (
+            f"Empty decision in agents_strict must return error, got: {result}"
+        )
+        assert "reason_code" in result, "Error must include reason_code"
+
+    def test_review_decision_agents_strict_requires_explicit_approval(self, tmp_path: Path):
+        """agents_strict mode requires explicit approval decision, not auto-approve.
+
+        This test ensures that regulated/agents_strict workflows require explicit
+        human review decision, not empty-decision auto-approve.
+        Empty decision must error with a reason_code.
+        """
+        session_path = tmp_path / "SESSION_STATE.json"
+        events_path = tmp_path / "events.jsonl"
+        state = _make_state(effective_operating_mode="agents_strict")
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result_empty = apply_review_decision(
+            decision="",
+            session_path=session_path,
+            events_path=events_path,
+        )
+        assert result_empty["status"] == "error", (
+            "Empty decision in agents_strict must error, not auto-approve"
+        )
+        assert "reason_code" in result_empty, (
+            "Error must include reason_code"
+        )
 
     def test_review_decision_still_works_with_explicit_decision(self, tmp_path: Path):
         """apply_review_decision with explicit 'approve' follows normal path."""
@@ -221,6 +304,313 @@ class TestPipelineAutoApproveIntegration:
             assert canonical.get("workflow_complete") is True
 
 
+# ---------------------------------------------------------------------------
+# Fail-Closed Tests: Wrong Phase / Missing ReviewPackage
+# ---------------------------------------------------------------------------
+
+@pytest.mark.governance
+class TestPipelineAutoApproveFailClosed:
+    """Fail-closed tests for pipeline auto-approve at critical boundaries.
+
+    These tests verify that the system blocks inappropriate auto-approve attempts:
+    - Wrong phase (not Phase 6)
+    - Missing required review evidence
+    - Already approved workflow
+    """
+
+    def test_approve_in_phase5_blocks_fail_closed(self, tmp_path: Path):
+        """apply_review_decision with 'approve' in Phase 5 must fail-closed.
+
+        Phase 5 is architecture review - approve decision is only valid at Phase 6.
+        """
+        session_path = tmp_path / "SESSION_STATE.json"
+        state = _make_state(
+            effective_operating_mode="pipeline",
+            phase="5-ArchitectureReview",
+            active_gate="Architecture Review Gate",
+        )
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+
+        assert result["status"] == "error", (
+            f"Approve in Phase 5 must fail-closed, got: {result}"
+        )
+
+    def test_approve_in_phase4_blocks_fail_closed(self, tmp_path: Path):
+        """apply_review_decision with 'approve' in Phase 4 must fail-closed.
+
+        Phase 4 is ticket intake - approve decision is only valid at Phase 6.
+        """
+        session_path = tmp_path / "SESSION_STATE.json"
+        state = _make_state(
+            effective_operating_mode="pipeline",
+            phase="4-TicketIntake",
+            active_gate="Ticket Input Gate",
+        )
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+
+        assert result["status"] == "error", (
+            f"Approve in Phase 4 must fail-closed, got: {result}"
+        )
+
+    def test_approve_without_review_package_blocks(self, tmp_path: Path):
+        """apply_review_decision with 'approve' without ReviewPackage must fail-closed.
+
+        Review package is required evidence for approval decision.
+        """
+        session_path = tmp_path / "SESSION_STATE.json"
+        state = _make_state(effective_operating_mode="pipeline")
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        state.pop("Phase6Review", None)
+        state["review_package_presented"] = False
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+
+        assert result["status"] == "error", (
+            f"Approve without ReviewPackage must fail-closed, got: {result}"
+        )
+
+    def test_approve_at_evidence_gate_without_review_complete_blocks(self, tmp_path: Path):
+        """apply_review_decision at Evidence Gate without complete review must fail-closed.
+
+        Internal review must be complete before approval is allowed.
+        """
+        session_path = tmp_path / "SESSION_STATE.json"
+        state = _make_state(
+            effective_operating_mode="pipeline",
+            phase6_review_iterations=1,
+            phase6_max_review_iterations=3,
+        )
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+
+        assert result["status"] == "error", (
+            f"Approve without complete review must fail-closed, got: {result}"
+        )
+
+    def test_empty_decision_in_phase5_blocks_not_auto_approves(self, tmp_path: Path):
+        """apply_review_decision with empty decision in Phase 5 must block.
+
+        Empty decision in non-Phase 6 context should not trigger auto-approve.
+        """
+        session_path = tmp_path / "SESSION_STATE.json"
+        state = _make_state(
+            effective_operating_mode="pipeline",
+            phase="5-ArchitectureReview",
+            active_gate="Architecture Review Gate",
+        )
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="",
+            session_path=session_path,
+        )
+
+        assert result["status"] == "error", (
+            f"Empty decision in Phase 5 must block, got: {result}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Idempotency Tests: Duplicate Auto-Approve Calls
+# ---------------------------------------------------------------------------
+
+@pytest.mark.governance
+class TestPipelineAutoApproveIdempotency:
+    """Idempotency tests for pipeline auto-approve.
+
+    These tests verify that duplicate auto-approve calls are handled gracefully:
+    - Second call after workflow_complete should succeed (no-op)
+    - State should remain consistent
+    - No duplicate audit events
+    """
+
+    def test_duplicate_auto_approve_call_is_idempotent(self, tmp_path: Path):
+        """Second auto-approve call after workflow_complete should be idempotent.
+
+        Idempotent behavior: calling auto-approve multiple times has the same effect
+        as calling it once. No error, no duplicate state mutation, no new audit events.
+        """
+        session_path = tmp_path / "SESSION_STATE.json"
+        events_path = tmp_path / "events.jsonl"
+        state = _make_state()
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result1 = apply_review_decision(
+            decision="",
+            session_path=session_path,
+            events_path=events_path,
+        )
+        assert result1["status"] == "ok", f"First call should succeed: {result1}"
+
+        audit_count_after_first = len(events_path.read_text(encoding="utf-8").strip().split("\n"))
+
+        state_after_first = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = state_after_first.get("SESSION_STATE", state_after_first)
+        canonical1 = ss.get("canonical", ss) if isinstance(ss, dict) else ss
+        assert canonical1.get("workflow_complete") is True
+        revision_after_first = canonical1.get("session_state_revision")
+
+        result2 = apply_review_decision(
+            decision="",
+            session_path=session_path,
+            events_path=events_path,
+        )
+
+        assert result2["status"] == "ok", (
+            f"Second auto-approve call should succeed (idempotent), got: {result2}"
+        )
+        assert result2.get("decision") == "already_approved", (
+            f"Second call should indicate already_approved, got: {result2}"
+        )
+
+        state_after_second = json.loads(session_path.read_text(encoding="utf-8"))
+        ss2 = state_after_second.get("SESSION_STATE", state_after_second)
+        canonical2 = ss2.get("canonical", ss2) if isinstance(ss2, dict) else ss2
+        assert canonical2.get("workflow_complete") is True, (
+            "State should remain workflow_complete=True after second call"
+        )
+        assert canonical2.get("active_gate") == "Workflow Complete", (
+            f"State should remain Workflow Complete, got: {canonical2.get('active_gate')}"
+        )
+
+        audit_count_after_second = len(events_path.read_text(encoding="utf-8").strip().split("\n"))
+        assert audit_count_after_second == audit_count_after_first, (
+            f"No new audit events should be created, had {audit_count_after_first}, now {audit_count_after_second}"
+        )
+
+    def test_auto_approve_after_explicit_approve_is_idempotent(self, tmp_path: Path):
+        """Auto-approve after explicit 'approve' should return already_approved.
+
+        If workflow is already approved via explicit decision, auto-approve should
+        recognize this and return 'already_approved' status.
+        """
+        session_path = tmp_path / "SESSION_STATE.json"
+        state = _make_state()
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        state["UserReviewDecision"] = {
+            "decision": "approve",
+            "rationale": "Human review completed",
+            "source": "explicit_approval",
+        }
+        state["workflow_complete"] = True
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        result = apply_review_decision(
+            decision="",
+            session_path=session_path,
+        )
+
+        assert result["status"] == "ok", (
+            f"Auto-approve after explicit approval should return ok, got: {result}"
+        )
+        assert result.get("decision") == "already_approved", (
+            f"Call should indicate already_approved, got: {result}"
+        )
+
+        final_state = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = final_state.get("SESSION_STATE", final_state)
+        canonical = ss.get("canonical", ss) if isinstance(ss, dict) else ss
+
+        assert canonical.get("workflow_complete") is True, (
+            "State should remain workflow_complete=True"
+        )
+        assert canonical["UserReviewDecision"]["source"] == "explicit_approval", (
+            "Original approval source should be preserved"
+        )
+
+    def test_workflow_complete_blocks_new_auto_approve(self, tmp_path: Path):
+        """Auto-approve on already-completed workflow should not create new events.
+
+        Once workflow_complete=True, subsequent auto-approve attempts should not
+        re-trigger the approval logic.
+        """
+        session_path = tmp_path / "SESSION_STATE.json"
+        events_path = tmp_path / "events.jsonl"
+
+        state = _make_state()
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        state["workflow_complete"] = True
+        state["active_gate"] = "Workflow Complete"
+        state["UserReviewDecision"] = {
+            "decision": "approve",
+            "source": "pipeline_auto_approve",
+        }
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+        events_path.write_text(json.dumps({
+            "event": "pipeline_auto_approve",
+            "result": "approved"
+        }) + "\n", encoding="utf-8")
+
+        initial_event_count = len(events_path.read_text(encoding="utf-8").strip().split("\n"))
+
+        result = apply_review_decision(
+            decision="",
+            session_path=session_path,
+            events_path=events_path,
+        )
+
+        assert result["status"] == "ok", (
+            f"Auto-approve on completed workflow should return ok, got: {result}"
+        )
+        assert result.get("decision") == "already_approved", (
+            f"Call should indicate already_approved, got: {result}"
+        )
+
+        final_state = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = final_state.get("SESSION_STATE", final_state)
+        canonical = ss.get("canonical", ss) if isinstance(ss, dict) else ss
+
+        assert canonical.get("workflow_complete") is True, (
+            "State should remain workflow_complete=True"
+        )
+        assert canonical["UserReviewDecision"]["source"] == "pipeline_auto_approve", (
+            "Original approval source should be preserved"
+        )
+
+        final_event_count = len(events_path.read_text(encoding="utf-8").strip().split("\n"))
+        assert final_event_count == initial_event_count, (
+            f"No new audit events should be created, had {initial_event_count}, now {final_event_count}"
+        )
+    
 # ---------------------------------------------------------------------------
 # Edge Cases
 # ---------------------------------------------------------------------------
@@ -285,6 +675,133 @@ class TestPipelineAutoApproveE2E:
     3. session_reader consumes signal AUTOMATICALLY during materialize
     4. State is auto-approved - workflow completes automatically
     """
+
+    def test_full_pipeline_auto_approve_flow_kernel_to_final_state(self, tmp_path: Path):
+        """Full E2E: Kernel signal → session_reader → auto-approve → final state.
+
+        This test proves the complete deterministic auto-approve flow:
+        1. Pipeline context with complete internal review
+        2. Kernel evaluates eligibility and signals source="pipeline-auto-approve"
+        3. session_reader._materialize_authoritative_state() detects signal
+        4. apply_review_decision(decision="") called automatically
+        5. Final state: workflow_complete=true, active_gate="Workflow Complete"
+        6. Audit trail contains pipeline_auto_approve event
+        """
+        import governance_runtime.entrypoints.session_reader as session_reader_module
+        from governance_runtime.kernel.phase_kernel import KernelResult
+
+        config_root = tmp_path / "config_root"
+        commands_home = config_root / "commands"
+        commands_home.mkdir(parents=True)
+
+        ws_dir = config_root / "workspaces" / "test-repo"
+        ws_dir.mkdir(parents=True, exist_ok=True)
+        session_path = ws_dir / "SESSION_STATE.json"
+        events_path = ws_dir / "events.jsonl"
+
+        pointer = {
+            "schema": "opencode-session-pointer.v1",
+            "activeSessionStateFile": str(session_path),
+            "activeRepoFingerprint": "test-repo",
+        }
+        (config_root / "SESSION_STATE.json").write_text(json.dumps(pointer), encoding="utf-8")
+
+        state = _make_state()
+        state["session_state_revision"] = "1"
+        state["session_materialization_event_id"] = "abc123"
+        state["session_run_id"] = "run-001"
+        state["repo_fingerprint"] = "test-repo"
+        state["PersistenceCommitted"] = True
+        state["WorkspaceReadyGateCommitted"] = True
+        state["WorkspaceArtifactsCommitted"] = True
+        state["PointerVerified"] = True
+        session_path.write_text(json.dumps({"SESSION_STATE": state}), encoding="utf-8")
+
+        (commands_home / "phase_api.yaml").write_text(
+            textwrap.dedent("""\
+                schema: opencode.governance.phase-api.v1
+                phases:
+                  "6":
+                    next_token: "6"
+                    route_strategy: stay
+                    entries:
+                      - entry: start
+                        when: implementation_review_complete
+                        next_token: "6"
+                        source: phase-6-review-complete
+                        active_gate: Evidence Presentation Gate
+                        next_gate_condition: Pipeline auto-approve enabled.
+            """),
+            encoding="utf-8",
+        )
+
+        kernel_result = KernelResult(
+            phase="6",
+            next_token="6",
+            active_gate="Evidence Presentation Gate",
+            next_gate_condition="Workflow auto-approved in pipeline mode. Implementation authorized.",
+            workspace_ready=True,
+            source="pipeline-auto-approve",
+            status="OK",
+            spec_hash="abc",
+            spec_path=str(commands_home / "phase_api.yaml"),
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-full-e2e-001",
+            route_strategy="stay",
+            plan_record_status="active",
+            plan_record_versions=1,
+            transition_evidence_met=False,
+        )
+
+        with patch("governance_runtime.kernel.phase_kernel.execute", return_value=kernel_result):
+            snapshot = session_reader_module.read_session_snapshot(
+                commands_home=commands_home,
+                materialize=True,
+            )
+
+        assert snapshot.get("status") == "OK", (
+            f"Materialize should succeed, got: {snapshot.get('status')}"
+        )
+
+        on_disk = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = on_disk.get("SESSION_STATE", on_disk)
+        canonical = ss.get("canonical", ss) if isinstance(ss, dict) else ss
+
+        assert canonical.get("workflow_complete") is True, (
+            "Final state must have workflow_complete=True"
+        )
+        assert canonical.get("active_gate") == "Workflow Complete", (
+            f"Final state must have active_gate='Workflow Complete', got: {canonical.get('active_gate')}"
+        )
+        assert canonical.get("implementation_authorized") is True, (
+            "Final state must have implementation_authorized=True"
+        )
+        assert "UserReviewDecision" in canonical, (
+            "Final state must contain UserReviewDecision"
+        )
+        assert canonical["UserReviewDecision"].get("source") == "pipeline_auto_approve", (
+            "UserReviewDecision must have source='pipeline_auto_approve'"
+        )
+
+        assert events_path.exists(), "Audit trail must exist"
+        audit_lines = events_path.read_text(encoding="utf-8").strip().split("\n")
+        assert len(audit_lines) >= 1, "Audit trail must contain at least one event"
+
+        pipeline_event = None
+        for line in audit_lines:
+            if line.strip():
+                event = json.loads(line)
+                if event.get("event") == "pipeline_auto_approve":
+                    pipeline_event = event
+                    break
+
+        assert pipeline_event is not None, (
+            f"pipeline_auto_approve event must be in audit trail, got events: {[json.loads(l) for l in audit_lines if l.strip()]}"
+        )
+        assert pipeline_event.get("result") == "approved", (
+            f"Audit event result must be 'approved', got: {pipeline_event.get('result')}"
+        )
 
     def test_materialize_auto_approves_without_manual_decision_call(self, tmp_path: Path):
         """Pipeline workflow auto-approves during materialize - NO manual apply_review_decision call.
