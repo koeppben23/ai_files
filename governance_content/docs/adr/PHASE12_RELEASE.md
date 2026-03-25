@@ -130,14 +130,22 @@ REMOVED: _detect_phase6_substate_legacy()
 REMOVED: _detect_phase6_substate()
 ```
 
-**Resolve-Logik (2 Cases):**
+**Resolve-Logik (3 Cases):**
 1. Canonical value present → Return directly
-2. Legacy value present → Normalize to canonical
+2. Legacy value present (migrating) → Normalize to canonical
+3. No phase6_state → **FAIL-CLOSED** (ValueError)
+
+**FAIL-CLOSED Verhalten:**
+- Wenn `phase6_state` fehlt, wird ein `ValueError` geworfen
+- Fehlermeldung: `MISSING_PHASE6_STATE`
+- Alte Sessions müssen migriert werden
+- Keine stillen Defaults oder implizite Rekonstruktion
 
 **Konsequenz:**
 - Alle Sessions müssen `phase6_state` setzen
 - Keine Inferenz mehr aus Legacy-Flags
 - Klare Single-Source-of-Truth
+- Wertfehler werden explizit mit `INVALID_PHASE6_STATE` gemeldet
 
 ### 5.3 6.rejected -> default -> 4 - TRANSITIONAL MARKER
 

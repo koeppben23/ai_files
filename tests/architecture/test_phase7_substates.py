@@ -40,28 +40,40 @@ class TestCanonicalPhase6SubstateResolver:
         state = {"phase6_state": "6.complete"}
         assert resolve_phase6_substate(state) == "6.complete"
 
-    def test_resolve_returns_6_when_no_phase6_indicators(self):
-        """Happy: resolve_phase6_substate gibt "6" zurück wenn keine Phase-6-Indikatoren.
+    def test_resolve_raises_when_no_phase6_state(self):
+        """NEGATIVE: resolve_phase6_substate wirft ValueError wenn phase6_state fehlt.
         
-        Für leere/unbekannte States soll "6" (unknown) zurückgegeben werden,
-        NICHT "6.internal_review". Die Bridge inferiert nur einen Substate,
-        wenn echte Phase-6-Kontext-Indikatoren vorhanden sind.
+        FAIL-CLOSED: Ohne phase6_state Feld wird ein klarer Fehler geworfen.
+        Alte Sessions ohne phase6_state müssen migriert werden.
         """
         from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
         
         state = {}
-        assert resolve_phase6_substate(state) == "6"
-    
-    def test_resolve_returns_6_when_no_phase6_state(self):
-        """Happy: resolve_phase6_substate gibt "6" wenn kein phase6_state gesetzt.
+        with pytest.raises(ValueError) as exc_info:
+            resolve_phase6_substate(state)
+        assert "MISSING_PHASE6_STATE" in str(exc_info.value)
+
+    def test_resolve_raises_when_phase6_state_missing_despite_context(self):
+        """NEGATIVE: resolve_phase6_substate wirft ValueError auch mit Legacy-Kontext.
         
-        Ohne phase6_state Feld soll "6" (unknown) zurückgegeben werden.
-        Die Legacy-Bridge ist entfernt - Sessions müssen phase6_state setzen.
+        Legacy-Kontext-Felder (phase_transition_evidence, ImplementationReview etc.)
+        werden NICHT mehr zur Substate-Auflösung verwendet.
         """
         from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
         
         state = {"phase_transition_evidence": True}
-        assert resolve_phase6_substate(state) == "6"
+        with pytest.raises(ValueError) as exc_info:
+            resolve_phase6_substate(state)
+        assert "MISSING_PHASE6_STATE" in str(exc_info.value)
+
+    def test_resolve_raises_for_invalid_phase6_state(self):
+        """NEGATIVE: resolve_phase6_substate wirft ValueError für ungültige Werte."""
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
+        
+        state = {"phase6_state": "invalid_value"}
+        with pytest.raises(ValueError) as exc_info:
+            resolve_phase6_substate(state)
+        assert "INVALID_PHASE6_STATE" in str(exc_info.value)
 
     def test_resolve_all_substates(self):
         """Happy: resolve_phase6_substate erkennt alle Substates."""
@@ -94,7 +106,7 @@ class TestPhase6SubstateHelpers:
         """Happy: is_phase6_terminal False für 6.execution."""
         from governance_runtime.kernel.phase_kernel import is_phase6_terminal
         
-        state = {"implementation_execution_status": "in_progress"}
+        state = {"phase6_state": "6.execution"}
         assert is_phase6_terminal(state) is False
 
     def test_is_approved_returns_true_for_6_approved(self):
@@ -104,16 +116,18 @@ class TestPhase6SubstateHelpers:
         state = {"phase6_state": "6.approved"}
         assert is_phase6_approved(state) is True
 
-    def test_is_approved_returns_false_for_implementation_accepted(self):
-        """NEGATIVE: is_phase6_approved False für "Implementation Accepted".
+    def test_is_approved_raises_without_phase6_state(self):
+        """NEGATIVE: is_phase6_approved raises ohne phase6_state.
         
-        "Implementation Accepted" bedeutet Ergebnis akzeptiert (post-execution).
-        6.approved bedeutet Plan genehmigt (pre-execution).
+        Legacy-Felder wie "Implementation Accepted" oder "workflow_approved"
+        werden NICHT mehr zur Substate-Auflösung verwendet.
         """
         from governance_runtime.kernel.phase_kernel import is_phase6_approved
         
         state = {"active_gate": "Implementation Accepted"}
-        assert is_phase6_approved(state) is False
+        with pytest.raises(ValueError) as exc_info:
+            is_phase6_approved(state)
+        assert "MISSING_PHASE6_STATE" in str(exc_info.value)
 
     def test_is_execution_returns_true_for_6_execution(self):
         """Happy: is_phase6_execution True für 6.execution."""
@@ -135,6 +149,67 @@ class TestPhase6SubstateHelpers:
         
         state = {"phase6_state": "6.rejected"}
         assert is_phase6_rejected(state) is True
+
+    def test_no_legacy_derivation_from_workflow_complete(self):
+        """NEGATIVE: Keine Legacy-Ableitung von workflow_complete.
+        
+        Legacy-Felder werden NICHT mehr zur Substate-Auflösung verwendet.
+        Nur phase6_state ist die kanonische Quelle.
+        """
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
+        
+        state = {"workflow_complete": True}
+        with pytest.raises(ValueError) as exc_info:
+            resolve_phase6_substate(state)
+        assert "MISSING_PHASE6_STATE" in str(exc_info.value)
+
+    def test_no_legacy_derivation_from_user_review_decision(self):
+        """NEGATIVE: Keine Legacy-Ableitung von user_review_decision.
+        
+        Nur phase6_state ist die kanonische Quelle für Substate-Auflösung.
+        """
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
+        
+        state = {"user_review_decision": "reject"}
+        with pytest.raises(ValueError) as exc_info:
+            resolve_phase6_substate(state)
+        assert "MISSING_PHASE6_STATE" in str(exc_info.value)
+
+    def test_no_legacy_derivation_from_implementation_execution_status(self):
+        """NEGATIVE: Keine Legacy-Ableitung von implementation_execution_status.
+        
+        Nur phase6_state ist die kanonische Quelle für Substate-Auflösung.
+        """
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
+        
+        state = {"implementation_execution_status": "in_progress"}
+        with pytest.raises(ValueError) as exc_info:
+            resolve_phase6_substate(state)
+        assert "MISSING_PHASE6_STATE" in str(exc_info.value)
+
+    def test_no_legacy_derivation_from_implementation_blocked(self):
+        """NEGATIVE: Keine Legacy-Ableitung von implementation_hard_blockers.
+        
+        Nur phase6_state ist die kanonische Quelle für Substate-Auflösung.
+        """
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
+        
+        state = {"implementation_hard_blockers": ["Critical Issue"]}
+        with pytest.raises(ValueError) as exc_info:
+            resolve_phase6_substate(state)
+        assert "MISSING_PHASE6_STATE" in str(exc_info.value)
+
+    def test_no_legacy_derivation_from_workflow_approved(self):
+        """NEGATIVE: Keine Legacy-Ableitung von workflow_approved.
+        
+        Nur phase6_state ist die kanonische Quelle für Substate-Auflösung.
+        """
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
+        
+        state = {"workflow_approved": True}
+        with pytest.raises(ValueError) as exc_info:
+            resolve_phase6_substate(state)
+        assert "MISSING_PHASE6_STATE" in str(exc_info.value)
 
 
 class TestPhaseRankWithSubstates:

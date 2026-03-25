@@ -838,32 +838,43 @@ def resolve_phase6_substate(state: Mapping[str, object]) -> str:
     - "6.rework"
     - "6.rejected"
     - "6.complete"
-    - "6" (unknown - no phase6_state field and no legacy indicators)
+    
+    Raises:
+        ValueError: If phase6_state field is missing or has invalid value.
     """
     phase6_state = state.get("phase6_state")
     
-    # CASE 1: Canonical value present (NEW sessions)
-    # Return directly - this is the preferred path for all new sessions
-    if phase6_state is not None:
-        phase6_state_str = str(phase6_state).strip().lower()
-        CANONICAL_STATES = {"6.internal_review", "6.presentation", "6.execution", 
-                           "6.approved", "6.blocked", "6.rework", 
-                           "6.rejected", "6.complete"}
-        if phase6_state_str in CANONICAL_STATES:
-            return phase6_state_str
-        
-        # CASE 2: Legacy value present (MIGRATING sessions)
-        # Accept old naming during transition, normalize to canonical
-        LEGACY_TO_CANONICAL = {
-            "phase6_completed": "6.complete",
-            "completed": "6.complete",
-            "phase6_changes_requested": "6.rework",
-            "phase6_in_progress": "6.execution",
-        }
-        if phase6_state_str in LEGACY_TO_CANONICAL:
-            return LEGACY_TO_CANONICAL[phase6_state_str]
+    if phase6_state is None:
+        raise ValueError(
+            "MISSING_PHASE6_STATE: Session state is missing 'phase6_state' field. "
+            "This field is now required. Sessions must be migrated to set phase6_state. "
+            "See PHASE12_RELEASE.md for migration instructions."
+        )
     
-    return "6"
+    phase6_state_str = str(phase6_state).strip().lower()
+    
+    # Canonical Phase 6 states (preferred)
+    CANONICAL_STATES = {"6.internal_review", "6.presentation", "6.execution", 
+                       "6.approved", "6.blocked", "6.rework", 
+                       "6.rejected", "6.complete"}
+    if phase6_state_str in CANONICAL_STATES:
+        return phase6_state_str
+    
+    # Legacy values from migrating sessions (normalize to canonical)
+    LEGACY_TO_CANONICAL = {
+        "phase6_completed": "6.complete",
+        "completed": "6.complete",
+        "phase6_changes_requested": "6.rework",
+        "phase6_in_progress": "6.execution",
+    }
+    if phase6_state_str in LEGACY_TO_CANONICAL:
+        return LEGACY_TO_CANONICAL[phase6_state_str]
+    
+    raise ValueError(
+        f"INVALID_PHASE6_STATE: Unknown phase6_state value '{phase6_state}'. "
+        f"Valid values: {sorted(CANONICAL_STATES)}. "
+        f"Legacy values {list(LEGACY_TO_CANONICAL.keys())} are no longer supported."
+    )
 
 
 def is_phase6_terminal(state: Mapping[str, object]) -> bool:

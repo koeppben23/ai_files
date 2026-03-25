@@ -1,198 +1,97 @@
 # Phase 11: Migration und Rollout (Operational Guidance)
 
-**Status:** Draft - Operational Guidance Only  
+**Status:** Updated 2026-03-25 - Legacy-Bridge entfernt  
 **Date:** 2026-03-25
 
-> **WARNUNG:** Dieses Dokument ist ein Rollout-Plan / operational guidance.
-> Es beschreibt den geplanten Migrationsprozess und ist NICHT
-> technisch vollständig im aktuellen Patch implementiert.
+> **WICHTIG:** Die Legacy-Bridge wurde vollständig entfernt.
+> Sessions ohne `phase6_state` werden **FAIL-CLOSED** behandelt.
+> Alle aktiven Sessions müssen vor dem Deployment migriert sein.
 
 ## 1. Ziel
 
-Geordnete Migration von Legacy-State-Machine zur neuen Architektur mit minimalem Risiko.
+Geordnete Migration von Legacy-State-Machine zur neuen Architektur.
 
-**Hinweis:** Die technische Implementierung (Bridge, Feature Flags) ist noch nicht vollständig
-im Code verankert. Dieses Dokument dient als Planungsgrundlage.
+**Wichtig:** Die Legacy-Bridge ist **ENTFERNT**. Das bedeutet:
+- Sessions ohne `phase6_state` werfen `ValueError`
+- Keine automatische Inferenz mehr
+- Alle Sessions müssen `phase6_state` setzen
 
 ## 2. Migrationsstrategien
 
-### 2.1 Big Bang vs Phased
+### 2.1 FAIL-CLOSED Verhalten
 
-| Strategie | Vorteil | Nachteil | Empfehlung |
-|-----------|----------|----------|------------|
-| Big Bang | Einfach, keine Dualität | Riskant, kein Rollback | ❌ |
-| Phased | Risiko verteilt, lernbar | Komplexer, Dualbetrieb | ✅ |
-
-**Entscheidung:** Phased Rollout mit Canary-Pattern
-
-### 2.2 Migrationspfade
-
-#### Legacy → Kanonisch Mapping
-
-| Legacy Indikator | Kanonischer Substate |
-|-----------------|----------------------|
-| `workflow_complete: true` | `6.complete` |
-| `user_review_decision: "reject"` | `6.rejected` |
-| `implementation_execution_status: "in_progress"` | `6.execution` |
-| `implementation_hard_blockers` | `6.blocked` |
-| `implementation_rework_clarification_pending: true` | `6.rework` |
-| `workflow_approved: true` | `6.approved` |
-| `phase6_evidence_presentation_gate_active: true` | `6.presentation` |
-| Default (Phase 6 aktiv) | `6.internal_review` |
-
-### 2.3 Session-Migration
-
-#### Automatische Migration (On-the-fly)
 ```
-Session loaded
-  → Prüfe phase6_state vorhanden?
-    → Ja: Nutze kanonischen Wert
-    → Nein: Lege phase6_state aus Legacy-Indikatoren ab
-      → Speichere phase6_state in Session
-      → Markiere Session als "migrated"
+resolve_phase6_substate(state):
+  ├── phase6_state present (canonical) → Return directly
+  ├── phase6_state present (legacy) → Normalize to canonical
+  └── phase6_state missing → ValueError("MISSING_PHASE6_STATE")
 ```
 
-#### Batch-Migration (für alte Sessions)
+### 2.2 Legacy-Werte (für laufende Migration)
+
+Diese alten `phase6_state` Werte werden noch akzeptiert und normalisiert:
+
+| Legacy Value | Kanonischer Substate |
+|-------------|----------------------|
+| `phase6_completed` | `6.complete` |
+| `phase6_changes_requested` | `6.rework` |
+| `phase6_in_progress` | `6.execution` |
+| `completed` | `6.complete` |
+
+### 2.3 Session-Migration (Batch)
+
 ```bash
 # Script zum Migrieren aller Sessions
 python scripts/migrate_phase6_sessions.py --all
 ```
 
-## 3. Rollout-Phasen
+**Erforderlich vor Deployment:** Alle aktiven Sessions müssen `phase6_state` gesetzt haben.
 
-### Phase 11.1: Canary (10% Traffic)
-- **Zeitraum:** Woche 1-2
-- **Ziel:** Validierung in Produktion mit kleinem Anteil
-- **Kriterien:**
-  - [ ] < 1% Fehlerrate
-  - [ ] Latenz < Schwellwert
-  - [ ] Keine Regression in Kernflüssen
+## 3. Deployment-Vorbereitung
 
-### Phase 11.2: Ramp-up (50% Traffic)
-- **Zeitraum:** Woche 3-4
-- **Ziel:** Stabilität bei größerem Anteil
-- **Kriterien:**
-  - [ ] < 0.5% Fehlerrate
-  - [ ] Golden Flows alle grün
-  - [ ] Keine neuen Edge Cases
+### Pre-Deployment Checkliste
 
-### Phase 11.3: Full Rollout (100% Traffic)
-- **Zeitraum:** Woche 5-6
-- **Ziel:** Vollständige Migration
-- **Kriterien:**
-  - [ ] 99.9% Sessions haben `phase6_state`
-  - [ ] Legacy-Bridge wird nicht mehr erreicht
-  - [ ] Legacy-Code kann deprecated werden
+- [ ] Alle Tests grün (6148+ Tests)
+- [ ] Batch-Migration aller aktiven Sessions abgeschlossen
+- [ ] Monitoring für `ValueError: MISSING_PHASE6_STATE` aktiv
+- [ ] Rollback-Prozedur dokumentiert
 
-## 4. Monitoring
+### Monitoring nach Deployment
 
-### 4.1 Key Metrics
+| Metric | Alert |
+|--------|-------|
+| Fehlerrate | > 1% |
+| MISSING_PHASE6_STATE errors | > 0 |
+| Latenz P99 | > Guardrail |
 
-| Metric | Ziel | Alert Threshold |
-|--------|------|-----------------|
-| Fehlerrate | < 1% | > 2% |
-| Latenz P99 | < Guardrail | > 1.5x Guardrail |
-| Bridge-Nutzung | < 10% | > 20% |
-| Unbekannte States | 0 | > 5 |
+## 4. Fehlerbehandlung
 
-### 4.2 Monitoring Dashboard
+### MISSING_PHASE6_STATE
 
 ```
-┌─────────────────────────────────────────────────┐
-│ Phase 6 Migration Monitor                       │
-├─────────────────────────────────────────────────┤
-│ Sessions mit phase6_state:     95.3%           │
-│ Sessions via Legacy-Bridge:    4.7% ⚠️        │
-│ Fehlerrate:                   0.3% ✅          │
-│ Latenz P99:                   45ms ✅          │
-└─────────────────────────────────────────────────┘
+Fehler: ValueError("MISSING_PHASE6_STATE: Session state is missing 'phase6_state' field.")
+Aktion: Session muss migriert werden
 ```
 
-### 4.3 Alerts
-
-- [ ] `alert: legacy_bridge_usage_high` - Bridge wird zu oft genutzt
-- [ ] `alert: phase6_transition_errors` - Fehler bei Transitionen
-- [ ] `alert: unknown_substate_detected` - Unbekannter Substate
-
-## 5. Rollback-Plan
-
-### 5.1 Trigger
-
-- [ ] Fehlerrate > 5%
-- [ ] Latenz > 3x Guardrail
-- [ ] Kritische Golden Flows fehlgeschlagen
-
-### 5.2 Rollback-Schritte
-
+**Migration durchführen:**
 ```bash
-# 1. Feature Flag deaktivieren
-kubectl set env deploy/governance GOVERNANCE_PHASE6_ENABLED=false
-
-# 2. Cache invalidieren
-redis-cli FLUSHDB patterns "*phase6*"
-
-# 3. Monitoren bis Stabilisierung
-# 4. Incident post-mortem
+python scripts/migrate_phase6_sessions.py --session-id=<id>
 ```
 
-## 6. Legacy-Bridge Retirement
+### INVALID_PHASE6_STATE
 
-### 6.1 Exit-Kriterien
+```
+Fehler: ValueError("INVALID_PHASE6_STATE: Unknown phase6_state value '...'")
+Aktion: Ungültigen Wert korrigieren
+```
 
-| Kriterium | Schwellwert |
-|-----------|-------------|
-| Bridge-Nutzung | < 1% |
-| Sessions ohne phase6_state | < 10 |
-| Tage seit Canary-Start | > 30 |
-
-### 6.2 Retirement-Schritte
-
-1. Bridge-Code mit `DEPRECATED` markieren
-2. Bridge-Code in separate Datei verschieben
-3. Unit-Tests für Bridge entfernen
-4. Bridge-Funktion löschen
-5. ADR-007 aktualisieren
-
-## 7. Kommunikation
-
-### 7.1 Internes Update
-
-- [ ] Team-Briefing vor Canary
-- [ ] Monitoring-Dashboard freigeben
-- [ ] Rollback-Prozedur kommunizieren
-
-### 7.2 Dokumentation
-
-- [ ] Runbook für Migration
-- [ ] Troubleshooting-Guide
-- [ ] FAQ für häufige Fragen
-
-## 8. Checkliste
+## 5. Checkliste
 
 ### Pre-Rollout
-- [ ] Alle Tests grün
-- [ ] Monitoring aktiv
-- [ ] Alerts konfiguriert
-- [ ] Rollback getestet
-- [ ] Team geschult
-
-### Während Rollout
-- [ ] Tägliches Monitoring-Review
-- [ ] Incidents dokumentieren
-- [ ] Lessons Learned sammeln
+- [x] Alle Tests grün
+- [ ] Batch-Migration aller Sessions
+- [ ] Monitoring konfiguriert
 
 ### Post-Rollout
-- [ ] Legacy-Bridge entfernt
-- [ ] Dokumentation aktualisiert
-- [ ] Post-mortem durchgeführt
-- [ ] Follow-up Tasks erstellt
-
-## 9. Timeline
-
-```
-Woche 1-2:   Canary (10%)
-Woche 3-4:   Ramp-up (50%)
-Woche 5-6:   Full Rollout (100%)
-Woche 7:     Legacy Bridge Retirement
-Woche 8:     Post-Mortem und Learnings
-```
+- [ ] Monitoring-Review nach 24h
+- [ ] Keine MISSING_PHASE6_STATE Fehler
