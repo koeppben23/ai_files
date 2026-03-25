@@ -25,12 +25,12 @@ from typing import Any
 # ID Format Patterns (strict, matching documented schema exactly)
 # ============================================================================
 
-# State IDs: alphanumeric with dots and hyphens (e.g., "0", "1.1", "3A", "3B-1")
-STATE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9.\-]*$")
+# State IDs: alphanumeric with dots, hyphens, and underscores (e.g., "0", "1.1", "3A", "3B-1", "6.internal_review")
+STATE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9.\-_]*$")
 
 # Transition IDs: t<source>-<target>[-<suffix>]
 # Strict pattern matching documented schema
-TRANSITION_ID_PATTERN = re.compile(r"^t[a-zA-Z0-9][a-zA-Z0-9.\-]*-[a-zA-Z0-9][a-zA-Z0-9.\-]*(-[a-zA-Z0-9]+)*$")
+TRANSITION_ID_PATTERN = re.compile(r"^t[a-zA-Z0-9][a-zA-Z0-9.\-_]*-[a-zA-Z0-9][a-zA-Z0-9.\-_]*(-[a-zA-Z0-9]+)*$")
 
 # Event names: lowercase with underscores
 EVENT_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -434,7 +434,11 @@ class TestTopologyReachability:
     """Topologie-Erreichbarkeit."""
 
     def test_all_states_reachable_from_start(self, topology, state_ids):
-        """Happy: Alle States sind vom Start-State erreichbar."""
+        """Happy: Alle States sind vom Start-State erreichbar.
+        
+        Note: Container states (like '6') that serve as delegation entry points
+        may not be directly reachable - they are reached via their first substate.
+        """
         start = topology["start_state_id"]
         reachable = set()
         to_visit = [start]
@@ -453,37 +457,81 @@ class TestTopologyReachability:
                 if t["target"] not in reachable:
                     to_visit.append(t["target"])
         
-        unreachable = state_ids - reachable
+        # Container states that delegate to substates are not directly reachable
+        # They are entered via their first substate
+        container_states = {"6"}  # Add other container states as needed
+        
+        unreachable = (state_ids - reachable) - container_states
         assert not unreachable, f"Unreachable states: {unreachable}"
 
 
 @pytest.mark.governance
-class TestPhase6Monolith:
-    """Phase 6 Monolith-Struktur (vor Zerlegung)."""
+class TestPhase6Substates:
+    """Phase 6 Substates Architecture (per ADR-003)."""
 
-    def test_phase6_exists(self, topology, state_ids):
-        """Happy: Phase 6 State existiert."""
+    def test_phase6_container_exists(self, topology, state_ids):
+        """Happy: Phase 6 Container State existiert."""
         assert "6" in state_ids
 
     def test_phase6_is_not_terminal(self, topology):
-        """Phase 6 ist nicht terminal (noch im Monolith)."""
+        """Phase 6 Container ist nicht terminal."""
         phase6 = next(s for s in topology["states"] if s["id"] == "6")
         assert phase6["terminal"] is False
 
-    def test_phase6_has_many_transitions(self, topology):
-        """Corner: Phase 6 hat viele Self-Transitions (monolithisch)."""
+    def test_phase6_has_entry_transition(self, topology):
+        """Happy: Phase 6 Container hat default-Transition zu erstem Substate."""
         phase6 = next(s for s in topology["states"] if s["id"] == "6")
-        transitions = phase6.get("transitions", [])
-        assert len(transitions) >= 10, \
-            f"Expected 10+ transitions for Phase 6, got {len(transitions)}"
+        default_transitions = [t for t in phase6.get("transitions", []) if t["event"] == "default"]
+        assert len(default_transitions) == 1, "Phase 6 container must have exactly one default transition"
+        # Should target first substate (internal_review)
+        assert "6.internal_review" in default_transitions[0]["target"], \
+            "Phase 6 container should target 6.internal_review by default"
 
-    def test_phase6_self_transitions_target_itself_or_phase4(self, topology):
-        """Happy: Phase 6 Self-Transitions zielen auf '6' oder '4' (rejection)."""
-        phase6 = next(s for s in topology["states"] if s["id"] == "6")
-        valid_targets = {"6", "4"}
-        for t in phase6.get("transitions", []):
-            assert t["target"] in valid_targets, \
-                f"Phase 6 transition {t['event']} targets {t['target']}, expected one of {valid_targets}"
+    def test_all_phase6_substates_have_parent(self, topology):
+        """Happy: Alle Phase 6 Substates haben parent='6'."""
+        substates = ["6.internal_review", "6.presentation", "6.execution", 
+                     "6.approved", "6.blocked", "6.rework", "6.rejected", "6.complete"]
+        for substate_id in substates:
+            state = next((s for s in topology["states"] if s["id"] == substate_id), None)
+            if state:
+                assert state.get("parent") == "6", \
+                    f"Substate {substate_id} must have parent='6'"
+
+    def test_phase6_substates_form_valid_graph(self, topology):
+        """Happy: Phase 6 Substates bilden einen gültigen Graphen."""
+        # Map state ID to transitions
+        transitions_map = {}
+        for state in topology["states"]:
+            transitions_map[state["id"]] = [t["target"] for t in state.get("transitions", [])]
+        
+        # Check reachability from 6.internal_review
+        reachable = set()
+        to_visit = ["6.internal_review"]
+        while to_visit:
+            current = to_visit.pop()
+            if current in reachable or current not in transitions_map:
+                continue
+            reachable.add(current)
+            to_visit.extend(transitions_map.get(current, []))
+        
+        # All substates should be reachable
+        substates = {"6.internal_review", "6.presentation", "6.execution", 
+                     "6.approved", "6.blocked", "6.rework"}
+        unreachable = substates - reachable
+        assert not unreachable, f"Phase 6 substates not reachable: {unreachable}"
+
+    def test_phase6_complete_is_terminal(self, topology):
+        """Happy: 6.complete ist terminal."""
+        complete = next((s for s in topology["states"] if s["id"] == "6.complete"), None)
+        assert complete is not None, "6.complete state must exist"
+        assert complete["terminal"] is True, "6.complete must be terminal"
+
+    def test_phase6_rejected_returns_to_phase4(self, topology):
+        """Happy: 6.rejected hat Transition zu Phase 4."""
+        rejected = next((s for s in topology["states"] if s["id"] == "6.rejected"), None)
+        assert rejected is not None, "6.rejected state must exist"
+        targets = [t["target"] for t in rejected.get("transitions", [])]
+        assert "4" in targets, "6.rejected must have transition to Phase 4"
 
 
 @pytest.mark.governance

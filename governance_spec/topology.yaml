@@ -124,9 +124,9 @@ states:
       - id: "t5.3-t5.6"
         event: rollback_required
         target: "5.6"
-      - id: "t5.3-t6"
+      - id: "t5.3-t6.internal_review"
         event: default
-        target: "6"
+        target: "6.internal_review"
 
   - id: "5.4"
     terminal: false
@@ -137,9 +137,9 @@ states:
       - id: "t5.4-t5.6"
         event: rollback_required
         target: "5.6"
-      - id: "t5.4-t6"
+      - id: "t5.4-t6.internal_review"
         event: default
-        target: "6"
+        target: "6.internal_review"
 
   - id: "5.5"
     terminal: false
@@ -147,56 +147,123 @@ states:
       - id: "t5.5-t5.6"
         event: rollback_required
         target: "5.6"
-      - id: "t5.5-t6"
+      - id: "t5.5-t6.internal_review"
         event: default
-        target: "6"
+        target: "6.internal_review"
 
   - id: "5.6"
     terminal: false
     transitions:
-      - id: "t5.6-t6"
+      - id: "t5.6-t6.internal_review"
         event: default
-        target: "6"
+        target: "6.internal_review"
+
+  - id: "6.internal_review"
+    terminal: false
+    parent: "6"
+    transitions:
+      - id: "t6.internal_review-t6.internal_review-pending"
+        event: implementation_review_pending
+        target: "6.internal_review"
+      - id: "t6.internal_review-t6.presentation"
+        event: implementation_review_complete
+        target: "6.presentation"
+      - id: "t6.internal_review-t6.internal_review-default"
+        event: default
+        target: "6.internal_review"
+
+  - id: "6.presentation"
+    terminal: false
+    parent: "6"
+    transitions:
+      - id: "t6.presentation-t6.approved"
+        event: workflow_approved
+        target: "6.approved"
+      - id: "t6.presentation-t6.execution"
+        event: implementation_presentation_ready
+        target: "6.execution"
+      - id: "t6.presentation-t6.rework"
+        event: review_changes_requested
+        target: "6.rework"
+      - id: "t6.presentation-t6.rejected"
+        event: review_rejected
+        target: "6.rejected"
+      - id: "t6.presentation-t4"
+        event: workflow_rejected
+        target: "4"
+      - id: "t6.presentation-t6.presentation-clarification"
+        event: rework_clarification_pending
+        target: "6.presentation"
+      - id: "t6.presentation-t6.presentation-default"
+        event: default
+        target: "6.presentation"
+
+  - id: "6.execution"
+    terminal: false
+    parent: "6"
+    transitions:
+      - id: "t6.execution-t6.execution-in-progress"
+        event: implementation_execution_in_progress
+        target: "6.execution"
+      - id: "t6.execution-t6.internal_review"
+        event: implementation_accepted
+        target: "6.internal_review"
+      - id: "t6.execution-t6.blocked"
+        event: implementation_blocked
+        target: "6.blocked"
+      - id: "t6.execution-t6.rework"
+        event: implementation_rework_clarification_pending
+        target: "6.rework"
+      - id: "t6.execution-t6.execution-started"
+        event: implementation_started
+        target: "6.execution"
+      - id: "t6.execution-t6.execution-default"
+        event: default
+        target: "6.execution"
+
+  - id: "6.approved"
+    terminal: false
+    parent: "6"
+    transitions:
+      - id: "t6.approved-t6.execution"
+        event: default
+        target: "6.execution"
+      - id: "t6.approved-t6.complete"
+        event: workflow_complete
+        target: "6.complete"
+
+  - id: "6.blocked"
+    terminal: false
+    parent: "6"
+    transitions:
+      - id: "t6.blocked-t6.execution"
+        event: default
+        target: "6.execution"
+
+  - id: "6.rework"
+    terminal: false
+    parent: "6"
+    transitions:
+      - id: "t6.rework-t6.presentation"
+        event: default
+        target: "6.presentation"
+
+  - id: "6.rejected"
+    terminal: false
+    parent: "6"
+    transitions:
+      - id: "t6.rejected-t4"
+        event: default
+        target: "4"
+
+  - id: "6.complete"
+    terminal: true
+    parent: "6"
+    transitions: []
 
   - id: "6"
     terminal: false
     transitions:
-      - id: "t6-t6-accepted"
-        event: implementation_accepted
-        target: "6"
-      - id: "t6-t6-blocked"
-        event: implementation_blocked
-        target: "6"
-      - id: "t6-t6-rework"
-        event: implementation_rework_clarification_pending
-        target: "6"
-      - id: "t6-t6-presentation"
-        event: implementation_presentation_ready
-        target: "6"
-      - id: "t6-t6-execution"
-        event: implementation_execution_in_progress
-        target: "6"
-      - id: "t6-t6-started"
-        event: implementation_started
-        target: "6"
-      - id: "t6-t6-approved"
-        event: workflow_approved
-        target: "6"
-      - id: "t6-t6-changes"
-        event: review_changes_requested
-        target: "6"
-      - id: "t6-t6-clarification"
-        event: rework_clarification_pending
-        target: "6"
-      - id: "t6-t4"
-        event: review_rejected
-        target: "4"
-      - id: "t6-t6-review-pending"
-        event: implementation_review_pending
-        target: "6"
-      - id: "t6-t6-evidence"
-        event: implementation_review_complete
-        target: "6"
-      - id: "t6-t6-default"
+      - id: "t6-t6.internal_review"
         event: default
-        target: "6"
+        target: "6.internal_review"
