@@ -77,6 +77,8 @@ governance_spec/
 | 6.approved → workflow_complete → 6.complete | EDGE CASE | ✅ |
 | 6.rejected → default → 4 | TRANSITIONAL | ✅ |
 | /implement produziert `implementation_started` | KANONISCH | ✅ |
+| /implement in 4 States (Start/Continue/Retry) | SEMANTISCH BREIT | ⚠️ |
+| Messages teilweise instruktional | HYGIENE | ⚠️ |
 
 ---
 
@@ -163,6 +165,43 @@ Diese Zustände haben die höchste Drift-Gefahr:
 - 6.rework: Wann ist Clarification abgeschlossen?
 
 **Follow-up:** Nach Release beobachten.
+
+### 5.4 /implement Command - SEMANTISCH BREIT
+
+**Status:** ACKNOWLEDGED DESIGN CHOICE
+
+`/implement` ist erlaubt in:
+- 6.approved (Start)
+- 6.execution (Continue)
+- 6.blocked (Rerun nach Blockade)
+- 6.rework (Rerun nach Rework)
+
+**Problem:** Ein Command für vier semantisch unterschiedliche Aktionen.
+
+**Warum akzeptiert:**
+- Praktisch für Benutzer
+- Alle Aktionen resultieren in `implementation_started` Event
+- Guards prüfen Preconditions
+
+**Follow-up:** Bei späterem Cleanup expliziter trennen:
+- `/implement` = Start
+- `/continue` oder Systemevent = Resume/Retry
+
+### 5.5 Messages - TEILWEISE INSTRUKTIONAL
+
+**Status:** HYGIENE ISSUE
+
+Messages enthalten teilweise instruktionale Texte:
+- "resolve blockers and rerun /implement"
+- "rerun /implement after clarifying"
+
+**Problem:** Messages werden mehr als Präsentation + halbe Prozesswahrheit.
+
+**Warum akzeptiert:**
+- Conformance-Tests prüfen Command-Valdität
+- Messages sind formal getrennt
+
+**Follow-up:** Messages weiter auf Presentation-only trimmen.
 
 ### Migration Mapping
 
