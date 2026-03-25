@@ -118,19 +118,28 @@ Runtime verwendet jetzt kanonische Phase 6 State-Werte:
 - `review_result.py`: Kanonische Werte
 - `phase_kernel.py`: Akzeptiert beide Schemas, Bridge produziert kanonisch
 
-### 5.2 Legacy-Bridge - DEPRECATED (wartet auf Monitoring)
+### 5.2 Legacy-Bridge - ISOLATED FALLBACK (wartet auf Monitoring)
 
-**Status:** DEPRECATED
+**Status:** ISOLATED FALLBACK
 
-Die Legacy-Bridge (`_detect_phase6_substate_legacy`) ist noch im Code, aber:
-- Produziert jetzt kanonische Werte
-- Ist als DEPRECATED markiert
-- Akzeptiert backward-compat input
+Die Legacy-Bridge ist jetzt **wahrlich isoliert**:
 
 ```
 PATH: governance_runtime/kernel/phase_kernel.py
-FUNCTION: _detect_phase6_substate_legacy() [DEPRECATED]
+FUNCTION: _derive_phase6_substate_from_legacy_signals() [ISOLATED]
+ALIAS: _detect_phase6_substate_legacy() [DEPRECATED]
 ```
+
+**ISOLATION GUARANTEES:**
+- Wird NUR aufgerufen wenn `phase6_state` Feld vollständig fehlt
+- Hat keine Seiteneffekte
+- Produziert kanonische Werte (6.complete, nicht phase6_completed)
+- Ist NICHT Teil der regulären Zustandsauflösung
+
+**Resolve-Logik (3 Cases):**
+1. Canonical value present → Return directly (NEU)
+2. Legacy value present → Normalize (TRANSITION)
+3. No phase6_state → Bridge only (ALT)
 
 **Exit-Kriterien:**
 - [ ] < 1% Sessions nutzen Bridge

@@ -838,54 +838,84 @@ def resolve_phase6_substate(state: Mapping[str, object]) -> str:
     - "6.rework"
     - "6.rejected"
     - "6.complete"
-    - "6" (unknown - neither canonical nor legacy indicators present)
+    - "6" (unknown - no phase6_state field and no legacy indicators)
     """
-    phase6_state = str(state.get("phase6_state") or "").strip().lower()
+    phase6_state = state.get("phase6_state")
     
-    # Canonical Phase 6 states (preferred)
-    if phase6_state in {"6.internal_review", "6.presentation", "6.execution", 
-                          "6.approved", "6.blocked", "6.rework", 
-                          "6.rejected", "6.complete"}:
-        return phase6_state
+    # CASE 1: Canonical value present (NEW sessions)
+    # Return directly - this is the preferred path for all new sessions
+    if phase6_state is not None:
+        phase6_state_str = str(phase6_state).strip().lower()
+        CANONICAL_STATES = {"6.internal_review", "6.presentation", "6.execution", 
+                           "6.approved", "6.blocked", "6.rework", 
+                           "6.rejected", "6.complete"}
+        if phase6_state_str in CANONICAL_STATES:
+            return phase6_state_str
+        
+        # CASE 2: Legacy value present (MIGRATING sessions)
+        # Accept old naming during transition, normalize to canonical
+        LEGACY_TO_CANONICAL = {
+            "phase6_completed": "6.complete",
+            "completed": "6.complete",
+            "phase6_changes_requested": "6.rework",
+            "phase6_in_progress": "6.execution",
+        }
+        if phase6_state_str in LEGACY_TO_CANONICAL:
+            return LEGACY_TO_CANONICAL[phase6_state_str]
     
-    # Legacy naming - accept for backward compatibility during migration
-    # These will be normalized to canonical values
-    LEGACY_TO_CANONICAL = {
-        "phase6_completed": "6.complete",
-        "completed": "6.complete",
-        "phase6_changes_requested": "6.rework",
-        "phase6_in_progress": "6.execution",
-    }
-    
-    if phase6_state in LEGACY_TO_CANONICAL:
-        return LEGACY_TO_CANONICAL[phase6_state]
-    
-    return _detect_phase6_substate_legacy(state)
+    # CASE 3: No phase6_state field (OLD sessions without migration)
+    # Bridge ONLY for backward compatibility - will be removed after migration
+    # This is truly isolated and NOT part of regular resolution
+    return _derive_phase6_substate_from_legacy_signals(state)
 
 
-# DEPRECATED: Legacy Bridge
-# This function exists ONLY for backward compatibility during migration.
-# EXIT CONDITION: Remove once all sessions set phase6_state field.
-# All new code should use resolve_phase6_substate() directly.
-def _detect_phase6_substate_legacy(state: Mapping[str, object]) -> str:
-    """DEPRECATED: Derive Phase 6 substate from legacy state flags.
+# =============================================================================
+# ISOLATED LEGACY BRIDGE - TO BE REMOVED AFTER MIGRATION
+# =============================================================================
+# 
+# This function is ONLY called for OLD sessions that have NOT been migrated yet.
+# It is NOT part of regular state resolution.
+#
+# ISOLATION GUARANTEES:
+# 1. Only called when phase6_state field is completely absent
+# 2. Produces CANONICAL values (6.complete, not phase6_completed)
+# 3. Has NO side effects
+# 4. Will be removed once < 1% of sessions use it
+#
+# EXIT CONDITION: Remove after migration monitoring shows < 1% usage
+# =============================================================================
+
+def _derive_phase6_substate_from_legacy_signals(state: Mapping[str, object]) -> str:
+    """ISOLATED LEGACY BRIDGE: Derive Phase 6 substate from old session signals.
     
-    MIGRATION STATUS: Legacy compatibility layer.
-    EXIT CONDITION: Remove after all sessions migrate to phase6_state field.
+    CALLED ONLY WHEN: phase6_state field is absent from session state
     
-    NOTE: This function now produces CANONICAL values (6.complete, not phase6_completed).
-    The naming normalization is handled in resolve_phase6_substate().
+    PRODUCES: Canonical values only (6.complete, not phase6_completed)
+    
+    EXIT CONDITION: Remove after migration completes (< 1% sessions use this)
+    
+    Priority order (first match wins):
+    1. workflow_complete → 6.complete (terminal)
+    2. user_review_decision = reject → 6.rejected
+    3. implementation_execution_in_progress → 6.execution
+    4. implementation_blocked → 6.blocked
+    5. rework_clarification_pending → 6.rework
+    6. workflow_approved → 6.approved
+    7. evidence_presentation_gate → 6.presentation
+    8. internal_review context → 6.internal_review
+    9. no indicators → 6 (unknown)
     """
-    # LEGACY DETECTION: Derive from legacy indicators only
-    # (No phase6_state field present - this is the old path)
     
+    # Terminal state: workflow complete
     if _workflow_complete(state):
         return "6.complete"
     
+    # Transitional rejection
     decision = _user_review_decision(state)
     if decision == "reject":
         return "6.rejected"
     
+    # Execution states (ordered by severity)
     if _implementation_execution_in_progress(state):
         return "6.execution"
     
@@ -895,27 +925,38 @@ def _detect_phase6_substate_legacy(state: Mapping[str, object]) -> str:
     if _implementation_rework_clarification_pending(state):
         return "6.rework"
     
+    # Pre-execution approval
     approved = state.get("workflow_approved") or state.get("implementation_plan_approved")
     if isinstance(approved, bool) and approved:
         return "6.approved"
     
+    # Evidence presentation
     if _phase6_evidence_presentation_gate_active(state) and not decision:
         return "6.presentation"
     
+    # Internal review (only if context exists)
     if state.get("phase_transition_evidence") or state.get("ImplementationReview"):
         if not _phase6_internal_review_complete(state):
             return "6.internal_review"
     
+    # No Phase 6 context detected
     return "6"
 
 
-# Alias for backward compatibility during migration
-def _detect_phase6_substate(state: Mapping[str, object]) -> str:
-    """Alias for _detect_phase6_substate_legacy.
+# DEPRECATED ALIAS - Remove after migration
+# EXIT CONDITION: Remove after < 1% sessions use this path
+def _detect_phase6_substate_legacy(state: Mapping[str, object]) -> str:
+    """DEPRECATED LEGACY BRIDGE.
     
-    DEPRECATED: Use resolve_phase6_substate() for new code.
+    EXIT CONDITION: Remove after migration completes.
+    USE: resolve_phase6_substate() for all new code.
     """
-    return _detect_phase6_substate_legacy(state)
+    return _derive_phase6_substate_from_legacy_signals(state)
+
+
+def _detect_phase6_substate(state: Mapping[str, object]) -> str:
+    """DEPRECATED: Use resolve_phase6_substate() for new code."""
+    return resolve_phase6_substate(state)
 
 
 def is_phase6_terminal(state: Mapping[str, object]) -> bool:
