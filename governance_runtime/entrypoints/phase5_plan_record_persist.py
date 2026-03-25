@@ -573,77 +573,102 @@ def _structured_plan_to_markdown(plan: dict[str, object]) -> str:
     """
     lines: list[str] = []
 
+    def _add_text_section(title: str, value: object) -> None:
+        text = str(value or "").strip()
+        if not text:
+            return
+        lines.append(f"## {title}")
+        lines.append(text)
+        lines.append("")
+
+    def _add_list_section(title: str, values: object) -> None:
+        if not isinstance(values, list):
+            return
+        compact = [str(item).strip() for item in values if str(item).strip()]
+        if not compact:
+            return
+        lines.append(f"## {title}")
+        for item in compact:
+            lines.append(f"- {item}")
+        lines.append("")
+
     presentation = plan.get("presentation_contract")
     if isinstance(presentation, Mapping):
         title = str(presentation.get("title") or PHASE5_PRESENTATION_TITLE).strip()
         badge = str(presentation.get("plan_status_badge") or "PLAN (not implemented)").strip()
         decision = str(presentation.get("decision_required") or "").strip()
-        lines.append(f"# {title}\n")
-        lines.append(f"{badge}\n")
-        if decision:
-            lines.append(f"## Decision Required\n{decision}\n")
+        lines.append(f"# {title}")
+        lines.append(badge)
+        lines.append("")
+        _add_text_section("Decision Required", decision)
+        _add_list_section("Executive Summary", presentation.get("executive_summary"))
+        _add_text_section("What Changed Since Last Review", presentation.get("delta_since_last_review"))
+        _add_text_section("Scope", presentation.get("scope"))
+        _add_list_section("Execution Slices", presentation.get("execution_slices"))
+        _add_list_section("Risks & Mitigations", presentation.get("risks_and_mitigations"))
+        _add_text_section("Release Gates", presentation.get("release_gates"))
+        _add_list_section("Open Decisions", presentation.get("open_decisions"))
+        _add_list_section("Next Actions", presentation.get("next_actions"))
+
+    # Keep legacy technical fields as appendix for compatibility with
+    # existing compilation/review machinery while keeping decision-brief
+    # sections as primary user surface.
+    lines.append("## Technical Appendix")
+    lines.append("")
 
     objective = str(plan.get("objective", "")).strip()
     if objective:
-        lines.append(f"# Plan Objective\n{objective}\n")
+        lines.append(f"### Plan Objective\n{objective}\n")
 
     target_state = str(plan.get("target_state", "")).strip()
     if target_state:
-        lines.append(f"## Target State\n{target_state}\n")
+        lines.append(f"### Target-State\n{target_state}\n")
 
     target_flow = str(plan.get("target_flow", "")).strip()
     if target_flow:
-        lines.append(f"## Target Flow\n{target_flow}\n")
+        lines.append(f"### Target-Flow\n{target_flow}\n")
 
     state_machine = str(plan.get("state_machine", "")).strip()
     if state_machine:
-        lines.append(f"## State Machine\n{state_machine}\n")
+        lines.append(f"### State-Machine\n{state_machine}\n")
 
     blocker_taxonomy = str(plan.get("blocker_taxonomy", "")).strip()
     if blocker_taxonomy:
-        lines.append(f"## Blocker Taxonomy\n{blocker_taxonomy}\n")
+        lines.append(f"### Blocker-Taxonomy\n{blocker_taxonomy}\n")
 
     audit = str(plan.get("audit", "")).strip()
     if audit:
-        lines.append(f"## Audit\n{audit}\n")
+        lines.append(f"### Audit\n{audit}\n")
 
     go_no_go = str(plan.get("go_no_go", "")).strip()
     if go_no_go:
-        lines.append(f"## Go/No-Go\n{go_no_go}\n")
+        lines.append(f"### Go/No-Go\n{go_no_go}\n")
 
     test_strategy = str(plan.get("test_strategy", "")).strip()
     if test_strategy:
-        lines.append(f"## Test Strategy\n{test_strategy}\n")
+        lines.append(f"### Test Strategy\n{test_strategy}\n")
 
     assumptions = str(plan.get("assumptions", "")).strip()
     if assumptions:
-        lines.append(f"## Assumptions\n{assumptions}\n")
+        lines.append(f"### Assumptions\n{assumptions}\n")
 
     risks = str(plan.get("risks", "")).strip()
     if risks:
-        lines.append(f"## Risks\n{risks}\n")
+        lines.append(f"### Risks\n{risks}\n")
 
     non_goals = str(plan.get("non_goals", "")).strip()
     if non_goals:
-        lines.append(f"## Non-Goals\n{non_goals}\n")
+        lines.append(f"### Non-Goals\n{non_goals}\n")
 
     open_questions = str(plan.get("open_questions", "")).strip()
     if open_questions:
-        lines.append(f"## Open Questions\n{open_questions}\n")
+        lines.append(f"### Open Questions\n{open_questions}\n")
 
     reason_code = str(plan.get("reason_code", "")).strip()
     if reason_code:
-        lines.append(f"## Reason Code\n{reason_code}\n")
+        lines.append(f"### Reason Code\n{reason_code}\n")
 
-    if isinstance(presentation, Mapping):
-        next_actions = presentation.get("next_actions")
-        if isinstance(next_actions, list) and next_actions:
-            lines.append("## Next Actions")
-            for action in next_actions:
-                lines.append(f"- {str(action)}")
-            lines.append("")
-
-    return "\n".join(lines)
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _call_llm_review(

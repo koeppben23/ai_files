@@ -762,10 +762,23 @@ class TestPlanGeneration:
         plan_text = result["plan_text"]
         assert "PHASE 5 · PLAN FOR APPROVAL" in plan_text
         assert "PLAN (not implemented)" in plan_text
-        assert "Target State" in plan_text
-        assert "Target Flow" in plan_text
-        assert "Go/No-Go" in plan_text
+        assert "## Executive Summary" in plan_text
+        assert "## What Changed Since Last Review" in plan_text
+        assert "## Scope" in plan_text
+        assert "## Execution Slices" in plan_text
+        assert "## Risks & Mitigations" in plan_text
+        assert "## Release Gates" in plan_text
+        assert "## Open Decisions" in plan_text
+        assert "## Next Actions" in plan_text
+        assert "## Technical Appendix" in plan_text
+        assert "### Target-State" in plan_text
+        assert "### Target-Flow" in plan_text
+        assert "### Go/No-Go" in plan_text
         assert "/review-decision approve" in plan_text
+
+        # Decision-brief blocks must appear before technical appendix.
+        assert plan_text.index("## Executive Summary") < plan_text.index("## Technical Appendix")
+        assert plan_text.index("## Next Actions") < plan_text.index("## Technical Appendix")
 
     def test_blocks_when_llm_plan_text_is_non_english(self, monkeypatch: pytest.MonkeyPatch):
         module = _load_module()
@@ -808,6 +821,7 @@ class TestPlanGeneration:
             "/review-decision changes_requested",
             "/review-decision reject",
         ]
+        assert "## What Changed Since Last Review\nUpdated since last review iteration." in str(parsed["plan_text"])
 
     def test_plan_text_next_actions_block_contains_only_review_decision_commands(self, monkeypatch: pytest.MonkeyPatch):
         module = _load_module()

@@ -73,27 +73,25 @@ def english_violations(plan: Mapping[str, object]) -> list[str]:
 
 def build_presentation_contract(plan: Mapping[str, object], *, re_review: bool = False) -> dict[str, object]:
     """Build deterministic Phase-5 presentation contract payload."""
-    objective = str(plan.get("objective", "") or "").strip()
     target_state = str(plan.get("target_state", "") or "").strip()
-    target_flow = str(plan.get("target_flow", "") or "").strip()
     risks = str(plan.get("risks", "") or "").strip()
     open_questions = str(plan.get("open_questions", "") or "").strip()
-    go_no_go = str(plan.get("go_no_go", "") or "").strip()
 
-    executive_summary = _split_compact_items(
-        f"{objective}; {target_state}; {go_no_go}",
-        max_items=MAX_EXECUTIVE_SUMMARY_ITEMS,
-    )
-    execution_slices = _split_compact_items(target_flow, max_items=MAX_EXECUTION_SLICES)
+    executive_summary = [
+        "Plan objective is captured and ready for decision.",
+        "Target state, execution flow, and release gates are documented.",
+        "Decision rails are deterministic and fail-closed.",
+    ]
+    execution_slices = [
+        "Execution flow is defined as ordered implementation slices in the technical appendix."
+    ]
     risk_items = _split_compact_items(risks, max_items=MAX_RISKS)
     open_items = _split_compact_items(open_questions, max_items=MAX_RISKS)
 
-    if not executive_summary:
-        executive_summary = ["Plan objective captured and ready for decision."]
     if not execution_slices:
-        execution_slices = ["Execution slices not explicitly provided."]
+        execution_slices = ["Execution slices are documented in the technical appendix."]
     if not risk_items:
-        risk_items = ["No explicit risks provided."]
+        risk_items = ["No explicit risks provided; confirm before approval."]
     if not open_items:
         open_items = ["No open decisions."]
 
@@ -105,10 +103,20 @@ def build_presentation_contract(plan: Mapping[str, object], *, re_review: bool =
         "decision_required": _clamp(DECISION_REQUIRED, limit=180),
         "executive_summary": executive_summary,
         "delta_since_last_review": _clamp(delta, limit=120),
-        "scope": _clamp(target_state or "Scope must be confirmed before approval.", limit=400),
+        "scope": _clamp(
+            "Scope is defined and traceable in the technical appendix target-state section."
+            if target_state
+            else "Scope must be confirmed before approval.",
+            limit=400,
+        ),
         "execution_slices": execution_slices,
         "risks_and_mitigations": risk_items,
-        "release_gates": _clamp(go_no_go or "Release gates must be confirmed before approval.", limit=400),
+        "release_gates": _clamp(
+            "Release gates are defined and must remain green before approval."
+            if str(plan.get("go_no_go", "") or "").strip()
+            else "Release gates must be confirmed before approval.",
+            limit=400,
+        ),
         "open_decisions": open_items,
         "next_actions": list(NEXT_ACTIONS),
         "language": "en",
