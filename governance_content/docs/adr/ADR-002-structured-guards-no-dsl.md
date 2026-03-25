@@ -66,3 +66,27 @@ g.example:
 | String-DSL | Zu komplexe Fehlerbehandlung, schwer zu debuggen |
 | Nur guard_ref → Python | Keine Struktur in YAML, schwer zu validieren |
 | Gemischt (DSL + Python) | Zwei Semantiken, konsistenz-riskant |
+
+## Addendum (WP4/WP5)
+
+Die Runtime nutzt Guards evaluator-first:
+
+- Phase-6 topology-authoritativer Pfad: GuardEvaluator bestimmt das Event, Topology den Zielzustand.
+- Nicht-Phase-6 Pfad: GuardEvaluator zuerst, dann eng begrenzter Legacy-Restpfad.
+
+Aktueller Legacy-Restpfad ist absichtlich minimal und explizit allowlist-basiert:
+
+- `implementation_presentation_ready`
+
+Zusätzlich sichern Architekturtests die Abdeckung:
+
+- `test_all_phase_api_transition_events_are_guarded_or_explicit_legacy`
+- `test_phase6_topology_events_are_guarded_or_default`
+- `test_execute_non_allowlisted_legacy_event_does_not_bypass_default`
+
+Restschuld (explizit):
+
+- Der Legacy-Restpfad `implementation_presentation_ready` bleibt bewusst allowlisted,
+  bis die verbleibende Übergangssemantik vollständig in `guards.yaml` modelliert ist.
+
+Damit wird Doppelwahrheit reduziert und neue nicht-modellierte Guard-Events werden fail-safe blockiert, statt still im Legacy-Pfad zu laufen.

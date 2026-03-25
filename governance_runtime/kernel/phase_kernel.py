@@ -911,6 +911,9 @@ def _legacy_transition_guard_passes(
     return False
 
 
+LEGACY_TRANSITION_GUARD_EVENTS = frozenset({"implementation_presentation_ready"})
+
+
 def _transition_guard_passes(
     event: str,
     *,
@@ -928,6 +931,9 @@ def _transition_guard_passes(
 
     if GuardEvaluator.has_transition_guard(event):
         return GuardEvaluator.evaluate_event(event, guard_state)
+
+    if event not in LEGACY_TRANSITION_GUARD_EVENTS:
+        return False
 
     try:
         return _legacy_transition_guard_passes(

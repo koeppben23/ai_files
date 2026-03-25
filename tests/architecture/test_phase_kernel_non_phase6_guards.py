@@ -182,3 +182,59 @@ def test_execute_non_phase6_guard_evaluator_error_is_visible(tmp_path, monkeypat
             runtime_ctx=_runtime_ctx(tmp_path),
             readonly=True,
         )
+
+
+def test_execute_non_allowlisted_legacy_event_does_not_bypass_default(tmp_path, monkeypatch):
+    """execute(): non-allowlisted legacy events must not bypass default path."""
+    spec = PhaseApiSpec(
+        path=tmp_path / "phase_api.yaml",
+        sha256="fake",
+        stable_hash="fake",
+        loaded_at="now",
+        start_token="5",
+        entries={
+            "5": PhaseSpecEntry(
+                token="5",
+                phase="5-ArchitectureReview",
+                active_gate="Plan Record Preparation Gate",
+                next_gate_condition="Create plan",
+                next_token="5",
+                route_strategy="stay",
+                transitions=(
+                    TransitionRule(when="plan_record_present", next_token="5.3", source="phase-5-architecture-review-ready"),
+                    TransitionRule(when="default", next_token="5", source="phase-5-plan-record-prep-default"),
+                ),
+                exit_required_keys=(),
+            ),
+            "5.3": PhaseSpecEntry(
+                token="5.3",
+                phase="5.3-TestQuality",
+                active_gate="Test Quality Gate",
+                next_gate_condition="Continue",
+                next_token="5.4",
+                route_strategy="next",
+                transitions=(),
+                exit_required_keys=(),
+            ),
+        },
+    )
+
+    _patch_common(monkeypatch, tmp_path, spec)
+    monkeypatch.setattr(GuardEvaluator, "has_transition_guard", staticmethod(lambda _event: False))
+
+    result = execute(
+        current_token="5",
+        session_state_doc={
+            "SESSION_STATE": {
+                "Phase": "5-ArchitectureReview",
+                "phase_transition_evidence": True,
+                "plan_record_versions": 1,
+            }
+        },
+        runtime_ctx=_runtime_ctx(tmp_path),
+        readonly=True,
+    )
+
+    # plan_record_present is no longer in legacy allowlist -> default wins
+    assert result.next_token == "5"
+    assert result.source == "phase-5-plan-record-prep-default"
