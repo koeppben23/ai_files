@@ -25,6 +25,10 @@ def _patch_common(monkeypatch, tmp_path, spec: PhaseApiSpec) -> None:
     monkeypatch.setattr("governance_runtime.kernel.phase_kernel._rulebook_gate_passed", lambda _state: (True, ""))
     monkeypatch.setattr("governance_runtime.kernel.phase_kernel._validate_phase_1_3_foundation", lambda _state: (True, ""))
     monkeypatch.setattr("governance_runtime.kernel.phase_kernel._validate_exit", lambda _entry, _state: (True, ""))
+    monkeypatch.setattr(
+        "governance_runtime.kernel.phase_kernel.can_promote_to_phase6",
+        lambda **_kwargs: (True, type("obj", (object,), {"passed": True, "reason_code": "", "first_open_gate": None})()),
+    )
 
 
 def test_execute_non_phase6_uses_evaluator_first_guard_match(tmp_path, monkeypatch):
@@ -88,26 +92,36 @@ def test_execute_non_phase6_uses_evaluator_first_guard_match(tmp_path, monkeypat
     assert result.source == "phase-1.5-routing-required"
 
 
-def test_execute_non_phase6_legacy_fallback_plan_record_present(tmp_path, monkeypatch):
-    """execute(): non-Phase6 still allows explicit legacy fallback events."""
+def test_execute_non_phase6_legacy_fallback_implementation_presentation_ready(tmp_path, monkeypatch):
+    """execute(): only explicit legacy fallback event remains supported."""
     spec = PhaseApiSpec(
         path=tmp_path / "phase_api.yaml",
         sha256="fake",
         stable_hash="fake",
         loaded_at="now",
-        start_token="5",
+        start_token="6",
         entries={
-            "5": PhaseSpecEntry(
-                token="5",
-                phase="5-ArchitectureReview",
-                active_gate="Plan Record Preparation Gate",
-                next_gate_condition="Create plan",
-                next_token="5",
+            "6": PhaseSpecEntry(
+                token="6",
+                phase="6-PostFlight",
+                active_gate="Post Flight",
+                next_gate_condition="Continue",
+                next_token="6",
                 route_strategy="stay",
                 transitions=(
-                    TransitionRule(when="default", next_token="5", source="phase-5-plan-record-prep-default"),
-                    TransitionRule(when="plan_record_present", next_token="5", source="phase-5-self-review-required"),
+                    TransitionRule(when="default", next_token="6", source="phase-6-implementation-review-required"),
+                    TransitionRule(when="implementation_presentation_ready", next_token="6.presentation", source="phase-6-implementation-presentation-ready"),
                 ),
+                exit_required_keys=(),
+            ),
+            "6.presentation": PhaseSpecEntry(
+                token="6.presentation",
+                phase="6-PostFlight",
+                active_gate="Evidence Presentation Gate",
+                next_gate_condition="Submit decision",
+                next_token="6.approved",
+                route_strategy="stay",
+                transitions=(),
                 exit_required_keys=(),
             ),
         },
@@ -117,13 +131,14 @@ def test_execute_non_phase6_legacy_fallback_plan_record_present(tmp_path, monkey
     monkeypatch.setattr(GuardEvaluator, "has_transition_guard", staticmethod(lambda _event: False))
 
     result = execute(
-        current_token="5",
-        session_state_doc={"SESSION_STATE": {"Phase": "5-ArchitectureReview", "phase_transition_evidence": True, "plan_record_versions": 1}},
+        current_token="6",
+        session_state_doc={"SESSION_STATE": {"Phase": "6-PostFlight", "phase_transition_evidence": True, "active_gate": "Implementation Presentation Gate"}},
         runtime_ctx=_runtime_ctx(tmp_path),
         readonly=True,
     )
 
-    assert result.source == "phase-5-self-review-required"
+    assert result.next_token == "6.presentation"
+    assert result.source == "phase-6-implementation-presentation-ready"
 
 
 def test_execute_non_phase6_guard_evaluator_error_is_visible(tmp_path, monkeypatch):

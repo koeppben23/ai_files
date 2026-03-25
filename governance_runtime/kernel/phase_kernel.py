@@ -906,12 +906,8 @@ def _legacy_transition_guard_passes(
     plan_record_versions: int,
 ) -> bool:
     """Legacy fallback for transition events not yet modeled in guards.yaml."""
-    if event == "plan_record_present":
-        return plan_record_versions >= 1
     if event == "implementation_presentation_ready":
         return _implementation_presentation_ready(state)
-    if event == "ticket_intake_complete":
-        return _ticket_or_task_recorded(state)
     return False
 
 
