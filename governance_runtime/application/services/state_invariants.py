@@ -26,15 +26,15 @@ from typing import Any, Mapping
 def check_invariant_phase6_completed_requires_review_package(
     state: Mapping[str, Any],
 ) -> tuple[bool, str]:
-    """INV-001: If phase6_state == 'phase6_completed', then ReviewPackage.presented == True."""
+    """INV-001: If phase6_state == '6.complete' or 'phase6_completed', then ReviewPackage.presented == True."""
     phase6_state = str(state.get("phase6_state") or "").strip().lower()
-    if phase6_state != "phase6_completed":
+    if phase6_state not in ("6.complete", "phase6_completed", "completed"):
         return True, ""
 
     review_package = state.get("review_package") or {}
     presented = review_package.get("presented") if isinstance(review_package, dict) else None
     if not isinstance(presented, bool) or not presented:
-        return False, "INV-001: phase6_completed requires ReviewPackage.presented=true"
+        return False, "INV-001: 6.complete requires ReviewPackage.presented=true"
 
     return True, ""
 
@@ -106,9 +106,9 @@ def check_invariant_review_package_when_presented(
 def check_invariant_phase6_loop_status_consistent(
     state: Mapping[str, Any],
 ) -> tuple[bool, str]:
-    """INV-010: If phase6_state == 'phase6_in_progress', then implementation_review_complete must be False."""
+    """INV-010: If phase6_state == '6.execution', then implementation_review_complete must be False."""
     phase6_state = str(state.get("phase6_state") or "").strip().lower()
-    if phase6_state != "phase6_in_progress":
+    if phase6_state not in ("6.execution", "phase6_in_progress"):
         return True, ""
 
     impl_review = state.get("implementation_review") or {}
@@ -118,7 +118,7 @@ def check_invariant_phase6_loop_status_consistent(
         complete = state.get("implementation_review_complete")
 
     if isinstance(complete, bool) and complete:
-        return False, "INV-010: phase6_in_progress requires implementation_review_complete=false"
+        return False, "INV-010: 6.execution requires implementation_review_complete=false"
 
     return True, ""
 

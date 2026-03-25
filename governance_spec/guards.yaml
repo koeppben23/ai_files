@@ -1,0 +1,313 @@
+version: 1
+schema: opencode.guards.v1
+
+# ============================================================================
+# Unified Guard Model
+# ============================================================================
+# All guards share a common structure with type-specific attributes.
+#
+# Guard Structure:
+#   - id: string (required, unique)
+#   - guard_type: "exit" | "transition" (required)
+#   - condition: ConditionNode (required)
+#   - attributes: dict (optional, type-specific metadata)
+#
+# Guard Attributes (non-runtime, for documentation/intent):
+#   - description: string (optional, human-readable intent)
+#   - fail_mode: "fail_closed" | "block" (optional, default: "fail_closed")
+#   - contract_ref: string (optional, reference to contract/requirement)
+#
+# Closed Grammar (ADR-002):
+# - condition is always a ConditionNode
+# - ConditionNode.type is one of: always, key_present, key_equals, key_missing, numeric_gte
+# - ConditionNode.type is one of: all_of, any_of (composite)
+# - Recursion: composite nodes contain ConditionNode[] operands
+# - Unknown types/fields are rejected
+# - Empty operands are rejected
+# - Leaf nodes must have all required keys
+
+guards:
+  # ============================================================================
+  # Exit Guards (guard_type: "exit")
+  # ============================================================================
+  # Guards that must be satisfied before leaving a state.
+  # Evaluated by the strict_exit_evaluator.
+  # fail_mode: fail_closed (state cannot be left if guard fails)
+
+  - id: "exit_1.2_intent_committed"
+    guard_type: "exit"
+    target: "1.2"
+    condition:
+      type: "all_of"
+      operands:
+        - type: "key_present"
+          key: "Intent.Path"
+        - type: "key_present"
+          key: "Intent.Sha256"
+        - type: "key_present"
+          key: "Intent.EffectiveScope"
+    attributes:
+      fail_mode: "fail_closed"
+
+  - id: "exit_1.3_rulebooks_loaded"
+    guard_type: "exit"
+    target: "1.3"
+    condition:
+      type: "all_of"
+      operands:
+        - type: "key_present"
+          key: "LoadedRulebooks.core"
+        - type: "key_present"
+          key: "LoadedRulebooks.profile"
+        - type: "key_present"
+          key: "RulebookLoadEvidence.core"
+        - type: "key_present"
+          key: "RulebookLoadEvidence.profile"
+        - type: "key_present"
+          key: "ActiveProfile"
+        - type: "key_present"
+          key: "AddonsEvidence"
+    attributes:
+      fail_mode: "fail_closed"
+
+  - id: "exit_2_repo_discovery_complete"
+    guard_type: "exit"
+    target: "2"
+    condition:
+      type: "all_of"
+      operands:
+        - type: "key_present"
+          key: "RepoDiscovery.Completed"
+        - type: "key_present"
+          key: "RepoDiscovery.RepoCacheFile"
+        - type: "key_present"
+          key: "RepoDiscovery.RepoMapDigestFile"
+    attributes:
+      fail_mode: "fail_closed"
+
+  - id: "exit_1.5_business_rules_persisted"
+    guard_type: "exit"
+    target: "1.5"
+    condition:
+      type: "key_present"
+      key: "BusinessRules.Inventory.sha256"
+    attributes:
+      fail_mode: "fail_closed"
+
+  - id: "exit_3a_api_inventory_status"
+    guard_type: "exit"
+    target: "3A"
+    condition:
+      type: "key_present"
+      key: "APIInventory.Status"
+    attributes:
+      fail_mode: "fail_closed"
+
+  # ============================================================================
+  # Transition Guards (guard_type: "transition")
+  # ============================================================================
+  # Guards that determine which transition to take.
+  # Evaluated by the phase_kernel to select the correct transition.
+  # Each guard maps to exactly one event.
+
+  - id: "guard_default"
+    guard_type: "transition"
+    event: "default"
+    condition:
+      type: "always"
+
+  - id: "guard_business_rules_execute"
+    guard_type: "transition"
+    event: "business_rules_execute"
+    condition:
+      type: "key_missing"
+      key: "BusinessRules.Inventory"
+
+  - id: "guard_no_apis"
+    guard_type: "transition"
+    event: "no_apis"
+    condition:
+      type: "key_equals"
+      key: "APIInventory.Status"
+      value: "not_applicable"
+
+  - id: "guard_ticket_present"
+    guard_type: "transition"
+    event: "ticket_present"
+    condition:
+      type: "any_of"
+      operands:
+        - type: "key_present"
+          key: "ticket_recorded"
+        - type: "key_present"
+          key: "task_recorded"
+
+  - id: "guard_plan_record_missing"
+    guard_type: "transition"
+    event: "plan_record_missing"
+    condition:
+      type: "numeric_gte"
+      key: "plan_record_versions"
+      threshold:
+        type: "constant"
+        value: 1
+      operator: "lt"
+
+  - id: "guard_self_review_iterations_pending"
+    guard_type: "transition"
+    event: "self_review_iterations_pending"
+    condition:
+      type: "all_of"
+      operands:
+        - type: "key_present"
+          key: "phase5_self_review_iterations"
+        - type: "numeric_gte"
+          key: "phase5_self_review_iterations"
+          threshold:
+            type: "constant"
+            value: 3
+          operator: "lt"
+
+  - id: "guard_self_review_iterations_met"
+    guard_type: "transition"
+    event: "self_review_iterations_met"
+    condition:
+      type: "any_of"
+      operands:
+        - type: "numeric_gte"
+          key: "phase5_self_review_iterations"
+          threshold:
+            type: "constant"
+            value: 3
+          operator: "gte"
+        - type: "key_present"
+          key: "Phase5Review.self_review_iterations_met"
+
+  - id: "guard_business_rules_gate_required"
+    guard_type: "transition"
+    event: "business_rules_gate_required"
+    condition:
+      type: "key_present"
+      key: "BusinessRules.DiscoveryResolved"
+
+  - id: "guard_technical_debt_proposed"
+    guard_type: "transition"
+    event: "technical_debt_proposed"
+    condition:
+      type: "key_present"
+      key: "technical_debt_proposed"
+
+  - id: "guard_rollback_required"
+    guard_type: "transition"
+    event: "rollback_required"
+    condition:
+      type: "key_present"
+      key: "rollback_required"
+
+  - id: "guard_implementation_accepted"
+    guard_type: "transition"
+    event: "implementation_accepted"
+    condition:
+      type: "key_present"
+      key: "implementation_accepted"
+
+  - id: "guard_implementation_blocked"
+    guard_type: "transition"
+    event: "implementation_blocked"
+    condition:
+      type: "all_of"
+      operands:
+        - type: "key_equals"
+          key: "implementation_execution_status"
+          value: "blocked"
+        - type: "key_present"
+          key: "implementation_hard_blockers"
+
+  - id: "guard_implementation_rework_clarification_pending"
+    guard_type: "transition"
+    event: "implementation_rework_clarification_pending"
+    condition:
+      type: "key_present"
+      key: "implementation_rework_clarification_required"
+
+  - id: "guard_implementation_execution_in_progress"
+    guard_type: "transition"
+    event: "implementation_execution_in_progress"
+    condition:
+      type: "key_equals"
+      key: "implementation_execution_status"
+      value: "in_progress"
+
+  - id: "guard_implementation_started"
+    guard_type: "transition"
+    event: "implementation_started"
+    condition:
+      type: "key_present"
+      key: "implementation_started"
+
+  - id: "guard_workflow_approved"
+    guard_type: "transition"
+    event: "workflow_approved"
+    condition:
+      type: "key_present"
+      key: "workflow_complete"
+
+  - id: "guard_review_changes_requested"
+    guard_type: "transition"
+    event: "review_changes_requested"
+    condition:
+      type: "key_equals"
+      key: "user_review_decision"
+      value: "changes_requested"
+
+  - id: "guard_rework_clarification_pending"
+    guard_type: "transition"
+    event: "rework_clarification_pending"
+    condition:
+      type: "key_present"
+      key: "rework_clarification_consumed"
+
+  - id: "guard_review_rejected"
+    guard_type: "transition"
+    event: "review_rejected"
+    condition:
+      type: "key_equals"
+      key: "user_review_decision"
+      value: "reject"
+
+  - id: "guard_implementation_review_pending"
+    guard_type: "transition"
+    event: "implementation_review_pending"
+    condition:
+      type: "all_of"
+      operands:
+        - type: "numeric_gte"
+          key: "phase6_review_iterations"
+          threshold:
+            type: "constant"
+            value: 3
+          operator: "lt"
+        - type: "key_missing"
+          key: "ImplementationReview.revision_complete"
+
+  - id: "guard_implementation_review_complete"
+    guard_type: "transition"
+    event: "implementation_review_complete"
+    condition:
+      type: "any_of"
+      operands:
+        - type: "numeric_gte"
+          key: "phase6_review_iterations"
+          threshold:
+            type: "constant"
+            value: 3
+          operator: "gte"
+        - type: "key_present"
+          key: "ImplementationReview.revision_complete"
+
+  - id: "guard_workflow_complete"
+    guard_type: "transition"
+    event: "workflow_complete"
+    condition:
+      type: "key_present"
+      key: "workflow_complete"

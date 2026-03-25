@@ -311,7 +311,7 @@ def test_all_defined_transitions_can_be_triggered_once(tmp_path: Path) -> None:
             1,
             "phase-6-changes-requested-loop-reset",
         ),
-        ("6", {"phase6_state": "phase6_changes_requested"}, 1, "phase-6-rework-clarification-required"),
+        ("6", {"phase6_state": "6.rework"}, 1, "phase-6-rework-clarification-required"),
         (
             "6",
             {"active_gate": "Evidence Presentation Gate", "UserReviewDecision": {"decision": "reject"}},

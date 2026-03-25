@@ -317,7 +317,7 @@ def normalize_phase6_p5_state(
     state["phase"] = corrected_phase
     state["Next"] = corrected_next
     state["next"] = corrected_next
-    state["phase6_state"] = "phase5_in_progress"
+    state["phase6_state"] = ""
     state["implementation_review_complete"] = False
     state["phase5_completed"] = False
     state["phase5_state"] = "phase5-in-progress"
@@ -423,7 +423,7 @@ def _normalize_phase6_completion_flags(state: dict, canonical: dict) -> None:
             if isinstance(review_block, dict):
                 review_block["implementation_review_complete"] = True
 
-        if state.get("phase6_state") not in ("phase6_completed", "completed"):
-            state["phase6_state"] = "phase6_completed"
+        if state.get("phase6_state") not in ("6.complete", "completed", "phase6_completed"):
+            state["phase6_state"] = "6.complete"
             if isinstance(review_block, dict):
                 review_block["completion_status"] = "phase6-completed"

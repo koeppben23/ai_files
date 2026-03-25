@@ -390,7 +390,7 @@ class TestE2EReviewDecision:
         assert state.get("workflow_complete") in (None, False)
         assert state.get("Phase") == "6-PostFlight"
         assert state.get("Next") == "6"
-        assert state.get("phase6_state") == "phase6_changes_requested"
+        assert state.get("phase6_state") == "6.rework"
 
     def test_changes_requested_next_action_ux(self, tmp_path, monkeypatch, capsys):
         """changes_requested response must have a meaningful next_action hint."""
@@ -681,7 +681,7 @@ class TestE2EReworkRouting:
 
         state = _read_state(session_path)
         assert state.get("active_gate") == "Rework Clarification Gate"
-        assert state.get("phase6_state") == "phase6_changes_requested"
+        assert state.get("phase6_state") == "6.rework"
         assert state.get("implementation_review_complete") is False
 
     def test_rework_exits_via_plan_clarification(self, tmp_path, monkeypatch, capsys):
@@ -706,7 +706,7 @@ class TestE2EReworkRouting:
 
         state = _read_state(session_path)
         assert state.get("implementation_review_complete") is False or state.get("phase6_state") in (
-            "phase6_changes_requested", "phase6_in_progress", None
+            "6.rework", "6.execution", None
         )
 
     def test_rework_loop_resets_review_iterations(self, tmp_path, monkeypatch, capsys):
@@ -745,7 +745,7 @@ class TestE2EReworkRouting:
 
         state = _read_state(session_path)
         assert state.get("active_gate") == "Rework Clarification Gate"
-        assert state.get("phase6_state") == "phase6_changes_requested"
+        assert state.get("phase6_state") == "6.rework"
 
         state["Phase"] = "6-PostFlight"
         state["active_gate"] = "Rework Clarification Gate"
@@ -896,7 +896,7 @@ class TestE2EReworkRouting:
 
         state = _read_state(session_path)
         assert state.get("active_gate") == "Rework Clarification Gate"
-        assert state.get("phase6_state") == "phase6_changes_requested"
+        assert state.get("phase6_state") == "6.rework"
 
         state["Phase"] = "6-PostFlight"
         state["Next"] = "6"
@@ -969,7 +969,7 @@ class TestE2EPhase6ReviewLoop:
             "revision_delta": "none",
         }
         doc["SESSION_STATE"]["implementation_review_complete"] = False
-        doc["SESSION_STATE"]["phase6_state"] = "phase6_in_progress"
+        doc["SESSION_STATE"]["phase6_state"] = "6.execution"
         doc["SESSION_STATE"]["phase_transition_evidence"] = True
         doc["SESSION_STATE"]["phase6_force_stable_digest"] = True
         doc["SESSION_STATE"]["Gates"] = {
@@ -989,7 +989,7 @@ class TestE2EPhase6ReviewLoop:
         assert state.get("implementation_review_complete") is True, (
             f"Review must complete when prev==curr digest, got implementation_review_complete={state.get('implementation_review_complete')}"
         )
-        assert state.get("phase6_state") == "phase6_completed", (
+        assert state.get("phase6_state") == "6.complete", (
             f"phase6_state must be phase6_completed, got {state.get('phase6_state')}"
         )
         rev = state.get("ImplementationReview", {})
@@ -1031,7 +1031,7 @@ class TestE2EPhase6ReviewLoop:
             "revision_delta": "changed",
         }
         doc["SESSION_STATE"]["implementation_review_complete"] = False
-        doc["SESSION_STATE"]["phase6_state"] = "phase6_in_progress"
+        doc["SESSION_STATE"]["phase6_state"] = "6.execution"
         doc["SESSION_STATE"]["phase_transition_evidence"] = True
         doc["SESSION_STATE"]["Gates"] = {
             "P5-Architecture": "approved",
@@ -1087,7 +1087,7 @@ class TestE2EPhase6ReviewLoop:
             "revision_delta": "none",
         }
         doc["SESSION_STATE"]["implementation_review_complete"] = False
-        doc["SESSION_STATE"]["phase6_state"] = "phase6_in_progress"
+        doc["SESSION_STATE"]["phase6_state"] = "6.execution"
         doc["SESSION_STATE"]["phase_transition_evidence"] = True
         doc["SESSION_STATE"]["phase6_force_stable_digest"] = True
         doc["SESSION_STATE"]["Gates"] = {
@@ -1154,7 +1154,7 @@ class TestE2EPhase6ReviewLoop:
             "revision_delta": "none",
         }
         doc["SESSION_STATE"]["implementation_review_complete"] = False
-        doc["SESSION_STATE"]["phase6_state"] = "phase6_in_progress"
+        doc["SESSION_STATE"]["phase6_state"] = "6.execution"
         doc["SESSION_STATE"]["phase_transition_evidence"] = True
         doc["SESSION_STATE"]["review_package_ticket"] = "Test ticket"
         doc["SESSION_STATE"]["review_package_approved_plan_summary"] = "Test plan"
@@ -1291,7 +1291,7 @@ class TestE2EComprehensiveChain:
         }
         state["implementation_review_complete"] = False
         state["phase_transition_evidence"] = True
-        state["phase6_state"] = "phase6_in_progress"
+        state["phase6_state"] = "6.execution"
         # The nested ReviewPackage was already created by the second /continue.
         # Update it to reset presented=False for the re-run.
         if "ReviewPackage" in state and isinstance(state["ReviewPackage"], dict):
@@ -1317,7 +1317,7 @@ class TestE2EComprehensiveChain:
         assert state.get("implementation_review_complete") is True, (
             f"Internal review loop must complete with stable digest, got implementation_review_complete={state.get('implementation_review_complete')}"
         )
-        assert state.get("phase6_state") == "phase6_completed", (
+        assert state.get("phase6_state") == "6.complete", (
             f"Phase 6 state must be phase6_completed, got {state.get('phase6_state')}"
         )
         impl_review = state.get("ImplementationReview")

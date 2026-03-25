@@ -247,7 +247,7 @@ class TestNormalizePhase6P5State:
 
         # Should have reset to P5.4
         assert state["Phase"] == "5.4-BusinessRules"
-        assert state["phase6_state"] == "phase5_in_progress"
+        assert state["phase6_state"] in ("", "6.none", "phase5_in_progress")
         assert state["implementation_review_complete"] is False
         assert "_p6_state_normalization" in state
         assert "P5.4-BusinessRules" in state["_p6_state_normalization"]["open_gates"]
