@@ -61,7 +61,7 @@ def test_all_phase_api_transition_events_are_guarded_or_explicit_legacy() -> Non
 
 def test_legacy_transition_events_are_tightly_scoped() -> None:
     """Legacy guard fallback is frozen off to prevent double-truth drift."""
-    assert LEGACY_TRANSITION_GUARD_EVENTS == set()
+    assert LEGACY_TRANSITION_GUARD_EVENTS == frozenset()
 
 
 def test_transition_guard_path_contains_no_event_specific_hardcoded_fallbacks() -> None:
