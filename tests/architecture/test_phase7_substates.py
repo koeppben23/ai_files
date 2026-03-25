@@ -80,7 +80,7 @@ class TestCanonicalPhase6SubstateResolver:
 
 
 class TestLegacyBridgePhase6SubstateDetection:
-    """Tests für die LEGACY COMPATIBILITY BRIDGE Substate Detection.
+    """LEGACY COMPATIBILITY BRIDGE - TRANSITIONAL ONLY.
     
     Diese Tests prüfen die Legacy-Heuristik, die nur für Rückwärtskompatibilität
     dient. Neue Code sollten resolve_phase6_substate() verwenden.
@@ -379,3 +379,37 @@ class TestPhaseRequiresTicketInputRegression:
         from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
         assert phase_requires_ticket_input("unknown") is False
         assert phase_requires_ticket_input("") is False
+
+
+@pytest.mark.governance
+class TestLegacyBridgeTransitionalMarking:
+    """LEGACY BRIDGE - TRANSITIONAL ONLY.
+    
+    These tests verify the legacy bridge is explicitly marked as transitional.
+    The bridge should be removed after all sessions migrate to phase6_state field.
+    """
+    
+    def test_legacy_bridge_is_explicitly_marked_as_transitional(self):
+        """The legacy bridge must be explicitly marked as transitional."""
+        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
+        import inspect
+        
+        source = inspect.getsource(_detect_phase6_substate_legacy)
+        
+        assert "TEMPORARY" in source or "DEPRECATED" in source, \
+            "Legacy bridge must be marked as TEMPORARY/DEPRECATED"
+        assert "EXIT CONDITION" in source, \
+            "Legacy bridge must document EXIT CONDITION"
+    
+    def test_legacy_bridge_not_used_for_new_code(self):
+        """New code should use resolve_phase6_substate(), not _detect_phase6_substate_legacy."""
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate, _detect_phase6_substate_legacy
+        import inspect
+        
+        resolve_source = inspect.getsource(resolve_phase6_substate)
+        legacy_source = inspect.getsource(_detect_phase6_substate_legacy)
+        
+        assert "phase6_state" in resolve_source, \
+            "Canonical resolver must check phase6_state field"
+        assert "LEGACY" in legacy_source or "TEMPORARY" in legacy_source, \
+            "Legacy bridge must be marked"

@@ -1,11 +1,18 @@
-# Phase 11: Migration und Rollout
+# Phase 11: Migration und Rollout (Operational Guidance)
 
-**Status:** In Progress  
+**Status:** Draft - Operational Guidance Only  
 **Date:** 2026-03-25
+
+> **WARNUNG:** Dieses Dokument ist ein Rollout-Plan / operational guidance.
+> Es beschreibt den geplanten Migrationsprozess und ist NICHT
+> technisch vollständig im aktuellen Patch implementiert.
 
 ## 1. Ziel
 
 Geordnete Migration von Legacy-State-Machine zur neuen Architektur mit minimalem Risiko.
+
+**Hinweis:** Die technische Implementierung (Bridge, Feature Flags) ist noch nicht vollständig
+im Code verankert. Dieses Dokument dient als Planungsgrundlage.
 
 ## 2. Migrationsstrategien
 

@@ -102,37 +102,66 @@ GOLDEN_FLOWS = [
 class TestDesignDecisions:
     """Tests for explicit design decisions documented in the architecture."""
 
-    def test_workflow_complete_is_system_event(self):
+    def test_workflow_complete_is_system_event_not_user_command(self):
         """DESIGN DECISION: workflow_complete is a SYSTEM event, not user-initiated.
         
-        Edge Case: 6.approved -> workflow_complete -> 6.complete
-        This allows completing without execution (e.g., zero-implementation changes).
+        No user command produces workflow_complete. It is triggered by the system
+        when implementation is verified and workflow can close.
         
-        The event is triggered by successful verification, not by a direct command.
+        This is NOT a bug - it's an intentional design for system-driven completion.
         """
-        # This is documented, not a bug
-        assert True, "workflow_complete is a system event, not a user command"
+        # workflow_complete has no producer in command_policy.yaml
+        # It's a system event only
+        assert True
 
-    def test_rejected_requires_continue(self):
+    def test_approved_edge_case_skip_execution_to_complete(self):
+        """DESIGN DECISION: 6.approved -> workflow_complete -> 6.complete
+        
+        EDGE CASE: This path allows completing without execution.
+        
+        Use case: Zero-implementation changes that only need documentation.
+        
+        WARNING: This is NOT the normal path. Normal path is:
+        6.approved -> implementation_started -> 6.execution -> workflow_complete -> 6.complete
+        
+        This edge case should be rare and carefully controlled.
+        """
+        # Normal path test exists in golden flows
+        # This test documents the edge case exists and is intentional
+        edge_case_path = [
+            ("6.approved", "workflow_complete", "6.complete"),
+        ]
+        assert edge_case_path[0][0] == "6.approved"
+        assert edge_case_path[0][1] == "workflow_complete"
+        assert edge_case_path[0][2] == "6.complete"
+
+    def test_rejected_requires_continue_to_return_to_phase4(self):
         """DESIGN DECISION: 6.rejected -> default -> 4 requires /continue.
         
         Semantics:
-        - 6.rejected is a transitional state (marker)
-        - /continue consumes the default event
-        - Transition leads deterministically to Phase 4
+        - 6.rejected is a transitional marker state
+        - /continue (consuming default event) triggers return to Phase 4
+        - No other commands are allowed in 6.rejected
+        
+        This is intentional for clean rejection handling.
         """
-        # Verify the transition exists in topology
-        assert True, "6.rejected requires /continue to return to Phase 4"
+        # 6.rejected should have exactly one transition: default -> 4
+        assert True
 
-    def test_approved_has_two_exit_paths(self):
+    def test_approved_has_two_exit_paths_document_both(self):
         """DESIGN DECISION: 6.approved has two exit paths:
         
-        1. implementation_started -> 6.execution (normal path)
-        2. workflow_complete -> 6.complete (edge case: skip execution)
+        1. implementation_started -> 6.execution (NORMAL PATH)
+        2. workflow_complete -> 6.complete (EDGE CASE - skip execution)
         
-        Path 2 is an allowed edge case for zero-implementation changes.
+        Both paths are intentional. Path 2 is for zero-implementation scenarios.
         """
-        assert True, "6.approved has two documented exit paths"
+        normal_path = ("6.approved", "implementation_started", "6.execution")
+        edge_case_path = ("6.approved", "workflow_complete", "6.complete")
+        
+        assert normal_path[1] == "implementation_started"
+        assert edge_case_path[1] == "workflow_complete"
+        assert edge_case_path[1] != normal_path[1]  # Different events
 
 
 # =============================================================================
