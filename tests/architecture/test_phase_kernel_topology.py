@@ -352,3 +352,151 @@ class TestRealKernelPathUsesTopology:
                 runtime_ctx=ctx,
                 readonly=True,
             )
+
+    def test_execute_phase6_guard_evaluator_failure_is_not_silent(self, tmp_path, monkeypatch):
+        """execute(): guard-evaluator failures in Phase 6 are surfaced."""
+        from governance_runtime.kernel.phase_api_spec import PhaseApiSpec, PhaseSpecEntry, TransitionRule
+        from governance_runtime.kernel.phase_kernel import RuntimeContext
+        from governance_runtime.kernel.guard_evaluator import GuardEvaluator
+
+        fake_spec = PhaseApiSpec(
+            path=tmp_path / "phase_api.yaml",
+            sha256="fake",
+            stable_hash="fake",
+            loaded_at="now",
+            start_token="6.execution",
+            entries={
+                "6.execution": PhaseSpecEntry(
+                    token="6.execution",
+                    phase="6-PostFlight",
+                    active_gate="Implementation Internal Review",
+                    next_gate_condition="Continue",
+                    next_token="6.execution",
+                    route_strategy="stay",
+                    transitions=(
+                        TransitionRule(when="implementation_accepted", next_token="6.internal_review", source="phase-6-implementation-accepted"),
+                    ),
+                    exit_required_keys=(),
+                ),
+            },
+        )
+
+        def _boom_eval(event: str, state: dict[str, object]) -> bool:
+            raise RuntimeError("guard evaluator failed")
+
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel.load_phase_api", lambda _commands_home: fake_spec)
+        monkeypatch.setattr(GuardEvaluator, "evaluate_event", staticmethod(_boom_eval))
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel._resolve_paths", lambda _ctx: (tmp_path / "commands", tmp_path / "workspaces", tmp_path / "cfg", True, []))
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel._persistence_gate_passed", lambda _state: (True, ""))
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel._rulebook_gate_passed", lambda _state: (True, ""))
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel._validate_phase_1_3_foundation", lambda _state: (True, ""))
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel._validate_exit", lambda _entry, _state: (True, ""))
+
+        state = {
+            "Phase": "6-PostFlight",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            "phase_transition_evidence": True,
+            "implementation_accepted": True,
+        }
+        ctx = RuntimeContext(
+            requested_active_gate="",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=tmp_path / "commands",
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        )
+
+        with pytest.raises(RuntimeError, match="guard evaluator failed"):
+            execute(
+                current_token="6.execution",
+                session_state_doc={"SESSION_STATE": state},
+                runtime_ctx=ctx,
+                readonly=True,
+            )
+
+    def test_execute_phase6_guard_evaluator_positive_path(self, tmp_path, monkeypatch):
+        """execute(): successful GuardEvaluator event drives concrete runtime transition.
+
+        This is the positive proof that the real execute() path uses the centralized
+        GuardEvaluator decision to resolve the topology target.
+        """
+        from governance_runtime.kernel.phase_api_spec import PhaseApiSpec, PhaseSpecEntry, TransitionRule
+        from governance_runtime.kernel.phase_kernel import RuntimeContext
+        from governance_runtime.kernel.guard_evaluator import GuardEvaluator
+
+        fake_spec = PhaseApiSpec(
+            path=tmp_path / "phase_api.yaml",
+            sha256="fake",
+            stable_hash="fake",
+            loaded_at="now",
+            start_token="6.execution",
+            entries={
+                "6.execution": PhaseSpecEntry(
+                    token="6.execution",
+                    phase="6-PostFlight",
+                    active_gate="Implementation Internal Review",
+                    next_gate_condition="Continue",
+                    next_token="6.execution",
+                    route_strategy="stay",
+                    transitions=(
+                        TransitionRule(when="implementation_accepted", next_token="6.internal_review", source="topology"),
+                        TransitionRule(when="default", next_token="6.execution", source="spec-transition"),
+                    ),
+                    exit_required_keys=(),
+                ),
+            },
+        )
+
+        eval_calls: list[str] = []
+
+        def _eval_ok(event: str, state: dict[str, object], *, context=None) -> bool:
+            eval_calls.append(event)
+            return event == "implementation_accepted"
+
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel.load_phase_api", lambda _commands_home: fake_spec)
+        monkeypatch.setattr(GuardEvaluator, "evaluate_event", staticmethod(_eval_ok))
+        monkeypatch.setattr(TopologyLoader, "has_event", staticmethod(lambda state_id, event: state_id == "6.execution" and event in {"implementation_accepted", "default"}))
+        monkeypatch.setattr(
+            TopologyLoader,
+            "get_next_state",
+            staticmethod(lambda state_id, event: "6.internal_review" if (state_id, event) == ("6.execution", "implementation_accepted") else "6.execution"),
+        )
+        monkeypatch.setattr(TopologyLoader, "is_state_terminal", staticmethod(lambda _state_id: False))
+
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel._resolve_paths", lambda _ctx: (tmp_path / "commands", tmp_path / "workspaces", tmp_path / "cfg", True, []))
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel._persistence_gate_passed", lambda _state: (True, ""))
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel._rulebook_gate_passed", lambda _state: (True, ""))
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel._validate_phase_1_3_foundation", lambda _state: (True, ""))
+        monkeypatch.setattr("governance_runtime.kernel.phase_kernel._validate_exit", lambda _entry, _state: (True, ""))
+
+        state = {
+            "Phase": "6-PostFlight",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            "phase_transition_evidence": True,
+            "implementation_accepted": True,
+        }
+        ctx = RuntimeContext(
+            requested_active_gate="",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=tmp_path / "commands",
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        )
+
+        result = execute(
+            current_token="6.execution",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+            readonly=True,
+        )
+
+        assert "implementation_accepted" in eval_calls
+        assert result.next_token == "6.internal_review"

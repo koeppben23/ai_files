@@ -797,6 +797,53 @@ def _implementation_accepted(state: Mapping[str, object]) -> bool:
     return bool(accepted)
 
 
+def _build_guard_evaluation_state(
+    state: Mapping[str, object],
+    *,
+    plan_record_versions: int,
+) -> dict[str, object]:
+    """Build normalized state payload for guards.yaml evaluation."""
+    normalized: dict[str, object] = dict(state)
+
+    normalized["plan_record_versions"] = plan_record_versions
+    normalized["phase5_self_review_iterations"] = _phase5_self_review_iterations(state)
+    normalized["phase6_review_iterations"] = _phase6_review_iterations(state)
+
+    if _ticket_or_task_recorded(state):
+        normalized.setdefault("ticket_recorded", True)
+
+    if _implementation_started(state):
+        normalized["implementation_started"] = True
+    if _implementation_accepted(state):
+        normalized["implementation_accepted"] = True
+    if _implementation_rework_clarification_pending(state):
+        normalized["implementation_rework_clarification_required"] = True
+
+    if _implementation_blocked(state):
+        normalized["implementation_execution_status"] = "blocked"
+        normalized.setdefault("implementation_hard_blockers", ["blocked"])
+    elif _implementation_execution_in_progress(state):
+        normalized["implementation_execution_status"] = "in_progress"
+
+    decision = _user_review_decision(state)
+    if decision:
+        normalized["user_review_decision"] = decision
+
+    if _phase6_internal_review_complete(state):
+        impl_review = normalized.get("ImplementationReview")
+        as_dict = dict(impl_review) if isinstance(impl_review, Mapping) else {}
+        as_dict["revision_complete"] = True
+        normalized["ImplementationReview"] = as_dict
+
+    if _phase6_rework_clarification_pending(state):
+        normalized["rework_clarification_consumed"] = True
+
+    if _workflow_complete(state):
+        normalized["workflow_complete"] = True
+
+    return normalized
+
+
 # ============================================================================
 # Phase 6 Substate Resolution (ADR-003)
 # ============================================================================
@@ -1246,6 +1293,7 @@ def _select_transition_topology_authoritative(
     Raises:
         TopologyError: If state or transition not found in topology (fail-closed).
     """
+    from governance_runtime.kernel.guard_evaluator import GuardEvaluationError, GuardEvaluator
     from governance_runtime.kernel.topology_loader import TopologyLoader
 
     # Terminal Phase-6 states have no outgoing transitions.
@@ -1272,44 +1320,21 @@ def _select_transition_topology_authoritative(
         selected_transition = transition_obj
         return True
     
+    guard_state = _build_guard_evaluation_state(
+        state,
+        plan_record_versions=plan_record_versions,
+    )
     if entry.transitions:
         for transition in entry.transitions:
             when = transition.when.strip().lower()
-            
-            # Check each guard condition
-            if when == "implementation_started" and _implementation_started(state) and _select_event("implementation_started", transition):
-                break
-            if when == "implementation_accepted" and _implementation_accepted(state) and _select_event("implementation_accepted", transition):
-                break
-            if when == "implementation_blocked" and _implementation_blocked(state) and _select_event("implementation_blocked", transition):
-                break
-            if when == "implementation_rework_clarification_pending" and _implementation_rework_clarification_pending(state) and _select_event("implementation_rework_clarification_pending", transition):
-                break
-            if when == "workflow_complete" and _workflow_complete(state) and _select_event("workflow_complete", transition):
-                break
-            if (
-                when == "workflow_approved"
-                and _phase6_evidence_presentation_gate_active(state)
-                and _user_review_decision(state) == "approve"
-                and _select_event("workflow_approved", transition)
-            ):
-                break
-            if when == "rework_clarification_pending" and _phase6_rework_clarification_pending(state):
-                if _select_event("rework_clarification_pending", transition):
-                    break
-                if _select_event("default", transition):
-                    break
-            if when == "review_changes_requested" and _user_review_decision(state) == "changes_requested" and _select_event("review_changes_requested", transition):
-                break
-            if when == "review_rejected" and _user_review_decision(state) == "reject" and _select_event("review_rejected", transition):
-                break
-            if when == "implementation_review_pending" and not _phase6_internal_review_complete(state) and _select_event("implementation_review_pending", transition):
-                break
-            if when == "implementation_review_complete" and _phase6_internal_review_complete(state) and _select_event("implementation_review_complete", transition):
-                break
-            if when == "implementation_execution_in_progress" and _implementation_execution_in_progress(state) and _select_event("implementation_execution_in_progress", transition):
-                break
-            if when == "default" and _select_event("default", transition):
+            try:
+                passed = GuardEvaluator.evaluate_event(when, guard_state)
+            except GuardEvaluationError as exc:
+                raise GuardEvaluationError(
+                    f"Guard evaluation failed for event '{when}' in state '{current_token}': {exc}"
+                ) from exc
+
+            if passed and _select_event(when, transition):
                 break
     
     # If no guard matched, use topology default when available.

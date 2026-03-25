@@ -249,8 +249,14 @@ guards:
     guard_type: "transition"
     event: "workflow_approved"
     condition:
-      type: "key_present"
-      key: "workflow_complete"
+      type: "all_of"
+      operands:
+        - type: "key_equals"
+          key: "active_gate"
+          value: "Evidence Presentation Gate"
+        - type: "key_equals"
+          key: "user_review_decision"
+          value: "approve"
 
   - id: "guard_review_changes_requested"
     guard_type: "transition"
