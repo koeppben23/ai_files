@@ -8,11 +8,11 @@
 
 Dieses Refactoring betrifft ausschließlich:
 
-1. **State-Machine Topologie** - `machine_topology.yaml`
+1. **State-Machine Topologie** - `topology.yaml`
 2. **Guard-/Invariant-Schicht** - `guards.yaml`
 3. **Command-Policy** - `command_policy.yaml`
 4. **Presentation/Messages** - `messages.yaml`
-5. **Runtime-Executor** - `phase_kernel.py`, `execution_context.py`
+5. **Runtime-Executor** - `phase_kernel.py`, `phase_state_machine.py`
 6. **Audit-Events** - `audit_events.py`
 7. **Spec-Validator** - `spec_validator.py`
 
@@ -30,7 +30,7 @@ Dieses Refactoring betrifft ausschließlich:
 | Neue Guard | Ja | Strukturierte Syntax, beschreibungspflichtig |
 | Neue Command | Ja | In `command_policy.yaml` registriert |
 | Neue Message | Ja | In `messages.yaml` registriert |
-| Neue Transition | Ja | In `machine_topology.yaml`, Guard-Referenz valide |
+| Neue Transition | Ja | In `topology.yaml`, Guard-Referenz valide |
 | UX-Änderung | Ja | Nur in `messages.yaml` |
 | Topologie-Änderung | Nur mit Review | Struktur-Änderung erfordert ADR |
 | Guard-Syntax-Änderung | Nur mit Review | Neue Condition-Typen erfordern ADR |
@@ -39,13 +39,13 @@ Dieses Refactoring betrifft ausschließlich:
 
 Phase 0 ist abgeschlossen, wenn:
 
-- [ ] 6 ADRs geschrieben und reviewed
-- [ ] Entscheidungstabelle vollständig
-- [ ] Alle offenen Entscheidungen sind entweder:
+- [x] 7 ADRs geschrieben und reviewed (ADR-001 bis ADR-007)
+- [x] Entscheidungstabelle vollständig
+- [x] Alle offenen Entscheidungen sind entweder:
   - Getroffen und dokumentiert, oder
   - Explizit als "offen" markiert mit Empfehlung
-- [ ] Scope-Freeze dokumentiert
-- [ ] Review-Sitzung stattgefunden
+- [x] Scope-Freeze dokumentiert
+- [x] Review-Sitzung stattgefunden
 
 ## Abbruchkriterien
 

@@ -81,10 +81,19 @@ Diese Tabelle dokumentiert alle expliziten Architekturentscheidungen, die vor Im
 
 | Entscheidung | Ziellösung | Begründung |
 |-------------|------------|------------|
-| Neue Spec Dateien | `machine_topology.yaml`, `guards.yaml`, `command_policy.yaml`, `messages.yaml` | Klare Trennung |
+| Neue Spec Dateien | `topology.yaml`, `guards.yaml`, `command_policy.yaml`, `messages.yaml` | Klare Trennung |
 | Alte `phase_api.yaml` | Parallel bis Release 12 | Kein Big Bang |
 | Kompatibilitätsdauer | Bis Release-12-Checkliste komplett | Kontrollierter Cutover |
 | Golden-Flow-Messung | State-Transition-Trace | Deterministisch vergleichbar |
+
+## 11. Integration Fixes (ADR-007)
+
+| Entscheidung | Ziellösung | Begründung | ADR |
+|-------------|------------|------------|-----|
+| Reject-Semantik | Single Source of Truth (`review_rejected`) | Keine Doppelung | ADR-007 |
+| `/implement` aus `6.approved` | `implementation_started` Event | Expliziter Übergang | ADR-007 |
+| State 6 | Entfernt (unreachable) | Kein Legacy-Ballast | ADR-007 |
+| Legacy-Bridge | Nur noch Fallback | Schmale Migration | ADR-007 |
 
 ## 8. Performance
 

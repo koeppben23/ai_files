@@ -1,4 +1,4 @@
-# Phase 6: Phase 6 in echte Substates zerlegen (v2)
+# Phase 6: Phase 6 in echte Substates zerlegen (v3)
 
 **Status:** Completed  
 **Date:** 2026-03-25  
@@ -13,19 +13,22 @@ Zerlege den monolithischen Phase 6 State in echte Substates gemäß ADR-003.
 **Vorher:** Ein einzelner State "6" mit 13 Self-Transitions  
 **Nachher:** 8 Substates mit klaren Verantwortlichkeiten
 
+**Hinweis:** Base-Container State "6" wurde in Phase 9 entfernt (war unreachable). Alle Pfade führen direkt zu Substates.
+
 ## 2. Substate-Architektur (ADR-003)
 
 ```
-6 (Container - Delegation Entry Point)
-    └── 6.internal_review   (Internal review loop)
-    └── 6.presentation      (Evidence presentation)
-    └── 6.execution         (Implementation execution)
-    └── 6.approved          (Plan approved, ready for /implement)
-    └── 6.blocked           (Implementation blocked)
-    └── 6.rework            (Rework clarification required)
-    └── 6.rejected          (Rejected, return to Phase 4)
-    └── 6.complete          (Workflow complete, terminal)
+6.internal_review   (Internal review loop)
+6.presentation      (Evidence presentation)
+6.execution         (Implementation execution)
+6.approved          (Plan approved, ready for /implement)
+6.blocked           (Implementation blocked)
+6.rework            (Rework clarification required)
+6.rejected          (Rejected, return to Phase 4)
+6.complete          (Workflow complete, terminal)
 ```
+
+Alle Substates haben `parent: "6"` für Hierarchie-Info.
 
 ## 3. Event-Mapping pro Substate
 
@@ -41,16 +44,17 @@ Zerlege den monolithischen Phase 6 State in echte Substates gemäß ADR-003.
 |-------|--------|-------------|
 | default | 6.presentation | Await decision |
 | workflow_approved | 6.approved | Plan approved |
-| implementation_presentation_ready | 6.execution | Start execution |
 | review_changes_requested | 6.rework | Changes needed |
 | review_rejected | 6.rejected | Rejected, go to Phase 4 |
 | rework_clarification_pending | 6.presentation | Clarification needed |
+
+**Hinweis:** `implementation_presentation_ready` wurde entfernt (kein Producer in Command-Policy).
 
 ### 6.execution
 | Event | Target | Description |
 |-------|--------|-------------|
 | default | 6.execution | Continue execution |
-| implementation_started | 6.execution | Execution started |
+| implementation_started | 6.execution | Execution started (from /implement) |
 | implementation_execution_in_progress | 6.execution | Execution in progress |
 | implementation_accepted | 6.internal_review | Back to review |
 | implementation_blocked | 6.blocked | Go to blocked state |
@@ -59,18 +63,22 @@ Zerlege den monolithischen Phase 6 State in echte Substates gemäß ADR-003.
 ### 6.approved
 | Event | Target | Description |
 |-------|--------|-------------|
-| default | 6.execution | Start execution |
+| implementation_started | 6.execution | Start execution via /implement |
 | workflow_complete | 6.complete | Mark complete |
+
+**Hinweis:** Per ADR-003, `/implement` muss explizit aufgerufen werden. Kein default-Übergang.
 
 ### 6.blocked
 | Event | Target | Description |
 |-------|--------|-------------|
-| default | 6.execution | Continue after fix |
+| default | 6.blocked | Stay blocked |
+| implementation_started | 6.execution | Rerun via /implement after fixing blockers |
 
 ### 6.rework
 | Event | Target | Description |
 |-------|--------|-------------|
 | default | 6.presentation | Continue to presentation |
+| implementation_started | 6.execution | Rerun via /implement after clarifying |
 
 ### 6.rejected (Transitional)
 | Event | Target | Description |
@@ -78,6 +86,16 @@ Zerlege den monolithischen Phase 6 State in echte Substates gemäß ADR-003.
 | default | 4 | Return to Phase 4 via /continue |
 
 **Semantics:** Short transitional state, explicit `/continue` required to return to Phase 4.
+
+## 4. Reject-Semantik
+
+**Single Source of Truth (ab Phase 9):**
+
+| Decision | Event | Substate | Ziel |
+|----------|-------|----------|------|
+| `/review-decision reject` | `review_rejected` | `6.rejected` | → 4 (replan) |
+
+`workflow_rejected` wurde entfernt (kein Producer).
 
 ### 6.complete (Terminal)
 - **Terminal state** - no transitions, no mutating commands, no /continue

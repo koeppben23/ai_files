@@ -230,17 +230,6 @@ guards:
       type: "key_present"
       key: "implementation_rework_clarification_required"
 
-  - id: "guard_implementation_presentation_ready"
-    guard_type: "transition"
-    event: "implementation_presentation_ready"
-    condition:
-      type: "all_of"
-      operands:
-        - type: "key_present"
-          key: "implementation_package_presented"
-        - type: "key_present"
-          key: "implementation_quality_stable"
-
   - id: "guard_implementation_execution_in_progress"
     guard_type: "transition"
     event: "implementation_execution_in_progress"
@@ -315,3 +304,10 @@ guards:
           operator: "gte"
         - type: "key_present"
           key: "ImplementationReview.revision_complete"
+
+  - id: "guard_workflow_complete"
+    guard_type: "transition"
+    event: "workflow_complete"
+    condition:
+      type: "key_present"
+      key: "workflow_complete"

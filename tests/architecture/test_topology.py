@@ -44,14 +44,13 @@ EVENT_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 ALLOWED_STRUCTURAL_METADATA = {"parent"}  # Optional, for hierarchy info
 
 # FORBIDDEN: Presentation/UX metadata (no runtime effect)
+# Note: Per ADR-001, description, display_name, tags are ALLOWED as non-runtime metadata
 FORBIDDEN_STATE_FIELDS = {
     "phase",                # UX display name
     "active_gate",          # UX gate message
     "next_gate_condition",  # UX instruction
-    "display_name",         # Presentation metadata
     "title",                # UX text
     "help_text",            # UX text
-    "description",          # Presentation metadata (not structural)
 }
 
 FORBIDDEN_TRANSITION_FIELDS = {
@@ -349,6 +348,14 @@ class TestTransitionIntegrity:
         for state in topology["states"]:
             if state["terminal"]:
                 continue  # Terminal states may have no transitions
+            
+            # States that require explicit events (no default transition by design)
+            # Per ADR-003: /implement produces implementation_started which triggers transition
+            explicit_event_states = {"6.approved"}
+            
+            if state["id"] in explicit_event_states:
+                continue
+            
             events = [t.get("event") for t in state.get("transitions", [])]
             default_count = events.count("default")
             assert default_count == 1, \
@@ -383,14 +390,20 @@ class TestNoUxInTopology:
 class TestNoUxInLoadedModel:
     """Keine UX-Felder in geladenem Modell (Model-Ebene)."""
 
-    def test_loaded_model_runtime_fields_only(self, topology):
-        """Runtime: Geladenes Modell enthält nur erlaubte Felder."""
+    def test_loaded_model_valid_fields_only(self, topology):
+        """Model: Geladenes Modell enthält nur erlaubte Felder.
+        
+        Erlaubte Felder (per ADR-001):
+        - Runtime: id, terminal, transitions
+        - Structural: parent (optional, hierarchy info)
+        - Non-runtime metadata: description (never for guard/routing)
+        """
         for state in topology["states"]:
-            # Runtime fields: id, terminal, transitions, parent (optional)
-            runtime_fields = {"id", "terminal", "transitions", "parent"}
-            extra_fields = set(state.keys()) - runtime_fields
+            # Valid model fields
+            valid_fields = {"id", "terminal", "transitions", "parent", "description"}
+            extra_fields = set(state.keys()) - valid_fields
             assert not extra_fields, \
-                f"State {state['id']} has non-runtime fields: {extra_fields}"
+                f"State {state['id']} has invalid fields: {extra_fields}"
 
     def test_loaded_model_parent_is_structural_metadata(self, topology):
         """Structural: parent ist erlaubte strukturelle Metadaten."""
@@ -436,8 +449,8 @@ class TestTopologyReachability:
     def test_all_states_reachable_from_start(self, topology, state_ids):
         """Happy: Alle States sind vom Start-State erreichbar.
         
-        Note: Container states (like '6') that serve as delegation entry points
-        may not be directly reachable - they are reached via their first substate.
+        Note: Per ADR-003, Phase 6 base container '6' was removed (was unreachable).
+        All Phase 6 paths lead directly to substates.
         """
         start = topology["start_state_id"]
         reachable = set()
@@ -457,11 +470,7 @@ class TestTopologyReachability:
                 if t["target"] not in reachable:
                     to_visit.append(t["target"])
         
-        # Container states that delegate to substates are not directly reachable
-        # They are entered via their first substate
-        container_states = {"6"}  # Add other container states as needed
-        
-        unreachable = (state_ids - reachable) - container_states
+        unreachable = state_ids - reachable
         assert not unreachable, f"Unreachable states: {unreachable}"
 
 
@@ -469,23 +478,13 @@ class TestTopologyReachability:
 class TestPhase6Substates:
     """Phase 6 Substates Architecture (per ADR-003)."""
 
-    def test_phase6_container_exists(self, topology, state_ids):
-        """Happy: Phase 6 Container State existiert."""
-        assert "6" in state_ids
-
-    def test_phase6_is_not_terminal(self, topology):
-        """Phase 6 Container ist nicht terminal."""
-        phase6 = next(s for s in topology["states"] if s["id"] == "6")
-        assert phase6["terminal"] is False
-
-    def test_phase6_has_entry_transition(self, topology):
-        """Happy: Phase 6 Container hat default-Transition zu erstem Substate."""
-        phase6 = next(s for s in topology["states"] if s["id"] == "6")
-        default_transitions = [t for t in phase6.get("transitions", []) if t["event"] == "default"]
-        assert len(default_transitions) == 1, "Phase 6 container must have exactly one default transition"
-        # Should target first substate (internal_review)
-        assert "6.internal_review" in default_transitions[0]["target"], \
-            "Phase 6 container should target 6.internal_review by default"
+    def test_phase6_container_removed(self, topology, state_ids):
+        """Phase 6 Base Container wurde entfernt (unreachable, legacy).
+        
+        Per ADR-003, substates are reached directly. The base '6' state was
+        unreachable and has been removed. All paths lead directly to substates.
+        """
+        assert "6" not in state_ids, "State 6 should be removed (was unreachable)"
 
     def test_all_phase6_substates_have_parent(self, topology):
         """Happy: Alle Phase 6 Substates haben parent='6'."""

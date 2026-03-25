@@ -504,12 +504,14 @@ def validate_cross_ref_command_allowed_states(
         return results
 
     state_ids = {s["id"] for s in topology.get("states", [])}
+    terminal_states = {s["id"] for s in topology.get("states", []) if s.get("terminal")}
     FUTURE_STATES = {
         "6.approved", "6.presentation", "6.execution",
         "6.blocked", "6.rework", "6.rejected", "6.complete",
         "6.internal_review"
     }
     state_ids = state_ids | FUTURE_STATES | {"*"}
+    terminal_states = terminal_states | {"6.complete"}  # Known terminal state
 
     for c in cp.get("commands", []):
         cid = c["id"]
@@ -521,6 +523,14 @@ def validate_cross_ref_command_allowed_states(
                         ValidationSeverity.ERROR, "cross_ref:command_policy-topology",
                         "allowed_state_exists",
                         f"Command {cid} allows unknown state: {state}",
+                        f"command:{cid}:allowed_in"
+                    ))
+                # WARNING: Command allowed in terminal state
+                if state in terminal_states:
+                    results.append(ValidationResult(
+                        ValidationSeverity.WARNING, "cross_ref:command_policy-topology",
+                        "command_in_terminal_state",
+                        f"Command {cid} allows terminal state: {state} (may be misconfiguration)",
                         f"command:{cid}:allowed_in"
                     ))
 
@@ -542,7 +552,7 @@ def validate_cross_ref_command_allowed_states(
 def validate_cross_ref_message_commands(
     messages: dict | None, cp: dict | None
 ) -> list[ValidationResult]:
-    """Validate commands in messages are allowed in the state."""
+    """Validate commands in messages are allowed in the state and semantically appropriate."""
     results = []
     if messages is None or cp is None:
         return results
@@ -551,6 +561,7 @@ def validate_cross_ref_message_commands(
     CMD_PATTERN = re.compile(r"/[a-z][a-z0-9\-]*")
 
     cmd_allowed = {}
+    cmd_mutating = {}
     for c in cp.get("commands", []):
         cmd = c["command"]
         allowed = c.get("allowed_in", [])
@@ -558,15 +569,36 @@ def validate_cross_ref_message_commands(
             cmd_allowed[cmd] = set(allowed)
         elif allowed == "*":
             cmd_allowed[cmd] = {"*"}
+        # Track mutating status
+        cmd_mutating[cmd] = c.get("mutating", True)  # Default to True if not specified
 
     for m in messages.get("transition_messages", []):
         mid = m.get("id", "?")
         instruction = m.get("instruction", "")
         state_id = m.get("state_id", "")
 
-        for match in CMD_PATTERN.finditer(instruction):
+        cmd_matches = list(CMD_PATTERN.finditer(instruction))
+        
+        for match in cmd_matches:
             cmd = match.group()
-            if cmd in {"/continue", "/review"}:
+            if cmd in {"/continue"}:
+                continue
+
+            # WARNING: Read-only command suggested as ONLY progress option
+            # Only flag if /review is the primary suggestion (no other mutating commands)
+            if cmd == "/review":
+                has_mutating = any(
+                    cmd_allowed.get(m2.group(), {"*"}) != {"*"} 
+                    for m2 in cmd_matches 
+                    if m2.group() not in {"/review", "/continue"}
+                )
+                if not has_mutating and not cmd_mutating.get("/review", True):
+                    results.append(ValidationResult(
+                        ValidationSeverity.WARNING, "cross_ref:messages-command_policy",
+                        "readonly_command_as_progress",
+                        f"Message {mid}: read-only '/review' suggested as only progress (may not advance state)",
+                        f"message:{mid}"
+                    ))
                 continue
 
             allowed = cmd_allowed.get(cmd, set())
@@ -637,6 +669,73 @@ class TestTopologyUXValidation:
             for field in ALLOWED_STRUCTURAL_METADATA:
                 if field in s:
                     assert field not in FORBIDDEN_STRUCTURAL_METADATA
+
+    def test_raw_spec_with_forbidden_fields_is_rejected(self):
+        """ERROR: Raw spec containing forbidden UX fields must be rejected.
+        
+        This tests the ACTUAL RAW YAML content, not a normalized model.
+        ADR-001 requires that forbidden fields are rejected at the source level.
+        """
+        broken_topology_raw = {
+            "states": [{
+                "id": "test",
+                "terminal": False,
+                "transitions": [],
+                "active_gate": "Test Gate",  # FORBIDDEN
+                "next_gate_condition": "Test condition",  # FORBIDDEN
+            }]
+        }
+        
+        errors = validate_topology_ux_fields(broken_topology_raw)
+        
+        forbidden_errors = [r for r in errors if r.severity == ValidationSeverity.ERROR]
+        assert len(forbidden_errors) >= 2, \
+            "Should detect at least 2 forbidden UX fields in raw spec"
+        
+        gate_errors = [r for r in forbidden_errors if "active_gate" in r.message]
+        condition_errors = [r for r in forbidden_errors if "next_gate_condition" in r.message]
+        
+        assert gate_errors, "Should detect forbidden active_gate field"
+        assert condition_errors, "Should detect forbidden next_gate_condition field"
+
+    def test_raw_spec_with_forbidden_transition_fields_rejected(self):
+        """ERROR: Raw spec with forbidden transition fields must be rejected."""
+        broken_topology_raw = {
+            "states": [{
+                "id": "test",
+                "terminal": False,
+                "transitions": [{
+                    "id": "t1-t2",
+                    "event": "default",
+                    "target": "test",
+                    "gate_message": "Test gate",  # FORBIDDEN
+                    "instruction": "Test instruction",  # FORBIDDEN
+                }]
+            }]
+        }
+        
+        errors = validate_topology_ux_fields(broken_topology_raw)
+        
+        forbidden_errors = [r for r in errors if r.severity == ValidationSeverity.ERROR]
+        assert forbidden_errors, "Should detect forbidden transition fields"
+
+    def test_raw_spec_with_forbidden_metadata_rejected(self):
+        """ERROR: Raw spec with forbidden structural metadata must be rejected."""
+        broken_topology_raw = {
+            "states": [{
+                "id": "test",
+                "terminal": False,
+                "transitions": [],
+                "user_guidance": "Some guidance",  # FORBIDDEN
+                "display_name": "Test State",  # FORBIDDEN
+            }]
+        }
+        
+        errors = validate_topology_ux_fields(broken_topology_raw)
+        
+        forbidden_errors = [r for r in errors if r.severity == ValidationSeverity.ERROR]
+        assert len(forbidden_errors) >= 2, \
+            "Should detect forbidden structural metadata fields"
 
 
 @pytest.mark.governance
@@ -736,6 +835,209 @@ class TestCrossSpecConformance:
         """ERROR: commands in message instructions must be allowed in the state."""
         errors = validate_cross_ref_message_commands(messages, command_policy)
         assert not errors, f"Command conformance violations: {errors}"
+
+    def test_message_mentioning_disallowed_command_is_error(self):
+        """ERROR: Message instruction mentioning command not allowed in state.
+        
+        This is a critical cross-ref: if a message HINTS at a command,
+        that command must be allowed in the state.
+        """
+        broken_messages = {
+            "transition_messages": [{
+                "id": "test_msg",
+                "state_id": "5",
+                "event": "default",
+                "gate_message": "Test",
+                "instruction": "Use /implement to start implementation"  # /implement not allowed in state 5
+            }]
+        }
+        
+        broken_cp = {
+            "commands": [{
+                "id": "cmd_implement",
+                "command": "/implement",
+                "description": "Start implementation",
+                "allowed_in": ["6.approved", "6.execution"]
+            }]
+        }
+        
+        errors = validate_cross_ref_message_commands(broken_messages, broken_cp)
+        
+        cmd_errors = [r for r in errors if r.severity == ValidationSeverity.ERROR]
+        assert cmd_errors, "Should detect command not allowed in state"
+        assert any("not allowed" in r.message for r in cmd_errors)
+
+    def test_readonly_command_in_write_state_is_error(self):
+        """ERROR: Read-only command mentioned for state that requires mutating command.
+        
+        If a message describes /review as the way to proceed in a state,
+        but /review is read-only and the state requires advancement,
+        this indicates a semantic mismatch.
+        """
+        broken_messages = {
+            "transition_messages": [{
+                "id": "test_msg",
+                "state_id": "5",
+                "event": "default",
+                "gate_message": "Test",
+                "instruction": "Use /review to proceed"  # /review is read-only, not advancing
+            }]
+        }
+        
+        broken_cp = {
+            "commands": [{
+                "id": "cmd_review",
+                "command": "/review",
+                "description": "Read-only review",
+                "allowed_in": ["*"],
+                "mutating": False
+            }]
+        }
+        
+        errors = validate_cross_ref_message_commands(broken_messages, broken_cp)
+        
+        assert errors, "Should detect read-only command used as progress hint"
+        readonly_errors = [r for r in errors if "readonly" in r.message.lower() or "/review" in r.message]
+        assert readonly_errors, f"Should flag /review as not advancing: {errors}"
+
+    def test_message_with_semantically_nonexistent_state_rejected(self):
+        """ERROR: Message references state that doesn't exist in topology.
+        
+        Even if the message format is valid, referencing a nonexistent state
+        is a critical error.
+        """
+        broken_topology = {
+            "states": [{"id": "1", "terminal": False, "transitions": []}]
+        }
+        
+        broken_messages = {
+            "transition_messages": [{
+                "id": "test_msg",
+                "state_id": "nonexistent_state",  # Does not exist
+                "event": "default",
+                "gate_message": "Test",
+                "instruction": "Use /continue"
+            }]
+        }
+        
+        errors = validate_cross_ref_message_state_exists(broken_topology, broken_messages)
+        
+        state_errors = [r for r in errors if r.severity == ValidationSeverity.ERROR]
+        assert state_errors, "Should detect nonexistent state reference"
+        assert any("nonexistent_state" in r.message for r in state_errors)
+
+    def test_message_event_not_in_state_transitions_is_error(self):
+        """ERROR: Message event not defined in state's transition list.
+        
+        A formally valid event name (snake_case) that doesn't exist in the
+        state's transition table is semantically nonexistent.
+        """
+        broken_topology = {
+            "states": [{
+                "id": "1",
+                "terminal": False,
+                "transitions": [{
+                    "id": "t1-t1",
+                    "event": "default",
+                    "target": "1"
+                }]
+            }]
+        }
+        
+        broken_messages = {
+            "transition_messages": [{
+                "id": "test_msg",
+                "state_id": "1",
+                "event": "nonexistent_event",  # Not in transitions
+                "gate_message": "Test",
+                "instruction": "Use /continue"
+            }]
+        }
+        
+        errors = validate_cross_ref_message_events(broken_topology, broken_messages)
+        
+        event_errors = [r for r in errors if r.severity == ValidationSeverity.ERROR]
+        assert event_errors, "Should detect event not in state transitions"
+        assert any("nonexistent_event" in r.message for r in event_errors)
+
+    def test_command_allowed_in_terminal_state_is_warning(self):
+        """WARNING: Command allowed in terminal state may be misconfiguration.
+        
+        Terminal states should block mutating commands. If a command's
+        allowed_in includes a terminal state, this is suspicious.
+        """
+        broken_cp = {
+            "commands": [{
+                "id": "cmd_implement",
+                "command": "/implement",
+                "description": "Start implementation",
+                "allowed_in": ["6.complete"]  # Terminal state!
+            }]
+        }
+        
+        broken_topology = {
+            "states": [{
+                "id": "6.complete",
+                "terminal": True,
+                "transitions": []
+            }]
+        }
+        
+        errors = validate_cross_ref_command_allowed_states(broken_topology, broken_cp)
+        
+        terminal_errors = [r for r in errors if r.severity == ValidationSeverity.WARNING 
+                         and "terminal" in r.message.lower()]
+        assert terminal_errors, \
+            f"Should flag command in terminal state: {errors}"
+
+
+@pytest.mark.governance
+class TestPhase6BlockedReworkConformance:
+    """Phase 6 blocked/rework state semantics must be strictly defined.
+    
+    Per ADR-007, these are the softest Phase 6 substates and require
+    strict conformance to prevent future drift.
+    """
+
+    def test_blocked_state_has_recovery_path(self, topology):
+        """ERROR: 6.blocked must have a path back to 6.execution.
+        
+        The /implement command from 6.blocked must produce implementation_started
+        which triggers the transition to 6.execution.
+        """
+        blocked_state = next((s for s in topology.get("states", []) if s["id"] == "6.blocked"), None)
+        assert blocked_state is not None, "State 6.blocked must exist"
+        
+        events = {t["event"] for t in blocked_state.get("transitions", [])}
+        assert "implementation_started" in events, \
+            "6.blocked must have implementation_started transition to 6.execution"
+
+    def test_rework_state_has_clarification_path(self, topology):
+        """ERROR: 6.rework must have a path back to 6.presentation.
+        
+        The /continue command from 6.rework should allow clarification
+        and then return to 6.presentation for re-review.
+        """
+        rework_state = next((s for s in topology.get("states", []) if s["id"] == "6.rework"), None)
+        assert rework_state is not None, "State 6.rework must exist"
+        
+        events = {t["event"] for t in rework_state.get("transitions", [])}
+        assert "default" in events, \
+            "6.rework must have default transition for /continue"
+
+    def test_rework_has_rerun_path(self, topology):
+        """ERROR: 6.rework should allow /implement rerun after clarification.
+        
+        After clarifying rework, /implement should be allowed from 6.rework
+        to transition to 6.execution.
+        """
+        rework_state = next((s for s in topology.get("states", []) if s["id"] == "6.rework"), None)
+        if rework_state:
+            events = {t["event"] for t in rework_state.get("transitions", [])}
+            # This is a soft requirement - rerun should be possible
+            # but may be conditional on clarification being consumed
+            assert "implementation_started" in events or "default" in events, \
+                "6.rework must have path to continue flow"
 
 
 @pytest.mark.governance

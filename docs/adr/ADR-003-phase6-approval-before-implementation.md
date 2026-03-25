@@ -24,12 +24,20 @@ Für Auditierbarkeit und klare Verantwortlichkeit muss dies getrennt sein.
 
 ### State-Übergänge
 
-| Source | Command | Guard | Target |
-|--------|---------|-------|--------|
-| `6.presentation` | `/review-decision approve` | `g.review_package_ready` | `6.approved` |
-| `6.presentation` | `/review-decision changes_requested` | `g.review_package_ready` | `6.rework` |
-| `6.presentation` | `/review-decision reject` | `g.review_package_ready` | `6.rejected` |
-| `6.approved` | `/implement` | `g.workflow_approved` | `6.execution` |
+| Source | Event | Target |
+|--------|-------|--------|
+| `6.presentation` | `workflow_approved` | `6.approved` |
+| `6.presentation` | `review_changes_requested` | `6.rework` |
+| `6.presentation` | `review_rejected` | `6.rejected` |
+| `6.approved` | `implementation_started` | `6.execution` |
+| `6.approved` | `workflow_complete` | `6.complete` |
+| `6.execution` | `implementation_started` | `6.execution` (self-loop) |
+| `6.execution` | `implementation_blocked` | `6.blocked` |
+| `6.blocked` | `implementation_started` | `6.execution` |
+| `6.rework` | `default` | `6.presentation` |
+| `6.rework` | `implementation_started` | `6.execution` |
+
+**Hinweis:** `/implement` produziert `implementation_started` Event, das die explizite Transition auslöst.
 
 ### Command-Policy
 

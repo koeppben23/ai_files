@@ -40,12 +40,29 @@ class TestCanonicalPhase6SubstateResolver:
         state = {"phase6_state": "6.complete"}
         assert resolve_phase6_substate(state) == "6.complete"
 
-    def test_resolve_returns_base_6_when_not_set(self):
-        """Happy: resolve_phase6_substate gibt "6" zurück wenn Feld nicht gesetzt."""
+    def test_resolve_returns_6_when_no_phase6_indicators(self):
+        """Happy: resolve_phase6_substate gibt "6" zurück wenn keine Phase-6-Indikatoren.
+        
+        Für leere/unbekannte States soll "6" (unknown) zurückgegeben werden,
+        NICHT "6.internal_review". Die Bridge inferiert nur einen Substate,
+        wenn echte Phase-6-Kontext-Indikatoren vorhanden sind.
+        """
         from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
         
         state = {}
         assert resolve_phase6_substate(state) == "6"
+    
+    def test_resolve_returns_internal_review_when_phase6_context_present(self):
+        """Happy: resolve_phase6_substate gibt 6.internal_review bei Phase-6-Kontext.
+        
+        Wenn Phase-6-Kontext-Indikatoren vorhanden sind (phase_transition_evidence,
+        ImplementationReview), aber phase6_state nicht gesetzt ist, soll die Bridge
+        6.internal_review inferieren.
+        """
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
+        
+        state = {"phase_transition_evidence": True}
+        assert resolve_phase6_substate(state) == "6.internal_review"
 
     def test_resolve_all_substates(self):
         """Happy: resolve_phase6_substate erkennt alle Substates."""
@@ -175,11 +192,29 @@ class TestLegacyBridgePhase6SubstateDetection:
             "workflow_complete should take priority over Implementation Accepted"
         assert is_phase6_terminal(state) is True
 
-    def test_legacy_fallback_to_internal_review(self):
-        """Happy: Legacy Fallback zu 6.internal_review wenn keine Flags."""
+    def test_legacy_returns_6_for_unknown_state(self):
+        """Happy: Legacy gibt "6" für unbekannten State zurück.
+        
+        Ein komplett leerer State soll "6" (unknown) zurückgeben,
+        NICHT "6.internal_review". Die Bridge soll nur dann einen
+        konkreten Substate inferieren, wenn echte Phase-6-Indikatoren
+        vorhanden sind.
+        """
         from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
         
         state = {}
+        result = _detect_phase6_substate_legacy(state)
+        assert result == "6", f"Empty state should return '6' (unknown), got {result}"
+    
+    def test_legacy_fallback_to_internal_review_with_phase_context(self):
+        """Happy: Legacy Fallback zu 6.internal_review bei Phase-6-Kontext.
+        
+        Wenn Phase-6-Kontext vorhanden ist (phase_transition_evidence),
+        soll die Bridge 6.internal_review inferieren.
+        """
+        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
+        
+        state = {"phase_transition_evidence": True}
         result = _detect_phase6_substate_legacy(state)
         assert result == "6.internal_review"
 

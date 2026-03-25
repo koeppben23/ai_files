@@ -3,7 +3,7 @@
 **Status:** Accepted  
 **Date:** 2026-03-24  
 **Decision Makers:** Architecture Team  
-**Related:** machine_topology.yaml, messages.yaml
+**Related:** topology.yaml, messages.yaml
 
 ## Context
 
@@ -11,7 +11,7 @@ Die aktuelle `phase_api.yaml` mischt Struktur (States, Transitions) mit UX-Texte
 
 ## Decision
 
-**`machine_topology.yaml` trennt Struktur von UX, erlaubt aber non-runtime Metadata:**
+**`topology.yaml` trennt Struktur von UX, erlaubt aber allowed descriptive metadata:**
 
 ### Struktur (Pflicht)
 | Feld | Beschreibung |
@@ -20,12 +20,17 @@ Die aktuelle `phase_api.yaml` mischt Struktur (States, Transitions) mit UX-Texte
 | `state.parent` | Informativ, nicht für Resolution |
 | `state.is_terminal` | Terminal-Flag |
 
-### Non-Runtime Metadata (Optional)
+### Allowed Descriptive Metadata (Optional)
 | Feld | Beschreibung | Einschränkung |
 |------|--------------|---------------|
-| `description` | Technische Beschreibung | **Nie für Guard/Routing** |
+| `description` | Technische Beschreibung | **Nie für Guard/Routing/Ranking** |
 | `tags` | Klassifikationstags | **Nie für Runtime** |
 | `display_name` | Anzeigename | **Nie für Runtime** |
+
+**Terminologie-Regel:**
+- "Allowed descriptive metadata" oder "non-runtime metadata"
+- **Nie für Routing, Guards, Ranking, Transition Resolution**
+- Erlaubt für: Debugging, Dokumentation, Diagramm-Export
 
 ### Verboten (UX/Operator-Texte)
 | Feld | Grund |
@@ -34,14 +39,14 @@ Die aktuelle `phase_api.yaml` mischt Struktur (States, Transitions) mit UX-Texte
 | `next_gate_condition` | UX-Text → `messages.yaml` |
 | `phase` (altes Format) | Display-Name → `messages.yaml` |
 
-**Regel:** UX-/Operator-/Prompt-Texte verboten. Non-runtime Metadata optional erlaubt, aber **nie** für Guard-/Routing-Entscheidungen.
+**Regel:** UX-/Operator-/Prompt-Texte verboten. Allowed descriptive metadata optional erlaubt, aber **nie** für Guard-/Routing-Entscheidungen.
 
 ## Consequences
 
 - Topologie ist maschinenzentriert und stabil
 - UX-Änderungen erfordern keinen Struktur-Change
-- Non-runtime Metadata erlaubt für Debugging, Diagramm-Export
-- `machine_topology.yaml` Validierung prüft UX-Felder, nicht Metadata
+- Allowed descriptive metadata erlaubt für Debugging, Diagramm-Export
+- `topology.yaml` Validierung prüft UX-Felder, nicht descriptive metadata
 - Session-Reader nutzt Message-Katalog für UX
 
 ## Validation
@@ -54,8 +59,8 @@ def test_no_ux_in_topology():
         for field in UX_FIELDS:
             assert field not in state.raw, f"UX field {field} in topology"
 
-def test_metadata_not_used_for_resolution():
-    """Non-runtime metadata darf Resolution nicht beeinflussen."""
+def test_descriptive_metadata_not_used_for_resolution():
+    """Allowed descriptive metadata darf Resolution nicht beeinflussen."""
     state = topology.get_state("6.execution")
     # Resolution nutzt nur id, parent ist informativ
     assert state.id == "6.execution"

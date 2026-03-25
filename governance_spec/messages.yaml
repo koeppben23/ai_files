@@ -147,12 +147,6 @@ state_messages:
     gate_message: "Rollback Safety Gate"
     instruction: "Validate rollback safety requirements."
 
-  - id: "msg.state.6"
-    state_id: "6"
-    display_name: "6-Implementation"
-    gate_message: "Implementation Internal Review"
-    instruction: "Phase 5 checks complete; start internal implementation review."
-
 # ============================================================================
 # Transition Messages
 # ============================================================================
@@ -343,12 +337,6 @@ transition_messages:
     gate_message: "Workflow Approved"
     instruction: "Plan approved; proceed to execution"
 
-  - id: "msg.trans.6.presentation.implementation_presentation_ready"
-    state_id: "6.presentation"
-    event: "implementation_presentation_ready"
-    gate_message: "Presentation Ready"
-    instruction: "Implementation package ready for review"
-
   - id: "msg.trans.6.presentation.review_changes_requested"
     state_id: "6.presentation"
     event: "review_changes_requested"
@@ -439,10 +427,3 @@ transition_messages:
     event: "default"
     gate_message: "Implementation Rejected"
     instruction: "Use /continue to return to Phase 4 for replanning"
-
-  # 6 (container)
-  - id: "msg.trans.6.default"
-    state_id: "6"
-    event: "default"
-    gate_message: "Implementation Review"
-    instruction: "Enter internal review"

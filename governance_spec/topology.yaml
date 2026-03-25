@@ -175,22 +175,17 @@ states:
   - id: "6.presentation"
     terminal: false
     parent: "6"
+    description: "Evidence presentation, awaiting review decision"
     transitions:
       - id: "t6.presentation-t6.approved"
         event: workflow_approved
         target: "6.approved"
-      - id: "t6.presentation-t6.execution"
-        event: implementation_presentation_ready
-        target: "6.execution"
       - id: "t6.presentation-t6.rework"
         event: review_changes_requested
         target: "6.rework"
       - id: "t6.presentation-t6.rejected"
         event: review_rejected
         target: "6.rejected"
-      - id: "t6.presentation-t4"
-        event: workflow_rejected
-        target: "4"
       - id: "t6.presentation-t6.presentation-clarification"
         event: rework_clarification_pending
         target: "6.presentation"
@@ -224,9 +219,10 @@ states:
   - id: "6.approved"
     terminal: false
     parent: "6"
+    description: "Implementation plan approved, awaiting /implement to start execution"
     transitions:
       - id: "t6.approved-t6.execution"
-        event: default
+        event: implementation_started
         target: "6.execution"
       - id: "t6.approved-t6.complete"
         event: workflow_complete
@@ -235,18 +231,26 @@ states:
   - id: "6.blocked"
     terminal: false
     parent: "6"
+    description: "Implementation blocked, resolve blockers and rerun /implement"
     transitions:
-      - id: "t6.blocked-t6.execution"
+      - id: "t6.blocked-t6.blocked"
         event: default
+        target: "6.blocked"
+      - id: "t6.blocked-t6.execution"
+        event: implementation_started
         target: "6.execution"
 
   - id: "6.rework"
     terminal: false
     parent: "6"
+    description: "Rework clarification required, rerun /implement after clarifying"
     transitions:
       - id: "t6.rework-t6.presentation"
         event: default
         target: "6.presentation"
+      - id: "t6.rework-t6.execution"
+        event: implementation_started
+        target: "6.execution"
 
   - id: "6.rejected"
     terminal: false
@@ -260,10 +264,3 @@ states:
     terminal: true
     parent: "6"
     transitions: []
-
-  - id: "6"
-    terminal: false
-    transitions:
-      - id: "t6-t6.internal_review"
-        event: default
-        target: "6.internal_review"

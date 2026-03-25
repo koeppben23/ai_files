@@ -51,13 +51,18 @@ Neue Ranks für Phase 6 Substates:
 
 ### 2.3 Substate Detection Functions
 
-Neue Funktionen im Kernel:
-- `_detect_phase6_substate(state)` - Erkennt aktuellen Substate
-- `is_phase6_terminal(state)` - Prüft ob terminal
-- `is_phase6_approved(state)` - Prüft ob genehmigt
+**Kanonischer Resolver (Phase 9 aktualisiert):**
+- `resolve_phase6_substate(state)` - Liest `phase6_state` Feld (primär)
+- `_detect_phase6_substate_legacy(state)` - Nur noch Fallback
+
+**Helper-Funktionen:**
+- `is_phase6_terminal(state)` - Prüft ob 6.complete
+- `is_phase6_approved(state)` - Prüft ob genehmigt (6.approved)
 - `is_phase6_execution(state)` - Prüft ob in Execution
 - `is_phase6_blocked(state)` - Prüft ob blocked
 - `is_phase6_rejected(state)` - Prüft ob rejected
+
+**Hinweis:** Helper delegieren an `resolve_phase6_substate()`. Legacy-Bridge nur noch Fallback.
 
 ### 2.4 Token Patterns
 
@@ -71,14 +76,15 @@ Patterns für Substate-Erkennung (case-insensitive):
 ## 3. Testergebnisse
 
 ```
-tests/architecture/test_phase7_substates.py ... 20 passed
+tests/architecture/test_phase7_substates.py ... 34 passed
 tests/architecture/test_phase6_substates.py ... 19 passed
-tests/architecture/test_topology.py ... 37 passed
+tests/architecture/test_topology.py ... 35 passed
 tests/architecture/test_messages.py ... 31 passed
 tests/architecture/test_command_policy.py ... 42 passed
 tests/architecture/test_guards.py ... 33 passed
 tests/architecture/test_spec_inventory.py ... 18 passed
-Total: 216 passed
+tests/architecture/test_spec_validator.py ... 35 passed
+Total: 263 passed
 ```
 
 ## 4. Nächste Schritte
