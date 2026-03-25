@@ -478,13 +478,13 @@ class TestTopologyReachability:
 class TestPhase6Substates:
     """Phase 6 Substates Architecture (per ADR-003)."""
 
-    def test_phase6_container_removed(self, topology, state_ids):
-        """Phase 6 Base Container wurde entfernt (unreachable, legacy).
+    def test_phase6_container_exists(self, topology, state_ids):
+        """Phase 6 Base Container exists as grouping parent for substates.
         
-        Per ADR-003, substates are reached directly. The base '6' state was
-        unreachable and has been removed. All paths lead directly to substates.
+        State '6' serves as the parent container for all '6.*' substates.
+        Per topology consistency validation, all parent references must exist.
         """
-        assert "6" not in state_ids, "State 6 should be removed (was unreachable)"
+        assert "6" in state_ids, "State 6 must exist as parent container for 6.* substates"
 
     def test_all_phase6_substates_have_parent(self, topology):
         """Happy: Alle Phase 6 Substates haben parent='6'."""

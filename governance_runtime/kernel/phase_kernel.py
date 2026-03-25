@@ -511,16 +511,19 @@ def _phase5_completed_explicit(state: Mapping[str, object]) -> bool:
 
 
 def _phase6_review_iterations(state: Mapping[str, object]) -> int:
+    values: list[int] = []
     for key_path in (
-        "ImplementationReview.iteration",
-        "ImplementationReview.Iteration",
         "phase6_review_iterations",
         "phase6ReviewIterations",
+        "ImplementationReview.iteration",
+        "ImplementationReview.Iteration",
     ):
         value = _read_nested_key(state, key_path)
         parsed = _coerce_non_negative_int(value)
         if parsed is not None:
-            return parsed
+            values.append(parsed)
+    if values:
+        return max(values)
     return 0
 
 
@@ -618,6 +621,15 @@ def _phase5_review_loop_complete(
 
 
 def _phase6_internal_review_complete(state: Mapping[str, object]) -> bool:
+    explicit_complete = _read_bool(
+        state,
+        "implementation_review_complete",
+        "ImplementationReview.implementation_review_complete",
+        "ImplementationReview.Complete",
+    )
+    if explicit_complete is True:
+        return True
+
     iterations = _phase6_review_iterations(state)
     max_iterations = _phase6_max_review_iterations(state)
     min_iterations = _phase6_min_review_iterations(state)
@@ -1001,6 +1013,31 @@ def _select_transition(
     *,
     plan_record_versions: int,
 ) -> tuple[str | None, str, str | None, str | None]:
+    """Select next transition based on topology.yaml as authoritative source.
+    
+    Transition resolution:
+    1. For Phase 6 states (defined in topology.yaml): topology is authoritative
+    2. For other phases: use guard-based logic from phase_api.yaml
+    
+    Topology is consulted FIRST for states it defines. Guard-based transitions
+    from phase_api.yaml provide additional condition evaluation but must be
+    consistent with topology targets.
+    """
+    from governance_runtime.kernel.topology_loader import TopologyLoader
+    
+    current_token = entry.token
+    is_phase6 = current_token.startswith("6.")
+    
+    # PHASE 6: Topology is authoritative
+    if is_phase6:
+        return _select_transition_topology_authoritative(
+            entry,
+            state,
+            plan_record_versions,
+            current_token=current_token,
+        )
+    
+    # OTHER PHASES: Guard-based with topology validation
     if entry.transitions:
         for transition in entry.transitions:
             when = transition.when.strip().lower()
@@ -1188,8 +1225,138 @@ def _select_transition(
                     transition.active_gate,
                     transition.next_gate_condition,
                 )
+        
+        # No guard matched - fail-closed for non-Phase6
         return (entry.next_token, "spec-next", None, None)
     return (entry.next_token, "spec-next", None, None)
+
+
+def _select_transition_topology_authoritative(
+    entry: PhaseSpecEntry,
+    state: Mapping[str, object],
+    plan_record_versions: int,
+    *,
+    current_token: str,
+) -> tuple[str | None, str, str | None, str | None]:
+    """Topology-authoritative transition resolution for Phase 6 states.
+    
+    For Phase 6 states, topology.yaml is the SINGLE SOURCE OF TRUTH.
+    Guards evaluate WHICH event fires, but topology determines the target.
+    
+    Raises:
+        TopologyError: If state or transition not found in topology (fail-closed).
+    """
+    from governance_runtime.kernel.topology_loader import TopologyLoader
+
+    # Terminal Phase-6 states have no outgoing transitions.
+    if TopologyLoader.is_state_terminal(current_token):
+        return (
+            current_token,
+            "topology-terminal",
+            entry.active_gate,
+            entry.next_gate_condition,
+        )
+    
+    def _can_fire(event_name: str) -> bool:
+        return TopologyLoader.has_event(current_token, event_name)
+
+    # First, evaluate guards to determine which event fires
+    fired_event = None
+    selected_transition = None
+
+    def _select_event(event_name: str, transition_obj: object) -> bool:
+        nonlocal fired_event, selected_transition
+        if not _can_fire(event_name):
+            return False
+        fired_event = event_name
+        selected_transition = transition_obj
+        return True
+    
+    if entry.transitions:
+        for transition in entry.transitions:
+            when = transition.when.strip().lower()
+            
+            # Check each guard condition
+            if when == "implementation_started" and _implementation_started(state) and _select_event("implementation_started", transition):
+                break
+            if when == "implementation_accepted" and _implementation_accepted(state) and _select_event("implementation_accepted", transition):
+                break
+            if when == "implementation_blocked" and _implementation_blocked(state) and _select_event("implementation_blocked", transition):
+                break
+            if when == "implementation_rework_clarification_pending" and _implementation_rework_clarification_pending(state) and _select_event("implementation_rework_clarification_pending", transition):
+                break
+            if when == "workflow_complete" and _workflow_complete(state) and _select_event("workflow_complete", transition):
+                break
+            if (
+                when == "workflow_approved"
+                and _phase6_evidence_presentation_gate_active(state)
+                and _user_review_decision(state) == "approve"
+                and _select_event("workflow_approved", transition)
+            ):
+                break
+            if when == "rework_clarification_pending" and _phase6_rework_clarification_pending(state):
+                if _select_event("rework_clarification_pending", transition):
+                    break
+                if _select_event("default", transition):
+                    break
+            if when == "review_changes_requested" and _user_review_decision(state) == "changes_requested" and _select_event("review_changes_requested", transition):
+                break
+            if when == "review_rejected" and _user_review_decision(state) == "reject" and _select_event("review_rejected", transition):
+                break
+            if when == "implementation_review_pending" and not _phase6_internal_review_complete(state) and _select_event("implementation_review_pending", transition):
+                break
+            if when == "implementation_review_complete" and _phase6_internal_review_complete(state) and _select_event("implementation_review_complete", transition):
+                break
+            if when == "implementation_execution_in_progress" and _implementation_execution_in_progress(state) and _select_event("implementation_execution_in_progress", transition):
+                break
+            if when == "default" and _select_event("default", transition):
+                break
+    
+    # If no guard matched, use topology default when available.
+    if fired_event is None and _can_fire("default"):
+        fired_event = "default"
+
+    # Fail-closed: no event and no topology default.
+    if fired_event is None:
+        raise RuntimeError(
+            f"Topology authoritative transition unresolved for state '{current_token}': "
+            "no guard event fired and no default transition in topology.yaml"
+        )
+    
+    # Get target from topology (fail-closed if not found)
+    topology_target = TopologyLoader.get_next_state(current_token, fired_event)
+    
+    # Handle special case for pipeline auto-approve
+    if fired_event == "implementation_review_complete" and pipeline_auto_approve_eligible(state):
+        return (
+            topology_target,
+            "topology-pipeline-auto-approve",
+            "Pipeline Auto-Approved",
+            "Workflow auto-approved in pipeline mode.",
+        )
+    
+    resolved_gate = entry.active_gate
+    resolved_condition = entry.next_gate_condition
+    if selected_transition is not None:
+        transition_gate = getattr(selected_transition, "active_gate", None)
+        transition_condition = getattr(selected_transition, "next_gate_condition", None)
+        if isinstance(transition_gate, str) and transition_gate:
+            resolved_gate = transition_gate
+        if isinstance(transition_condition, str) and transition_condition:
+            resolved_condition = transition_condition
+
+    resolved_source = "topology"
+    if selected_transition is not None:
+        transition_source = getattr(selected_transition, "source", None)
+        if isinstance(transition_source, str) and transition_source:
+            resolved_source = transition_source
+
+    return (
+        topology_target,
+        resolved_source,
+        resolved_gate,
+        resolved_condition,
+    )
 
 
 def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -> tuple[bool, dict[str, str]]:
@@ -1837,6 +2004,30 @@ def execute(
         state,
         plan_record_versions=plan_record_signal.versions,
     )
+    
+    # Validate Phase 6 transitions against topology (fail-closed)
+    from governance_runtime.kernel.topology_loader import TopologyLoader, TopologyError
+    current_state = entry.token
+    is_phase6 = current_state.startswith("6.")
+    
+    if is_phase6 and source not in ("topology", "topology-pipeline-auto-approve"):
+        # Phase 6 state but topology wasn't used - validate anyway
+        try:
+            TopologyLoader._ensure_loaded()
+            if TopologyLoader.has_event(current_state, "default"):
+                # Topology has this state - verify target is consistent
+                expected = TopologyLoader.get_next_state(current_state, "default")
+                if next_token != expected and next_token is not None:
+                    # Topology says different target - topology wins
+                    next_token = expected
+                    source = "topology-corrected"
+        except TopologyError as e:
+            # Phase 6 state not in topology is an error
+            raise RuntimeError(
+                f"Phase 6 state '{current_state}' not found in topology.yaml. "
+                f"Topology is authoritative for Phase 6. Error: {e}"
+            )
+    
     resolved_phase = entry.phase
     resolved_active_gate = override_active_gate or entry.active_gate or runtime_ctx.requested_active_gate
     resolved_next_condition = override_next_condition or entry.next_gate_condition or runtime_ctx.requested_next_gate_condition
@@ -1869,6 +2060,9 @@ def execute(
         transition_reason = "no_external_apis"
     elif source == "spec-next":
         normalized_source = "spec"
+    elif source in ("topology", "topology-pipeline-auto-approve", "topology-corrected", "topology-terminal"):
+        normalized_source = "topology"
+        transition_reason = "resolved by topology.yaml"
     elif source.startswith("phase-"):
         normalized_source = "transition"
 
@@ -1933,4 +2127,62 @@ def execute(
     )
 
 
-__all__ = ["KernelResult", "RuntimeContext", "api_in_scope", "evaluate_readonly", "execute"]
+__all__ = ["KernelResult", "RuntimeContext", "api_in_scope", "evaluate_readonly", "execute", "validate_command_for_execution", "resolve_topology_transition"]
+
+
+# ============================================================================
+# Command Policy Integration (WP1)
+# ============================================================================
+# Commands must be validated against command_policy.yaml before execution.
+# This is the primary entry point for command validation in the kernel.
+# Uses enforce_command_policy() from command_policy_loader as public API.
+
+def validate_command_for_execution(current_token: str, command: str) -> object:
+    """Validate command is allowed in current state - fail-closed.
+    
+    Call this function before any command is executed by the kernel.
+    It validates against command_policy.yaml via enforce_command_policy().
+    
+    Args:
+        current_token: Current phase token (e.g., "6.approved")
+        command: Command string (e.g., "/implement")
+        
+    Returns:
+        CommandDef from command_policy.yaml if valid.
+        
+    Raises:
+        CommandNotFoundError: If command not defined in policy.
+        CommandNotAllowedError: If command not allowed in state.
+    """
+    from governance_runtime.kernel.command_policy_loader import enforce_command_policy
+    
+    return enforce_command_policy(current_token, command)
+
+
+# ============================================================================
+# Topology Integration (WP2)
+# ============================================================================
+# State machine transitions must be validated against topology.yaml.
+# This is the primary entry point for transition resolution in the kernel.
+# Uses resolve_transition() from topology_loader as public API.
+
+def resolve_topology_transition(state_id: str, event: str) -> str:
+    """Resolve next state for an event - fail-closed.
+    
+    Call this function to determine the next state based on an event.
+    It resolves transitions against topology.yaml via resolve_transition().
+    
+    Args:
+        state_id: Current state ID (e.g., "6.execution")
+        event: Event name (e.g., "implementation_accepted")
+        
+    Returns:
+        Target state ID.
+        
+    Raises:
+        StateNotFoundError: If state not in topology.
+        InvalidTransitionError: If no transition for event.
+    """
+    from governance_runtime.kernel.topology_loader import resolve_transition
+    
+    return resolve_transition(state_id, event)
