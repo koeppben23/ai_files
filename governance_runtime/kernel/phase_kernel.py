@@ -786,32 +786,44 @@ def _implementation_accepted(state: Mapping[str, object]) -> bool:
 
 
 # ============================================================================
-# Phase 6 Substate Detection (ADR-003)
+# Phase 6 Substate Resolution (ADR-003)
 # ============================================================================
-# Phase 6 is decomposed into substates. Detection follows a PRIORITY ORDER
-# from canonical to heuristic sources:
 #
-# CANONICAL SOURCE (highest priority):
-# 1. phase6_state field - explicit substate marker (if set to valid substate)
+# CANONICAL PATH (preferred):
+#   Read phase6_state field directly from session state.
+#   This is the authoritative source for Phase 6 substate.
 #
-# STATE FLAGS (authoritative when True):
-# 2. workflow_complete -> 6.complete
-# 3. user_review_decision=reject -> 6.rejected
-# 4. implementation_execution_status=in_progress -> 6.execution
-# 5. implementation_blocked flags -> 6.blocked
-# 6. rework_clarification_required -> 6.rework
+# LEGACY COMPATIBILITY BRIDGE (deprecated):
+#   The _detect_phase6_substate_legacy() function below provides backward
+#   compatibility for sessions that don't have phase6_state set.
+#   It derives substate from legacy state flags and gates.
 #
-# GATE-BASED (fallback when state flags inconclusive):
-# 7. "evidence presentation gate" -> 6.presentation
-# 8. "implementation internal review" -> 6.internal_review
+#   This bridge should be REMOVED once all sessions migrate to phase6_state.
+#   DO NOT add new heuristics here - extend the canonical field instead.
 #
-# FINAL FALLBACK:
-# 9. Base Phase 6 state (no substate determinable)
+# IMPORTANT:
+#   - "Implementation Accepted" is a LEGACY GATE, not a substate indicator.
+#     It does NOT map to any Phase 6 substate.
+#     It indicates the implementation RESULT was accepted (post-execution).
+#   - 6.approved = workflow plan was approved (pre-execution).
+#
+# Canonical Substates (from topology.yaml):
+#   6.internal_review - Internal review loop
+#   6.presentation    - Evidence presentation to user
+#   6.execution       - Implementation execution in progress
+#   6.approved        - Workflow/plan approved, ready for /implement
+#   6.blocked         - Implementation blocked
+#   6.rework          - Rework clarification required
+#   6.rejected        - Rejected, returns to Phase 4
+#   6.complete        - Terminal, workflow finished
 
-def _detect_phase6_substate(state: Mapping[str, object]) -> str:
-    """Detect the current Phase 6 substate from session state.
+
+def resolve_phase6_substate(state: Mapping[str, object]) -> str:
+    """Resolve Phase 6 substate from session state.
     
-    Uses priority-ordered canonical sources for deterministic detection.
+    CANONICAL PATH: Reads phase6_state field directly.
+    
+    This is the preferred resolver - use this for new code.
     
     Returns one of:
     - "6.internal_review"
@@ -822,16 +834,34 @@ def _detect_phase6_substate(state: Mapping[str, object]) -> str:
     - "6.rework"
     - "6.rejected"
     - "6.complete"
-    - "6" (fallback when no substate determinable)
+    - "6" (when phase6_state not set)
     """
-    # CANONICAL SOURCE: phase6_state field (highest priority)
+    phase6_state = str(state.get("phase6_state") or "").strip().lower()
+    if phase6_state in {"6.internal_review", "6.presentation", "6.execution", 
+                          "6.approved", "6.blocked", "6.rework", 
+                          "6.rejected", "6.complete"}:
+        return phase6_state
+    return "6"
+
+
+def _detect_phase6_substate_legacy(state: Mapping[str, object]) -> str:
+    """LEGACY COMPATIBILITY BRIDGE: Derive Phase 6 substate from state flags.
+    
+    DEPRECATED: This function provides backward compatibility only.
+    
+    Do NOT use this for new code - use resolve_phase6_substate() instead.
+    Do NOT add new heuristics here.
+    
+    This bridge derives substate from legacy state flags when phase6_state
+    is not set. It will be removed once all sessions migrate.
+    """
     phase6_state = str(state.get("phase6_state") or "").strip().lower()
     if phase6_state in {"6.internal_review", "6.presentation", "6.execution", 
                           "6.approved", "6.blocked", "6.rework", 
                           "6.rejected", "6.complete"}:
         return phase6_state
     
-    # WORKFLOW COMPLETE: Terminal state
+    # WORKFLOW COMPLETE: Terminal state (highest priority after canonical)
     if _workflow_complete(state):
         return "6.complete"
     
@@ -854,23 +884,28 @@ def _detect_phase6_substate(state: Mapping[str, object]) -> str:
     
     # APPROVED: Plan/workflow approved, ready for implementation
     # This is set when workflow_approved event was consumed
-    # NOT "Implementation Accepted" (that means result was accepted, not plan)
     approved = state.get("workflow_approved") or state.get("implementation_plan_approved")
     if isinstance(approved, bool) and approved:
         return "6.approved"
     
     # PRESENTATION: Evidence ready, awaiting user decision
-    # Only if we have presented evidence and NOT yet decided
     if _phase6_evidence_presentation_gate_active(state) and not decision:
         return "6.presentation"
     
     # INTERNAL REVIEW: Default active substate for review loop
-    # Only if we haven't completed internal review yet
     if not _phase6_internal_review_complete(state):
         return "6.internal_review"
     
-    # FALLBACK: Base Phase 6 (no specific substate determinable)
     return "6"
+
+
+# Alias for backward compatibility during migration
+def _detect_phase6_substate(state: Mapping[str, object]) -> str:
+    """Alias for _detect_phase6_substate_legacy.
+    
+    DEPRECATED: Use resolve_phase6_substate() for new code.
+    """
+    return _detect_phase6_substate_legacy(state)
 
 
 def is_phase6_terminal(state: Mapping[str, object]) -> bool:
@@ -878,35 +913,38 @@ def is_phase6_terminal(state: Mapping[str, object]) -> bool:
     
     Terminal states should block all mutating commands.
     """
-    substate = _detect_phase6_substate(state)
+    substate = _detect_phase6_substate_legacy(state)
     return substate == "6.complete"
 
 
 def is_phase6_approved(state: Mapping[str, object]) -> bool:
     """Check if Phase 6 is in approved state (ready for /implement).
     
-    Note: This checks for workflow_approved flag, NOT "Implementation Accepted".
-    6.approved means the plan/workflow was approved BEFORE implementation.
+    Note: This checks for workflow_approved flag.
+    6.approved means the PLAN/WORKFLOW was approved BEFORE implementation.
+    
+    IMPORTANT: "Implementation Accepted" (legacy gate) does NOT indicate 6.approved.
+    It means the implementation RESULT was accepted (different concept).
     """
-    substate = _detect_phase6_substate(state)
+    substate = _detect_phase6_substate_legacy(state)
     return substate == "6.approved"
 
 
 def is_phase6_execution(state: Mapping[str, object]) -> bool:
     """Check if Phase 6 is in execution state."""
-    substate = _detect_phase6_substate(state)
+    substate = _detect_phase6_substate_legacy(state)
     return substate == "6.execution"
 
 
 def is_phase6_blocked(state: Mapping[str, object]) -> bool:
     """Check if Phase 6 is in blocked state."""
-    substate = _detect_phase6_substate(state)
+    substate = _detect_phase6_substate_legacy(state)
     return substate == "6.blocked"
 
 
 def is_phase6_rejected(state: Mapping[str, object]) -> bool:
     """Check if Phase 6 is in rejected state (transitional to Phase 4)."""
-    substate = _detect_phase6_substate(state)
+    substate = _detect_phase6_substate_legacy(state)
     return substate == "6.rejected"
 
 

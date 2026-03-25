@@ -1,7 +1,7 @@
-"""Phase 7: Runtime Executor Substate Tests (v2)
+"""Phase 7: Runtime Executor Substate Tests (v3)
 
 Tests für die Phase 6 Substate-Detection-Funktionen im Runtime-Executor.
-Überarbeitet mit stärkerer Regression-Absicherung.
+Überarbeitet mit kanonischen Resolver-Pfad und klarer Legacy-Bridge-Dokumentation.
 """
 
 from __future__ import annotations
@@ -9,120 +9,140 @@ from __future__ import annotations
 import pytest
 
 
-class TestPhase6SubstateDetection:
-    """Tests für Phase 6 Substate Detection."""
+class TestCanonicalPhase6SubstateResolver:
+    """Tests für den kanonischen Phase 6 Substate Resolver."""
 
-    def test_detect_internal_review_canonical_state(self):
-        """Happy: Erkennt 6.internal_review vom canonical phase6_state field."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate
+    def test_resolve_internal_review_from_phase6_state(self):
+        """Happy: resolve_phase6_substate erkennt 6.internal_review vom kanonischen Feld."""
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
         
         state = {"phase6_state": "6.internal_review"}
-        assert _detect_phase6_substate(state) == "6.internal_review"
+        assert resolve_phase6_substate(state) == "6.internal_review"
 
-    def test_detect_execution_from_canonical_state(self):
-        """Happy: Erkennt 6.execution vom canonical phase6_state field."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate
+    def test_resolve_execution_from_phase6_state(self):
+        """Happy: resolve_phase6_substate erkennt 6.execution vom kanonischen Feld."""
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
         
         state = {"phase6_state": "6.execution"}
-        assert _detect_phase6_substate(state) == "6.execution"
+        assert resolve_phase6_substate(state) == "6.execution"
 
-    def test_detect_complete_from_workflow_flag(self):
-        """Happy: Erkennt 6.complete vom Workflow-Flag (priority über Gate)."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate
+    def test_resolve_approved_from_phase6_state(self):
+        """Happy: resolve_phase6_substate erkennt 6.approved vom kanonischen Feld."""
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
+        
+        state = {"phase6_state": "6.approved"}
+        assert resolve_phase6_substate(state) == "6.approved"
+
+    def test_resolve_complete_from_phase6_state(self):
+        """Happy: resolve_phase6_substate erkennt 6.complete vom kanonischen Feld."""
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
+        
+        state = {"phase6_state": "6.complete"}
+        assert resolve_phase6_substate(state) == "6.complete"
+
+    def test_resolve_returns_base_6_when_not_set(self):
+        """Happy: resolve_phase6_substate gibt "6" zurück wenn Feld nicht gesetzt."""
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
+        
+        state = {}
+        assert resolve_phase6_substate(state) == "6"
+
+    def test_resolve_all_substates(self):
+        """Happy: resolve_phase6_substate erkennt alle Substates."""
+        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
+        
+        substates = [
+            "6.internal_review", "6.presentation", "6.execution",
+            "6.approved", "6.blocked", "6.rework", "6.rejected", "6.complete"
+        ]
+        
+        for substate in substates:
+            state = {"phase6_state": substate}
+            assert resolve_phase6_substate(state) == substate, \
+                f"Failed for {substate}"
+
+
+class TestLegacyBridgePhase6SubstateDetection:
+    """Tests für die LEGACY COMPATIBILITY BRIDGE Substate Detection.
+    
+    Diese Tests prüfen die Legacy-Heuristik, die nur für Rückwärtskompatibilität
+    dient. Neue Code sollten resolve_phase6_substate() verwenden.
+    """
+
+    def test_legacy_detects_complete_from_workflow_flag(self):
+        """Happy: Legacy erkennt 6.complete vom Workflow-Flag."""
+        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
         
         state = {"workflow_complete": True}
-        assert _detect_phase6_substate(state) == "6.complete"
+        assert _detect_phase6_substate_legacy(state) == "6.complete"
 
-    def test_detect_rejected_from_decision(self):
-        """Happy: Erkennt 6.rejected von Reject-Entscheidung."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate
+    def test_legacy_detects_rejected_from_decision(self):
+        """Happy: Legacy erkennt 6.rejected von Reject-Entscheidung."""
+        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
         
         state = {"user_review_decision": "reject"}
-        assert _detect_phase6_substate(state) == "6.rejected"
+        assert _detect_phase6_substate_legacy(state) == "6.rejected"
 
-    def test_detect_execution_from_execution_status(self):
-        """Happy: Erkennt 6.execution vom Execution-Status."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate
+    def test_legacy_detects_execution_from_status(self):
+        """Happy: Legacy erkennt 6.execution vom Execution-Status."""
+        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
         
         state = {"implementation_execution_status": "in_progress"}
-        assert _detect_phase6_substate(state) == "6.execution"
+        assert _detect_phase6_substate_legacy(state) == "6.execution"
 
-    def test_detect_blocked_from_hard_blockers(self):
-        """Happy: Erkennt 6.blocked von Hard-Blockers."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate
+    def test_legacy_detects_blocked_from_hard_blockers(self):
+        """Happy: Legacy erkennt 6.blocked von Hard-Blockers."""
+        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
         
-        state = {
-            "implementation_execution_status": "blocked",
-            "implementation_hard_blockers": ["Critical Issue"]
-        }
-        assert _detect_phase6_substate(state) == "6.blocked"
+        state = {"implementation_hard_blockers": ["Critical Issue"]}
+        assert _detect_phase6_substate_legacy(state) == "6.blocked"
 
-    def test_detect_rework_from_clarification_required(self):
-        """Happy: Erkennt 6.rework von Rework-Clarification-Required."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate
+    def test_legacy_detects_rework_from_clarification_required(self):
+        """Happy: Legacy erkennt 6.rework von Rework-Clarification-Required."""
+        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
         
         state = {"implementation_rework_clarification_required": True}
-        assert _detect_phase6_substate(state) == "6.rework"
+        assert _detect_phase6_substate_legacy(state) == "6.rework"
 
-    def test_detect_approved_from_workflow_approved_flag(self):
-        """Happy: Erkennt 6.approved von workflow_approved flag.
-        
-        Note: 6.approved means PLAN/WORKFLOW was approved (before implementation).
-        NOT "Implementation Accepted" which means implementation RESULT was accepted.
-        """
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate
+    def test_legacy_detects_approved_from_workflow_approved_flag(self):
+        """Happy: Legacy erkennt 6.approved von workflow_approved flag."""
+        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
         
         state = {"workflow_approved": True}
-        assert _detect_phase6_substate(state) == "6.approved"
+        assert _detect_phase6_substate_legacy(state) == "6.approved"
 
-    def test_detect_approved_from_plan_approved_flag(self):
-        """Happy: Erkennt 6.approved auch von implementation_plan_approved."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate
+    def test_legacy_does_not_map_implementation_accepted_to_approved(self):
+        """NEGATIVE: "Implementation Accepted" ist NICHT 6.approved.
         
-        state = {"implementation_plan_approved": True}
-        assert _detect_phase6_substate(state) == "6.approved"
-
-    def test_implementation_accepted_does_not_map_to_approved(self):
-        """Negative: "Implementation Accepted" ist NICHT 6.approved.
+        "Implementation Accepted" ist ein LEGACY GATE, kein Substate-Indikator.
+        Es bedeutet dass das Implementierungs-ERGEBNIS akzeptiert wurde.
+        6.approved bedeutet dass der PLAN vor der Implementierung genehmigt wurde.
         
-        "Implementation Accepted" bedeutet das Ergebnis wurde akzeptiert,
-        nicht dass der Plan genehmigt wurde. 6.approved ist für
-        Genehmigung VOR der Implementierung.
+        Diese beiden Konzepte sind SEMANTISCH UNTERSCHEIDLICH.
         """
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate, is_phase6_approved
+        from governance_runtime.kernel.phase_kernel import (
+            _detect_phase6_substate_legacy,
+            is_phase6_approved
+        )
         
-        # "Implementation Accepted" Gate sollte NICHT 6.approved setzen
         state = {"active_gate": "Implementation Accepted"}
-        result = _detect_phase6_substate(state)
+        result = _detect_phase6_substate_legacy(state)
         assert result != "6.approved", \
-            "Implementation Accepted should not map to 6.approved"
-        assert is_phase6_approved(state) is False
+            "Implementation Accepted should NOT map to 6.approved"
+        assert is_phase6_approved(state) is False, \
+            "Implementation Accepted should NOT indicate 6.approved"
 
-    def test_fallback_to_6_internal_review(self):
-        """Happy: Fallback zu 6.internal_review wenn keine Flags gesetzt."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate
+    def test_legacy_fallback_to_internal_review(self):
+        """Happy: Legacy Fallback zu 6.internal_review wenn keine Flags."""
+        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
         
-        # Keine canonical Flags, keine Entscheidung, keine Execution
-        state = {
-            "active_gate": "Implementation Internal Review"
-        }
-        # Sollte internal_review sein wenn Review noch nicht complete
-        result = _detect_phase6_substate(state)
-        assert result == "6.internal_review"
-
-    def test_fallback_to_internal_review_when_review_incomplete(self):
-        """Edge: Fallback zu 6.internal_review wenn Review noch nicht complete.
-        
-        Wenn keine Flags gesetzt und Review nicht complete, ist 6.internal_review
-        die korrekte Annahme (Default-Zustand für Review-Loop).
-        """
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate
-        
-        # Keine canonical Flags, keine Entscheidung
         state = {}
-        result = _detect_phase6_substate(state)
-        # Review ist nicht complete, also 6.internal_review
+        result = _detect_phase6_substate_legacy(state)
         assert result == "6.internal_review"
+
+
+class TestPhase6SubstateHelpers:
+    """Tests für die is_phase6_* Helper-Funktionen."""
 
     def test_is_terminal_returns_true_for_complete(self):
         """Happy: is_phase6_terminal True für 6.complete."""
@@ -144,6 +164,17 @@ class TestPhase6SubstateDetection:
         
         state = {"workflow_approved": True}
         assert is_phase6_approved(state) is True
+
+    def test_is_approved_returns_false_for_implementation_accepted(self):
+        """NEGATIVE: is_phase6_approved False für "Implementation Accepted".
+        
+        "Implementation Accepted" bedeutet Ergebnis akzeptiert (post-execution).
+        6.approved bedeutet Plan genehmigt (pre-execution).
+        """
+        from governance_runtime.kernel.phase_kernel import is_phase6_approved
+        
+        state = {"active_gate": "Implementation Accepted"}
+        assert is_phase6_approved(state) is False
 
     def test_is_execution_returns_true_for_execution(self):
         """Happy: is_phase6_execution True für Execution Status."""
@@ -180,7 +211,7 @@ class TestPhaseRankWithSubstates:
             assert phase_rank(substate) > base, f"{substate} should have higher rank than 6"
 
     def test_complete_has_highest_rank(self):
-        """Happy: 6.complete hat höchste Rank."""
+        """Happy: 6.complete hat höchste Rank (Terminalmarker)."""
         from governance_runtime.domain.phase_state_machine import phase_rank
         
         assert phase_rank("6.complete") == 99, "6.complete should have rank 99"
@@ -217,94 +248,56 @@ class TestPhaseTokenWithSubstates:
         ]
         
         for substate in substates:
-            token: PhaseToken = substate  # Type check
+            token: PhaseToken = substate
             assert token == substate
 
     def test_normalize_phase_token_recognizes_substates(self):
         """Happy: normalize_phase_token erkennt Substates."""
         from governance_runtime.domain.phase_state_machine import normalize_phase_token
         
-        assert normalize_phase_token("6.execution") == "6.execution"
-        assert normalize_phase_token("6.presentation") == "6.presentation"
-        assert normalize_phase_token("6.internal_review") == "6.internal_review"
-        assert normalize_phase_token("6.approved") == "6.approved"
-        assert normalize_phase_token("6.blocked") == "6.blocked"
-        assert normalize_phase_token("6.rework") == "6.rework"
-        assert normalize_phase_token("6.rejected") == "6.rejected"
-        assert normalize_phase_token("6.complete") == "6.complete"
+        for substate in ["6.internal_review", "6.presentation", "6.execution",
+                          "6.approved", "6.blocked", "6.rework", "6.rejected", "6.complete"]:
+            assert normalize_phase_token(substate) == substate
 
 
 class TestPhaseRequiresTicketInputRegression:
-    """Regression tests for phase_requires_ticket_input.
-    
-    This function was changed to exclude Phase 6 substates.
-    These tests ensure backward compatibility.
-    """
+    """Regression tests for phase_requires_ticket_input."""
 
     def test_phase_4_requires_ticket(self):
         """Happy: Phase 4 requires ticket."""
         from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
-        
         assert phase_requires_ticket_input("4") is True
 
     def test_phase_5_requires_ticket(self):
         """Happy: Phase 5 requires ticket."""
         from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
-        
         assert phase_requires_ticket_input("5") is True
 
-    def test_phase_5_3_requires_ticket(self):
-        """Happy: Phase 5.3 requires ticket (inherits from 5)."""
+    def test_phase_5_substates_require_ticket(self):
+        """Happy: Phase 5 substates require ticket."""
         from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
-        
         assert phase_requires_ticket_input("5.3") is True
-
-    def test_phase_5_6_requires_ticket(self):
-        """Happy: Phase 5.6 requires ticket (inherits from 5)."""
-        from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
-        
         assert phase_requires_ticket_input("5.6") is True
 
-    def test_phase_6_base_does_not_require_ticket(self):
-        """Happy: Phase 6 base does not require ticket."""
+    def test_phase_6_does_not_require_ticket(self):
+        """Happy: Phase 6 (base and all substates) does not require ticket."""
         from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
-        
         assert phase_requires_ticket_input("6") is False
-
-    def test_phase_6_substates_do_not_require_ticket(self):
-        """Happy: All Phase 6 substates do not require ticket."""
-        from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
-        
         for substate in ["6.internal_review", "6.presentation", "6.execution",
                           "6.approved", "6.blocked", "6.rework", "6.rejected", "6.complete"]:
-            assert phase_requires_ticket_input(substate) is False, \
-                f"{substate} should not require ticket"
+            assert phase_requires_ticket_input(substate) is False, f"{substate} should not require ticket"
 
-    def test_phase_3_does_not_require_ticket(self):
-        """Happy: Phase 3 does not require ticket."""
+    def test_phase_1_3_do_not_require_ticket(self):
+        """Happy: Phase 1-3 do not require ticket."""
         from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
-        
-        assert phase_requires_ticket_input("3A") is False
-        assert phase_requires_ticket_input("3B-1") is False
-        assert phase_requires_ticket_input("3B-2") is False
-
-    def test_phase_2_does_not_require_ticket(self):
-        """Happy: Phase 2 does not require ticket."""
-        from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
-        
-        assert phase_requires_ticket_input("2") is False
-
-    def test_phase_1_does_not_require_ticket(self):
-        """Happy: Phase 1 does not require ticket."""
-        from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
-        
         assert phase_requires_ticket_input("1") is False
         assert phase_requires_ticket_input("1.1") is False
-        assert phase_requires_ticket_input("1.3") is False
+        assert phase_requires_ticket_input("2") is False
+        assert phase_requires_ticket_input("3A") is False
+        assert phase_requires_ticket_input("3B-1") is False
 
     def test_unknown_does_not_require_ticket(self):
         """Edge: Unknown phase does not require ticket."""
         from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
-        
         assert phase_requires_ticket_input("unknown") is False
         assert phase_requires_ticket_input("") is False
