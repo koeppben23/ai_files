@@ -1,8 +1,11 @@
 """Runtime Integration Tests for Topology (WP2).
 
-These tests prove that topology.yaml is the authoritative source
-for state machine transitions in the runtime. They test the actual runtime path
-through resolve_topology_transition() in phase_kernel.py.
+These tests cover both:
+- resolver/helper path: resolve_topology_transition() and topology loader APIs
+- real kernel path: execute() for Phase-6 transitions and topology failure handling
+
+The execute() tests are the authoritative WP2 proof that runtime transition
+results are topology-driven in the Phase-6 path.
 """
 
 from __future__ import annotations
