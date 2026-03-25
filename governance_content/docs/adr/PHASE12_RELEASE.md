@@ -103,47 +103,41 @@ governance_spec/
 
 ## 5. Verbleibende Restkomponenten (Acknowledged Debt)
 
-### 5.1 Runtime Spec-Duplikation - ACKNOWLEDGED
+### 5.1 Phase 6 State Naming - ✅ FIXED (2026-03-25)
 
-**Status:** ACKNOWLEDGED DEBT
+**Status:** RESOLVED
 
-Die NEW Spec-Files sind definiert (`topology.yaml`, `guards.yaml`), aber die Runtime (`phase_kernel.py`) liest sie noch nicht. Stattdessen nutzt sie hartcodierte Logik.
+Runtime verwendet jetzt kanonische Phase 6 State-Werte:
+- `phase6_completed` → `6.complete`
+- `phase6_changes_requested` → `6.rework`
+- `phase6_in_progress` → `6.execution`
 
-```
-NEU (definiert):      governance_spec/topology.yaml, guards.yaml
-ALT (aktiv):          governance_runtime/kernel/phase_kernel.py
-```
+**Changes:**
+- `review_decision_persist.py`: Schreibt kanonische Werte
+- `phase5_normalizer.py`: Kanonische Werte
+- `review_result.py`: Kanonische Werte
+- `phase_kernel.py`: Akzeptiert beide Schemas, Bridge produziert kanonisch
 
-**Warum akzeptiert:**
-- Spec-Files definieren die Zielarchitektur
-- Runtime-Migration ist separate Aufgabe
-- Phase 12 fokussiert auf Architektur-Definition
+### 5.2 Legacy-Bridge - DEPRECATED (wartet auf Monitoring)
 
-**Follow-up:** Runtime migrieren um NEW Spec-Files zu lesen.
+**Status:** DEPRECATED
 
-### 5.2 Legacy-Bridge - VERBLEIBEND
-
-**Status:** ACKNOWLEDGED DEBT
-
-Die Legacy-Bridge (`_detect_phase6_substate_legacy`) ist **noch im Code** und muss nach Migration entfernt werden.
+Die Legacy-Bridge (`_detect_phase6_substate_legacy`) ist noch im Code, aber:
+- Produziert jetzt kanonische Werte
+- Ist als DEPRECATED markiert
+- Akzeptiert backward-compat input
 
 ```
 PATH: governance_runtime/kernel/phase_kernel.py
-FUNCTION: _detect_phase6_substate_legacy()
+FUNCTION: _detect_phase6_substate_legacy() [DEPRECATED]
 ```
-
-**Warum noch drin:**
-- Bestehende Sessions ohne `phase6_state` Feld
-- On-the-fly Migration während Transition
 
 **Exit-Kriterien:**
 - [ ] < 1% Sessions nutzen Bridge
 - [ ] Alle neuen Sessions setzen `phase6_state`
 - [ ] Monitoring zeigt keine Nutzung
 
-**Follow-up:** Nach erfolgreicher Migration Bridge entfernen.
-
-### 5.2 6.rejected -> default -> 4 - TRANSITIONAL MARKER
+### 5.3 6.rejected -> default -> 4 - TRANSITIONAL MARKER
 
 **Status:** ACKNOWLEDGED DESIGN CHOICE
 
@@ -203,6 +197,11 @@ Messages sind jetzt Presentation-only:
 | `implementation_hard_blockers` | `6.blocked` |
 | `workflow_approved: true` | `6.approved` |
 | Default (Phase 6 aktiv) | `6.internal_review` |
+
+**Update 2026-03-25:** Runtime schreibt jetzt direkt kanonische Werte:
+- `phase6_state = "6.complete"` statt `"phase6_completed"`
+- `phase6_state = "6.rework"` statt `"phase6_changes_requested"`
+- `phase6_state = "6.execution"` statt `"phase6_in_progress"`
 
 ---
 
@@ -274,16 +273,16 @@ Messages sind jetzt Presentation-only:
 > - ✅ Test coverage complete
 > - ✅ Migration path defined
 > - ✅ Breaking changes documented
+> - ✅ Phase 6 State Naming kanonisch (Runtime und Specs konsistent)
 >
 > **Release ist NICHT:**
 > - ❌ 100% debt-free
-> - ❌ Legacy-bridge-free
-> - ❌ Spec-driven runtime
+> - ⚠️ Legacy-bridge-free (deprecated, wartet auf Monitoring)
+> - ❌ Spec-driven runtime (Spec-Files definieren Architektur)
 > - ❌ No follow-up needed
 
 **Verbleibende Debt:**
-- Legacy-Bridge (nach Migration entfernen)
-- Runtime Spec-Duplikation (Runtime liest NEW Specs noch nicht)
+- Legacy-Bridge (deprecated, nach Monitoring entfernen)
 - 6.rejected Default-Übergang (später expliziter)
 - blocked/rework Beobachtung (Monitoring)
 
