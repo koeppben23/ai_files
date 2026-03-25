@@ -101,7 +101,25 @@ governance_spec/
 
 ## 5. Verbleibende Restkomponenten (Acknowledged Debt)
 
-### 5.1 Legacy-Bridge - VERBLEIBEND
+### 5.1 Runtime Spec-Duplikation - ACKNOWLEDGED
+
+**Status:** ACKNOWLEDGED DEBT
+
+Die NEW Spec-Files sind definiert (`topology.yaml`, `guards.yaml`), aber die Runtime (`phase_kernel.py`) liest sie noch nicht. Stattdessen nutzt sie hartcodierte Logik.
+
+```
+NEU (definiert):      governance_spec/topology.yaml, guards.yaml
+ALT (aktiv):          governance_runtime/kernel/phase_kernel.py
+```
+
+**Warum akzeptiert:**
+- Spec-Files definieren die Zielarchitektur
+- Runtime-Migration ist separate Aufgabe
+- Phase 12 fokussiert auf Architektur-Definition
+
+**Follow-up:** Runtime migrieren um NEW Spec-Files zu lesen.
+
+### 5.2 Legacy-Bridge - VERBLEIBEND
 
 **Status:** ACKNOWLEDGED DEBT
 
@@ -185,6 +203,7 @@ Diese Zustände haben die höchste Drift-Gefahr:
 | `phase_api.yaml` | v2.0 | Release 12 | WARNUNG: Noch aktiv |
 | `_detect_phase6_substate_legacy` | v2.0 | Nach Migration | NOCH IM CODE |
 | `workflow_rejected` Event | v2.0 | v2.0 | ✅ Entfernt |
+| Hardcoded Runtime-Logik | v2.0 | Nach Runtime-Migration | NOCH AKTIV |
 
 ---
 
@@ -194,6 +213,11 @@ Diese Zustände haben die höchste Drift-Gefahr:
 
 - [ ] Legacy-Bridge entfernen (`_detect_phase6_substate_legacy`)
 - [ ] `phase_api.yaml` mit Release 12 entfernen
+
+### Runtime-Migration (Follow-up)
+
+- [ ] Runtime migrieren um NEW Spec-Files zu lesen
+- [ ] Hardcoded Logik in `phase_kernel.py` durch Spec-Interpretation ersetzen
 
 ### Monitoring nach Release
 
@@ -218,7 +242,7 @@ Diese Zustände haben die höchste Drift-Gefahr:
 ## 10. Ehrlicher Status
 
 > **Release ist:**
-> - ✅ Architecturally stabilized
+> - ✅ Architecturally stabilized (Spec-Files definiert)
 > - ✅ Test coverage complete
 > - ✅ Migration path defined
 > - ✅ Breaking changes documented
@@ -226,10 +250,12 @@ Diese Zustände haben die höchste Drift-Gefahr:
 > **Release ist NICHT:**
 > - ❌ 100% debt-free
 > - ❌ Legacy-bridge-free
+> - ❌ Spec-driven runtime
 > - ❌ No follow-up needed
 
 **Verbleibende Debt:**
 - Legacy-Bridge (nach Migration entfernen)
+- Runtime Spec-Duplikation (Runtime liest NEW Specs noch nicht)
 - 6.rejected Default-Übergang (später expliziter)
 - blocked/rework Beobachtung (Monitoring)
 
