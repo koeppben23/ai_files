@@ -167,6 +167,8 @@ guards:
             type: "constant"
             value: 3
           operator: "lt"
+        - type: "key_missing"
+          key: "Phase5Review.self_review_iterations_met"
 
   - id: "guard_self_review_iterations_met"
     guard_type: "transition"
@@ -230,6 +232,24 @@ guards:
       type: "key_present"
       key: "implementation_rework_clarification_required"
 
+  - id: "guard_implementation_presentation_ready"
+    guard_type: "transition"
+    event: "implementation_presentation_ready"
+    condition:
+      type: "any_of"
+      operands:
+        - type: "key_equals"
+          key: "active_gate"
+          value: "Implementation Presentation Gate"
+        - type: "all_of"
+          operands:
+            - type: "key_equals"
+              key: "implementation_package_presented"
+              value: true
+            - type: "key_equals"
+              key: "implementation_quality_stable"
+              value: true
+
   - id: "guard_implementation_execution_in_progress"
     guard_type: "transition"
     event: "implementation_execution_in_progress"
@@ -249,31 +269,69 @@ guards:
     guard_type: "transition"
     event: "workflow_approved"
     condition:
-      type: "key_present"
-      key: "workflow_complete"
+      type: "any_of"
+      operands:
+        - type: "all_of"
+          operands:
+            - type: "key_equals"
+              key: "active_gate"
+              value: "Evidence Presentation Gate"
+            - type: "key_equals"
+              key: "user_review_decision"
+              value: "approve"
+        - type: "key_present"
+          key: "workflow_complete"
 
   - id: "guard_review_changes_requested"
     guard_type: "transition"
     event: "review_changes_requested"
     condition:
-      type: "key_equals"
-      key: "user_review_decision"
-      value: "changes_requested"
+      type: "all_of"
+      operands:
+        - type: "key_equals"
+          key: "active_gate"
+          value: "Evidence Presentation Gate"
+        - type: "key_equals"
+          key: "user_review_decision"
+          value: "changes_requested"
 
   - id: "guard_rework_clarification_pending"
     guard_type: "transition"
     event: "rework_clarification_pending"
     condition:
-      type: "key_present"
-      key: "rework_clarification_consumed"
+      type: "all_of"
+      operands:
+        - type: "any_of"
+          operands:
+            - type: "key_equals"
+              key: "phase6_state"
+              value: "6.rework"
+            - type: "key_equals"
+              key: "phase6_state"
+              value: "phase6_changes_requested"
+            - type: "key_equals"
+              key: "active_gate"
+              value: "Rework Clarification Gate"
+        - type: "any_of"
+          operands:
+            - type: "key_missing"
+              key: "rework_clarification_consumed"
+            - type: "key_equals"
+              key: "rework_clarification_consumed"
+              value: false
 
   - id: "guard_review_rejected"
     guard_type: "transition"
     event: "review_rejected"
     condition:
-      type: "key_equals"
-      key: "user_review_decision"
-      value: "reject"
+      type: "all_of"
+      operands:
+        - type: "key_equals"
+          key: "active_gate"
+          value: "Evidence Presentation Gate"
+        - type: "key_equals"
+          key: "user_review_decision"
+          value: "reject"
 
   - id: "guard_implementation_review_pending"
     guard_type: "transition"

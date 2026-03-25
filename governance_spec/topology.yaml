@@ -154,7 +154,18 @@ states:
   - id: "5.6"
     terminal: false
     transitions:
-      - id: "t5.6-t6.internal_review"
+      - id: "t5.6-t6"
+        event: default
+        target: "6"
+
+  - id: "6"
+    terminal: false
+    description: "Phase 6 - Implementation workflow container"
+    transitions:
+      - id: "t6-t6.presentation"
+        event: implementation_presentation_ready
+        target: "6.presentation"
+      - id: "t6-t6.internal_review"
         event: default
         target: "6.internal_review"
 
@@ -197,6 +208,12 @@ states:
     terminal: false
     parent: "6"
     transitions:
+      - id: "t6.execution-t6.execution-review-pending"
+        event: implementation_review_pending
+        target: "6.execution"
+      - id: "t6.execution-t6.presentation-review-complete"
+        event: implementation_review_complete
+        target: "6.presentation"
       - id: "t6.execution-t6.execution-in-progress"
         event: implementation_execution_in_progress
         target: "6.execution"
@@ -227,6 +244,9 @@ states:
       - id: "t6.approved-t6.execution"
         event: implementation_started
         target: "6.execution"
+      - id: "t6.approved-t6.approved-default"
+        event: default
+        target: "6.approved"
 
   - id: "6.blocked"
     terminal: false
@@ -245,6 +265,9 @@ states:
     parent: "6"
     description: "Rework clarification required, use /retry_implementation after clarifying"
     transitions:
+      - id: "t6.rework-t6.rework-clarification"
+        event: rework_clarification_pending
+        target: "6.rework"
       - id: "t6.rework-t6.presentation"
         event: default
         target: "6.presentation"

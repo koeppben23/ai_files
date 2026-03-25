@@ -86,9 +86,9 @@ def _write_e2e_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str, Path]:
     """Write canonical test fixture matching install.py layout.
 
     canonical layout (per install.py):
-      commands_home/      = ONLY the 8 command files
+      commands_home/       = ONLY the 8 command files
       governance_content/  = profiles/, templates/, docs/, reference/
-      governance_spec/    = phase_api.yaml
+      governance_spec/     = authoritative runtime spec bundle
     """
     config_root = tmp_path / "cfg"
     commands_home = config_root / "commands"
@@ -105,9 +105,18 @@ def _write_e2e_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str, Path]:
     content_home.mkdir(parents=True, exist_ok=True)
     workspace.mkdir(parents=True, exist_ok=True)
 
-    (spec_home / "phase_api.yaml").write_text(
-        get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8"
-    )
+    source_spec_home = get_phase_api_path().parent
+    for name in (
+        "phase_api.yaml",
+        "topology.yaml",
+        "command_policy.yaml",
+        "guards.yaml",
+        "messages.yaml",
+    ):
+        (spec_home / name).write_text(
+            (source_spec_home / name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
 
     _write_rulebooks(local_root)
     write_governance_paths(config_root, local_root=local_root)
