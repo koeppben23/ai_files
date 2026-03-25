@@ -1,4 +1,4 @@
-# Phase 6: Phase 6 in echte Substates zerlegen (v1)
+# Phase 6: Phase 6 in echte Substates zerlegen (v2)
 
 **Status:** Completed  
 **Date:** 2026-03-25  
@@ -72,29 +72,62 @@ Zerlege den monolithischen Phase 6 State in echte Substates gemäß ADR-003.
 |-------|--------|-------------|
 | default | 6.presentation | Continue to presentation |
 
-### 6.rejected
+### 6.rejected (Transitional)
 | Event | Target | Description |
 |-------|--------|-------------|
-| default | 4 | Return to Phase 4 |
+| default | 4 | Return to Phase 4 via /continue |
 
-### 6.complete
-- Terminal state (no transitions)
+**Semantics:** Short transitional state, explicit `/continue` required to return to Phase 4.
+
+### 6.complete (Terminal)
+- **Terminal state** - no transitions, no mutating commands, no /continue
+- No output allowed except read-only summaries
 
 ## 4. Command-Änderungen
 
-`/implement` ist jetzt erlaubt in:
-- `6.approved` - Start implementation
-- `6.execution` - Continue/retry implementation  
-- `6.blocked` - Rerun after resolving blockers
-- `6.rework` - Rerun after clarification
+### Allowed Commands per Substate
 
-## 5. Messages-Aktualisierung
+| Substate | /implement | /review-decision | /continue |
+|----------|-------------|------------------|-----------|
+| 6.internal_review | ❌ | ❌ | ✅ |
+| 6.presentation | ❌ | ✅ | ❌ |
+| 6.execution | ✅ | ❌ | ❌ |
+| 6.approved | ✅ | ❌ | ❌ |
+| 6.blocked | ✅ | ❌ | ❌ |
+| 6.rework | ✅ | ❌ | ❌ |
+| 6.rejected | ❌ | ❌ | ✅ |
+| 6.complete | ❌ | ❌ | ❌ |
+
+### Explicit Restrictions
+
+**6.complete (Terminal):**
+- Blocked: `/continue`, `/ticket`, `/plan`, `/implement`, `/review-decision`
+- Blocked types: `persist_evidence`, `start_implementation`, `submit_review_decision`, `advance_routing`
+- Output: Read-only summaries only (`review`, `gate_check`)
+
+**6.rejected (Transitional):**
+- Blocked: `/review-decision`, `/implementation-decision`
+- Requires: Explicit `/continue` to return to Phase 4
+
+**6.blocked:**
+- Blocked: `/review-decision`, `/implementation-decision`
+
+## 5. Terminal State Protection
+
+6.complete is **hard protected** against:
+- No transitions (empty transitions list in topology)
+- No mutating commands (via command_restrictions)
+- No /continue (via command_restrictions)
+- No output except read-only summaries (via output_policies)
+
+## 6. Messages-Aktualisierung
 
 Messages wurden aktualisiert, um Substate-spezifische Messages zu enthalten:
 - 22 neue Transition Messages für Substates
 - Messages reflektieren den aktuellen Substate-Kontext
+- 6.rejected Message erklärt `/continue`-Requirement
 
-## 6. Testergebnisse
+## 7. Testergebnisse
 
 ```
 tests/architecture/test_topology.py ... 37 passed
@@ -105,10 +138,23 @@ tests/architecture/test_spec_inventory.py ... 18 passed
 tests/architecture/test_import_rules.py ... 8 passed
 tests/architecture/test_control_plane_guards.py ... 5 passed
 tests/architecture/test_repo_identity_guards.py ... 3 passed
-Total: 177 passed
+tests/architecture/test_phase6_substates.py ... 19 passed (NEGATIVE TESTS)
+Total: 196 passed
 ```
 
-## 7. Nächste Schritte
+### Neue Prohibition Tests (test_phase6_substates.py)
+
+| Testklasse | Tests | Beschreibung |
+|------------|-------|--------------|
+| `TestTerminalStateProtection` | 4 | 6.complete terminal protection |
+| `TestRejectedStateSemantics` | 4 | 6.rejected transitional semantics |
+| `TestSubstateCommandProhibitions` | 3 | Commands not allowed per substate |
+| `TestBlockedStateRestrictions` | 1 | 6.blocked restrictions |
+| `TestApprovedStateRestrictions` | 2 | 6.approved restrictions |
+| `TestExecutionStateRestrictions` | 2 | 6.execution restrictions |
+| `TestSubstateConsistency` | 3 | Substate consistency checks |
+
+## 8. Nächste Schritte
 
 1. **Phase 7**: Runtime-Executor bereinigen
 2. **Phase 8**: Spec-Validator und Conformance-Checks

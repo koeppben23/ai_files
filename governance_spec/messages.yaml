@@ -431,12 +431,14 @@ transition_messages:
     gate_message: "Rework Required"
     instruction: "Clarify changes and proceed to presentation"
 
-  # 6.rejected
+  # 6.rejected - Transitional state, requires /continue to return to Phase 4
+  # Semantics: Short transitional state, explicit /continue required
+  # No new decisions allowed, no implementation artifacts produced
   - id: "msg.trans.6.rejected.default"
     state_id: "6.rejected"
     event: "default"
     gate_message: "Implementation Rejected"
-    instruction: "Return to Phase 4 for rework"
+    instruction: "Use /continue to return to Phase 4 for replanning"
 
   # 6 (container)
   - id: "msg.trans.6.default"

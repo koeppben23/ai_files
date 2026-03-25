@@ -155,16 +155,33 @@ commands:
 # For terminal states, the pattern matches states where terminal=true in topology.
 
 command_restrictions:
-  # Terminal states - no mutating commands allowed
-  # NOTE: This pattern matches states that have terminal=true in topology.yaml,
-  # not by name convention. The pattern "*.terminal" is a placeholder for
-  # runtime resolution against the terminal flag.
+  # Terminal states - NO mutating commands allowed
+  # This is the authoritative rule for ALL terminal states.
   - state_pattern: "*.terminal"
+    blocked_command_types:
+      - "persist_evidence"      # /ticket, /plan
+      - "start_implementation"  # /implement
+      - "submit_review_decision"  # /review-decision, /implementation-decision
+    blocked_commands:
+      - "/continue"  # No advance routing from terminal states
+    reason: "Terminal states are immutable - no state changes allowed"
+
+  # 6.complete - EXPLICIT terminal enforcement
+  # Even if generic terminal rule fails, 6.complete is explicitly blocked.
+  - state_pattern: "6.complete"
     blocked_command_types:
       - "persist_evidence"
       - "start_implementation"
       - "submit_review_decision"
-    reason: "Terminal states have terminal=true in topology, are immutable"
+      - "advance_routing"  # /continue explicitly blocked
+    blocked_commands:
+      - "/continue"
+      - "/ticket"
+      - "/plan"
+      - "/implement"
+      - "/review-decision"
+      - "/implementation-decision"
+    reason: "6.complete is terminal - workflow finished, no further actions"
 
   # Blocked implementation states
   - state_pattern: "6.blocked"
@@ -173,12 +190,15 @@ command_restrictions:
       - "/implementation-decision"
     reason: "Implementation blocked - resolve blockers first"
 
-  # Complete workflow states
-  - state_pattern: "6.complete"
+  # 6.rejected - Transitional, no decision commands
+  - state_pattern: "6.rejected"
     blocked_command_types:
       - "start_implementation"
       - "submit_review_decision"
-    reason: "Workflow complete - no further decisions needed"
+    blocked_commands:
+      - "/review-decision"
+      - "/implementation-decision"
+    reason: "6.rejected is transitional - return to Phase 4 for replanning"
 
 # ============================================================================
 # Output Policies
@@ -209,6 +229,34 @@ output_policies:
       draft_not_review_ready: true
       min_self_review_iterations: 1
 
+  - id: "op.phase6.complete"
+    state_id: "6.complete"
+    description: "Workflow complete - read-only summary only"
+    allowed_output_classes:
+      - "review"  # Final review summary
+      - "gate_check"  # Final gate confirmation
+    forbidden_output_classes:
+      - "plan"
+      - "implementation"
+      - "patch"
+      - "diff"
+      - "code_delivery"
+      - "risk_analysis"
+      - "test_strategy"
+      - "rollback_plan"
+    reason: "Terminal state - no new deliverables, only summary"
+
+  - id: "op.phase6.rejected"
+    state_id: "6.rejected"
+    description: "Workflow rejected - transitional, returns to Phase 4"
+    allowed_output_classes:
+      - "review"
+      - "gate_check"
+    forbidden_output_classes:
+      - "implementation"
+      - "code_delivery"
+    reason: "Transitional state - no new implementation while returning"
+
 # ============================================================================
 # Phase Output Policy Map
 # ============================================================================
@@ -222,10 +270,14 @@ phase_output_policy_map:
   - state_id: "5"
     output_policy_ref: "op.phase5.review_only"
   - state_id: "5.3"
-    output_policy_ref: "op.phase5.review_only"  # Inherits from 5
+    output_policy_ref: "op.phase5.review_only"
   - state_id: "5.4"
-    output_policy_ref: "op.phase5.review_only"  # Inherits from 5
+    output_policy_ref: "op.phase5.review_only"
   - state_id: "5.5"
-    output_policy_ref: "op.phase5.review_only"  # Inherits from 5
+    output_policy_ref: "op.phase5.review_only"
   - state_id: "5.6"
-    output_policy_ref: "op.phase5.review_only"  # Inherits from 5
+    output_policy_ref: "op.phase5.review_only"
+  - state_id: "6.complete"
+    output_policy_ref: "op.phase6.complete"
+  - state_id: "6.rejected"
+    output_policy_ref: "op.phase6.rejected"
