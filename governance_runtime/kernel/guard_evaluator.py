@@ -57,6 +57,12 @@ class GuardEvaluator:
         cls._transition_guards_by_event = by_event
 
     @classmethod
+    def has_transition_guard(cls, event: str) -> bool:
+        """Return True when guards.yaml defines a transition guard for event."""
+        cls._ensure_loaded()
+        return event in cls._transition_guards_by_event
+
+    @classmethod
     def evaluate_event(
         cls,
         event: str,
