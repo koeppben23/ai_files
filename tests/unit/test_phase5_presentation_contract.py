@@ -45,6 +45,15 @@ def test_build_presentation_contract_marks_re_review_delta() -> None:
     assert contract["delta_since_last_review"] == "Updated since last review iteration."
 
 
+def test_build_presentation_contract_uses_plan_signals_not_static_placeholders() -> None:
+    contract = build_presentation_contract(_base_plan())
+    summary = " ".join(contract["executive_summary"])
+    slices = " ".join(contract["execution_slices"])
+    assert "authentication" in summary or "endpoint" in summary
+    assert "Slice 1 signal:" in slices
+    assert "validate" in slices or "token" in slices
+
+
 def test_build_presentation_contract_clamps_lengths_and_limits_lists() -> None:
     plan = _base_plan()
     plan["target_flow"] = "; ".join([f"slice {idx}" for idx in range(20)])

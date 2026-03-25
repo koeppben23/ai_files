@@ -18,6 +18,26 @@ NEXT_ACTIONS = (
 MAX_EXECUTIVE_SUMMARY_ITEMS = 5
 MAX_EXECUTION_SLICES = 7
 MAX_RISKS = 5
+_STOPWORDS = {
+    "with",
+    "that",
+    "this",
+    "from",
+    "into",
+    "will",
+    "must",
+    "have",
+    "been",
+    "were",
+    "when",
+    "where",
+    "then",
+    "than",
+    "only",
+    "plan",
+    "state",
+    "flow",
+}
 
 
 def _clamp(value: str, *, limit: int) -> str:
@@ -32,6 +52,32 @@ def _split_compact_items(text: str, *, max_items: int) -> list[str]:
     if not raw:
         return []
     return [_clamp(item, limit=180) for item in raw[:max_items]]
+
+
+def _keyword_signal(text: str, *, max_terms: int = 6) -> str:
+    tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", text.lower())
+    terms: list[str] = []
+    for token in tokens:
+        if token in _STOPWORDS:
+            continue
+        if token in terms:
+            continue
+        terms.append(token)
+        if len(terms) >= max_terms:
+            break
+    if not terms:
+        return "no clear signal captured"
+    return ", ".join(terms)
+
+
+def _execution_slice_signals(target_flow: str) -> list[str]:
+    parts = [part.strip() for part in re.split(r"\n+|\d+[.)]\s+", target_flow) if part.strip()]
+    if not parts:
+        return ["Execution flow is present; key slice signals are unavailable."]
+    slices: list[str] = []
+    for idx, part in enumerate(parts[:MAX_EXECUTION_SLICES], 1):
+        slices.append(_clamp(f"Slice {idx} signal: {_keyword_signal(part)}.", limit=180))
+    return slices
 
 
 def _obvious_non_english_score(text: str) -> int:
@@ -73,23 +119,24 @@ def english_violations(plan: Mapping[str, object]) -> list[str]:
 
 def build_presentation_contract(plan: Mapping[str, object], *, re_review: bool = False) -> dict[str, object]:
     """Build deterministic Phase-5 presentation contract payload."""
+    objective = str(plan.get("objective", "") or "").strip()
     target_state = str(plan.get("target_state", "") or "").strip()
+    target_flow = str(plan.get("target_flow", "") or "").strip()
+    go_no_go = str(plan.get("go_no_go", "") or "").strip()
     risks = str(plan.get("risks", "") or "").strip()
     open_questions = str(plan.get("open_questions", "") or "").strip()
 
     executive_summary = [
-        "Plan objective is captured and ready for decision.",
-        "Target state, execution flow, and release gates are documented.",
-        "Decision rails are deterministic and fail-closed.",
+        _clamp(f"Objective signal: {_keyword_signal(objective)}.", limit=180),
+        _clamp(f"Target-state signal: {_keyword_signal(target_state)}.", limit=180),
+        _clamp(f"Go/No-Go signal: {_keyword_signal(go_no_go)}.", limit=180),
     ]
-    execution_slices = [
-        "Execution flow is defined as ordered implementation slices in the technical appendix."
-    ]
+    execution_slices = _execution_slice_signals(target_flow)
     risk_items = _split_compact_items(risks, max_items=MAX_RISKS)
     open_items = _split_compact_items(open_questions, max_items=MAX_RISKS)
 
     if not execution_slices:
-        execution_slices = ["Execution slices are documented in the technical appendix."]
+        execution_slices = ["Execution flow is present; key slice signals are unavailable."]
     if not risk_items:
         risk_items = ["No explicit risks provided; confirm before approval."]
     if not open_items:
@@ -104,7 +151,7 @@ def build_presentation_contract(plan: Mapping[str, object], *, re_review: bool =
         "executive_summary": executive_summary,
         "delta_since_last_review": _clamp(delta, limit=120),
         "scope": _clamp(
-            "Scope is defined and traceable in the technical appendix target-state section."
+            f"Scope signal: {_keyword_signal(target_state)}."
             if target_state
             else "Scope must be confirmed before approval.",
             limit=400,
@@ -112,8 +159,8 @@ def build_presentation_contract(plan: Mapping[str, object], *, re_review: bool =
         "execution_slices": execution_slices,
         "risks_and_mitigations": risk_items,
         "release_gates": _clamp(
-            "Release gates are defined and must remain green before approval."
-            if str(plan.get("go_no_go", "") or "").strip()
+            f"Release-gate signal: {_keyword_signal(go_no_go)}."
+            if go_no_go
             else "Release gates must be confirmed before approval.",
             limit=400,
         ),
