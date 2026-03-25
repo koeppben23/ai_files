@@ -357,6 +357,48 @@ def get_local_root() -> Path:
     return (Path.home().resolve() / ".local" / "opencode").resolve()
 
 
+def get_desktop_app_config_root() -> Path:
+    """Return known OpenCode Desktop app config root on macOS."""
+    return (
+        Path.home().resolve()
+        / "Library"
+        / "Application Support"
+        / "ai.opencode.desktop"
+        / "opencode"
+    ).resolve()
+
+
+def resolve_known_config_roots(primary_root: Path | None = None) -> list[Path]:
+    """Resolve known config roots that may be used by different OpenCode builds."""
+    roots: list[Path] = []
+    if primary_root is not None:
+        roots.append(primary_root.resolve())
+    else:
+        roots.append(get_config_root())
+
+    if platform.system() == "Darwin":
+        roots.append(get_desktop_app_config_root())
+
+    deduped: list[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        marker = root.as_posix()
+        if marker in seen:
+            continue
+        seen.add(marker)
+        deduped.append(root)
+    return deduped
+
+
+def has_installation(root: Path) -> bool:
+    """Best-effort check whether governance appears installed at root."""
+    commands = root / "commands"
+    if not commands.exists() or not commands.is_dir():
+        return False
+    rails = sorted(p.name for p in commands.glob("*.md") if p.is_file())
+    return rails == sorted(CANONICAL_RAIL_FILENAMES)
+
+
 def ensure_dirs(config_root: Path, local_root: Path | None = None, dry_run: bool = False) -> None:
     if local_root is None:
         local_root = get_local_root()
@@ -1047,9 +1089,23 @@ def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[l
     """Enforce strict local-root top-level allowlist for installer payload."""
     removed: list[str] = []
     allowed_top_level = {"governance_runtime", "governance_content", "governance_spec", "governance", "VERSION"}
+    harmless_metadata = FORBIDDEN_METADATA_FILENAMES
 
     if local_root.exists() and local_root.is_dir():
         for path in sorted(local_root.iterdir(), key=lambda p: p.name):
+            if path.name in harmless_metadata:
+                # Local-root metadata files are non-governance noise.
+                # Remove when possible but never treat as hard hygiene violation.
+                rel = path.relative_to(local_root).as_posix()
+                removed.append(rel)
+                if dry_run:
+                    print(f"  [DRY-RUN] rm {path}")
+                else:
+                    try:
+                        path.unlink()
+                    except Exception:
+                        pass
+                continue
             if path.name in allowed_top_level:
                 continue
             rel = path.relative_to(local_root).as_posix()
@@ -1086,6 +1142,8 @@ def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[l
     violations: list[str] = []
     if local_root.exists() and local_root.is_dir():
         for path in sorted(local_root.iterdir(), key=lambda p: p.name):
+            if path.name in harmless_metadata:
+                continue
             if path.name not in allowed_top_level:
                 suffix = "/" if path.is_dir() else ""
                 violations.append(path.name + suffix)
@@ -1753,12 +1811,18 @@ PYTHON_COMMAND_PLACEHOLDER = "{{PYTHON_COMMAND}}"
 BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
 
-def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
+def ensure_opencode_json(
+    config_root: Path,
+    *,
+    dry_run: bool,
+    include_legacy_command_files: bool = False,
+) -> dict:
     """Generate or merge ``opencode.json`` with governance instructions for Desktop.
 
     - If the file does not exist, create it with the ``instructions`` array.
     - If it exists, merge: add missing instruction entries, ensure plugin is set,
-      and actively remove any legacy ``command_files`` key.
+      and actively remove any legacy ``command_files`` key unless
+      include_legacy_command_files=True.
       Other user keys are preserved.
 
     Returns a status dict for logging.
@@ -1787,8 +1851,12 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
             except Exception:
                 pass  # best-effort backup
 
-        # Remove legacy command_files key — Desktop uses instructions instead
-        existing.pop("command_files", None)
+        # Keep legacy command_files only when explicitly requested for
+        # compatibility with older Desktop builds.
+        if include_legacy_command_files:
+            existing["command_files"] = list(OPENCODE_INSTRUCTIONS)
+        else:
+            existing.pop("command_files", None)
 
         current = existing.get("instructions")
         if not isinstance(current, list):
@@ -1821,6 +1889,8 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
         "instructions": list(OPENCODE_INSTRUCTIONS),
         OPENCODE_PLUGIN_KEY: [plugin_uri],
     }
+    if include_legacy_command_files:
+        payload["command_files"] = list(OPENCODE_INSTRUCTIONS)
     if dry_run:
         print(f"  [DRY-RUN] create {target}")
         return {"status": "planned-create", "dst": str(target)}
@@ -2004,7 +2074,14 @@ def inject_session_reader_path(
     )
 
 
-def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool) -> int:
+def install(
+    plan: InstallPlan,
+    dry_run: bool,
+    force: bool,
+    backup_enabled: bool,
+    *,
+    include_legacy_command_files: bool = False,
+) -> int:
     ok, missing, unsafe_symlinks = precheck_source(plan.source_dir)
     # Allow dry-run to bypass safety gating for unsafe symlinks to enable planning
     if not ok:
@@ -2280,7 +2357,11 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 
     # --- OpenCode Desktop bridge: opencode.json + session reader path injection ---
     print("\n🔗 Configuring OpenCode Desktop governance bridge...")
-    ojs = ensure_opencode_json(plan.config_root, dry_run=dry_run)
+    ojs = ensure_opencode_json(
+        plan.config_root,
+        dry_run=dry_run,
+        include_legacy_command_files=include_legacy_command_files,
+    )
     print(f"  opencode.json: {ojs['status']}")
 
     binding_python = _resolve_python_executable(
@@ -3163,6 +3244,69 @@ def try_remove_empty_dir(d: Path, dry_run: bool) -> None:
         return
 
 
+def _detect_root_drift(primary_root: Path) -> tuple[list[Path], list[Path]]:
+    """Return (known_roots, installed_roots)."""
+    known_roots = resolve_known_config_roots(primary_root)
+    installed_roots = [root for root in known_roots if has_installation(root)]
+    return known_roots, installed_roots
+
+
+def show_doctor(_source_dir: Path, config_root_arg: Path | None) -> int:
+    """Run root-drift diagnostics and print concrete recovery commands."""
+    print("=" * 60)
+    print("LLM Governance System Doctor")
+    print("=" * 60)
+
+    config_root = config_root_arg if config_root_arg is not None else get_config_root()
+    known_roots, installed_roots = _detect_root_drift(config_root)
+
+    print(f"Primary config root: {config_root}")
+    print("Known config roots:")
+    for root in known_roots:
+        marker = "installed" if root in installed_roots else "not-installed"
+        print(f"  - {root} [{marker}]")
+
+    issues: list[str] = []
+    if not installed_roots:
+        issues.append("no-installation")
+    if len(installed_roots) > 1:
+        issues.append("multiple-installed-roots")
+    if installed_roots and config_root not in installed_roots:
+        issues.append("primary-root-not-installed")
+
+    local_root = get_local_root()
+    for fname in sorted(FORBIDDEN_METADATA_FILENAMES):
+        metadata_file = local_root / fname
+        if metadata_file.exists():
+            issues.append(f"harmless-local-metadata:{fname}")
+
+    print("\nDiagnosis:")
+    if not issues:
+        print("  ✅ No drift detected.")
+    else:
+        for issue in issues:
+            print(f"  ⚠️  {issue}")
+
+    py = _path_for_json(Path(sys.executable))
+    print("\nRecovery commands:")
+    print(f"  - rm -f \"{_path_for_json(local_root / '.DS_Store')}\"")
+    print(
+        "  - "
+        f"\"{py}\" install.py --force --config-root \"{_path_for_json(config_root)}\" "
+        f"--local-root \"{_path_for_json(local_root)}\""
+    )
+    desktop_root = get_desktop_app_config_root()
+    if desktop_root != config_root:
+        print(
+            "  - "
+            f"\"{py}\" install.py --force --config-root \"{_path_for_json(desktop_root)}\" "
+            f"--local-root \"{_path_for_json(local_root)}\""
+        )
+
+    print("\n" + "=" * 60)
+    return 0 if not issues else 1
+
+
 def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
     """Show installation status (read-only). Returns 0 on success, non-zero on errors."""
 
@@ -3179,6 +3323,17 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
 
     print(f"Config Root: {config_root}")
     print(f"Commands Home: {config_root / 'commands'}")
+
+    known_roots, installed_roots = _detect_root_drift(config_root)
+    if len(known_roots) > 1:
+        print("Known Roots:")
+        for root in known_roots:
+            marker = "installed" if root in installed_roots else "not-installed"
+            print(f"  - {root} [{marker}]")
+    if len(installed_roots) > 1:
+        print("⚠️  Root drift detected: multiple config roots have installations.")
+    elif installed_roots and config_root not in installed_roots:
+        print("⚠️  Selected config root has no install; another known root is installed.")
 
     # Check if installed
     commands_home = config_root / "commands"
@@ -3261,6 +3416,16 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
         print(f"\n❌ Config root: failed to resolve ({e})")
         issues_found.append("config-root-resolution")
         return 1
+
+    known_roots, installed_roots = _detect_root_drift(config_root)
+    if len(known_roots) > 1:
+        print("\n📍 Known roots:")
+        for root in known_roots:
+            marker = "installed" if root in installed_roots else "not-installed"
+            print(f"   - {root} [{marker}]")
+    if len(installed_roots) > 1:
+        print("   ⚠️  root drift: multiple known roots have active installations")
+        issues_found.append("root-drift-multiple")
 
     # Probe 4: Write permissions per scope
     print("\n📁 Write permissions:")
@@ -3539,8 +3704,19 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument("--version", action="store_true", help="Show installer and governance version, then exit.")
     p.add_argument("--status", action="store_true", help="Show installation status (read-only), then exit.")
+    p.add_argument("--doctor", action="store_true", help="Diagnose root drift and print concrete recovery commands.")
     p.add_argument("--health", action="store_true", help="Run read-only health probes and show compact status, then exit.")
     p.add_argument("--smoketest", action="store_true", help="Run installation smoketest (checks launcher, paths.json, installed runtime execution).")
+    p.add_argument(
+        "--sync-known-roots",
+        action="store_true",
+        help="Install to all known config roots for this platform (prevents Desktop/canonical root drift).",
+    )
+    p.add_argument(
+        "--legacy-command-files-compat",
+        action="store_true",
+        help="Also write opencode.json command_files for older Desktop compatibility.",
+    )
     return p.parse_args(argv)
 
 
@@ -3570,6 +3746,10 @@ def main(argv: list[str]) -> int:
     if args.status:
         return show_status(args.source_dir, args.config_root)
 
+    # --doctor: root-drift diagnosis and concrete recovery commands
+    if args.doctor:
+        return show_doctor(args.source_dir, args.config_root)
+
     # --health: run read-only health probes and exit
     if args.health:
         return show_health(args.source_dir, args.config_root)
@@ -3581,6 +3761,10 @@ def main(argv: list[str]) -> int:
 
     config_root = args.config_root if args.config_root is not None else get_config_root()
     local_root = args.local_root if args.local_root is not None else get_local_root()
+    target_roots = [config_root]
+    if args.sync_known_roots:
+        target_roots = resolve_known_config_roots(config_root)
+
     plan = build_plan(
         args.source_dir,
         config_root,
@@ -3618,7 +3802,40 @@ def main(argv: list[str]) -> int:
             return 0
 
     backup_enabled = not args.no_backup
-    return install(plan, dry_run=args.dry_run, force=args.force, backup_enabled=backup_enabled)
+    if len(target_roots) == 1:
+        return install(
+            plan,
+            dry_run=args.dry_run,
+            force=args.force,
+            backup_enabled=backup_enabled,
+            include_legacy_command_files=args.legacy_command_files_compat,
+        )
+
+    print("\nSync known roots mode enabled:")
+    for root in target_roots:
+        print(f"  - {root}")
+
+    overall_rc = 0
+    for idx, root in enumerate(target_roots, 1):
+        plan_for_root = build_plan(
+            args.source_dir,
+            root,
+            local_root,
+            skip_paths_file=args.skip_paths_file,
+            deterministic_paths_file=args.deterministic_paths_file,
+        )
+        print(f"\n[{idx}/{len(target_roots)}] Installing to {root} ...")
+        rc = install(
+            plan_for_root,
+            dry_run=args.dry_run,
+            force=args.force,
+            backup_enabled=backup_enabled,
+            include_legacy_command_files=args.legacy_command_files_compat,
+        )
+        if rc != 0:
+            overall_rc = rc
+            break
+    return overall_rc
 
 
 if __name__ == "__main__":

@@ -98,6 +98,11 @@ class TestFreshInstall:
         assert raw.endswith("\n")
         json.loads(raw)
 
+    def test_can_emit_legacy_command_files_when_compat_enabled(self, config_root: Path) -> None:
+        ensure_opencode_json(config_root, dry_run=False, include_legacy_command_files=True)
+        data = _read_opencode_json(config_root)
+        assert data["command_files"] == list(OPENCODE_INSTRUCTIONS)
+
 
 # ---------------------------------------------------------------------------
 # Merge with existing
@@ -186,6 +191,18 @@ class TestMergeExisting:
         assert "custom" in data
         assert "commands/continue.md" in data["instructions"]
         assert "commands/legacy.md" not in data["instructions"]
+
+    def test_command_files_legacy_merge_kept_when_compat_enabled(self, config_root: Path) -> None:
+        existing = {
+            "command_files": ["commands/legacy.md"],
+            "instructions": ["commands/continue.md"],
+        }
+        target = config_root / OPENCODE_JSON_NAME
+        target.write_text(json.dumps(existing), encoding="utf-8")
+
+        ensure_opencode_json(config_root, dry_run=False, include_legacy_command_files=True)
+        data = _read_opencode_json(config_root)
+        assert data["command_files"] == list(OPENCODE_INSTRUCTIONS)
 
 
 # ---------------------------------------------------------------------------
