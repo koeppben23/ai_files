@@ -185,6 +185,8 @@ class TestFormatGuidedSnapshot:
         })
         output = format_guided_snapshot(snapshot, "Next action: run /review-decision.")
         assert "Presented review content" in output
+        assert "PHASE 5 · PLAN FOR APPROVAL" in output
+        assert "/review-decision approve" in output
         assert "Test Review" in output
 
     def test_includes_execution_progress(self):

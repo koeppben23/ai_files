@@ -760,9 +760,39 @@ class TestPlanGeneration:
         assert result["blocked"] is False
         assert "plan_text" in result
         plan_text = result["plan_text"]
+        assert "PHASE 5 · PLAN FOR APPROVAL" in plan_text
+        assert "PLAN (not implemented)" in plan_text
         assert "Target State" in plan_text
         assert "Target Flow" in plan_text
         assert "Go/No-Go" in plan_text
+        assert "/review-decision approve" in plan_text
+
+    def test_blocks_when_llm_plan_text_is_non_english(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        non_english = json.dumps(
+            {
+                "objective": "Implementiere einen sicheren Login mit Token.",
+                "target_state": "Der Endpunkt akzeptiert Zugangsdaten und liefert ein Token zurueck.",
+                "target_flow": "1. Erstelle Route. 2. Validiere Zugangsdaten. 3. Gib Token zurueck.",
+                "state_machine": "Unauthenticated -> Authenticated",
+                "blocker_taxonomy": "Konfiguration fehlt und Umgebung ist nicht stabil.",
+                "audit": "Aenderungen werden protokolliert und mit Zeitstempel gespeichert.",
+                "go_no_go": "Alle Tests muessen gruen sein und keine Blocker offen bleiben.",
+                "test_strategy": "Unit-Tests und Integrationstests decken Login und Fehlerpfade ab.",
+                "reason_code": "PLAN-AUTH-001",
+            }
+        )
+        escaped = non_english.replace("'", "'\\''")
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{escaped}'")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Implement auth endpoint",
+            task_text="Add JWT login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is True
+        assert result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
+        assert "plan-language-violation" in str(result.get("reason", ""))
 
     def test_auto_generate_blocks_when_no_ticket(self, capsys: pytest.CaptureFixture[str]):
         module = _load_module()

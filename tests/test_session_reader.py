@@ -2851,6 +2851,17 @@ class TestResolveNextActionLine:
         }
         assert _resolve_next_action_line(snapshot) == "Next action: describe the requested changes in chat."
 
+    def test_happy_evidence_presentation_gate_routes_to_review_decision(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Evidence Presentation Gate",
+            "next_gate_condition": "Present evidence and submit final decision.",
+        }
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: run /review-decision <approve|changes_requested|reject>."
+        )
+
     def test_happy_implementation_presentation_gate_routes_to_implementation_decision(self) -> None:
         snapshot = {
             "status": "OK",

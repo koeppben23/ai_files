@@ -18,6 +18,11 @@ if __package__ in {None, ""}:
 from governance_runtime.application.use_cases.phase_router import route_phase
 from governance_runtime.application.use_cases.rework_clarification import consume_rework_clarification_state
 from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
+from governance_runtime.application.services.phase5_presentation_contract import (
+    TITLE as PHASE5_PRESENTATION_TITLE,
+    build_presentation_contract,
+    english_violations,
+)
 from governance_runtime.contracts.compiler import compile_plan_to_requirements
 from governance_runtime.contracts.validator import validate_requirement_contracts
 from governance_runtime.domain import reason_codes
@@ -401,6 +406,7 @@ def _call_llm_generate_plan(
         instruction_parts.append("Apply the effective authoring policy below for active profile and addons.")
     instruction_parts.append(
         "You MUST respond with valid JSON that conforms to the output schema below.\n"
+        "All textual output MUST be in English only (language='en').\n"
         "Do NOT include any text outside the JSON object.\n\n"
         "Output schema:\n" + output_schema_text
     )
@@ -496,6 +502,20 @@ def _parse_plan_generation_response(response_text: str) -> dict[str, object]:
             "recovery_action": "LLM did not return valid JSON for plan generation.",
         }
 
+    violations = english_violations(parsed_data)
+    if violations:
+        return {
+            "blocked": True,
+            "reason": f"plan-language-violation: {violations}",
+            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+            "recovery_action": "Plan output must be English-only across required fields.",
+            "validation_violations": violations,
+        }
+
+    normalized_data = dict(parsed_data)
+    normalized_data["language"] = "en"
+    normalized_data["presentation_contract"] = build_presentation_contract(normalized_data)
+
     # Load planOutputSchema — must be present and non-empty
     try:
         mandates_schema = _load_mandates_schema()
@@ -522,23 +542,23 @@ def _parse_plan_generation_response(response_text: str) -> dict[str, object]:
         }
 
     # Validate against planOutputSchema — fail-closed, no fallback
-    validation = validate_plan_response(parsed_data, plan_schema=plan_schema)
+    validation = validate_plan_response(normalized_data, plan_schema=plan_schema)
     if not validation.valid:
-        violations = [v.rule for v in validation.violations]
+        validation_rules = [v.rule for v in validation.violations]
         return {
             "blocked": True,
-            "reason": f"plan-schema-violation: {violations}",
+            "reason": f"plan-schema-violation: {validation_rules}",
             "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
             "recovery_action": "LLM response did not conform to planOutputSchema.",
-            "validation_violations": violations,
+            "validation_violations": validation_rules,
         }
 
     # Convert structured plan to markdown plan text for the existing review/persist chain
-    plan_text = _structured_plan_to_markdown(parsed_data)
+    plan_text = _structured_plan_to_markdown(normalized_data)
     return {
         "blocked": False,
         "plan_text": plan_text,
-        "structured_plan": parsed_data,
+        "structured_plan": normalized_data,
     }
 
 
@@ -548,6 +568,16 @@ def _structured_plan_to_markdown(plan: dict[str, object]) -> str:
     The markdown format is what the existing Phase 5 review/persist chain expects.
     """
     lines: list[str] = []
+
+    presentation = plan.get("presentation_contract")
+    if isinstance(presentation, Mapping):
+        title = str(presentation.get("title") or PHASE5_PRESENTATION_TITLE).strip()
+        badge = str(presentation.get("plan_status_badge") or "PLAN (not implemented)").strip()
+        decision = str(presentation.get("decision_required") or "").strip()
+        lines.append(f"# {title}\n")
+        lines.append(f"{badge}\n")
+        if decision:
+            lines.append(f"## Decision Required\n{decision}\n")
 
     objective = str(plan.get("objective", "")).strip()
     if objective:
@@ -600,6 +630,14 @@ def _structured_plan_to_markdown(plan: dict[str, object]) -> str:
     reason_code = str(plan.get("reason_code", "")).strip()
     if reason_code:
         lines.append(f"## Reason Code\n{reason_code}\n")
+
+    if isinstance(presentation, Mapping):
+        next_actions = presentation.get("next_actions")
+        if isinstance(next_actions, list) and next_actions:
+            lines.append("## Next Actions")
+            for action in next_actions:
+                lines.append(f"- {str(action)}")
+            lines.append("")
 
     return "\n".join(lines)
 
