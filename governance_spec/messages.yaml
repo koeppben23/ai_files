@@ -384,13 +384,13 @@ transition_messages:
     state_id: "6.execution"
     event: "implementation_blocked"
     gate_message: "Implementation Blocked"
-    instruction: "Resolve blockers and rerun /implement"
+    instruction: "Transitioning to blocked state for resolution"
 
   - id: "msg.trans.6.execution.implementation_rework_clarification_pending"
     state_id: "6.execution"
     event: "implementation_rework_clarification_pending"
     gate_message: "Rework Clarification"
-    instruction: "Clarify in chat, then run /implement"
+    instruction: "Transitioning to rework state for clarification"
 
   # 6.approved
   - id: "msg.trans.6.approved.default"
@@ -410,14 +410,14 @@ transition_messages:
     state_id: "6.blocked"
     event: "default"
     gate_message: "Implementation Blocked"
-    instruction: "Resolve blockers and continue"
+    instruction: "Use /retry_implementation to resume"
 
   # 6.rework
   - id: "msg.trans.6.rework.default"
     state_id: "6.rework"
     event: "default"
     gate_message: "Rework Required"
-    instruction: "Clarify changes and proceed to presentation"
+    instruction: "Clarify changes, then use /retry_implementation"
 
   # 6.rejected - Transitional state, requires /continue to return to Phase 4
   # Semantics: Short transitional state, explicit /continue required

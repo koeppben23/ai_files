@@ -48,12 +48,16 @@ Topology akzeptiert aber:
 
 6.blocked:
   - default → 6.blocked  # /continue retry
-  - implementation_started → 6.execution  # Rerun via /implement
+  - implementation_started → 6.execution  # Resume via /retry_implementation
 
 6.rework:
   - default → 6.presentation  # /continue clarification
-  - implementation_started → 6.execution  # Rerun via /implement
+  - implementation_started → 6.execution  # Resume via /retry_implementation
 ```
+
+**Update 2026-03-25:** `/implement` wurde weiter gesplittet:
+- `/implement` → Nur in 6.approved (Start)
+- `/retry_implementation` → In 6.blocked, 6.rework (Resume/Retry)
 
 ### 2. workflow_rejected entfernt
 

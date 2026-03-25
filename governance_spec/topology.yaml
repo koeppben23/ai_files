@@ -231,7 +231,7 @@ states:
   - id: "6.blocked"
     terminal: false
     parent: "6"
-    description: "Implementation blocked, resolve blockers and rerun /implement"
+    description: "Implementation blocked, resolve blockers and use /retry_implementation"
     transitions:
       - id: "t6.blocked-t6.blocked"
         event: default
@@ -243,7 +243,7 @@ states:
   - id: "6.rework"
     terminal: false
     parent: "6"
-    description: "Rework clarification required, rerun /implement after clarifying"
+    description: "Rework clarification required, use /retry_implementation after clarifying"
     transitions:
       - id: "t6.rework-t6.presentation"
         event: default

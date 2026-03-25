@@ -166,42 +166,32 @@ Diese Zustände haben die höchste Drift-Gefahr:
 
 **Follow-up:** Nach Release beobachten.
 
-### 5.4 /implement Command - SEMANTISCH BREIT
+### 5.4 /implement Command - ✅ FIXED (2026-03-25)
 
-**Status:** ACKNOWLEDGED DESIGN CHOICE
+**Status:** RESOLVED
 
-`/implement` ist erlaubt in:
-- 6.approved (Start)
-- 6.execution (Continue)
-- 6.blocked (Rerun nach Blockade)
-- 6.rework (Rerun nach Rework)
+`/implement` ist jetzt semantisch klar:
+- `/implement` → Nur in 6.approved (Start)
+- `/retry_implementation` → In 6.blocked, 6.rework (Resume)
 
-**Problem:** Ein Command für vier semantisch unterschiedliche Aktionen.
+**Changes:**
+- `command_policy.yaml`: `/implement` restricted to 6.approved only
+- `command_policy.yaml`: New `/retry_implementation` command added
+- `messages.yaml`: 6.execution transitions show "transitioning" not next command
+- `messages.yaml`: 6.blocked/6.rework reference `/retry_implementation`
 
-**Warum akzeptiert:**
-- Praktisch für Benutzer
-- Alle Aktionen resultieren in `implementation_started` Event
-- Guards prüfen Preconditions
+### 5.5 Messages - ✅ FIXED (2026-03-25)
 
-**Follow-up:** Bei späterem Cleanup expliziter trennen:
-- `/implement` = Start
-- `/continue` oder Systemevent = Resume/Retry
+**Status:** RESOLVED
 
-### 5.5 Messages - TEILWEISE INSTRUKTIONAL
+Messages sind jetzt Presentation-only:
+- 6.execution Transaktionen zeigen "Transitioning to [state]"
+- Keine instruktionalen Texte mehr
+- Command-Referenzen nur wenn Command im aktuellen State erlaubt
 
-**Status:** HYGIENE ISSUE
-
-Messages enthalten teilweise instruktionale Texte:
-- "resolve blockers and rerun /implement"
-- "rerun /implement after clarifying"
-
-**Problem:** Messages werden mehr als Präsentation + halbe Prozesswahrheit.
-
-**Warum akzeptiert:**
-- Conformance-Tests prüfen Command-Valdität
-- Messages sind formal getrennt
-
-**Follow-up:** Messages weiter auf Presentation-only trimmen.
+**Changes:**
+- `messages.yaml`: Instructions trimmed to pure presentation
+- Conformance-Tests prüfen Command-Valdität pro State
 
 ### Migration Mapping
 
@@ -267,7 +257,6 @@ Messages enthalten teilweise instruktionale Texte:
 ### Follow-up (Nice-to-Have)
 
 - [ ] 6.rejected expliziter modellieren (späterer Cleanup)
-- [ ] Message-Texte weiter auf Presentation-only trimmen
 
 ---
 

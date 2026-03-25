@@ -37,7 +37,8 @@ ALLOWED_COMMAND_REFERENCES = {
     "/review",    # Universal read-only
     "/ticket",    # State 4
     "/plan",      # States 4, 5
-    "/implement",  # State 6 (transitional)
+    "/implement",  # State 6.approved only
+    "/retry_implementation",  # States 6.blocked, 6.rework
     "/review-decision",  # State 6 (transitional)
     "/implementation-decision",  # State 6 (transitional)
 }

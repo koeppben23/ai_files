@@ -29,6 +29,7 @@ VALID_COMMAND_BEHAVIOR_TYPES = {
     "review_readonly",
     "persist_evidence",
     "start_implementation",
+    "resume_implementation",
     "submit_review_decision",
 }
 
@@ -525,8 +526,8 @@ class TestCommandTopologyConsistency:
         assert "/review" in command_names
 
     def test_command_count(self, commands):
-        """Happy: Command count is correct (7 commands)."""
-        assert len(commands) == 7, f"Expected 7 commands, got {len(commands)}"
+        """Happy: Command count is correct (8 commands with /retry_implementation)."""
+        assert len(commands) == 8, f"Expected 8 commands, got {len(commands)}"
 
     def test_command_allowed_states_match_topology(self, commands):
         """Happy: Command erlaubte States existieren in Topologie (oder sind future states)."""

@@ -270,13 +270,24 @@ class TestApprovedStateRestrictions:
 class TestExecutionStateRestrictions:
     """6.execution state restrictions."""
 
-    def test_6_execution_implement_allowed(self, commands_by_allowed_state):
-        """Runtime: /implement erlaubt in 6.execution (retry)."""
+    def test_6_approved_implement_allowed(self, commands_by_allowed_state):
+        """Runtime: /implement only in 6.approved (start implementation)."""
         implement_allowed = commands_by_allowed_state.get("/implement", set())
         
         if "*" not in implement_allowed:
-            assert "6.execution" in implement_allowed, \
-                "/implement must be allowed in 6.execution"
+            assert "6.approved" in implement_allowed, \
+                "/implement must be allowed in 6.approved"
+            assert "6.execution" not in implement_allowed, \
+                "/implement should not be in 6.execution (use /retry_implementation)"
+
+    def test_retry_implementation_in_blocked_and_rework(self, commands_by_allowed_state):
+        """Runtime: /retry_implementation in 6.blocked and 6.rework."""
+        retry_allowed = commands_by_allowed_state.get("/retry_implementation", set())
+        
+        assert "6.blocked" in retry_allowed, \
+            "/retry_implementation must be allowed in 6.blocked"
+        assert "6.rework" in retry_allowed, \
+            "/retry_implementation must be allowed in 6.rework"
 
     def test_6_execution_no_review_decision(self, commands_by_allowed_state):
         """Runtime: Keine Review-Entscheidung in 6.execution."""

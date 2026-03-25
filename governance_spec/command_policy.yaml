@@ -97,18 +97,27 @@ commands:
 
   - id: "cmd_implement"
     command: "/implement"
-    description: "Start or continue implementation execution"
+    description: "Start implementation (only in 6.approved)"
     allowed_in:
-      - "6.approved"    # Start implementation
-      - "6.execution"   # Continue/retry implementation
-      - "6.blocked"     # Rerun after resolving blockers
-      - "6.rework"      # Rerun after clarification
+      - "6.approved"    # Start implementation ONLY
     mutating: true
     behavior:
       type: "start_implementation"
     produces_events:
       - "implementation_started"
       - "implementation_execution_in_progress"
+
+  - id: "cmd_retry_implementation"
+    command: "/retry_implementation"
+    description: "Retry/resume implementation (after blocked or rework clarification)"
+    allowed_in:
+      - "6.blocked"     # Resume after resolving blockers
+      - "6.rework"      # Resume after clarification
+    mutating: true
+    behavior:
+      type: "resume_implementation"
+    produces_events:
+      - "implementation_started"
 
   - id: "cmd_review_decision"
     command: "/review-decision"

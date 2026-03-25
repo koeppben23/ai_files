@@ -558,7 +558,7 @@ def validate_cross_ref_message_commands(
         return results
 
     import re
-    CMD_PATTERN = re.compile(r"/[a-z][a-z0-9\-]*")
+    CMD_PATTERN = re.compile(r"/[a-z][a-z0-9_\-]*")
 
     cmd_allowed = {}
     cmd_mutating = {}
