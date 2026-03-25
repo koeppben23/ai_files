@@ -511,16 +511,19 @@ def _phase5_completed_explicit(state: Mapping[str, object]) -> bool:
 
 
 def _phase6_review_iterations(state: Mapping[str, object]) -> int:
+    values: list[int] = []
     for key_path in (
-        "ImplementationReview.iteration",
-        "ImplementationReview.Iteration",
         "phase6_review_iterations",
         "phase6ReviewIterations",
+        "ImplementationReview.iteration",
+        "ImplementationReview.Iteration",
     ):
         value = _read_nested_key(state, key_path)
         parsed = _coerce_non_negative_int(value)
         if parsed is not None:
-            return parsed
+            values.append(parsed)
+    if values:
+        return max(values)
     return 0
 
 
@@ -618,6 +621,15 @@ def _phase5_review_loop_complete(
 
 
 def _phase6_internal_review_complete(state: Mapping[str, object]) -> bool:
+    explicit_complete = _read_bool(
+        state,
+        "implementation_review_complete",
+        "ImplementationReview.implementation_review_complete",
+        "ImplementationReview.Complete",
+    )
+    if explicit_complete is True:
+        return True
+
     iterations = _phase6_review_iterations(state)
     max_iterations = _phase6_max_review_iterations(state)
     min_iterations = _phase6_min_review_iterations(state)
@@ -749,19 +761,7 @@ def _implementation_execution_in_progress(state: Mapping[str, object]) -> bool:
     return status in {"in_progress", "self_review", "revision", "verification"}
 
 
-def _implementation_presentation_ready(state: Mapping[str, object]) -> bool:
-    gate = str(state.get("active_gate") or "").strip().lower()
-    if gate == "implementation presentation gate":
-        return True
-    presented = state.get("implementation_package_presented")
-    stable = state.get("implementation_quality_stable")
-    return bool(presented) and bool(stable)
-
-
 def _implementation_blocked(state: Mapping[str, object]) -> bool:
-    gate = str(state.get("active_gate") or "").strip().lower()
-    if gate == "implementation blocked":
-        return True
     status = str(state.get("implementation_execution_status") or "").strip().lower()
     if status == "blocked":
         return True
@@ -770,19 +770,138 @@ def _implementation_blocked(state: Mapping[str, object]) -> bool:
 
 
 def _implementation_rework_clarification_pending(state: Mapping[str, object]) -> bool:
-    gate = str(state.get("active_gate") or "").strip().lower()
-    if gate == "implementation rework clarification gate":
-        return True
     required = state.get("implementation_rework_clarification_required")
     return bool(required)
 
 
 def _implementation_accepted(state: Mapping[str, object]) -> bool:
-    gate = str(state.get("active_gate") or "").strip().lower()
-    if gate == "implementation accepted":
-        return True
     accepted = state.get("implementation_accepted")
     return bool(accepted)
+
+
+def _build_guard_evaluation_state(
+    state: Mapping[str, object],
+    *,
+    entry: PhaseSpecEntry | None,
+    plan_record_versions: int,
+) -> dict[str, object]:
+    """Build normalized state payload for guards.yaml evaluation."""
+    normalized: dict[str, object] = dict(state)
+
+    normalized["plan_record_versions"] = plan_record_versions
+    normalized["phase5_self_review_iterations"] = _phase5_self_review_iterations(state)
+
+    if entry is not None and _phase5_self_review_iterations_met(
+        entry=entry,
+        state=state,
+        plan_record_versions=plan_record_versions,
+    ):
+        phase5_review = normalized.get("Phase5Review")
+        phase5_review_dict = dict(phase5_review) if isinstance(phase5_review, Mapping) else {}
+        phase5_review_dict["self_review_iterations_met"] = True
+        normalized["Phase5Review"] = phase5_review_dict
+
+    phase6_iter_present = any(
+        _coerce_non_negative_int(_read_nested_key(state, key_path)) is not None
+        for key_path in (
+            "phase6_review_iterations",
+            "phase6ReviewIterations",
+            "ImplementationReview.iteration",
+            "ImplementationReview.Iteration",
+        )
+    )
+    if phase6_iter_present:
+        normalized["phase6_review_iterations"] = _phase6_review_iterations(state)
+
+    if _technical_debt_proposed(state):
+        normalized["technical_debt_proposed"] = True
+    if _rollback_required(state):
+        normalized["rollback_required"] = True
+
+    business_rules = normalized.get("BusinessRules")
+    business_rules_dict = dict(business_rules) if isinstance(business_rules, Mapping) else {}
+    if _phase_1_5_executed(state):
+        business_rules_dict["DiscoveryResolved"] = True
+    if _business_rules_discovery_resolved(state):
+        business_rules_dict.setdefault("Inventory", {"resolved": True})
+    else:
+        business_rules_dict.pop("Inventory", None)
+    if business_rules_dict:
+        normalized["BusinessRules"] = business_rules_dict
+
+    api_inventory = normalized.get("APIInventory")
+    api_inventory_dict = dict(api_inventory) if isinstance(api_inventory, Mapping) else {}
+    if not api_in_scope(state):
+        api_inventory_dict["Status"] = "not_applicable"
+    if api_inventory_dict:
+        normalized["APIInventory"] = api_inventory_dict
+
+    if _ticket_or_task_recorded(state):
+        normalized.setdefault("ticket_recorded", True)
+
+    if _implementation_started(state):
+        normalized["implementation_started"] = True
+    if _implementation_accepted(state):
+        normalized["implementation_accepted"] = True
+    if _implementation_rework_clarification_pending(state):
+        normalized["implementation_rework_clarification_required"] = True
+
+    if _implementation_blocked(state):
+        normalized["implementation_execution_status"] = "blocked"
+        normalized.setdefault("implementation_hard_blockers", ["blocked"])
+    elif _implementation_execution_in_progress(state):
+        normalized["implementation_execution_status"] = "in_progress"
+
+    decision = _user_review_decision(state)
+    if decision:
+        normalized["user_review_decision"] = decision
+
+    active_gate = _state_text(state, "active_gate", "ActiveGate", "Gate")
+    if active_gate:
+        normalized["active_gate"] = active_gate
+
+    phase6_state = _read_non_empty_text(state, "phase6_state")
+    if phase6_state:
+        normalized["phase6_state"] = phase6_state
+
+    if _phase6_internal_review_complete(state):
+        impl_review = normalized.get("ImplementationReview")
+        as_dict = dict(impl_review) if isinstance(impl_review, Mapping) else {}
+        as_dict["revision_complete"] = True
+        normalized["ImplementationReview"] = as_dict
+
+    consumed = state.get("rework_clarification_consumed")
+    if isinstance(consumed, bool):
+        normalized["rework_clarification_consumed"] = consumed
+
+    if _workflow_complete(state):
+        normalized["workflow_complete"] = True
+
+    return normalized
+
+
+LEGACY_TRANSITION_GUARD_EVENTS = frozenset()
+
+
+def _transition_guard_passes(
+    event: str,
+    *,
+    entry: PhaseSpecEntry,
+    state: Mapping[str, object],
+    guard_state: Mapping[str, object],
+    plan_record_versions: int,
+) -> bool:
+    """Evaluate transition guard with evaluator-first strategy.
+
+    - Preferred: guards.yaml via GuardEvaluator
+    - Fallback: none (explicitly disabled; unknown events fail closed)
+    """
+    from governance_runtime.kernel.guard_evaluator import GuardEvaluationError, GuardEvaluator
+
+    if GuardEvaluator.has_transition_guard(event):
+        return GuardEvaluator.evaluate_event(event, guard_state)
+
+    return False
 
 
 # ============================================================================
@@ -1001,174 +1120,55 @@ def _select_transition(
     *,
     plan_record_versions: int,
 ) -> tuple[str | None, str, str | None, str | None]:
+    """Select next transition based on topology.yaml as authoritative source.
+    
+    Transition resolution:
+    1. For Phase 6 states (defined in topology.yaml): topology is authoritative
+    2. For other phases: use guard-based logic from phase_api.yaml
+    
+    Topology is consulted FIRST for states it defines. Guard-based transitions
+    from phase_api.yaml provide additional condition evaluation but must be
+    consistent with topology targets.
+    """
+    from governance_runtime.kernel.topology_loader import TopologyLoader
+    
+    current_token = entry.token
+    is_phase6 = current_token.startswith("6.")
+    
+    # PHASE 6: Topology is authoritative
+    if is_phase6:
+        return _select_transition_topology_authoritative(
+            entry,
+            state,
+            plan_record_versions,
+            current_token=current_token,
+        )
+    
+    # OTHER PHASES: evaluator-first guard resolution
     if entry.transitions:
+        guard_state = _build_guard_evaluation_state(
+            state,
+            entry=entry,
+            plan_record_versions=plan_record_versions,
+        )
+
+        default_transition = None
+
         for transition in entry.transitions:
             when = transition.when.strip().lower()
-            if when in {"ticket_present", "ticket_intake_complete"} and _ticket_or_task_recorded(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "business_rules_execute" and not _business_rules_discovery_resolved(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "no_apis" and not api_in_scope(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "business_rules_gate_required" and _phase_1_5_executed(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "technical_debt_proposed" and _technical_debt_proposed(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "rollback_required" and _rollback_required(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "plan_record_missing" and plan_record_versions < 1:
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "plan_record_present" and plan_record_versions >= 1:
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "self_review_iterations_pending" and not _phase5_self_review_iterations_met(
+
+            if when == "default":
+                default_transition = transition
+                continue
+
+            if _transition_guard_passes(
+                when,
                 entry=entry,
                 state=state,
+                guard_state=guard_state,
                 plan_record_versions=plan_record_versions,
             ):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "self_review_iterations_met" and _phase5_self_review_iterations_met(
-                entry=entry,
-                state=state,
-                plan_record_versions=plan_record_versions,
-            ):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "rework_clarification_pending" and _phase6_rework_clarification_pending(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "implementation_review_pending" and not _phase6_internal_review_complete(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "implementation_accepted" and _implementation_accepted(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "implementation_blocked" and _implementation_blocked(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "implementation_rework_clarification_pending" and _implementation_rework_clarification_pending(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "implementation_presentation_ready" and _implementation_presentation_ready(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "implementation_execution_in_progress" and _implementation_execution_in_progress(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "workflow_approved" and _workflow_complete(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "implementation_started" and _implementation_started(state):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if (
-                when == "review_changes_requested"
-                and _phase6_evidence_presentation_gate_active(state)
-                and _user_review_decision(state) == "changes_requested"
-            ):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if (
-                when == "review_rejected"
-                and _phase6_evidence_presentation_gate_active(state)
-                and _user_review_decision(state) == "reject"
-            ):
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
-            if when == "implementation_review_complete" and _phase6_internal_review_complete(state):
-                if pipeline_auto_approve_eligible(state):
+                if when == "implementation_review_complete" and pipeline_auto_approve_eligible(state):
                     return (
                         transition.next_token,
                         "pipeline-auto-approve",
@@ -1181,15 +1181,127 @@ def _select_transition(
                     transition.active_gate,
                     transition.next_gate_condition,
                 )
-            if when == "default":
-                return (
-                    transition.next_token,
-                    transition.source,
-                    transition.active_gate,
-                    transition.next_gate_condition,
-                )
+
+        if default_transition is not None:
+            return (
+                default_transition.next_token,
+                default_transition.source,
+                default_transition.active_gate,
+                default_transition.next_gate_condition,
+            )
+
+        # No guard matched and no explicit default transition in this entry.
+        # Fall back to static entry.next_token contract from phase_api.yaml.
         return (entry.next_token, "spec-next", None, None)
+
     return (entry.next_token, "spec-next", None, None)
+
+
+def _select_transition_topology_authoritative(
+    entry: PhaseSpecEntry,
+    state: Mapping[str, object],
+    plan_record_versions: int,
+    *,
+    current_token: str,
+) -> tuple[str | None, str, str | None, str | None]:
+    """Topology-authoritative transition resolution for Phase 6 states.
+    
+    For Phase 6 states, topology.yaml is the SINGLE SOURCE OF TRUTH.
+    Guards evaluate WHICH event fires, but topology determines the target.
+    
+    Raises:
+        TopologyError: If state or transition not found in topology (fail-closed).
+    """
+    from governance_runtime.kernel.guard_evaluator import GuardEvaluationError, GuardEvaluator
+    from governance_runtime.kernel.topology_loader import TopologyLoader
+
+    # Terminal Phase-6 states have no outgoing transitions.
+    if TopologyLoader.is_state_terminal(current_token):
+        return (
+            current_token,
+            "topology-terminal",
+            entry.active_gate,
+            entry.next_gate_condition,
+        )
+    
+    def _can_fire(event_name: str) -> bool:
+        return TopologyLoader.has_event(current_token, event_name)
+
+    # First, evaluate guards to determine which event fires
+    fired_event = None
+    selected_transition = None
+
+    def _select_event(event_name: str, transition_obj: object) -> bool:
+        nonlocal fired_event, selected_transition
+        if not _can_fire(event_name):
+            return False
+        fired_event = event_name
+        selected_transition = transition_obj
+        return True
+    
+    guard_state = _build_guard_evaluation_state(
+        state,
+        entry=entry,
+        plan_record_versions=plan_record_versions,
+    )
+    if entry.transitions:
+        for transition in entry.transitions:
+            when = transition.when.strip().lower()
+            try:
+                passed = GuardEvaluator.evaluate_event(when, guard_state)
+            except GuardEvaluationError as exc:
+                raise GuardEvaluationError(
+                    f"Guard evaluation failed for event '{when}' in state '{current_token}': {exc}"
+                ) from exc
+
+            if passed and _select_event(when, transition):
+                break
+    
+    # If no guard matched, use topology default when available.
+    if fired_event is None and _can_fire("default"):
+        fired_event = "default"
+
+    # Fail-closed: no event and no topology default.
+    if fired_event is None:
+        raise RuntimeError(
+            f"Topology authoritative transition unresolved for state '{current_token}': "
+            "no guard event fired and no default transition in topology.yaml"
+        )
+    
+    # Get target from topology (fail-closed if not found)
+    topology_target = TopologyLoader.get_next_state(current_token, fired_event)
+    
+    # Handle special case for pipeline auto-approve
+    if fired_event == "implementation_review_complete" and pipeline_auto_approve_eligible(state):
+        return (
+            topology_target,
+            "topology-pipeline-auto-approve",
+            "Pipeline Auto-Approved",
+            "Workflow auto-approved in pipeline mode.",
+        )
+    
+    resolved_gate = entry.active_gate
+    resolved_condition = entry.next_gate_condition
+    if selected_transition is not None:
+        transition_gate = getattr(selected_transition, "active_gate", None)
+        transition_condition = getattr(selected_transition, "next_gate_condition", None)
+        if isinstance(transition_gate, str) and transition_gate:
+            resolved_gate = transition_gate
+        if isinstance(transition_condition, str) and transition_condition:
+            resolved_condition = transition_condition
+
+    resolved_source = "topology"
+    if selected_transition is not None:
+        transition_source = getattr(selected_transition, "source", None)
+        if isinstance(transition_source, str) and transition_source:
+            resolved_source = transition_source
+
+    return (
+        topology_target,
+        resolved_source,
+        resolved_gate,
+        resolved_condition,
+    )
 
 
 def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -> tuple[bool, dict[str, str]]:
@@ -1837,6 +1949,7 @@ def execute(
         state,
         plan_record_versions=plan_record_signal.versions,
     )
+    
     resolved_phase = entry.phase
     resolved_active_gate = override_active_gate or entry.active_gate or runtime_ctx.requested_active_gate
     resolved_next_condition = override_next_condition or entry.next_gate_condition or runtime_ctx.requested_next_gate_condition
@@ -1869,6 +1982,9 @@ def execute(
         transition_reason = "no_external_apis"
     elif source == "spec-next":
         normalized_source = "spec"
+    elif source in ("topology", "topology-pipeline-auto-approve", "topology-terminal"):
+        normalized_source = "topology"
+        transition_reason = "resolved by topology.yaml"
     elif source.startswith("phase-"):
         normalized_source = "transition"
 
@@ -1933,4 +2049,62 @@ def execute(
     )
 
 
-__all__ = ["KernelResult", "RuntimeContext", "api_in_scope", "evaluate_readonly", "execute"]
+__all__ = ["KernelResult", "RuntimeContext", "api_in_scope", "evaluate_readonly", "execute", "validate_command_for_execution", "resolve_topology_transition"]
+
+
+# ============================================================================
+# Command Policy Integration (WP1)
+# ============================================================================
+# Commands must be validated against command_policy.yaml before execution.
+# This is the primary entry point for command validation in the kernel.
+# Uses enforce_command_policy() from command_policy_loader as public API.
+
+def validate_command_for_execution(current_token: str, command: str) -> object:
+    """Validate command is allowed in current state - fail-closed.
+    
+    Call this function before any command is executed by the kernel.
+    It validates against command_policy.yaml via enforce_command_policy().
+    
+    Args:
+        current_token: Current phase token (e.g., "6.approved")
+        command: Command string (e.g., "/implement")
+        
+    Returns:
+        CommandDef from command_policy.yaml if valid.
+        
+    Raises:
+        CommandNotFoundError: If command not defined in policy.
+        CommandNotAllowedError: If command not allowed in state.
+    """
+    from governance_runtime.kernel.command_policy_loader import enforce_command_policy
+    
+    return enforce_command_policy(current_token, command)
+
+
+# ============================================================================
+# Topology Integration (WP2)
+# ============================================================================
+# State machine transitions must be validated against topology.yaml.
+# This is the primary entry point for transition resolution in the kernel.
+# Uses resolve_transition() from topology_loader as public API.
+
+def resolve_topology_transition(state_id: str, event: str) -> str:
+    """Resolve next state for an event - fail-closed.
+    
+    Call this function to determine the next state based on an event.
+    It resolves transitions against topology.yaml via resolve_transition().
+    
+    Args:
+        state_id: Current state ID (e.g., "6.execution")
+        event: Event name (e.g., "implementation_accepted")
+        
+    Returns:
+        Target state ID.
+        
+    Raises:
+        StateNotFoundError: If state not in topology.
+        InvalidTransitionError: If no transition for event.
+    """
+    from governance_runtime.kernel.topology_loader import resolve_transition
+    
+    return resolve_transition(state_id, event)

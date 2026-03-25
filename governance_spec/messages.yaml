@@ -147,6 +147,12 @@ state_messages:
     gate_message: "Rollback Safety Gate"
     instruction: "Validate rollback safety requirements."
 
+  - id: "msg.state.6"
+    state_id: "6"
+    display_name: "6-ImplementationWorkflow"
+    gate_message: "Implementation Workflow"
+    instruction: "Execute implementation plan."
+
 # ============================================================================
 # Transition Messages
 # ============================================================================

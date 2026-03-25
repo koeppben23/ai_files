@@ -42,6 +42,27 @@ from governance_runtime.entrypoints.session_reader import (
 from tests.util import get_phase_api_path
 
 
+def _write_minimum_governance_specs(spec_home: Path) -> None:
+    """Write the minimal authoritative spec bundle used by kernel paths.
+
+    Includes phase_api plus the core governance specs now consulted by
+    topology/command policy paths.
+    """
+    spec_home.mkdir(parents=True, exist_ok=True)
+    source_spec_home = get_phase_api_path().parent
+    for name in (
+        "phase_api.yaml",
+        "topology.yaml",
+        "command_policy.yaml",
+        "guards.yaml",
+        "messages.yaml",
+    ):
+        (spec_home / name).write_text(
+            (source_spec_home / name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -1382,6 +1403,14 @@ class TestMain:
         capsys: pytest.CaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        from governance_runtime.kernel.command_policy_loader import CommandPolicyLoader
+        from governance_runtime.kernel.spec_registry import SpecRegistry
+        from governance_runtime.kernel.topology_loader import TopologyLoader
+
+        SpecRegistry.reset()
+        TopologyLoader.reset()
+        CommandPolicyLoader.reset()
+
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(
             ws_state,
@@ -1389,6 +1418,7 @@ class TestMain:
                 "SESSION_STATE": {
                     "Phase": "6-PostFlight",
                     "Next": "6",
+                    "phase6_state": "6.execution",
                     "active_gate": "Post Flight",
                     "next_gate_condition": "Implement, run deterministic internal implementation review loop, then present evidence.",
                     "status": "OK",
@@ -1432,10 +1462,7 @@ class TestMain:
         commands_home = fake_config / "commands"
         spec_home = fake_config / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
-        (spec_home / "phase_api.yaml").write_text(
-            get_phase_api_path().read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+        _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
@@ -1444,6 +1471,7 @@ class TestMain:
                         "commandsHome": str(commands_home),
                         "workspacesHome": str(fake_config / "workspaces"),
                         "configRoot": str(fake_config),
+                        "specHome": str(spec_home),
                         "pythonCommand": "python3",
                     },
                 }
@@ -1674,10 +1702,7 @@ class TestMain:
         commands_home = fake_config / "commands"
         spec_home = fake_config / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
-        (spec_home / "phase_api.yaml").write_text(
-            get_phase_api_path().read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+        _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
@@ -3876,10 +3901,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
         commands_home = fake_config / "commands"
         spec_home = fake_config / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
-        (spec_home / "phase_api.yaml").write_text(
-            get_phase_api_path().read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+        _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {
@@ -3983,10 +4005,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
         commands_home = fake_config / "commands"
         spec_home = fake_config / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
-        (spec_home / "phase_api.yaml").write_text(
-            get_phase_api_path().read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+        _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
             json.dumps(
                 {

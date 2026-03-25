@@ -392,7 +392,7 @@ class TestE2ELayoutCompleteness:
 
     Canonical layout (per install.py):
       commands_home/     = ONLY the 8 command files
-      spec_home/        = ONLY phase_api.yaml
+      spec_home/         = authoritative runtime spec bundle
       governance_content/profiles/ = rulebooks, addons
       governance_content/ = reference/, profiles/, templates/, docs/
     """
@@ -432,15 +432,21 @@ class TestE2ELayoutCompleteness:
             f"commands_home must not contain non-command artifacts: {sorted(found_forbidden)}"
         )
 
-    def test_spec_home_contains_only_phase_api_yaml(self, tmp_path, monkeypatch):
-        """specHome must contain ONLY phase_api.yaml."""
+    def test_spec_home_contains_authoritative_spec_bundle(self, tmp_path, monkeypatch):
+        """specHome must contain the full authoritative runtime spec bundle."""
         config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
         spec_home = config_root.parent / f"{config_root.name}-local" / "governance_spec"
         entries = {p.name for p in spec_home.iterdir()}
-        assert "phase_api.yaml" in entries, "spec_home must contain phase_api.yaml"
-        unexpected = entries - {"phase_api.yaml"}
-        assert not unexpected, (
-            f"specHome must contain only phase_api.yaml, found extra: {sorted(unexpected)}"
+        expected = {
+            "phase_api.yaml",
+            "topology.yaml",
+            "command_policy.yaml",
+            "guards.yaml",
+            "messages.yaml",
+        }
+        missing = expected - entries
+        assert not missing, (
+            f"specHome missing required authoritative specs: {sorted(missing)}"
         )
 
     def test_governance_content_profiles_contains_rulebooks(self, tmp_path, monkeypatch):
