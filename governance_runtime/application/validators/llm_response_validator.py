@@ -349,6 +349,20 @@ def validate_plan_response(
     else:
         all_errors.append("plan-schema-unavailable: no planOutputSchema provided for validation")
 
+    presentation = data.get("presentation_contract")
+    if isinstance(presentation, dict):
+        next_actions = presentation.get("next_actions")
+        expected_actions = [
+            "/review-decision approve",
+            "/review-decision changes_requested",
+            "/review-decision reject",
+        ]
+        if next_actions != expected_actions:
+            all_errors.append(
+                "presentation-contract-next-actions-invalid: must be exactly "
+                "['/review-decision approve', '/review-decision changes_requested', '/review-decision reject']"
+            )
+
     violations = []
     for err in all_errors:
         violations.append(

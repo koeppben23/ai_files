@@ -153,7 +153,9 @@
         "audit",
         "go_no_go",
         "test_strategy",
-        "reason_code"
+        "reason_code",
+        "language",
+        "presentation_contract"
       ],
       "additionalProperties": false,
       "properties": {
@@ -201,6 +203,78 @@
           "type": "string",
           "minLength": 3,
           "description": "Structured reason code for this plan"
+        },
+        "language": {
+          "type": "string",
+          "const": "en",
+          "description": "Plan output language. Must always be English."
+        },
+        "presentation_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "title",
+            "plan_status_badge",
+            "decision_required",
+            "executive_summary",
+            "delta_since_last_review",
+            "scope",
+            "execution_slices",
+            "risks_and_mitigations",
+            "release_gates",
+            "open_decisions",
+            "next_actions",
+            "language"
+          ],
+          "properties": {
+            "title": {"type": "string", "minLength": 10, "maxLength": 80},
+            "plan_status_badge": {"type": "string", "minLength": 5, "maxLength": 60},
+            "decision_required": {"type": "string", "minLength": 10, "maxLength": 180},
+            "executive_summary": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {"type": "string", "minLength": 3, "maxLength": 180}
+            },
+            "delta_since_last_review": {"type": "string", "minLength": 5, "maxLength": 120},
+            "scope": {"type": "string", "minLength": 10, "maxLength": 400},
+            "execution_slices": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 7,
+              "items": {"type": "string", "minLength": 3, "maxLength": 180}
+            },
+            "risks_and_mitigations": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {"type": "string", "minLength": 3, "maxLength": 180}
+            },
+            "release_gates": {"type": "string", "minLength": 5, "maxLength": 400},
+            "open_decisions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {"type": "string", "minLength": 3, "maxLength": 180}
+            },
+            "next_actions": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "/review-decision approve",
+                  "/review-decision changes_requested",
+                  "/review-decision reject"
+                ]
+              }
+            },
+            "language": {
+              "type": "string",
+              "const": "en"
+            }
+          }
         },
         "assumptions": {
           "type": "string",

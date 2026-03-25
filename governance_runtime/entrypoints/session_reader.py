@@ -238,6 +238,12 @@ def _resolve_next_action_line(snapshot: Snapshot) -> str:
     phase = str(snapshot.get("phase") or "").strip().lower()
     gate = str(snapshot.get("active_gate") or "").strip().lower()
     next_condition = str(snapshot.get("next_gate_condition") or "").strip().lower()
+
+    if gate == "evidence presentation gate":
+        return "Next action: run /review-decision <approve|changes_requested|reject>."
+
+    if gate == "implementation presentation gate":
+        return "Next action: run /implementation-decision <approve|changes_requested|reject>."
     
     if gate == "rework clarification gate" and "chat" in next_condition:
         import re

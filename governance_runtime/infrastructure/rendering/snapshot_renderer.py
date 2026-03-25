@@ -110,6 +110,9 @@ def _render_presented_review_content(snapshot: Snapshot) -> list[str]:
     gate = str(snapshot.get("active_gate") or "").strip().lower()
     lines: list[str] = ["Presented review content"]
     if gate == "evidence presentation gate":
+        lines.append("- 📋 PHASE 5 · PLAN FOR APPROVAL")
+        lines.append("- PLAN (not implemented)")
+        lines.append("- Decision required: choose approve, changes_requested, or reject.")
         lines.append(f"- Review object: {snapshot.get('review_package_review_object') or 'none'}")
         lines.append(f"- Ticket: {snapshot.get('review_package_ticket') or 'none'}")
         lines.append("- Approved plan for review:")
@@ -121,10 +124,10 @@ def _render_presented_review_content(snapshot: Snapshot) -> list[str]:
         else:
             lines.append("  none")
         lines.append(f"- Evidence summary: {snapshot.get('review_package_evidence_summary') or 'none'}")
-        lines.append("- Decision semantics:")
-        lines.append("  - approve: governance complete and implementation authorized")
-        lines.append("  - changes_requested: enter rework clarification gate")
-        lines.append("  - reject: return to phase 4 ticket input gate")
+        lines.append("- Next actions:")
+        lines.append("  - /review-decision approve")
+        lines.append("  - /review-decision changes_requested")
+        lines.append("  - /review-decision reject")
         return lines
 
     if gate == "implementation presentation gate":
