@@ -760,9 +760,91 @@ class TestPlanGeneration:
         assert result["blocked"] is False
         assert "plan_text" in result
         plan_text = result["plan_text"]
-        assert "Target State" in plan_text
-        assert "Target Flow" in plan_text
-        assert "Go/No-Go" in plan_text
+        assert "PHASE 5 · PLAN FOR APPROVAL" in plan_text
+        assert "PLAN (not implemented)" in plan_text
+        assert "## Executive Summary" in plan_text
+        assert "## What Changed Since Last Review" in plan_text
+        assert "## Scope" in plan_text
+        assert "## Execution Slices" in plan_text
+        assert "## Risks & Mitigations" in plan_text
+        assert "## Release Gates" in plan_text
+        assert "## Open Decisions" in plan_text
+        assert "## Next Actions" in plan_text
+        assert "## Technical Appendix" in plan_text
+        assert "### Target-State" in plan_text
+        assert "### Target-Flow" in plan_text
+        assert "### Go/No-Go" in plan_text
+        assert "/review-decision approve" in plan_text
+
+        # Decision-brief blocks must appear before technical appendix.
+        assert plan_text.index("## Executive Summary") < plan_text.index("## Technical Appendix")
+        assert plan_text.index("## Next Actions") < plan_text.index("## Technical Appendix")
+
+    def test_blocks_when_llm_plan_text_is_non_english(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        non_english = json.dumps(
+            {
+                "objective": "Implementiere einen sicheren Login mit Token.",
+                "target_state": "Der Endpunkt akzeptiert Zugangsdaten und liefert ein Token zurueck.",
+                "target_flow": "1. Erstelle Route. 2. Validiere Zugangsdaten. 3. Gib Token zurueck.",
+                "state_machine": "Unauthenticated -> Authenticated",
+                "blocker_taxonomy": "Konfiguration fehlt und Umgebung ist nicht stabil.",
+                "audit": "Aenderungen werden protokolliert und mit Zeitstempel gespeichert.",
+                "go_no_go": "Alle Tests muessen gruen sein und keine Blocker offen bleiben.",
+                "test_strategy": "Unit-Tests und Integrationstests decken Login und Fehlerpfade ab.",
+                "reason_code": "PLAN-AUTH-001",
+            }
+        )
+        escaped = non_english.replace("'", "'\\''")
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{escaped}'")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Implement auth endpoint",
+            task_text="Add JWT login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is True
+        assert result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
+        assert "plan-language-violation" in str(result.get("reason", ""))
+
+    def test_parse_marks_re_review_delta_and_exact_decision_rails(self):
+        module = _load_module()
+        valid_response = self._valid_plan_response()
+        parsed = module._parse_plan_generation_response(valid_response, re_review=True)
+
+        assert parsed["blocked"] is False
+        structured = parsed["structured_plan"]
+        presentation = structured.get("presentation_contract", {})
+        assert presentation.get("delta_since_last_review") == "Updated since last review iteration."
+        assert presentation.get("next_actions") == [
+            "/review-decision approve",
+            "/review-decision changes_requested",
+            "/review-decision reject",
+        ]
+        assert "## What Changed Since Last Review\nUpdated since last review iteration." in str(parsed["plan_text"])
+
+    def test_plan_text_next_actions_block_contains_only_review_decision_commands(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        valid = self._valid_plan_response()
+        escaped = valid.replace("'", "'\\''")
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{escaped}'")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth endpoint",
+            task_text="Implement JWT login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is False
+        plan_text = str(result["plan_text"])
+        marker = "## Next Actions"
+        assert marker in plan_text
+        block = plan_text.split(marker, 1)[1]
+        assert "/review-decision approve" in block
+        assert "/review-decision changes_requested" in block
+        assert "/review-decision reject" in block
+        assert "/plan" not in block
+        assert "/continue" not in block
+        assert "/review " not in block
 
     def test_auto_generate_blocks_when_no_ticket(self, capsys: pytest.CaptureFixture[str]):
         module = _load_module()

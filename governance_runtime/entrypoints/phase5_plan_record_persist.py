@@ -18,6 +18,11 @@ if __package__ in {None, ""}:
 from governance_runtime.application.use_cases.phase_router import route_phase
 from governance_runtime.application.use_cases.rework_clarification import consume_rework_clarification_state
 from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
+from governance_runtime.application.services.phase5_presentation_contract import (
+    TITLE as PHASE5_PRESENTATION_TITLE,
+    build_presentation_contract,
+    english_violations,
+)
 from governance_runtime.contracts.compiler import compile_plan_to_requirements
 from governance_runtime.contracts.validator import validate_requirement_contracts
 from governance_runtime.domain import reason_codes
@@ -371,6 +376,7 @@ def _call_llm_generate_plan(
     task_text: str,
     plan_mandate: str,
     effective_authoring_policy: str = "",
+    re_review: bool = False,
 ) -> dict[str, object]:
     """Call LLM to generate a plan from ticket/task context.
 
@@ -401,6 +407,7 @@ def _call_llm_generate_plan(
         instruction_parts.append("Apply the effective authoring policy below for active profile and addons.")
     instruction_parts.append(
         "You MUST respond with valid JSON that conforms to the output schema below.\n"
+        "All textual output MUST be in English only (language='en').\n"
         "Do NOT include any text outside the JSON object.\n\n"
         "Output schema:\n" + output_schema_text
     )
@@ -441,7 +448,7 @@ def _call_llm_generate_plan(
                 "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
                 "recovery_action": "LLM returned empty response for plan generation.",
             }
-        return _parse_plan_generation_response(response_text)
+        return _parse_plan_generation_response(response_text, re_review=re_review)
     except Exception as exc:
         atomic_write_text(stderr_file, str(exc))
         return {
@@ -452,7 +459,7 @@ def _call_llm_generate_plan(
         }
 
 
-def _parse_plan_generation_response(response_text: str) -> dict[str, object]:
+def _parse_plan_generation_response(response_text: str, *, re_review: bool = False) -> dict[str, object]:
     """Parse and validate LLM plan generation response.
 
     Fail-closed: only structured, schema-valid JSON responses proceed.
@@ -496,6 +503,23 @@ def _parse_plan_generation_response(response_text: str) -> dict[str, object]:
             "recovery_action": "LLM did not return valid JSON for plan generation.",
         }
 
+    violations = english_violations(parsed_data)
+    if violations:
+        return {
+            "blocked": True,
+            "reason": f"plan-language-violation: {violations}",
+            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+            "recovery_action": "Plan output must be English-only across required fields.",
+            "validation_violations": violations,
+        }
+
+    normalized_data = dict(parsed_data)
+    normalized_data["language"] = "en"
+    normalized_data["presentation_contract"] = build_presentation_contract(
+        normalized_data,
+        re_review=re_review,
+    )
+
     # Load planOutputSchema — must be present and non-empty
     try:
         mandates_schema = _load_mandates_schema()
@@ -522,23 +546,23 @@ def _parse_plan_generation_response(response_text: str) -> dict[str, object]:
         }
 
     # Validate against planOutputSchema — fail-closed, no fallback
-    validation = validate_plan_response(parsed_data, plan_schema=plan_schema)
+    validation = validate_plan_response(normalized_data, plan_schema=plan_schema)
     if not validation.valid:
-        violations = [v.rule for v in validation.violations]
+        validation_rules = [v.rule for v in validation.violations]
         return {
             "blocked": True,
-            "reason": f"plan-schema-violation: {violations}",
+            "reason": f"plan-schema-violation: {validation_rules}",
             "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
             "recovery_action": "LLM response did not conform to planOutputSchema.",
-            "validation_violations": violations,
+            "validation_violations": validation_rules,
         }
 
     # Convert structured plan to markdown plan text for the existing review/persist chain
-    plan_text = _structured_plan_to_markdown(parsed_data)
+    plan_text = _structured_plan_to_markdown(normalized_data)
     return {
         "blocked": False,
         "plan_text": plan_text,
-        "structured_plan": parsed_data,
+        "structured_plan": normalized_data,
     }
 
 
@@ -549,59 +573,102 @@ def _structured_plan_to_markdown(plan: dict[str, object]) -> str:
     """
     lines: list[str] = []
 
+    def _add_text_section(title: str, value: object) -> None:
+        text = str(value or "").strip()
+        if not text:
+            return
+        lines.append(f"## {title}")
+        lines.append(text)
+        lines.append("")
+
+    def _add_list_section(title: str, values: object) -> None:
+        if not isinstance(values, list):
+            return
+        compact = [str(item).strip() for item in values if str(item).strip()]
+        if not compact:
+            return
+        lines.append(f"## {title}")
+        for item in compact:
+            lines.append(f"- {item}")
+        lines.append("")
+
+    presentation = plan.get("presentation_contract")
+    if isinstance(presentation, Mapping):
+        title = str(presentation.get("title") or PHASE5_PRESENTATION_TITLE).strip()
+        badge = str(presentation.get("plan_status_badge") or "PLAN (not implemented)").strip()
+        decision = str(presentation.get("decision_required") or "").strip()
+        lines.append(f"# {title}")
+        lines.append(badge)
+        lines.append("")
+        _add_text_section("Decision Required", decision)
+        _add_list_section("Executive Summary", presentation.get("executive_summary"))
+        _add_text_section("What Changed Since Last Review", presentation.get("delta_since_last_review"))
+        _add_text_section("Scope", presentation.get("scope"))
+        _add_list_section("Execution Slices", presentation.get("execution_slices"))
+        _add_list_section("Risks & Mitigations", presentation.get("risks_and_mitigations"))
+        _add_text_section("Release Gates", presentation.get("release_gates"))
+        _add_list_section("Open Decisions", presentation.get("open_decisions"))
+        _add_list_section("Next Actions", presentation.get("next_actions"))
+
+    # Keep legacy technical fields as appendix for compatibility with
+    # existing compilation/review machinery while keeping decision-brief
+    # sections as primary user surface.
+    lines.append("## Technical Appendix")
+    lines.append("")
+
     objective = str(plan.get("objective", "")).strip()
     if objective:
-        lines.append(f"# Plan Objective\n{objective}\n")
+        lines.append(f"### Plan Objective\n{objective}\n")
 
     target_state = str(plan.get("target_state", "")).strip()
     if target_state:
-        lines.append(f"## Target State\n{target_state}\n")
+        lines.append(f"### Target-State\n{target_state}\n")
 
     target_flow = str(plan.get("target_flow", "")).strip()
     if target_flow:
-        lines.append(f"## Target Flow\n{target_flow}\n")
+        lines.append(f"### Target-Flow\n{target_flow}\n")
 
     state_machine = str(plan.get("state_machine", "")).strip()
     if state_machine:
-        lines.append(f"## State Machine\n{state_machine}\n")
+        lines.append(f"### State-Machine\n{state_machine}\n")
 
     blocker_taxonomy = str(plan.get("blocker_taxonomy", "")).strip()
     if blocker_taxonomy:
-        lines.append(f"## Blocker Taxonomy\n{blocker_taxonomy}\n")
+        lines.append(f"### Blocker-Taxonomy\n{blocker_taxonomy}\n")
 
     audit = str(plan.get("audit", "")).strip()
     if audit:
-        lines.append(f"## Audit\n{audit}\n")
+        lines.append(f"### Audit\n{audit}\n")
 
     go_no_go = str(plan.get("go_no_go", "")).strip()
     if go_no_go:
-        lines.append(f"## Go/No-Go\n{go_no_go}\n")
+        lines.append(f"### Go/No-Go\n{go_no_go}\n")
 
     test_strategy = str(plan.get("test_strategy", "")).strip()
     if test_strategy:
-        lines.append(f"## Test Strategy\n{test_strategy}\n")
+        lines.append(f"### Test Strategy\n{test_strategy}\n")
 
     assumptions = str(plan.get("assumptions", "")).strip()
     if assumptions:
-        lines.append(f"## Assumptions\n{assumptions}\n")
+        lines.append(f"### Assumptions\n{assumptions}\n")
 
     risks = str(plan.get("risks", "")).strip()
     if risks:
-        lines.append(f"## Risks\n{risks}\n")
+        lines.append(f"### Risks\n{risks}\n")
 
     non_goals = str(plan.get("non_goals", "")).strip()
     if non_goals:
-        lines.append(f"## Non-Goals\n{non_goals}\n")
+        lines.append(f"### Non-Goals\n{non_goals}\n")
 
     open_questions = str(plan.get("open_questions", "")).strip()
     if open_questions:
-        lines.append(f"## Open Questions\n{open_questions}\n")
+        lines.append(f"### Open Questions\n{open_questions}\n")
 
     reason_code = str(plan.get("reason_code", "")).strip()
     if reason_code:
-        lines.append(f"## Reason Code\n{reason_code}\n")
+        lines.append(f"### Reason Code\n{reason_code}\n")
 
-    return "\n".join(lines)
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _call_llm_review(
@@ -1262,6 +1329,7 @@ def main(argv: list[str] | None = None) -> int:
             task_text=task_text,
             plan_mandate=plan_mandate,
             effective_authoring_policy=effective_policy_text,
+            re_review=bool(state.get("plan_record_version") or state.get("PlanRecordVersion")),
         )
         if gen_result.get("blocked") is True:
             payload = _payload(
