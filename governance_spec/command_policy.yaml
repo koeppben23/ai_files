@@ -147,6 +147,11 @@ commands:
       - "review_changes_requested"
       - "review_rejected"
 
+  # DESIGN DECISION: workflow_complete is a system event, not user-initiated
+  # It is triggered when implementation is fully verified and workflow can close.
+  # This can happen from 6.execution (normal) or 6.approved (edge case: skip execution).
+  # No direct user command produces this - it is result of successful verification.
+
 # ============================================================================
 # Command Restriction Rules
 # ============================================================================
