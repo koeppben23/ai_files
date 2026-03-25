@@ -90,10 +90,10 @@ commands:
   # ============================================================================
   # Phase 6 Substate Commands (per ADR-003)
   # ============================================================================
-  # /implement is allowed in 6.approved (after implementation plan approved)
-  # /implement is also allowed in 6.execution, 6.blocked, 6.rework (to rerun)
-  # /review-decision is allowed in 6.presentation (evidence presented)
-  # /implementation-decision is an alias for /review-decision
+  # /implement: Start implementation (6.approved ONLY)
+  # /retry_implementation: Resume/retry implementation (6.blocked, 6.rework)
+  # /review-decision: Submit final review decision (6.presentation)
+  # /implementation-decision: Alias for /review-decision
 
   - id: "cmd_implement"
     command: "/implement"

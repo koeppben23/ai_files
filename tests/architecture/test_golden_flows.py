@@ -114,26 +114,27 @@ class TestDesignDecisions:
         # It's a system event only
         assert True
 
-    def test_approved_edge_case_skip_execution_to_complete(self):
-        """DESIGN DECISION: 6.approved -> workflow_complete -> 6.complete
+    def test_approved_single_exit_path(self):
+        """DESIGN DECISION: 6.approved has only ONE exit path:
         
-        EDGE CASE: This path allows completing without execution.
+        6.approved -> implementation_started -> 6.execution (NORMAL PATH)
         
-        Use case: Zero-implementation changes that only need documentation.
-        
-        WARNING: This is NOT the normal path. Normal path is:
-        6.approved -> implementation_started -> 6.execution -> workflow_complete -> 6.complete
-        
-        This edge case should be rare and carefully controlled.
+        6.approved is now a strict start-gate. No soft paths allowed.
+        workflow_complete comes from 6.execution only.
         """
-        # Normal path test exists in golden flows
-        # This test documents the edge case exists and is intentional
-        edge_case_path = [
-            ("6.approved", "workflow_complete", "6.complete"),
-        ]
-        assert edge_case_path[0][0] == "6.approved"
-        assert edge_case_path[0][1] == "workflow_complete"
-        assert edge_case_path[0][2] == "6.complete"
+        # 6.approved should have only one transition: implementation_started -> 6.execution
+        normal_path = ("6.approved", "implementation_started", "6.execution")
+        assert normal_path[1] == "implementation_started"
+
+    def test_execution_workflow_complete_to_complete(self):
+        """DESIGN DECISION: 6.execution -> workflow_complete -> 6.complete
+        
+        workflow_complete event can only be triggered from 6.execution.
+        This is the normal completion path after successful implementation.
+        """
+        completion_path = ("6.execution", "workflow_complete", "6.complete")
+        assert completion_path[1] == "workflow_complete"
+        assert completion_path[2] == "6.complete"
 
     def test_rejected_requires_continue_to_return_to_phase4(self):
         """DESIGN DECISION: 6.rejected -> default -> 4 requires /continue.
@@ -147,21 +148,6 @@ class TestDesignDecisions:
         """
         # 6.rejected should have exactly one transition: default -> 4
         assert True
-
-    def test_approved_has_two_exit_paths_document_both(self):
-        """DESIGN DECISION: 6.approved has two exit paths:
-        
-        1. implementation_started -> 6.execution (NORMAL PATH)
-        2. workflow_complete -> 6.complete (EDGE CASE - skip execution)
-        
-        Both paths are intentional. Path 2 is for zero-implementation scenarios.
-        """
-        normal_path = ("6.approved", "implementation_started", "6.execution")
-        edge_case_path = ("6.approved", "workflow_complete", "6.complete")
-        
-        assert normal_path[1] == "implementation_started"
-        assert edge_case_path[1] == "workflow_complete"
-        assert edge_case_path[1] != normal_path[1]  # Different events
 
 
 # =============================================================================

@@ -399,12 +399,6 @@ transition_messages:
     gate_message: "Implementation Approved"
     instruction: "Run /implement to start implementation execution"
 
-  - id: "msg.trans.6.approved.workflow_complete"
-    state_id: "6.approved"
-    event: "workflow_complete"
-    gate_message: "Workflow Complete"
-    instruction: "Governance complete"
-
   # 6.blocked
   - id: "msg.trans.6.blocked.default"
     state_id: "6.blocked"

@@ -212,6 +212,9 @@ states:
       - id: "t6.execution-t6.execution-started"
         event: implementation_started
         target: "6.execution"
+      - id: "t6.execution-t6.complete"
+        event: workflow_complete
+        target: "6.complete"
       - id: "t6.execution-t6.execution-default"
         event: default
         target: "6.execution"
@@ -224,9 +227,6 @@ states:
       - id: "t6.approved-t6.execution"
         event: implementation_started
         target: "6.execution"
-      - id: "t6.approved-t6.complete"
-        event: workflow_complete
-        target: "6.complete"
 
   - id: "6.blocked"
     terminal: false
