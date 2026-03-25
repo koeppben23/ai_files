@@ -23,6 +23,14 @@ PhaseToken = Literal[
     "5.5",
     "5.6",
     "6",
+    "6.internal_review",
+    "6.presentation",
+    "6.execution",
+    "6.approved",
+    "6.blocked",
+    "6.rework",
+    "6.rejected",
+    "6.complete",
     "unknown",
 ]
 
@@ -36,6 +44,14 @@ _PHASE_TOKEN_PATTERNS: tuple[tuple[str, str], ...] = (
     ("1.3", r"^1\.3"),
     ("1.2", r"^1\.2"),
     ("1.1", r"^1\.1"),
+    ("6.complete", r"^6\.COMPLETE\b"),
+    ("6.rejected", r"^6\.REJECTED\b"),
+    ("6.rework", r"^6\.REWORK\b"),
+    ("6.blocked", r"^6\.BLOCKED\b"),
+    ("6.approved", r"^6\.APPROVED\b"),
+    ("6.execution", r"^6\.EXECUTION\b"),
+    ("6.presentation", r"^6\.PRESENTATION\b"),
+    ("6.internal_review", r"^6\.INTERNAL_REVIEW\b"),
     ("6", r"^6(?:\b|-)"),
     ("5.6", r"^5\.6"),
     ("5.5", r"^5\.5"),
@@ -75,10 +91,15 @@ def normalize_phase_token(value: object) -> str:
 
 
 def phase_requires_ticket_input(phase_token: str) -> bool:
-    match = re.match(r"^(\d+)", phase_token)
+    """Check if a phase token requires ticket input.
+    
+    Only Phase 4+ (excluding 6 substates) require ticket input.
+    """
+    match = re.match(r"^(\d+)(?:\.|$)", phase_token)
     if match is None:
         return False
-    return int(match.group(1)) >= 4
+    major_phase = int(match.group(1))
+    return major_phase >= 4 and major_phase < 6
 
 
 def resolve_phase_policy(phase_value: object) -> PhaseActionPolicy:
@@ -146,6 +167,15 @@ PHASE_RANK: dict[str, int] = {
     "5.5": 55,
     "5.6": 56,
     "6": 60,
+    # Phase 6 substates (per ADR-003)
+    "6.internal_review": 61,
+    "6.presentation": 62,
+    "6.execution": 63,
+    "6.approved": 64,
+    "6.blocked": 65,
+    "6.rework": 66,
+    "6.rejected": 67,
+    "6.complete": 99,  # Terminal state
 }
 
 

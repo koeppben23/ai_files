@@ -785,6 +785,105 @@ def _implementation_accepted(state: Mapping[str, object]) -> bool:
     return bool(accepted)
 
 
+# ============================================================================
+# Phase 6 Substate Detection (ADR-003)
+# ============================================================================
+# Phase 6 is now decomposed into substates. These functions help detect
+# which substate the system is currently in based on session state.
+
+def _detect_phase6_substate(state: Mapping[str, object]) -> str:
+    """Detect the current Phase 6 substate from session state.
+    
+    Returns one of:
+    - "6.internal_review"
+    - "6.presentation"
+    - "6.execution"
+    - "6.approved"
+    - "6.blocked"
+    - "6.rework"
+    - "6.rejected"
+    - "6.complete"
+    - "6" (legacy/fallback)
+    """
+    phase6_state = str(state.get("phase6_state") or "").strip().lower()
+    
+    if phase6_state in {"6.internal_review", "6.presentation", "6.execution", 
+                          "6.approved", "6.blocked", "6.rework", 
+                          "6.rejected", "6.complete"}:
+        return phase6_state
+    
+    gate = str(state.get("active_gate") or "").strip().lower()
+    
+    if gate == "implementation internal review":
+        return "6.internal_review"
+    if gate == "evidence presentation gate":
+        return "6.presentation"
+    if gate == "implementation execution in progress":
+        return "6.execution"
+    if gate == "implementation accepted":
+        return "6.approved"
+    if gate == "implementation blocked":
+        return "6.blocked"
+    if gate == "implementation rework clarification gate":
+        return "6.rework"
+    if gate == "workflow complete":
+        return "6.complete"
+    
+    if _workflow_complete(state):
+        return "6.complete"
+    if _implementation_execution_in_progress(state):
+        return "6.execution"
+    if _phase6_internal_review_complete(state):
+        return "6.presentation"
+    if _user_review_decision(state):
+        decision = _user_review_decision(state)
+        if decision == "reject":
+            return "6.rejected"
+        return "6.presentation"
+    if _implementation_blocked(state):
+        return "6.blocked"
+    if _implementation_rework_clarification_pending(state):
+        return "6.rework"
+    
+    if gate:
+        return "6.internal_review"
+    
+    return "6"
+
+
+def is_phase6_terminal(state: Mapping[str, object]) -> bool:
+    """Check if Phase 6 is in terminal state (6.complete).
+    
+    Terminal states should block all mutating commands.
+    """
+    substate = _detect_phase6_substate(state)
+    return substate == "6.complete"
+
+
+def is_phase6_approved(state: Mapping[str, object]) -> bool:
+    """Check if Phase 6 is in approved state (ready for /implement)."""
+    substate = _detect_phase6_substate(state)
+    return substate == "6.approved"
+
+
+def is_phase6_execution(state: Mapping[str, object]) -> bool:
+    """Check if Phase 6 is in execution state."""
+    substate = _detect_phase6_substate(state)
+    return substate == "6.execution"
+
+
+def is_phase6_blocked(state: Mapping[str, object]) -> bool:
+    """Check if Phase 6 is in blocked state."""
+    substate = _detect_phase6_substate(state)
+    return substate == "6.blocked"
+
+
+def is_phase6_rejected(state: Mapping[str, object]) -> bool:
+    """Check if Phase 6 is in rejected state (transitional to Phase 4)."""
+    substate = _detect_phase6_substate(state)
+    return substate == "6.rejected"
+
+
 def _phase5_min_self_review_iterations(entry: PhaseSpecEntry) -> int:
     policy = resolve_phase_output_policy(entry.token)
     if policy is None:
