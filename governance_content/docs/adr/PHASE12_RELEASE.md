@@ -118,33 +118,26 @@ Runtime verwendet jetzt kanonische Phase 6 State-Werte:
 - `review_result.py`: Kanonische Werte
 - `phase_kernel.py`: Akzeptiert beide Schemas, Bridge produziert kanonisch
 
-### 5.2 Legacy-Bridge - ISOLATED FALLBACK (wartet auf Monitoring)
+### 5.2 Legacy-Bridge - ✅ REMOVED (2026-03-25)
 
-**Status:** ISOLATED FALLBACK
+**Status:** REMOVED
 
-Die Legacy-Bridge ist jetzt **wahrlich isoliert**:
+Die Legacy-Bridge wurde vollständig entfernt:
 
 ```
-PATH: governance_runtime/kernel/phase_kernel.py
-FUNCTION: _derive_phase6_substate_from_legacy_signals() [ISOLATED]
-ALIAS: _detect_phase6_substate_legacy() [DEPRECATED]
+REMOVED: _derive_phase6_substate_from_legacy_signals()
+REMOVED: _detect_phase6_substate_legacy()
+REMOVED: _detect_phase6_substate()
 ```
 
-**ISOLATION GUARANTEES:**
-- Wird NUR aufgerufen wenn `phase6_state` Feld vollständig fehlt
-- Hat keine Seiteneffekte
-- Produziert kanonische Werte (6.complete, nicht phase6_completed)
-- Ist NICHT Teil der regulären Zustandsauflösung
+**Resolve-Logik (2 Cases):**
+1. Canonical value present → Return directly
+2. Legacy value present → Normalize to canonical
 
-**Resolve-Logik (3 Cases):**
-1. Canonical value present → Return directly (NEU)
-2. Legacy value present → Normalize (TRANSITION)
-3. No phase6_state → Bridge only (ALT)
-
-**Exit-Kriterien:**
-- [ ] < 1% Sessions nutzen Bridge
-- [ ] Alle neuen Sessions setzen `phase6_state`
-- [ ] Monitoring zeigt keine Nutzung
+**Konsequenz:**
+- Alle Sessions müssen `phase6_state` setzen
+- Keine Inferenz mehr aus Legacy-Flags
+- Klare Single-Source-of-Truth
 
 ### 5.3 6.rejected -> default -> 4 - TRANSITIONAL MARKER
 
@@ -283,15 +276,14 @@ Messages sind jetzt Presentation-only:
 > - ✅ Migration path defined
 > - ✅ Breaking changes documented
 > - ✅ Phase 6 State Naming kanonisch (Runtime und Specs konsistent)
+> - ✅ Legacy-Bridge entfernt (2026-03-25)
 >
 > **Release ist NICHT:**
 > - ❌ 100% debt-free
-> - ⚠️ Legacy-bridge-free (deprecated, wartet auf Monitoring)
 > - ❌ Spec-driven runtime (Spec-Files definieren Architektur)
 > - ❌ No follow-up needed
 
 **Verbleibende Debt:**
-- Legacy-Bridge (deprecated, nach Monitoring entfernen)
 - 6.rejected Default-Übergang (später expliziter)
 - blocked/rework Beobachtung (Monitoring)
 

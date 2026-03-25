@@ -1,7 +1,7 @@
-"""Phase 7: Runtime Executor Substate Tests (v3)
+"""Phase 7: Runtime Executor Substate Tests (v4)
 
 Tests für die Phase 6 Substate-Detection-Funktionen im Runtime-Executor.
-Überarbeitet mit kanonischen Resolver-Pfad und klarer Legacy-Bridge-Dokumentation.
+Kanonische Resolver ohne Legacy-Bridge - alle Sessions müssen phase6_state setzen.
 """
 
 from __future__ import annotations
@@ -52,17 +52,16 @@ class TestCanonicalPhase6SubstateResolver:
         state = {}
         assert resolve_phase6_substate(state) == "6"
     
-    def test_resolve_returns_internal_review_when_phase6_context_present(self):
-        """Happy: resolve_phase6_substate gibt 6.internal_review bei Phase-6-Kontext.
+    def test_resolve_returns_6_when_no_phase6_state(self):
+        """Happy: resolve_phase6_substate gibt "6" wenn kein phase6_state gesetzt.
         
-        Wenn Phase-6-Kontext-Indikatoren vorhanden sind (phase_transition_evidence,
-        ImplementationReview), aber phase6_state nicht gesetzt ist, soll die Bridge
-        6.internal_review inferieren.
+        Ohne phase6_state Feld soll "6" (unknown) zurückgegeben werden.
+        Die Legacy-Bridge ist entfernt - Sessions müssen phase6_state setzen.
         """
         from governance_runtime.kernel.phase_kernel import resolve_phase6_substate
         
         state = {"phase_transition_evidence": True}
-        assert resolve_phase6_substate(state) == "6.internal_review"
+        assert resolve_phase6_substate(state) == "6"
 
     def test_resolve_all_substates(self):
         """Happy: resolve_phase6_substate erkennt alle Substates."""
@@ -79,144 +78,6 @@ class TestCanonicalPhase6SubstateResolver:
                 f"Failed for {substate}"
 
 
-class TestLegacyBridgePhase6SubstateDetection:
-    """LEGACY COMPATIBILITY BRIDGE - TRANSITIONAL ONLY.
-    
-    Diese Tests prüfen die Legacy-Heuristik, die nur für Rückwärtskompatibilität
-    dient. Neue Code sollten resolve_phase6_substate() verwenden.
-    """
-
-    def test_legacy_detects_complete_from_workflow_flag(self):
-        """Happy: Legacy erkennt 6.complete vom Workflow-Flag."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
-        
-        state = {"workflow_complete": True}
-        assert _detect_phase6_substate_legacy(state) == "6.complete"
-
-    def test_legacy_detects_rejected_from_decision(self):
-        """Happy: Legacy erkennt 6.rejected von Reject-Entscheidung."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
-        
-        state = {"user_review_decision": "reject"}
-        assert _detect_phase6_substate_legacy(state) == "6.rejected"
-
-    def test_legacy_detects_execution_from_status(self):
-        """Happy: Legacy erkennt 6.execution vom Execution-Status."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
-        
-        state = {"implementation_execution_status": "in_progress"}
-        assert _detect_phase6_substate_legacy(state) == "6.execution"
-
-    def test_legacy_detects_blocked_from_hard_blockers(self):
-        """Happy: Legacy erkennt 6.blocked von Hard-Blockers."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
-        
-        state = {"implementation_hard_blockers": ["Critical Issue"]}
-        assert _detect_phase6_substate_legacy(state) == "6.blocked"
-
-    def test_legacy_detects_rework_from_clarification_required(self):
-        """Happy: Legacy erkennt 6.rework von Rework-Clarification-Required."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
-        
-        state = {"implementation_rework_clarification_required": True}
-        assert _detect_phase6_substate_legacy(state) == "6.rework"
-
-    def test_legacy_detects_approved_from_workflow_approved_flag(self):
-        """Happy: Legacy erkennt 6.approved von workflow_approved flag."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
-        
-        state = {"workflow_approved": True}
-        assert _detect_phase6_substate_legacy(state) == "6.approved"
-
-    def test_legacy_ignores_implementation_accepted_gate(self):
-        """NEGATIVE: "Implementation Accepted" gate wird NICHT als Mapping-Quelle verwendet.
-        
-        "Implementation Accepted" ist ein LEGACY GATE-Wert.
-        Er wird NICHT direkt auf einen Substate gemappt.
-        
-        Begründung:
-        - "Implementation Accepted" bedeutet: Implementierungs-ERGEBNIS akzeptiert
-          (post-execution, semantisch ≈ workflow_complete → 6.complete)
-        - "workflow_approved" bedeutet: PLAN vor Implementierung genehmigt
-          (pre-execution → 6.approved)
-        
-        Da workflow_complete bereits priorisiert wird, ist "Implementation Accepted"
-        effektiv IGNORIERT. Dies verhindert semantische Verwirrung.
-        
-        Diese Entscheidung ist BEWUSST und TESTBAR.
-        """
-        from governance_runtime.kernel.phase_kernel import (
-            _detect_phase6_substate_legacy,
-            is_phase6_approved,
-            is_phase6_terminal
-        )
-        
-        state = {"active_gate": "Implementation Accepted"}
-        result = _detect_phase6_substate_legacy(state)
-        
-        # "Implementation Accepted" maps to nothing directly
-        assert result != "6.approved", \
-            "Implementation Accepted should NOT map to 6.approved"
-        assert result != "6.complete", \
-            "Implementation Accepted should NOT map to 6.complete directly"
-        assert is_phase6_approved(state) is False
-        
-        # Without workflow_complete=True, it's not terminal
-        assert is_phase6_terminal(state) is False
-        
-        # The gate is effectively ignored; it falls through to other checks
-        # (which will return other substates based on other state flags)
-
-    def test_workflow_complete_takes_priority_over_implementation_accepted(self):
-        """Happy: workflow_complete hat Priorität über "Implementation Accepted".
-        
-        Wenn beide gesetzt sind (workflow_complete und Implementation Accepted gate),
-        wird workflow_complete verwendet (da es zuerst geprüft wird).
-        
-        Dies stellt sicher, dass die explizite workflow_complete-Flag
-        als autoritative Quelle dient, nicht der Legacy-Gate-String.
-        """
-        from governance_runtime.kernel.phase_kernel import (
-            _detect_phase6_substate_legacy,
-            is_phase6_terminal
-        )
-        
-        state = {
-            "active_gate": "Implementation Accepted",
-            "workflow_complete": True
-        }
-        result = _detect_phase6_substate_legacy(state)
-        
-        # workflow_complete is checked first, so this takes priority
-        assert result == "6.complete", \
-            "workflow_complete should take priority over Implementation Accepted"
-        assert is_phase6_terminal(state) is True
-
-    def test_legacy_returns_6_for_unknown_state(self):
-        """Happy: Legacy gibt "6" für unbekannten State zurück.
-        
-        Ein komplett leerer State soll "6" (unknown) zurückgeben,
-        NICHT "6.internal_review". Die Bridge soll nur dann einen
-        konkreten Substate inferieren, wenn echte Phase-6-Indikatoren
-        vorhanden sind.
-        """
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
-        
-        state = {}
-        result = _detect_phase6_substate_legacy(state)
-        assert result == "6", f"Empty state should return '6' (unknown), got {result}"
-    
-    def test_legacy_fallback_to_internal_review_with_phase_context(self):
-        """Happy: Legacy Fallback zu 6.internal_review bei Phase-6-Kontext.
-        
-        Wenn Phase-6-Kontext vorhanden ist (phase_transition_evidence),
-        soll die Bridge 6.internal_review inferieren.
-        """
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
-        
-        state = {"phase_transition_evidence": True}
-        result = _detect_phase6_substate_legacy(state)
-        assert result == "6.internal_review"
 
 
 class TestPhase6SubstateHelpers:
@@ -226,7 +87,7 @@ class TestPhase6SubstateHelpers:
         """Happy: is_phase6_terminal True für 6.complete."""
         from governance_runtime.kernel.phase_kernel import is_phase6_terminal
         
-        state = {"workflow_complete": True}
+        state = {"phase6_state": "6.complete"}
         assert is_phase6_terminal(state) is True
 
     def test_is_terminal_returns_false_for_execution(self):
@@ -236,11 +97,11 @@ class TestPhase6SubstateHelpers:
         state = {"implementation_execution_status": "in_progress"}
         assert is_phase6_terminal(state) is False
 
-    def test_is_approved_returns_true_for_workflow_approved(self):
-        """Happy: is_phase6_approved True für workflow_approved flag."""
+    def test_is_approved_returns_true_for_6_approved(self):
+        """Happy: is_phase6_approved True für 6.approved."""
         from governance_runtime.kernel.phase_kernel import is_phase6_approved
         
-        state = {"workflow_approved": True}
+        state = {"phase6_state": "6.approved"}
         assert is_phase6_approved(state) is True
 
     def test_is_approved_returns_false_for_implementation_accepted(self):
@@ -254,25 +115,25 @@ class TestPhase6SubstateHelpers:
         state = {"active_gate": "Implementation Accepted"}
         assert is_phase6_approved(state) is False
 
-    def test_is_execution_returns_true_for_execution(self):
-        """Happy: is_phase6_execution True für Execution Status."""
+    def test_is_execution_returns_true_for_6_execution(self):
+        """Happy: is_phase6_execution True für 6.execution."""
         from governance_runtime.kernel.phase_kernel import is_phase6_execution
         
-        state = {"implementation_execution_status": "in_progress"}
+        state = {"phase6_state": "6.execution"}
         assert is_phase6_execution(state) is True
 
-    def test_is_blocked_returns_true_for_blocked(self):
-        """Happy: is_phase6_blocked True für Blocked Status."""
+    def test_is_blocked_returns_true_for_6_blocked(self):
+        """Happy: is_phase6_blocked True für 6.blocked."""
         from governance_runtime.kernel.phase_kernel import is_phase6_blocked
         
-        state = {"implementation_hard_blockers": ["Critical"]}
+        state = {"phase6_state": "6.blocked"}
         assert is_phase6_blocked(state) is True
 
-    def test_is_rejected_returns_true_for_rejected(self):
-        """Happy: is_phase6_rejected True für Reject Decision."""
+    def test_is_rejected_returns_true_for_6_rejected(self):
+        """Happy: is_phase6_rejected True für 6.rejected."""
         from governance_runtime.kernel.phase_kernel import is_phase6_rejected
         
-        state = {"user_review_decision": "reject"}
+        state = {"phase6_state": "6.rejected"}
         assert is_phase6_rejected(state) is True
 
 
@@ -379,37 +240,3 @@ class TestPhaseRequiresTicketInputRegression:
         from governance_runtime.domain.phase_state_machine import phase_requires_ticket_input
         assert phase_requires_ticket_input("unknown") is False
         assert phase_requires_ticket_input("") is False
-
-
-@pytest.mark.governance
-class TestLegacyBridgeTransitionalMarking:
-    """LEGACY BRIDGE - TRANSITIONAL ONLY.
-    
-    These tests verify the legacy bridge is explicitly marked as transitional.
-    The bridge should be removed after all sessions migrate to phase6_state field.
-    """
-    
-    def test_legacy_bridge_is_explicitly_marked_as_transitional(self):
-        """The legacy bridge must be explicitly marked as transitional."""
-        from governance_runtime.kernel.phase_kernel import _detect_phase6_substate_legacy
-        import inspect
-        
-        source = inspect.getsource(_detect_phase6_substate_legacy)
-        
-        assert "TEMPORARY" in source or "DEPRECATED" in source, \
-            "Legacy bridge must be marked as TEMPORARY/DEPRECATED"
-        assert "EXIT CONDITION" in source, \
-            "Legacy bridge must document EXIT CONDITION"
-    
-    def test_legacy_bridge_not_used_for_new_code(self):
-        """New code should use resolve_phase6_substate(), not _detect_phase6_substate_legacy."""
-        from governance_runtime.kernel.phase_kernel import resolve_phase6_substate, _detect_phase6_substate_legacy
-        import inspect
-        
-        resolve_source = inspect.getsource(resolve_phase6_substate)
-        legacy_source = inspect.getsource(_detect_phase6_substate_legacy)
-        
-        assert "phase6_state" in resolve_source, \
-            "Canonical resolver must check phase6_state field"
-        assert "LEGACY" in legacy_source or "TEMPORARY" in legacy_source, \
-            "Legacy bridge must be marked"
