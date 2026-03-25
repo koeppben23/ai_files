@@ -1,4 +1,4 @@
-# Phase 8: Spec-Validator und Conformance-Checks (v1)
+# Phase 8: Spec-Validator und Conformance-Checks (v2)
 
 **Status:** Completed  
 **Date:** 2026-03-25  
@@ -8,39 +8,50 @@
 
 ## 1. Ziel
 
-Validiere die interne Konsistenz jeder Spec und die Cross-Spec-Conformance.
+Validiere die interne Konsistenz jeder Spec und die Cross-Spec-Conformance mit expliziter Error/Warning/Gap-Klassifizierung.
 
-**Specs:**
-- `topology.yaml` - Zustandsmaschine
-- `guards.yaml` - Guard/Invariant-Layer
-- `command_policy.yaml` - Command-Richtlinien
-- `messages.yaml` - Presentation/Messages
+## 2. Validation Severity
 
-## 2. Validierungs-Level
+| Severity | Bedeutung | CI-Blockierung |
+|----------|-----------|----------------|
+| **ERROR** | Muss gefixt werden vor Merge/Runtime | ✅ Blockiert |
+| **WARNING** | Sollte gefixt werden | ❌ Nicht blockierend |
+| **TEMPORARY_GAP** | Bewusste Lücke, zeitlich begrenzt | ⚠️ Dokumentiert |
 
-### 2.1 Intra-Spec Validation
+## 3. Validierungs-Regeln
 
-| Spec | Tests | Validation |
-|------|-------|-----------|
-| topology.yaml | 5 | State-IDs eindeutig, Transition-Targets existieren, Pflichtfelder |
-| guards.yaml | 4 | Guard-IDs eindeutig, Guard-Typen gültig, Composite-Guards referenzieren existierende Guards |
-| command_policy.yaml | 4 | Command-IDs eindeutig, Pflichtfelder, Restrictions eindeutig |
-| messages.yaml | 4 | Message-IDs eindeutig, Pflichtfelder, Event-Format gültig |
+### 3.1 Intra-Spec Validation
 
-### 2.2 Cross-Spec Conformance
+| Spec | ERROR Rules | WARNING Rules |
+|------|-------------|--------------|
+| topology.yaml | unique_state_ids, valid_transition_target, required_fields | unreachable_states, non_terminal_no_transitions |
+| guards.yaml | unique_guard_ids, valid_guard_type, valid_composite_refs | - |
+| command_policy.yaml | unique_command_ids, required_command_fields, unique_restriction_patterns | - |
+| messages.yaml | unique_message_ids, required_message_fields, valid_event_format | - |
+
+### 3.2 Cross-Spec Conformance
 
 | Cross-Ref | Validation |
 |-----------|-----------|
-| topology → guards | guard_ref in Transitions verweist auf existierende Guard |
-| topology → messages | state_id existiert in Topology |
-| topology ↔ messages | state_id + event Kombination existiert in Topology |
-| command_policy ↔ topology | States in allowed_in existieren in Topology |
-| messages ↔ command_policy | Commands in Messages sind in Command-Policy erlaubt |
+| topology ↔ guards | guard_ref → existierende Guard |
+| topology ↔ messages | state_id → Topology, event → gültig für State |
+| command_policy ↔ topology | allowed_in → existierende States |
+| messages ↔ command_policy | Commands → im State erlaubt |
 
-## 3. Testergebnisse
+### 3.3 UX Field Validation (ADR-001)
+
+**Verbotene Felder in Topology:**
+- State: `active_gate`, `next_gate_condition`, `gate_message`, `instruction`, `presentation_text`
+- Transition: `gate_message`, `instruction`, `presentation_text`, `condition_description`
+- Metadata: `user_guidance`, `display_name`, `ui_hint`, `icon`, `color`
+
+**Erlaubte strukturelle Metadata:**
+- `parent`, `description`, `version`, `schema`
+
+## 4. Testergebnisse
 
 ```
-tests/architecture/test_spec_validator.py ... 25 passed
+tests/architecture/test_spec_validator.py ... 27 passed
 tests/architecture/test_topology.py ... 37 passed
 tests/architecture/test_messages.py ... 31 passed
 tests/architecture/test_command_policy.py ... 42 passed
@@ -51,26 +62,32 @@ tests/architecture/test_phase7_substates.py ... 34 passed
 tests/architecture/test_import_rules.py ... 8 passed
 tests/architecture/test_control_plane_guards.py ... 5 passed
 tests/architecture/test_repo_identity_guards.py ... 3 passed
-Total: 255 passed
+Total: 257 passed
 ```
 
-## 4. Neue Tests
+## 5. Neue Tests (v2)
 
-**test_spec_validator.py** enthält:
+**test_spec_validator.py** enthält 27 Tests:
 
 | Klasse | Tests | Beschreibung |
 |--------|-------|--------------|
-| `TestTopologyIntraSpec` | 5 | topology.yaml interne Validierung |
-| `TestGuardsIntraSpec` | 4 | guards.yaml interne Validierung |
-| `TestCommandPolicyIntraSpec` | 4 | command_policy.yaml interne Validierung |
-| `TestMessagesIntraSpec` | 4 | messages.yaml interne Validierung |
-| `TestTopologyGuardsConformance` | 1 | topology ↔ guards Conformance |
-| `TestTopologyMessagesConformance` | 2 | topology ↔ messages Conformance |
-| `TestCommandPolicyTopologyConformance` | 2 | command_policy ↔ topology Conformance |
-| `TestMessagesCommandPolicyConformance` | 1 | messages ↔ command_policy Conformance |
-| `TestSpecSchemaVersionConformance` | 2 | Schema-Identifier Konventionen |
+| `TestTopologyValidation` | 4 | topology.yaml interne Validierung |
+| `TestTopologyUXValidation` | 3 | UX-Feld-Validierung auf Raw Spec |
+| `TestGuardsValidation` | 4 | guards.yaml interne Validierung |
+| `TestCommandPolicyValidation` | 4 | command_policy.yaml interne Validierung |
+| `TestMessagesValidation` | 4 | messages.yaml interne Validierung |
+| `TestCrossSpecConformance` | 5 | Cross-Spec Conformance |
+| `TestValidationSeverityClassification` | 1 | Alle kritischen Regeln sind ERROR |
+| `TestValidationResultFormat` | 2 | ValidationResult Format-Konsistenz |
 
-## 5. Nächste Schritte
+## 6. Key Features v2
+
+1. **Explizite Severity-Klassifizierung**: ERROR/WARNING/TEMPORARY_GAP
+2. **Raw Spec Validation**: Prüft verbotene UX-Felder auf Rohdaten
+3. **ValidationResult NamedTuple**: Strukturierte Ergebnisse mit Spec/Rule/Message/Location
+4. **Severity Enforcement Test**: Garantierte ERROR-Klassifizierung für kritische Regeln
+
+## 7. Nächste Schritte
 
 1. **Phase 9**: Doku vollständig nachziehen
 2. **Phase 10**: Teststrategie komplett
