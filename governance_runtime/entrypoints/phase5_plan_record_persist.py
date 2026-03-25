@@ -376,6 +376,7 @@ def _call_llm_generate_plan(
     task_text: str,
     plan_mandate: str,
     effective_authoring_policy: str = "",
+    re_review: bool = False,
 ) -> dict[str, object]:
     """Call LLM to generate a plan from ticket/task context.
 
@@ -447,7 +448,7 @@ def _call_llm_generate_plan(
                 "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
                 "recovery_action": "LLM returned empty response for plan generation.",
             }
-        return _parse_plan_generation_response(response_text)
+        return _parse_plan_generation_response(response_text, re_review=re_review)
     except Exception as exc:
         atomic_write_text(stderr_file, str(exc))
         return {
@@ -458,7 +459,7 @@ def _call_llm_generate_plan(
         }
 
 
-def _parse_plan_generation_response(response_text: str) -> dict[str, object]:
+def _parse_plan_generation_response(response_text: str, *, re_review: bool = False) -> dict[str, object]:
     """Parse and validate LLM plan generation response.
 
     Fail-closed: only structured, schema-valid JSON responses proceed.
@@ -514,7 +515,10 @@ def _parse_plan_generation_response(response_text: str) -> dict[str, object]:
 
     normalized_data = dict(parsed_data)
     normalized_data["language"] = "en"
-    normalized_data["presentation_contract"] = build_presentation_contract(normalized_data)
+    normalized_data["presentation_contract"] = build_presentation_contract(
+        normalized_data,
+        re_review=re_review,
+    )
 
     # Load planOutputSchema — must be present and non-empty
     try:
@@ -1300,6 +1304,7 @@ def main(argv: list[str] | None = None) -> int:
             task_text=task_text,
             plan_mandate=plan_mandate,
             effective_authoring_policy=effective_policy_text,
+            re_review=bool(state.get("plan_record_version") or state.get("PlanRecordVersion")),
         )
         if gen_result.get("blocked") is True:
             payload = _payload(

@@ -138,3 +138,18 @@ Phase-5 Plan-Ausgaben sind jetzt sprachlich und strukturell gehärtet:
   blockiert (`plan-language-violation`), statt still übernommen zu werden.
 
 Dadurch bleibt Phase-5-Ausgabe deterministisch, reviewbar und ohne sprachliche Drift.
+
+## Addendum (WP7 Slice 2)
+
+Die Guided-Plan-Präsentation an der Evidence Presentation Gate ist jetzt
+decision-first und eindeutig als Plan markiert:
+
+- Harte englische Labels im Renderer:
+  - `PHASE 5 · PLAN FOR APPROVAL`
+  - `PLAN (not implemented)`
+  - `Decision required: choose approve, changes_requested, or reject.`
+- Next-Action-Block enthält nur finale Decision-Rails.
+- Session-Reader erzwingt an Evidence/Implementation Presentation Gates
+  die explizite Decision-Rail als nächste Aktion.
+- First vs re-review Delta ist im `presentation_contract` explizit
+  (`Initial plan presentation.` vs `Updated since last review iteration.`).

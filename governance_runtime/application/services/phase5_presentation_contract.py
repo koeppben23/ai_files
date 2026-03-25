@@ -20,11 +20,18 @@ MAX_EXECUTION_SLICES = 7
 MAX_RISKS = 5
 
 
+def _clamp(value: str, *, limit: int) -> str:
+    compact = re.sub(r"\s+", " ", value).strip()
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 3].rstrip() + "..."
+
+
 def _split_compact_items(text: str, *, max_items: int) -> list[str]:
     raw = [part.strip() for part in re.split(r"\n+|;|\d+[.)]\s+", text) if part.strip()]
     if not raw:
         return []
-    return raw[:max_items]
+    return [_clamp(item, limit=180) for item in raw[:max_items]]
 
 
 def _obvious_non_english_score(text: str) -> int:
@@ -93,15 +100,15 @@ def build_presentation_contract(plan: Mapping[str, object], *, re_review: bool =
     delta = "Initial plan presentation." if not re_review else "Updated since last review iteration."
 
     return {
-        "title": TITLE,
-        "plan_status_badge": PLAN_STATUS_BADGE,
-        "decision_required": DECISION_REQUIRED,
+        "title": _clamp(TITLE, limit=80),
+        "plan_status_badge": _clamp(PLAN_STATUS_BADGE, limit=60),
+        "decision_required": _clamp(DECISION_REQUIRED, limit=180),
         "executive_summary": executive_summary,
-        "delta_since_last_review": delta,
-        "scope": target_state or "Scope must be confirmed before approval.",
+        "delta_since_last_review": _clamp(delta, limit=120),
+        "scope": _clamp(target_state or "Scope must be confirmed before approval.", limit=400),
         "execution_slices": execution_slices,
         "risks_and_mitigations": risk_items,
-        "release_gates": go_no_go or "Release gates must be confirmed before approval.",
+        "release_gates": _clamp(go_no_go or "Release gates must be confirmed before approval.", limit=400),
         "open_decisions": open_items,
         "next_actions": list(NEXT_ACTIONS),
         "language": "en",

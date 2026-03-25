@@ -31,6 +31,8 @@ def test_guided_happy_evidence_presentation_contains_full_review_blocks() -> Non
     assert "/review-decision approve" in out
     assert "/review-decision changes_requested" in out
     assert "/review-decision reject" in out
+    assert "  - /plan" not in out
+    assert "  - /continue" not in out
     assert out.strip().endswith(action_line)
 
 

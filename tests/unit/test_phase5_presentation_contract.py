@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from governance_runtime.application.services.phase5_presentation_contract import NEXT_ACTIONS
 from governance_runtime.application.services.phase5_presentation_contract import build_presentation_contract
 from governance_runtime.application.services.phase5_presentation_contract import english_violations
@@ -41,3 +43,30 @@ def test_english_violations_accepts_english_plan_fields() -> None:
 def test_build_presentation_contract_marks_re_review_delta() -> None:
     contract = build_presentation_contract(_base_plan(), re_review=True)
     assert contract["delta_since_last_review"] == "Updated since last review iteration."
+
+
+def test_build_presentation_contract_clamps_lengths_and_limits_lists() -> None:
+    plan = _base_plan()
+    plan["target_flow"] = "; ".join([f"slice {idx}" for idx in range(20)])
+    plan["risks"] = "; ".join([f"risk {idx}" for idx in range(20)])
+    plan["open_questions"] = "; ".join([f"decision {idx}" for idx in range(20)])
+    plan["target_state"] = "A" * 1200
+    plan["go_no_go"] = "B" * 1200
+
+    contract = build_presentation_contract(plan)
+
+    assert len(contract["execution_slices"]) <= 7
+    assert len(contract["risks_and_mitigations"]) <= 5
+    assert len(contract["open_decisions"]) <= 5
+    assert len(contract["scope"]) <= 400
+    assert len(contract["release_gates"]) <= 400
+    assert contract["next_actions"] == list(NEXT_ACTIONS)
+
+
+def test_build_presentation_contract_performance_is_stable() -> None:
+    plan = _base_plan()
+    start = time.perf_counter()
+    for _ in range(5000):
+        build_presentation_contract(plan)
+    elapsed = time.perf_counter() - start
+    assert elapsed < 2.0

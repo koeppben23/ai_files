@@ -794,6 +794,44 @@ class TestPlanGeneration:
         assert result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
         assert "plan-language-violation" in str(result.get("reason", ""))
 
+    def test_parse_marks_re_review_delta_and_exact_decision_rails(self):
+        module = _load_module()
+        valid_response = self._valid_plan_response()
+        parsed = module._parse_plan_generation_response(valid_response, re_review=True)
+
+        assert parsed["blocked"] is False
+        structured = parsed["structured_plan"]
+        presentation = structured.get("presentation_contract", {})
+        assert presentation.get("delta_since_last_review") == "Updated since last review iteration."
+        assert presentation.get("next_actions") == [
+            "/review-decision approve",
+            "/review-decision changes_requested",
+            "/review-decision reject",
+        ]
+
+    def test_plan_text_next_actions_block_contains_only_review_decision_commands(self, monkeypatch: pytest.MonkeyPatch):
+        module = _load_module()
+        valid = self._valid_plan_response()
+        escaped = valid.replace("'", "'\\''")
+        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{escaped}'")
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth endpoint",
+            task_text="Implement JWT login",
+            plan_mandate="Plan mandate text",
+        )
+        assert result["blocked"] is False
+        plan_text = str(result["plan_text"])
+        marker = "## Next Actions"
+        assert marker in plan_text
+        block = plan_text.split(marker, 1)[1]
+        assert "/review-decision approve" in block
+        assert "/review-decision changes_requested" in block
+        assert "/review-decision reject" in block
+        assert "/plan" not in block
+        assert "/continue" not in block
+        assert "/review " not in block
+
     def test_auto_generate_blocks_when_no_ticket(self, capsys: pytest.CaptureFixture[str]):
         module = _load_module()
         # No ticket, no task, no plan text — must block
