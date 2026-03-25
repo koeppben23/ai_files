@@ -20,7 +20,11 @@ class ReviewOutcome(str, Enum):
 
 
 class CompletionStatus(str, Enum):
-    """Overall completion status of the review loop."""
+    """Overall completion status of the review loop.
+    
+    Note: These are internal enum values. The canonical Phase 6 state values
+    (6.complete, 6.execution, etc.) are set in to_state_updates().
+    """
 
     PHASE6_COMPLETED = "phase6-completed"
     PHASE6_IN_PROGRESS = "phase6-in-progress"
@@ -117,7 +121,7 @@ class ReviewLoopResult:
             "phase6_curr_impl_digest": self.curr_digest,
             "phase6_revision_delta": self.revision_delta,
             "implementation_review_complete": self.implementation_review_complete,
-            "phase6_state": self.completion_status.value.replace("-", "_"),
+            "phase6_state": "6.complete" if self.is_complete else "6.execution",
             "phase6_blocker_code": "none",
         }
 

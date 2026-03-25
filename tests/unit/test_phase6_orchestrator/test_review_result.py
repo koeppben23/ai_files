@@ -116,7 +116,7 @@ class TestReviewLoopResult:
         updates = complete_result.to_state_updates()
         assert updates["implementation_review_complete"] is True
         assert updates["phase6_review_iterations"] == 2
-        assert updates["phase6_state"] == "phase6_completed"
+        assert updates["phase6_state"] == "6.complete"
         assert "ImplementationReview" in updates
         assert updates["ImplementationReview"]["iteration"] == 2
 

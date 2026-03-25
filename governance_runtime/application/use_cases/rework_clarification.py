@@ -137,7 +137,7 @@ def is_rework_clarification_active(state: Mapping[str, object]) -> bool:
     """Return True when the state is currently inside rework clarification."""
 
     phase6_state = str(state.get("phase6_state") or "").strip().lower()
-    if phase6_state == "phase6_changes_requested":
+    if phase6_state in ("6.rework", "phase6_changes_requested"):
         return True
     for key in ("active_gate", "ActiveGate", "Gate"):
         value = state.get(key)

@@ -1,0 +1,297 @@
+version: 1
+schema: opencode.command_policy.v1
+
+# ============================================================================
+# Command Policy
+# ============================================================================
+# Defines what commands are allowed in each state and what events they produce.
+#
+# Command → Event Mapping (ADR-004):
+# - Commands are user/system inputs
+# - Events are machine-internal signals for state transitions
+# - Each command maps to explicit events it produces
+# - produces_events is REQUIRED for mutating commands (deterministic)
+# - Empty produces_events means state change via evidence, not direct event
+# - Special value "*_via_guards" ONLY for /continue (guard-determined events)
+#
+# Runtime fields: id, command, allowed_in, mutating, behavior, produces_events
+# Non-runtime (ignored by runtime): description only
+#
+# IMPORTANT: This policy does NOT contain constraints or text semantics.
+# All behavioral rules must be expressed in guards, not in command text.
+
+commands:
+  # ============================================================================
+  # Universal Commands
+  # ============================================================================
+  # /continue is deterministic: per state, exactly one guard fires,
+  # producing exactly one event. No ambiguity, no silent fallback.
+  # /review is read-only: never mutates state, safe in all states.
+
+  - id: "cmd_continue"
+    command: "/continue"
+    description: "Advance routing - exactly one guard fires per state, producing exactly one event"
+    allowed_in: "*"
+    mutating: true
+    behavior:
+      type: "advance_routing"
+      # Determinism contract:
+      # - For each state, exactly one guard condition evaluates to true
+      # - The matching transition produces exactly one event
+      # - No fallback, no ambiguity, no silent mutations
+      determinism: "exactly_one_guard_per_state"
+    produces_events: "*_via_guards"  # SPECIAL: only /continue may use this value
+
+  - id: "cmd_review_readonly"
+    command: "/review"
+    description: "Review PR/files read-only - never mutates state, safe in all states including blocked/critical"
+    # JUSTIFICATION: /review is universally allowed because:
+    # 1. It is pure read-only - never mutates governance state
+    # 2. It only produces local findings/verdict, no state events
+    # 3. Safe during blocking, rework, or critical situations
+    # 4. Users need review capability even when workflow is paused
+    allowed_in: "*"
+    mutating: false
+    behavior:
+      type: "review_readonly"
+      inputs:
+        - "pr_url"
+        - "file_path"
+        - "directory_path"
+    produces_events: []  # No state events, only local findings
+
+  # ============================================================================
+  # State-Specific Commands
+  # ============================================================================
+
+  - id: "cmd_ticket"
+    command: "/ticket"
+    description: "Persist ticket/task evidence for intake"
+    allowed_in:
+      - "4"
+    mutating: true
+    behavior:
+      type: "persist_evidence"
+      evidence_class: "ticket"
+    produces_events: []  # State change via evidence, not direct event
+
+  - id: "cmd_plan"
+    command: "/plan"
+    description: "Generate and persist plan record"
+    allowed_in:
+      - "4"
+      - "5"
+    mutating: true
+    behavior:
+      type: "persist_evidence"
+      evidence_class: "plan"
+    produces_events: []  # State change via evidence, not direct event
+
+  # ============================================================================
+  # Phase 6 Substate Commands (per ADR-003)
+  # ============================================================================
+  # /implement: Start implementation (6.approved ONLY)
+  # /retry_implementation: Resume/retry implementation (6.blocked, 6.rework)
+  # /review-decision: Submit final review decision (6.presentation)
+  # /implementation-decision: Alias for /review-decision
+
+  - id: "cmd_implement"
+    command: "/implement"
+    description: "Start implementation (only in 6.approved)"
+    allowed_in:
+      - "6.approved"    # Start implementation ONLY
+    mutating: true
+    behavior:
+      type: "start_implementation"
+    produces_events:
+      - "implementation_started"
+      - "implementation_execution_in_progress"
+
+  - id: "cmd_retry_implementation"
+    command: "/retry_implementation"
+    description: "Retry/resume implementation (after blocked or rework clarification)"
+    allowed_in:
+      - "6.blocked"     # Resume after resolving blockers
+      - "6.rework"      # Resume after clarification
+    mutating: true
+    behavior:
+      type: "resume_implementation"
+    produces_events:
+      - "implementation_started"
+
+  - id: "cmd_review_decision"
+    command: "/review-decision"
+    description: "Submit final review decision - decides workflow/plan approval"
+    allowed_in:
+      - "6.presentation"  # Per ADR-003: evidence presented, ready for decision
+    mutating: true
+    behavior:
+      type: "submit_review_decision"
+      decision_scope: "workflow"  # This decides workflow approval
+      allowed_decisions:
+        - "approve"      # → workflow_approved event
+        - "changes_requested"  # → review_changes_requested event
+        - "reject"       # → review_rejected event
+    produces_events:
+      - "workflow_approved"
+      - "review_changes_requested"
+      - "review_rejected"
+
+  - id: "cmd_implementation_decision"
+    command: "/implementation-decision"
+    description: "Submit implementation review decision - alias for /review-decision"
+    allowed_in:
+      - "6.presentation"  # Same scope as /review-decision
+    mutating: true
+    behavior:
+      type: "submit_review_decision"
+      decision_scope: "workflow"
+      allowed_decisions:
+        - "approve"
+        - "changes_requested"
+        - "reject"
+      alias_of: "cmd_review_decision"  # This is an alias
+    produces_events:
+      - "workflow_approved"
+      - "review_changes_requested"
+      - "review_rejected"
+
+  # DESIGN DECISION: workflow_complete is a system event, not user-initiated
+  # It is triggered when implementation is fully verified and workflow can close.
+  # This can happen from 6.execution (normal) or 6.approved (edge case: skip execution).
+  # No direct user command produces this - it is result of successful verification.
+
+# ============================================================================
+# Command Restriction Rules
+# ============================================================================
+# Defines states where commands are restricted (beyond allowed_in).
+# state_pattern uses state_id matching, not naming conventions.
+# For terminal states, the pattern matches states where terminal=true in topology.
+
+command_restrictions:
+  # Terminal states - NO mutating commands allowed
+  # This is the authoritative rule for ALL terminal states.
+  - state_pattern: "*.terminal"
+    blocked_command_types:
+      - "persist_evidence"      # /ticket, /plan
+      - "start_implementation"  # /implement
+      - "submit_review_decision"  # /review-decision, /implementation-decision
+    blocked_commands:
+      - "/continue"  # No advance routing from terminal states
+    reason: "Terminal states are immutable - no state changes allowed"
+
+  # 6.complete - EXPLICIT terminal enforcement
+  # Even if generic terminal rule fails, 6.complete is explicitly blocked.
+  - state_pattern: "6.complete"
+    blocked_command_types:
+      - "persist_evidence"
+      - "start_implementation"
+      - "submit_review_decision"
+      - "advance_routing"  # /continue explicitly blocked
+    blocked_commands:
+      - "/continue"
+      - "/ticket"
+      - "/plan"
+      - "/implement"
+      - "/review-decision"
+      - "/implementation-decision"
+    reason: "6.complete is terminal - workflow finished, no further actions"
+
+  # Blocked implementation states
+  - state_pattern: "6.blocked"
+    blocked_commands:
+      - "/review-decision"  # Can't approve while blocked
+      - "/implementation-decision"
+    reason: "Implementation blocked - resolve blockers first"
+
+  # 6.rejected - Transitional, no decision commands
+  - state_pattern: "6.rejected"
+    blocked_command_types:
+      - "start_implementation"
+      - "submit_review_decision"
+    blocked_commands:
+      - "/review-decision"
+      - "/implementation-decision"
+    reason: "6.rejected is transitional - return to Phase 4 for replanning"
+
+# ============================================================================
+# Output Policies
+# ============================================================================
+# Controls what output classes are allowed/forbidden in each state.
+# Each policy has a stable ID for reference.
+
+output_policies:
+  - id: "op.phase5.review_only"
+    state_id: "5"
+    description: "Architecture review phase - planning only, no implementation"
+    allowed_output_classes:
+      - "plan"
+      - "review"
+      - "risk_analysis"
+      - "test_strategy"
+      - "gate_check"
+      - "rollback_plan"
+      - "review_questions"
+      - "consolidated_review_plan"
+    forbidden_output_classes:
+      - "implementation"
+      - "patch"
+      - "diff"
+      - "code_delivery"
+    plan_discipline:
+      first_output_is_draft: true
+      draft_not_review_ready: true
+      min_self_review_iterations: 1
+
+  - id: "op.phase6.complete"
+    state_id: "6.complete"
+    description: "Workflow complete - read-only summary only"
+    allowed_output_classes:
+      - "review"  # Final review summary
+      - "gate_check"  # Final gate confirmation
+    forbidden_output_classes:
+      - "plan"
+      - "implementation"
+      - "patch"
+      - "diff"
+      - "code_delivery"
+      - "risk_analysis"
+      - "test_strategy"
+      - "rollback_plan"
+    reason: "Terminal state - no new deliverables, only summary"
+
+  - id: "op.phase6.rejected"
+    state_id: "6.rejected"
+    description: "Workflow rejected - transitional, returns to Phase 4"
+    allowed_output_classes:
+      - "review"
+      - "gate_check"
+    forbidden_output_classes:
+      - "implementation"
+      - "code_delivery"
+    reason: "Transitional state - no new implementation while returning"
+
+# ============================================================================
+# Phase Output Policy Map
+# ============================================================================
+# Maps states to their output policies using stable policy IDs.
+# States not in this map have unbounded output (no restrictions).
+# 
+# Semantics: Inheritance (child states inherit parent's policy)
+# Conflict rule: Later entries override earlier entries for same state
+
+phase_output_policy_map:
+  - state_id: "5"
+    output_policy_ref: "op.phase5.review_only"
+  - state_id: "5.3"
+    output_policy_ref: "op.phase5.review_only"
+  - state_id: "5.4"
+    output_policy_ref: "op.phase5.review_only"
+  - state_id: "5.5"
+    output_policy_ref: "op.phase5.review_only"
+  - state_id: "5.6"
+    output_policy_ref: "op.phase5.review_only"
+  - state_id: "6.complete"
+    output_policy_ref: "op.phase6.complete"
+  - state_id: "6.rejected"
+    output_policy_ref: "op.phase6.rejected"

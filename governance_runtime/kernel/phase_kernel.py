@@ -714,7 +714,7 @@ def _phase6_rework_clarification_pending(state: Mapping[str, object]) -> bool:
         return False
 
     phase6_state = str(state.get("phase6_state") or "").strip().lower()
-    if phase6_state == "phase6_changes_requested":
+    if phase6_state in ("6.rework", "phase6_changes_requested"):
         return True
     for key in ("active_gate", "ActiveGate", "Gate"):
         value = state.get(key)
@@ -783,6 +783,133 @@ def _implementation_accepted(state: Mapping[str, object]) -> bool:
         return True
     accepted = state.get("implementation_accepted")
     return bool(accepted)
+
+
+# ============================================================================
+# Phase 6 Substate Resolution (ADR-003)
+# ============================================================================
+#
+# CANONICAL PATH (preferred):
+#   Read phase6_state field directly from session state.
+#   This is the authoritative source for Phase 6 substate.
+#
+# LEGACY COMPATIBILITY BRIDGE (deprecated):
+#   The _detect_phase6_substate_legacy() function below provides backward
+#   compatibility for sessions that don't have phase6_state set.
+#   It derives substate from legacy state flags and gates.
+#
+#   This bridge should be REMOVED once all sessions migrate to phase6_state.
+#   DO NOT add new heuristics here - extend the canonical field instead.
+#
+# IMPORTANT:
+#   - "Implementation Accepted" is a LEGACY GATE, not a substate indicator.
+#     It does NOT map to any Phase 6 substate.
+#     It indicates the implementation RESULT was accepted (post-execution).
+#   - 6.approved = workflow plan was approved (pre-execution).
+#
+# Canonical Substates (from topology.yaml):
+#   6.internal_review - Internal review loop
+#   6.presentation    - Evidence presentation to user
+#   6.execution       - Implementation execution in progress
+#   6.approved        - Workflow/plan approved, ready for /implement
+#   6.blocked         - Implementation blocked
+#   6.rework          - Rework clarification required
+#   6.rejected        - Rejected, returns to Phase 4
+#   6.complete        - Terminal, workflow finished
+
+
+def resolve_phase6_substate(state: Mapping[str, object]) -> str:
+    """Resolve Phase 6 substate from session state.
+    
+    CANONICAL PATH (primary):
+    - Reads phase6_state field directly from session state
+    - This is the authoritative source for Phase 6 substate
+    
+    MIGRATION EXIT CONDITION:
+    - Once ALL sessions have phase6_state field set, this function
+      becomes the only resolver and _detect_phase6_substate_legacy can be removed
+    
+    Returns one of:
+    - "6.internal_review"
+    - "6.presentation"
+    - "6.execution"
+    - "6.approved"
+    - "6.blocked"
+    - "6.rework"
+    - "6.rejected"
+    - "6.complete"
+    
+    Raises:
+        ValueError: If phase6_state field is missing or has invalid value.
+    """
+    phase6_state = state.get("phase6_state")
+    
+    if phase6_state is None:
+        raise ValueError(
+            "MISSING_PHASE6_STATE: Session state is missing 'phase6_state' field. "
+            "This field is now required. Sessions must be migrated to set phase6_state. "
+            "See PHASE12_RELEASE.md for migration instructions."
+        )
+    
+    phase6_state_str = str(phase6_state).strip().lower()
+    
+    # Canonical Phase 6 states (preferred)
+    CANONICAL_STATES = {"6.internal_review", "6.presentation", "6.execution", 
+                       "6.approved", "6.blocked", "6.rework", 
+                       "6.rejected", "6.complete"}
+    if phase6_state_str in CANONICAL_STATES:
+        return phase6_state_str
+    
+    # Legacy values from migrating sessions (normalize to canonical)
+    LEGACY_TO_CANONICAL = {
+        "phase6_completed": "6.complete",
+        "completed": "6.complete",
+        "phase6_changes_requested": "6.rework",
+        "phase6_in_progress": "6.execution",
+    }
+    if phase6_state_str in LEGACY_TO_CANONICAL:
+        return LEGACY_TO_CANONICAL[phase6_state_str]
+    
+    raise ValueError(
+        f"INVALID_PHASE6_STATE: Unknown phase6_state value '{phase6_state}'. "
+        f"Valid values: {sorted(CANONICAL_STATES)}. "
+        f"Legacy values {list(LEGACY_TO_CANONICAL.keys())} are no longer supported."
+    )
+
+
+def is_phase6_terminal(state: Mapping[str, object]) -> bool:
+    """Check if Phase 6 is in terminal state (6.complete)."""
+    return resolve_phase6_substate(state) == "6.complete"
+
+
+def is_phase6_approved(state: Mapping[str, object]) -> bool:
+    """Check if Phase 6 is in approved state (ready for /implement).
+    
+    6.approved means the PLAN/WORKFLOW was approved BEFORE implementation.
+    
+    IMPORTANT: "Implementation Accepted" (legacy gate) does NOT indicate 6.approved.
+    """
+    return resolve_phase6_substate(state) == "6.approved"
+
+
+def is_phase6_execution(state: Mapping[str, object]) -> bool:
+    """Check if Phase 6 is in execution state."""
+    return resolve_phase6_substate(state) == "6.execution"
+
+
+def is_phase6_blocked(state: Mapping[str, object]) -> bool:
+    """Check if Phase 6 is in blocked state."""
+    return resolve_phase6_substate(state) == "6.blocked"
+
+
+def is_phase6_rejected(state: Mapping[str, object]) -> bool:
+    """Check if Phase 6 is in rejected state (transitional to Phase 4).
+    
+    Rejection semantics:
+    - "reject" decision (from /review-decision) -> 6.rejected
+    - No other rejection path exists in canonical model
+    """
+    return resolve_phase6_substate(state) == "6.rejected"
 
 
 def _phase5_min_self_review_iterations(entry: PhaseSpecEntry) -> int:

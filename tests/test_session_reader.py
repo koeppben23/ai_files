@@ -1491,7 +1491,7 @@ class TestMain:
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["implementation_review_complete"] is True
         assert updated_state["phase6_review_iterations"] == 3
-        assert updated_state["phase6_state"] == "phase6_completed"
+        assert updated_state["phase6_state"] == "6.complete"
 
     def test_corner_materialize_mode_phase6_early_stop_on_stable_digest(
         self,
@@ -1631,7 +1631,7 @@ class TestMain:
                     "phase6_min_self_review_iterations": 1,
                     "phase6_revision_delta": "changed",
                     "implementation_review_complete": False,
-                    "phase6_state": "phase6_in_progress",
+                    "phase6_state": "6.execution",
                     "ImplementationReview": {
                         "iteration": 3,
                         "max_iterations": 3,
@@ -1721,7 +1721,7 @@ class TestMain:
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["implementation_review_complete"] is True
-        assert updated_state["phase6_state"] == "phase6_completed"
+        assert updated_state["phase6_state"] == "6.complete"
         review = updated_state["ImplementationReview"]
         assert review["completion_status"] == "phase6-completed"
         assert review["implementation_review_complete"] is True
@@ -4042,7 +4042,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
         assert rc == 0
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["implementation_review_complete"] is False
-        assert updated_state["phase6_state"] == "phase6_in_progress"
+        assert updated_state["phase6_state"] == "6.execution"
 
     def test_validator_import_failure_blocks_phase6_completion(
         self,

@@ -16,18 +16,18 @@ from governance_runtime.application.services.state_invariants import (
 
 class TestPhase6CompletedRequiresReviewPackage:
     def test_valid_when_review_package_presented(self):
-        state = {"phase6_state": "phase6_completed", "review_package": {"presented": True}}
+        state = {"phase6_state": "6.complete", "review_package": {"presented": True}}
         valid, _ = check_invariant_phase6_completed_requires_review_package(state)
         assert valid is True
 
     def test_invalid_when_not_presented(self):
-        state = {"phase6_state": "phase6_completed", "review_package": {"presented": False}}
+        state = {"phase6_state": "6.complete", "review_package": {"presented": False}}
         valid, msg = check_invariant_phase6_completed_requires_review_package(state)
         assert valid is False
         assert "INV-001" in msg
 
     def test_valid_when_not_phase6_completed(self):
-        state = {"phase6_state": "phase6_in_progress"}
+        state = {"phase6_state": "6.execution"}
         valid, _ = check_invariant_phase6_completed_requires_review_package(state)
         assert valid is True
 
@@ -101,17 +101,17 @@ class TestReviewPackageWhenPresented:
 
 class TestPhase6LoopStatusConsistent:
     def test_valid_when_not_in_progress(self):
-        state = {"phase6_state": "phase6_completed", "implementation_review_complete": True}
+        state = {"phase6_state": "6.complete", "implementation_review_complete": True}
         valid, _ = check_invariant_phase6_loop_status_consistent(state)
         assert valid is True
 
     def test_valid_when_in_progress_and_not_complete(self):
-        state = {"phase6_state": "phase6_in_progress", "implementation_review": {"implementation_review_complete": False}}
+        state = {"phase6_state": "6.execution", "implementation_review": {"implementation_review_complete": False}}
         valid, _ = check_invariant_phase6_loop_status_consistent(state)
         assert valid is True
 
     def test_invalid_when_in_progress_and_complete(self):
-        state = {"phase6_state": "phase6_in_progress", "implementation_review": {"implementation_review_complete": True}}
+        state = {"phase6_state": "6.execution", "implementation_review": {"implementation_review_complete": True}}
         valid, msg = check_invariant_phase6_loop_status_consistent(state)
         assert valid is False
         assert "INV-010" in msg
@@ -137,7 +137,7 @@ class TestCheckAllInvariants:
 
     def test_multiple_violations_detected(self):
         state = {
-            "phase6_state": "phase6_completed",
+            "phase6_state": "6.complete",
             "review_package": {"presented": False},
             "active_gate": "Evidence Presentation Gate",
             "phase": "5-ArchitectureReview",
@@ -151,7 +151,7 @@ class TestCheckAllInvariants:
         state = {
             "phase": "6-PostFlight",
             "active_gate": "Evidence Presentation Gate",
-            "phase6_state": "phase6_completed",
+            "phase6_state": "6.complete",
             "review_package": {"presented": True, "review_object": "Test"},
             "implementation_review": {"implementation_review_complete": True, "iteration": 3},
             "phase5_completed": True,

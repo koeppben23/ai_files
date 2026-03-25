@@ -196,7 +196,7 @@ def test_phase4_intake_happy_consumes_rework_clarification_state(tmp_path: Path,
     state = payload["SESSION_STATE"]
     state["Phase"] = "6-PostFlight"
     state["active_gate"] = "Rework Clarification Gate"
-    state["phase6_state"] = "phase6_changes_requested"
+    state["phase6_state"] = "6.rework"
     state["next_gate_condition"] = "Clarify requested changes in chat, then run directed next rail."
     state["UserReviewDecision"] = {"decision": "changes_requested"}
     session_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
