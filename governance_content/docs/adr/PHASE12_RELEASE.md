@@ -1,8 +1,11 @@
 # Phase 12: Release-Schnitt
 
-**Status:** Ready for Release  
+**Status:** Release Ready (with acknowledged debt)  
 **Date:** 2026-03-25  
 **Version:** 2.0.0
+
+> **HINWEIS:** Dieser Release ist "architecturally stabilized", aber nicht "100% debt-free".
+> Einige Restpunkte bleiben und sind unten dokumentiert.
 
 ---
 
@@ -69,11 +72,11 @@ governance_spec/
 
 ### Design-Entscheidungen
 
-| Entscheidung | Dokumentiert |
-|-------------|-------------|
-| 6.approved → workflow_complete → 6.complete | EDGE CASE (zero-implementation) |
-| 6.rejected → default → 4 | Via /continue |
-| /implement produziert `implementation_started` | Kanonisch |
+| Entscheidung | Status | Dokumentiert |
+|-------------|--------|-------------|
+| 6.approved → workflow_complete → 6.complete | EDGE CASE | ✅ |
+| 6.rejected → default → 4 | TRANSITIONAL | ✅ |
+| /implement produziert `implementation_started` | KANONISCH | ✅ |
 
 ---
 
@@ -96,13 +99,52 @@ governance_spec/
 
 ---
 
-## 5. Legacy-Bridge
+## 5. Verbleibende Restkomponenten (Acknowledged Debt)
 
-### Status: TRANSITIONAL
+### 5.1 Legacy-Bridge - VERBLEIBEND
 
-Die Legacy-Bridge (`_detect_phase6_substate_legacy`) ist ein **temporärer Shim** für Sessions ohne `phase6_state` Feld.
+**Status:** ACKNOWLEDGED DEBT
 
-**EXIT CONDITION:** Entfernen nach vollständiger Migration.
+Die Legacy-Bridge (`_detect_phase6_substate_legacy`) ist **noch im Code** und muss nach Migration entfernt werden.
+
+```
+PATH: governance_runtime/kernel/phase_kernel.py
+FUNCTION: _detect_phase6_substate_legacy()
+```
+
+**Warum noch drin:**
+- Bestehende Sessions ohne `phase6_state` Feld
+- On-the-fly Migration während Transition
+
+**Exit-Kriterien:**
+- [ ] < 1% Sessions nutzen Bridge
+- [ ] Alle neuen Sessions setzen `phase6_state`
+- [ ] Monitoring zeigt keine Nutzung
+
+**Follow-up:** Nach erfolgreicher Migration Bridge entfernen.
+
+### 5.2 6.rejected -> default -> 4 - TRANSITIONAL MARKER
+
+**Status:** ACKNOWLEDGED DESIGN CHOICE
+
+Die Transition `6.rejected -> default -> 4` nutzt `default` als Übergangspfad.
+
+**Warum akzeptiert:**
+- `6.rejected` ist ein kurzer transitional Marker
+- `/continue` konsumiert `default` und führt nach Phase 4
+- Expliziter als `return_to_phase4` wäre schöner, ist aber nicht kritisch
+
+**Follow-up:** Bei späterem Cleanup expliziter modellieren.
+
+### 5.3 blocked/rework - BEOBACHTUNGSZONEN
+
+**Status:** MONITOR
+
+Diese Zustände haben die höchste Drift-Gefahr:
+- 6.blocked: Wann ist Blockade aufgehoben?
+- 6.rework: Wann ist Clarification abgeschlossen?
+
+**Follow-up:** Nach Release beobachten.
 
 ### Migration Mapping
 
@@ -128,39 +170,41 @@ Die Legacy-Bridge (`_detect_phase6_substate_legacy`) ist ein **temporärer Shim*
 
 ### Migration für Consumers
 
-1. Sessions ohne `phase6_state` nutzen Legacy-Bridge
+1. Sessions ohne `phase6_state` nutzen **Legacy-Bridge** (temporär)
 2. Nach Migration: `phase6_state` setzen
-3. Legacy-Bridge nach Migration entfernen
+3. Legacy-Bridge nach Migration **entfernen**
+
+> **WARNUNG:** Legacy-Bridge ist noch aktiv bis alle Sessions migriert sind.
 
 ---
 
 ## 7. Deprecations
 
-| Komponente | Deprecated | Entfernt |
-|-----------|-----------|----------|
-| `phase_api.yaml` | v2.0 | Release 12 |
-| `_detect_phase6_substate_legacy` | v2.0 | Nach Migration |
-| `workflow_rejected` Event | v2.0 | v2.0 |
+| Komponente | Deprecated | Entfernt | Status |
+|-----------|-----------|----------|--------|
+| `phase_api.yaml` | v2.0 | Release 12 | WARNUNG: Noch aktiv |
+| `_detect_phase6_substate_legacy` | v2.0 | Nach Migration | NOCH IM CODE |
+| `workflow_rejected` Event | v2.0 | v2.0 | ✅ Entfernt |
 
 ---
 
-## 8. Checkliste
+## 8. Verbleibende Aufgaben (Post-Release)
 
-### Pre-Release
+### Must-Fix nach Migration
 
-- [x] Alle Tests grün (6144)
-- [x] ADRs dokumentiert (ADR-001 bis ADR-007)
-- [x] Spec-Validator implementiert
-- [x] Golden Flows definiert
-- [x] Legacy-Bridge als transitional markiert
-- [x] Design-Entscheidungen dokumentiert
-
-### Post-Release
-
-- [ ] Legacy-Bridge nach Migration entfernen
+- [ ] Legacy-Bridge entfernen (`_detect_phase6_substate_legacy`)
 - [ ] `phase_api.yaml` mit Release 12 entfernen
+
+### Monitoring nach Release
+
+- [ ] Bridge-Nutzung < 1% sicherstellen
+- [ ] blocked/rework Drift beobachten
 - [ ] Session-Migration validieren
-- [ ] Monitoring für Bridge-Nutzung
+
+### Follow-up (Nice-to-Have)
+
+- [ ] 6.rejected expliziter modellieren (späterer Cleanup)
+- [ ] Message-Texte weiter auf Presentation-only trimmen
 
 ---
 
@@ -171,8 +215,26 @@ Die Legacy-Bridge (`_detect_phase6_substate_legacy`) ist ein **temporärer Shim*
 3. **Monitoring:** Bridge-Nutzung beobachten
 4. **Cleanup:** Legacy-Bridge nach erfolgreicher Migration entfernen
 
+## 10. Ehrlicher Status
+
+> **Release ist:**
+> - ✅ Architecturally stabilized
+> - ✅ Test coverage complete
+> - ✅ Migration path defined
+> - ✅ Breaking changes documented
+>
+> **Release ist NICHT:**
+> - ❌ 100% debt-free
+> - ❌ Legacy-bridge-free
+> - ❌ No follow-up needed
+
+**Verbleibende Debt:**
+- Legacy-Bridge (nach Migration entfernen)
+- 6.rejected Default-Übergang (später expliziter)
+- blocked/rework Beobachtung (Monitoring)
+
 ---
 
-## 10. Kontakt
+## 11. Kontakt
 
 Für Fragen zum Release: Architecture Team
