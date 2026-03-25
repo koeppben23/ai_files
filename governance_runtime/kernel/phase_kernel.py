@@ -788,11 +788,30 @@ def _implementation_accepted(state: Mapping[str, object]) -> bool:
 # ============================================================================
 # Phase 6 Substate Detection (ADR-003)
 # ============================================================================
-# Phase 6 is now decomposed into substates. These functions help detect
-# which substate the system is currently in based on session state.
+# Phase 6 is decomposed into substates. Detection follows a PRIORITY ORDER
+# from canonical to heuristic sources:
+#
+# CANONICAL SOURCE (highest priority):
+# 1. phase6_state field - explicit substate marker (if set to valid substate)
+#
+# STATE FLAGS (authoritative when True):
+# 2. workflow_complete -> 6.complete
+# 3. user_review_decision=reject -> 6.rejected
+# 4. implementation_execution_status=in_progress -> 6.execution
+# 5. implementation_blocked flags -> 6.blocked
+# 6. rework_clarification_required -> 6.rework
+#
+# GATE-BASED (fallback when state flags inconclusive):
+# 7. "evidence presentation gate" -> 6.presentation
+# 8. "implementation internal review" -> 6.internal_review
+#
+# FINAL FALLBACK:
+# 9. Base Phase 6 state (no substate determinable)
 
 def _detect_phase6_substate(state: Mapping[str, object]) -> str:
     """Detect the current Phase 6 substate from session state.
+    
+    Uses priority-ordered canonical sources for deterministic detection.
     
     Returns one of:
     - "6.internal_review"
@@ -803,51 +822,54 @@ def _detect_phase6_substate(state: Mapping[str, object]) -> str:
     - "6.rework"
     - "6.rejected"
     - "6.complete"
-    - "6" (legacy/fallback)
+    - "6" (fallback when no substate determinable)
     """
+    # CANONICAL SOURCE: phase6_state field (highest priority)
     phase6_state = str(state.get("phase6_state") or "").strip().lower()
-    
     if phase6_state in {"6.internal_review", "6.presentation", "6.execution", 
                           "6.approved", "6.blocked", "6.rework", 
                           "6.rejected", "6.complete"}:
         return phase6_state
     
-    gate = str(state.get("active_gate") or "").strip().lower()
-    
-    if gate == "implementation internal review":
-        return "6.internal_review"
-    if gate == "evidence presentation gate":
-        return "6.presentation"
-    if gate == "implementation execution in progress":
-        return "6.execution"
-    if gate == "implementation accepted":
-        return "6.approved"
-    if gate == "implementation blocked":
-        return "6.blocked"
-    if gate == "implementation rework clarification gate":
-        return "6.rework"
-    if gate == "workflow complete":
-        return "6.complete"
-    
+    # WORKFLOW COMPLETE: Terminal state
     if _workflow_complete(state):
         return "6.complete"
+    
+    # USER DECISION: Check for reject (returns to Phase 4)
+    decision = _user_review_decision(state)
+    if decision == "reject":
+        return "6.rejected"
+    
+    # EXECUTION STATUS: Implementation in progress
     if _implementation_execution_in_progress(state):
         return "6.execution"
-    if _phase6_internal_review_complete(state):
-        return "6.presentation"
-    if _user_review_decision(state):
-        decision = _user_review_decision(state)
-        if decision == "reject":
-            return "6.rejected"
-        return "6.presentation"
+    
+    # BLOCKED: Hard blockers present
     if _implementation_blocked(state):
         return "6.blocked"
+    
+    # REWORK: Clarification required
     if _implementation_rework_clarification_pending(state):
         return "6.rework"
     
-    if gate:
+    # APPROVED: Plan/workflow approved, ready for implementation
+    # This is set when workflow_approved event was consumed
+    # NOT "Implementation Accepted" (that means result was accepted, not plan)
+    approved = state.get("workflow_approved") or state.get("implementation_plan_approved")
+    if isinstance(approved, bool) and approved:
+        return "6.approved"
+    
+    # PRESENTATION: Evidence ready, awaiting user decision
+    # Only if we have presented evidence and NOT yet decided
+    if _phase6_evidence_presentation_gate_active(state) and not decision:
+        return "6.presentation"
+    
+    # INTERNAL REVIEW: Default active substate for review loop
+    # Only if we haven't completed internal review yet
+    if not _phase6_internal_review_complete(state):
         return "6.internal_review"
     
+    # FALLBACK: Base Phase 6 (no specific substate determinable)
     return "6"
 
 
@@ -861,7 +883,11 @@ def is_phase6_terminal(state: Mapping[str, object]) -> bool:
 
 
 def is_phase6_approved(state: Mapping[str, object]) -> bool:
-    """Check if Phase 6 is in approved state (ready for /implement)."""
+    """Check if Phase 6 is in approved state (ready for /implement).
+    
+    Note: This checks for workflow_approved flag, NOT "Implementation Accepted".
+    6.approved means the plan/workflow was approved BEFORE implementation.
+    """
     substate = _detect_phase6_substate(state)
     return substate == "6.approved"
 
