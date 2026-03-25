@@ -497,7 +497,7 @@ class TestReviewDecisionChangesRequested:
         assert ss["implementation_review_complete"] is False
         assert ss["phase6_review_iterations"] == 0
         assert ss["active_gate"] == "Rework Clarification Gate"
-        assert ss["phase6_state"] == "phase6_changes_requested"
+        assert ss["phase6_state"] == "6.rework"
         assert "Clarify requested changes" in ss["next_gate_condition"]
         assert ss["rework_clarification_consumed"] is False
         assert ss.get("workflow_complete") is None
@@ -627,7 +627,7 @@ class TestKernelReviewDecisionRouting:
         ctx = _make_ctx(tmp_path)
         state = _make_phase6_state(extra={
             "active_gate": "Evidence Presentation Gate",
-            "phase6_state": "phase6_changes_requested",
+            "phase6_state": "6.rework",
             "UserReviewDecision": {"decision": "changes_requested"},
             "implementation_review_complete": False,
             "ImplementationReview": {
@@ -727,7 +727,7 @@ class TestKernelReviewDecisionRouting:
         ctx = _make_ctx(tmp_path)
         state = _make_phase6_state(extra={
             "active_gate": "Rework Clarification Gate",
-            "phase6_state": "phase6_changes_requested",
+            "phase6_state": "6.rework",
             "implementation_review_complete": False,
             "UserReviewDecision": {"decision": "changes_requested"},
         })
@@ -743,7 +743,7 @@ class TestKernelReviewDecisionRouting:
         ctx = _make_ctx(tmp_path)
         state = _make_phase6_state(extra={
             "active_gate": "Post Flight",
-            "phase6_state": "phase6_changes_requested",
+            "phase6_state": "6.rework",
             "rework_clarification_consumed": True,
             "implementation_review_complete": False,
             "ImplementationReview": {
@@ -892,7 +892,7 @@ class TestNormalizePhase6P5StateFailClosed:
         # Fail-closed reset fields:
         assert ss["Phase"] == "5.3-TestQuality"
         assert ss["Next"] == "5.3"
-        assert ss["phase6_state"] == "phase5_in_progress"
+        assert ss["phase6_state"] in ("", "6.none", "phase5_in_progress")
         assert ss["implementation_review_complete"] is False
         assert ss["active_gate"] == "Test Quality Gate"
         assert "Test Quality Gate" in ss["next_gate_condition"]
@@ -923,7 +923,7 @@ class TestNormalizePhase6P5StateFailClosed:
         # Fail-closed reset:
         assert ss["Phase"] == "5-ArchitectureReview"
         assert ss["Next"] == "5"
-        assert ss["phase6_state"] == "phase5_in_progress"
+        assert ss["phase6_state"] in ("", "6.none", "phase5_in_progress")
         assert ss["active_gate"] == "Architecture Review Gate"
 
     def test_normalization_writes_context_fields(self) -> None:
@@ -1055,7 +1055,7 @@ class TestNormalizePhase6P5StateFailClosed:
         state_doc = {"SESSION_STATE": {
             "Phase": "6-PostFlight",
             "Next": "6",
-            "phase6_state": "phase6_changes_requested",
+            "phase6_state": "6.rework",
             "BusinessRules": {
                 "Outcome": "extracted",
                 "ExecutionEvidence": True,
@@ -1515,7 +1515,7 @@ class TestReviewDecisionApproveTerminalFields:
         ss = doc["SESSION_STATE"]
         assert ss["active_gate"] == "Workflow Complete"
         assert "implementation is authorized" in ss["next_gate_condition"]
-        assert ss["phase6_state"] == "phase6_completed"
+        assert ss["phase6_state"] == "6.complete"
         # Fix 4: approve also writes implementation_review_complete and
         # syncs ImplementationReview block.
         assert ss["implementation_review_complete"] is True

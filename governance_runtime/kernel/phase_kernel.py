@@ -714,7 +714,7 @@ def _phase6_rework_clarification_pending(state: Mapping[str, object]) -> bool:
         return False
 
     phase6_state = str(state.get("phase6_state") or "").strip().lower()
-    if phase6_state == "phase6_changes_requested":
+    if phase6_state in ("6.rework", "phase6_changes_requested"):
         return True
     for key in ("active_gate", "ActiveGate", "Gate"):
         value = state.get(key)
@@ -841,34 +841,43 @@ def resolve_phase6_substate(state: Mapping[str, object]) -> str:
     - "6" (unknown - neither canonical nor legacy indicators present)
     """
     phase6_state = str(state.get("phase6_state") or "").strip().lower()
+    
+    # Canonical Phase 6 states (preferred)
     if phase6_state in {"6.internal_review", "6.presentation", "6.execution", 
                           "6.approved", "6.blocked", "6.rework", 
                           "6.rejected", "6.complete"}:
         return phase6_state
+    
+    # Legacy naming - accept for backward compatibility during migration
+    # These will be normalized to canonical values
+    LEGACY_TO_CANONICAL = {
+        "phase6_completed": "6.complete",
+        "completed": "6.complete",
+        "phase6_changes_requested": "6.rework",
+        "phase6_in_progress": "6.execution",
+    }
+    
+    if phase6_state in LEGACY_TO_CANONICAL:
+        return LEGACY_TO_CANONICAL[phase6_state]
     
     return _detect_phase6_substate_legacy(state)
 
 
-# TEMPORARY COMPATIBILITY SHIM
+# DEPRECATED: Legacy Bridge
 # This function exists ONLY for backward compatibility during migration.
 # EXIT CONDITION: Remove once all sessions set phase6_state field.
-# DO NOT add new heuristics - extend canonical field instead.
+# All new code should use resolve_phase6_substate() directly.
 def _detect_phase6_substate_legacy(state: Mapping[str, object]) -> str:
-    """TEMPORARY SHIM: Derive Phase 6 substate from legacy state flags.
+    """DEPRECATED: Derive Phase 6 substate from legacy state flags.
     
-    MIGRATION STATUS: Temporary compatibility layer.
+    MIGRATION STATUS: Legacy compatibility layer.
     EXIT CONDITION: Remove after all sessions migrate to phase6_state field.
     
-    DO NOT use for new code - use resolve_phase6_substate() instead.
-    DO NOT add new heuristics - extend canonical field instead.
+    NOTE: This function now produces CANONICAL values (6.complete, not phase6_completed).
+    The naming normalization is handled in resolve_phase6_substate().
     """
-    phase6_state = str(state.get("phase6_state") or "").strip().lower()
-    if phase6_state in {"6.internal_review", "6.presentation", "6.execution", 
-                          "6.approved", "6.blocked", "6.rework", 
-                          "6.rejected", "6.complete"}:
-        return phase6_state
-    
-    # TEMPORARY SHIM: Legacy detection paths (will be removed after migration)
+    # LEGACY DETECTION: Derive from legacy indicators only
+    # (No phase6_state field present - this is the old path)
     
     if _workflow_complete(state):
         return "6.complete"
@@ -893,9 +902,6 @@ def _detect_phase6_substate_legacy(state: Mapping[str, object]) -> str:
     if _phase6_evidence_presentation_gate_active(state) and not decision:
         return "6.presentation"
     
-    # LEGACY KNOWN: Only infer 6.internal_review if Phase 6 context is present
-    # (e.g., phase_transition_evidence or explicit iteration tracking)
-    # For unknown/empty states, return "6" (unknown)
     if state.get("phase_transition_evidence") or state.get("ImplementationReview"):
         if not _phase6_internal_review_complete(state):
             return "6.internal_review"

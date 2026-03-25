@@ -277,6 +277,6 @@ def _write_phase6_approved_session(session_path: Path) -> None:
     state["implementation_authorized"] = True
     state["next_action_command"] = "/implement"
     state["implementation_review_complete"] = True
-    state["phase6_state"] = "phase6_completed"
+    state["phase6_state"] = "6.complete"
     state["UserReviewDecision"] = {"decision": "approve", "timestamp": "2026-03-21T12:00:00Z"}
     session_path.write_text(json.dumps(doc, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")

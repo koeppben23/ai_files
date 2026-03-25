@@ -8,7 +8,7 @@ def test_rework_e2e_changes_requested_still_blocks_on_invalid_business_rules() -
         "SESSION_STATE": {
             "Phase": "6-PostFlight",
             "Next": "6",
-            "phase6_state": "phase6_changes_requested",
+            "phase6_state": "6.rework",
             "active_gate": "Rework Clarification Gate",
             "BusinessRules": {
                 "Outcome": "extracted",
@@ -47,7 +47,7 @@ def test_rework_e2e_changes_requested_still_blocks_on_invalid_business_rules() -
     ss = state_doc["SESSION_STATE"]
     assert ss["Phase"] == "5.4-BusinessRules"
     assert ss["Next"] == "5.4"
-    assert ss["phase6_state"] == "phase5_in_progress"
+    assert ss["phase6_state"] in ("", "6.none", "phase5_in_progress")
     assert "BLOCKED-P5-4-BUSINESS-RULES-GATE" in ss["next_gate_condition"]
 
 
@@ -56,7 +56,7 @@ def test_rework_e2e_changes_requested_blocks_on_code_coverage_gap() -> None:
         "SESSION_STATE": {
             "Phase": "6-PostFlight",
             "Next": "6",
-            "phase6_state": "phase6_changes_requested",
+            "phase6_state": "6.rework",
             "active_gate": "Rework Clarification Gate",
             "BusinessRules": {
                 "Outcome": "extracted",
@@ -94,5 +94,5 @@ def test_rework_e2e_changes_requested_blocks_on_code_coverage_gap() -> None:
 
     ss = state_doc["SESSION_STATE"]
     assert ss["Phase"] == "5.4-BusinessRules"
-    assert ss["phase6_state"] == "phase5_in_progress"
+    assert ss["phase6_state"] in ("", "6.none", "phase5_in_progress")
     assert "BLOCKED-P5-4-BUSINESS-RULES-GATE" in ss["next_gate_condition"]

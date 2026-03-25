@@ -97,7 +97,7 @@ def _apply_pipeline_auto_approve(
         "Workflow auto-approved by pipeline mode. Governance is complete. "
         "Run /implement to start the implementation phase."
     )
-    state["phase6_state"] = "phase6_completed"
+    state["phase6_state"] = "6.complete"
     state["implementation_review_complete"] = True
 
     review_block = state.get("ImplementationReview")
@@ -404,7 +404,7 @@ def apply_review_decision(
             "Workflow approved. Governance is complete and implementation is authorized. "
             "Run /implement to start the implementation phase."
         )
-        state["phase6_state"] = "phase6_completed"
+        state["phase6_state"] = "6.complete"
         state["implementation_review_complete"] = True
         # Ensure ImplementationReview block is also consistent.
         review_block = state.get("ImplementationReview")
@@ -440,7 +440,7 @@ def apply_review_decision(
             state["ImplementationReview"] = review_block
         state["phase6_review_iterations"] = 0
         state["phase6_revision_delta"] = "changed"
-        state["phase6_state"] = "phase6_changes_requested"
+        state["phase6_state"] = "6.rework"
         # Clear any previous workflow_complete flag
         state.pop("workflow_complete", None)
         state.pop("WorkflowComplete", None)

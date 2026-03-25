@@ -276,7 +276,7 @@ def test_phase5_plan_persist_happy_consumes_rework_clarification_state(
     state["Phase"] = "6-PostFlight"
     state["phase"] = "6-PostFlight"
     state["active_gate"] = "Rework Clarification Gate"
-    state["phase6_state"] = "phase6_changes_requested"
+    state["phase6_state"] = "6.rework"
     state["next_gate_condition"] = "Clarify requested changes in chat, then run directed next rail."
     state["UserReviewDecision"] = {"decision": "changes_requested"}
     session_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
@@ -293,7 +293,7 @@ def test_phase5_plan_persist_happy_consumes_rework_clarification_state(
 
     updated = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
     assert updated["active_gate"] != "Rework Clarification Gate"
-    assert updated.get("phase6_state") != "phase6_changes_requested"
+    assert updated.get("phase6_state") != "6.rework"
     assert updated.get("UserReviewDecision") is None
     assert updated["rework_clarification_consumed"] is True
     assert updated["rework_clarification_consumed_by"] == "plan"
