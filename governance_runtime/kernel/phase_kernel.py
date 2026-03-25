@@ -854,6 +854,14 @@ def _detect_phase6_substate_legacy(state: Mapping[str, object]) -> str:
     
     This bridge derives substate from legacy state flags when phase6_state
     is not set. It will be removed once all sessions migrate.
+    
+    IMPORTANT: "Implementation Accepted" (legacy active_gate value) is NOT
+    used as a mapping source. It represents "implementation result accepted"
+    which is semantically equivalent to workflow_complete. Since workflow_complete
+    is already checked first, this legacy gate value is effectively ignored.
+    This prevents semantic confusion between:
+    - "Implementation Accepted" (result accepted, post-execution) -> 6.complete
+    - workflow_approved (plan approved, pre-execution) -> 6.approved
     """
     phase6_state = str(state.get("phase6_state") or "").strip().lower()
     if phase6_state in {"6.internal_review", "6.presentation", "6.execution", 
@@ -862,6 +870,8 @@ def _detect_phase6_substate_legacy(state: Mapping[str, object]) -> str:
         return phase6_state
     
     # WORKFLOW COMPLETE: Terminal state (highest priority after canonical)
+    # Note: "Implementation Accepted" (legacy) maps here semantically,
+    # but we use the explicit workflow_complete flag for clarity.
     if _workflow_complete(state):
         return "6.complete"
     
@@ -883,7 +893,7 @@ def _detect_phase6_substate_legacy(state: Mapping[str, object]) -> str:
         return "6.rework"
     
     # APPROVED: Plan/workflow approved, ready for implementation
-    # This is set when workflow_approved event was consumed
+    # This is set when workflow_approved event was consumed (pre-execution)
     approved = state.get("workflow_approved") or state.get("implementation_plan_approved")
     if isinstance(approved, bool) and approved:
         return "6.approved"

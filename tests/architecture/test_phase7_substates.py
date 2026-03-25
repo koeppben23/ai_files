@@ -111,26 +111,69 @@ class TestLegacyBridgePhase6SubstateDetection:
         state = {"workflow_approved": True}
         assert _detect_phase6_substate_legacy(state) == "6.approved"
 
-    def test_legacy_does_not_map_implementation_accepted_to_approved(self):
-        """NEGATIVE: "Implementation Accepted" ist NICHT 6.approved.
+    def test_legacy_ignores_implementation_accepted_gate(self):
+        """NEGATIVE: "Implementation Accepted" gate wird NICHT als Mapping-Quelle verwendet.
         
-        "Implementation Accepted" ist ein LEGACY GATE, kein Substate-Indikator.
-        Es bedeutet dass das Implementierungs-ERGEBNIS akzeptiert wurde.
-        6.approved bedeutet dass der PLAN vor der Implementierung genehmigt wurde.
+        "Implementation Accepted" ist ein LEGACY GATE-Wert.
+        Er wird NICHT direkt auf einen Substate gemappt.
         
-        Diese beiden Konzepte sind SEMANTISCH UNTERSCHEIDLICH.
+        Begründung:
+        - "Implementation Accepted" bedeutet: Implementierungs-ERGEBNIS akzeptiert
+          (post-execution, semantisch ≈ workflow_complete → 6.complete)
+        - "workflow_approved" bedeutet: PLAN vor Implementierung genehmigt
+          (pre-execution → 6.approved)
+        
+        Da workflow_complete bereits priorisiert wird, ist "Implementation Accepted"
+        effektiv IGNORIERT. Dies verhindert semantische Verwirrung.
+        
+        Diese Entscheidung ist BEWUSST und TESTBAR.
         """
         from governance_runtime.kernel.phase_kernel import (
             _detect_phase6_substate_legacy,
-            is_phase6_approved
+            is_phase6_approved,
+            is_phase6_terminal
         )
         
         state = {"active_gate": "Implementation Accepted"}
         result = _detect_phase6_substate_legacy(state)
+        
+        # "Implementation Accepted" maps to nothing directly
         assert result != "6.approved", \
             "Implementation Accepted should NOT map to 6.approved"
-        assert is_phase6_approved(state) is False, \
-            "Implementation Accepted should NOT indicate 6.approved"
+        assert result != "6.complete", \
+            "Implementation Accepted should NOT map to 6.complete directly"
+        assert is_phase6_approved(state) is False
+        
+        # Without workflow_complete=True, it's not terminal
+        assert is_phase6_terminal(state) is False
+        
+        # The gate is effectively ignored; it falls through to other checks
+        # (which will return other substates based on other state flags)
+
+    def test_workflow_complete_takes_priority_over_implementation_accepted(self):
+        """Happy: workflow_complete hat Priorität über "Implementation Accepted".
+        
+        Wenn beide gesetzt sind (workflow_complete und Implementation Accepted gate),
+        wird workflow_complete verwendet (da es zuerst geprüft wird).
+        
+        Dies stellt sicher, dass die explizite workflow_complete-Flag
+        als autoritative Quelle dient, nicht der Legacy-Gate-String.
+        """
+        from governance_runtime.kernel.phase_kernel import (
+            _detect_phase6_substate_legacy,
+            is_phase6_terminal
+        )
+        
+        state = {
+            "active_gate": "Implementation Accepted",
+            "workflow_complete": True
+        }
+        result = _detect_phase6_substate_legacy(state)
+        
+        # workflow_complete is checked first, so this takes priority
+        assert result == "6.complete", \
+            "workflow_complete should take priority over Implementation Accepted"
+        assert is_phase6_terminal(state) is True
 
     def test_legacy_fallback_to_internal_review(self):
         """Happy: Legacy Fallback zu 6.internal_review wenn keine Flags."""
