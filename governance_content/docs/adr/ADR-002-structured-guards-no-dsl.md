@@ -74,9 +74,9 @@ Die Runtime nutzt Guards evaluator-first:
 - Phase-6 topology-authoritativer Pfad: GuardEvaluator bestimmt das Event, Topology den Zielzustand.
 - Nicht-Phase-6 Pfad: GuardEvaluator zuerst, dann eng begrenzter Legacy-Restpfad.
 
-Aktueller Legacy-Restpfad ist absichtlich minimal und explizit allowlist-basiert:
+Aktueller Legacy-Restpfad ist deaktiviert (empty allowlist):
 
-- `implementation_presentation_ready`
+- `LEGACY_TRANSITION_GUARD_EVENTS = {}`
 
 Zusätzlich sichern Architekturtests die Abdeckung:
 
@@ -84,9 +84,41 @@ Zusätzlich sichern Architekturtests die Abdeckung:
 - `test_phase6_topology_events_are_guarded_or_default`
 - `test_execute_non_allowlisted_legacy_event_does_not_bypass_default`
 
-Restschuld (explizit):
+`implementation_presentation_ready` ist jetzt deklarativ in `guards.yaml` modelliert.
 
-- Der Legacy-Restpfad `implementation_presentation_ready` bleibt bewusst allowlisted,
-  bis die verbleibende Übergangssemantik vollständig in `guards.yaml` modelliert ist.
+### Guard-State Bridge (_build_guard_evaluation_state)
 
-Damit wird Doppelwahrheit reduziert und neue nicht-modellierte Guard-Events werden fail-safe blockiert, statt still im Legacy-Pfad zu laufen.
+Die Funktion bleibt eine notwendige Bridge zwischen SESSION_STATE und GuardEvaluator,
+ist aber auf deterministische, nachvollziehbare Ableitungen begrenzt.
+
+| Feld(gruppe) | Typ | Quelle / Regel |
+|---|---|---|
+| `active_gate`, `phase6_state`, `workflow_complete`, `rework_clarification_consumed` | canonical | Nur aus Input-State übernommen (keine Erfindung) |
+| `user_review_decision` | derived (strict) | Nur aus validen Entscheidungen (`approve`, `changes_requested`, `reject`) |
+| `plan_record_versions`, `phase5_self_review_iterations`, `ImplementationReview.revision_complete` | derived | Deterministische Ableitung aus vorhandenem State + `plan_record_versions` |
+| `technical_debt_proposed`, `rollback_required`, `ticket_recorded` | legacy-bridge | Explizite Normalisierung historischer Alias-/Strukturformen |
+| `implementation_*` Statusfelder | canonical-first | Keine Rekonstruktion mehr aus Gate-Text; nur explizite Status-/Flag-Felder |
+
+Nicht mehr zulässig:
+
+- Neue hardcoded Guard-Branches (`if event == ...`) außerhalb von `guards.yaml`
+- Neue stille Legacy-Fallbacks für unbekannte Transition-Events
+
+## Abschlusszustand (WP6)
+
+Autoritative Quellen:
+
+- `command_policy.yaml` (Command-Zulässigkeit)
+- `topology.yaml` (Zielzustände / Transition-Struktur)
+- `guards.yaml` (Event-Guard-Semantik)
+- `SpecRegistry` (zentraler, fail-closed Spec-Zugriff)
+
+Bewusste Restschuld:
+
+- `_build_guard_evaluation_state(...)` bleibt als beobachtete Bridge erhalten,
+  mit Invariant-Tests und Feldmatrix gegen Drift.
+
+Nicht mehr erlaubt:
+
+- Neue hardcoded Transition-/Guard-Wahrheit im Kernel
+- Stille Fallbacks an kritischen Guard-/Topology-Boundaries

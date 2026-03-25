@@ -761,19 +761,7 @@ def _implementation_execution_in_progress(state: Mapping[str, object]) -> bool:
     return status in {"in_progress", "self_review", "revision", "verification"}
 
 
-def _implementation_presentation_ready(state: Mapping[str, object]) -> bool:
-    gate = str(state.get("active_gate") or "").strip().lower()
-    if gate == "implementation presentation gate":
-        return True
-    presented = state.get("implementation_package_presented")
-    stable = state.get("implementation_quality_stable")
-    return bool(presented) and bool(stable)
-
-
 def _implementation_blocked(state: Mapping[str, object]) -> bool:
-    gate = str(state.get("active_gate") or "").strip().lower()
-    if gate == "implementation blocked":
-        return True
     status = str(state.get("implementation_execution_status") or "").strip().lower()
     if status == "blocked":
         return True
@@ -782,17 +770,11 @@ def _implementation_blocked(state: Mapping[str, object]) -> bool:
 
 
 def _implementation_rework_clarification_pending(state: Mapping[str, object]) -> bool:
-    gate = str(state.get("active_gate") or "").strip().lower()
-    if gate == "implementation rework clarification gate":
-        return True
     required = state.get("implementation_rework_clarification_required")
     return bool(required)
 
 
 def _implementation_accepted(state: Mapping[str, object]) -> bool:
-    gate = str(state.get("active_gate") or "").strip().lower()
-    if gate == "implementation accepted":
-        return True
     accepted = state.get("implementation_accepted")
     return bool(accepted)
 
@@ -898,20 +880,7 @@ def _build_guard_evaluation_state(
     return normalized
 
 
-def _legacy_transition_guard_passes(
-    event: str,
-    *,
-    entry: PhaseSpecEntry,
-    state: Mapping[str, object],
-    plan_record_versions: int,
-) -> bool:
-    """Legacy fallback for transition events not yet modeled in guards.yaml."""
-    if event == "implementation_presentation_ready":
-        return _implementation_presentation_ready(state)
-    return False
-
-
-LEGACY_TRANSITION_GUARD_EVENTS = frozenset({"implementation_presentation_ready"})
+LEGACY_TRANSITION_GUARD_EVENTS = frozenset()
 
 
 def _transition_guard_passes(
@@ -925,27 +894,14 @@ def _transition_guard_passes(
     """Evaluate transition guard with evaluator-first strategy.
 
     - Preferred: guards.yaml via GuardEvaluator
-    - Fallback: explicit legacy checks for events not yet in guards.yaml
+    - Fallback: none (explicitly disabled; unknown events fail closed)
     """
     from governance_runtime.kernel.guard_evaluator import GuardEvaluationError, GuardEvaluator
 
     if GuardEvaluator.has_transition_guard(event):
         return GuardEvaluator.evaluate_event(event, guard_state)
 
-    if event not in LEGACY_TRANSITION_GUARD_EVENTS:
-        return False
-
-    try:
-        return _legacy_transition_guard_passes(
-            event,
-            entry=entry,
-            state=state,
-            plan_record_versions=plan_record_versions,
-        )
-    except Exception as exc:
-        raise GuardEvaluationError(
-            f"Legacy guard fallback failed for event '{event}' in state '{entry.token}': {exc}"
-        ) from exc
+    return False
 
 
 # ============================================================================
@@ -1994,29 +1950,6 @@ def execute(
         plan_record_versions=plan_record_signal.versions,
     )
     
-    # Validate Phase 6 transitions against topology (fail-closed)
-    from governance_runtime.kernel.topology_loader import TopologyLoader, TopologyError
-    current_state = entry.token
-    is_phase6 = current_state.startswith("6.")
-    
-    if is_phase6 and source not in ("topology", "topology-pipeline-auto-approve"):
-        # Phase 6 state but topology wasn't used - validate anyway
-        try:
-            TopologyLoader._ensure_loaded()
-            if TopologyLoader.has_event(current_state, "default"):
-                # Topology has this state - verify target is consistent
-                expected = TopologyLoader.get_next_state(current_state, "default")
-                if next_token != expected and next_token is not None:
-                    # Topology says different target - topology wins
-                    next_token = expected
-                    source = "topology-corrected"
-        except TopologyError as e:
-            # Phase 6 state not in topology is an error
-            raise RuntimeError(
-                f"Phase 6 state '{current_state}' not found in topology.yaml. "
-                f"Topology is authoritative for Phase 6. Error: {e}"
-            )
-    
     resolved_phase = entry.phase
     resolved_active_gate = override_active_gate or entry.active_gate or runtime_ctx.requested_active_gate
     resolved_next_condition = override_next_condition or entry.next_gate_condition or runtime_ctx.requested_next_gate_condition
@@ -2049,7 +1982,7 @@ def execute(
         transition_reason = "no_external_apis"
     elif source == "spec-next":
         normalized_source = "spec"
-    elif source in ("topology", "topology-pipeline-auto-approve", "topology-corrected", "topology-terminal"):
+    elif source in ("topology", "topology-pipeline-auto-approve", "topology-terminal"):
         normalized_source = "topology"
         transition_reason = "resolved by topology.yaml"
     elif source.startswith("phase-"):

@@ -92,8 +92,8 @@ def test_execute_non_phase6_uses_evaluator_first_guard_match(tmp_path, monkeypat
     assert result.source == "phase-1.5-routing-required"
 
 
-def test_execute_non_phase6_legacy_fallback_implementation_presentation_ready(tmp_path, monkeypatch):
-    """execute(): only explicit legacy fallback event remains supported."""
+def test_execute_non_phase6_guarded_implementation_presentation_ready(tmp_path, monkeypatch):
+    """execute(): implementation_presentation_ready resolves via GuardEvaluator."""
     spec = PhaseApiSpec(
         path=tmp_path / "phase_api.yaml",
         sha256="fake",
@@ -128,7 +128,16 @@ def test_execute_non_phase6_legacy_fallback_implementation_presentation_ready(tm
     )
 
     _patch_common(monkeypatch, tmp_path, spec)
-    monkeypatch.setattr(GuardEvaluator, "has_transition_guard", staticmethod(lambda _event: False))
+    monkeypatch.setattr(
+        GuardEvaluator,
+        "has_transition_guard",
+        staticmethod(lambda event: event == "implementation_presentation_ready"),
+    )
+    monkeypatch.setattr(
+        GuardEvaluator,
+        "evaluate_event",
+        staticmethod(lambda event, _state: event == "implementation_presentation_ready"),
+    )
 
     result = execute(
         current_token="6",

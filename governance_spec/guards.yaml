@@ -232,6 +232,24 @@ guards:
       type: "key_present"
       key: "implementation_rework_clarification_required"
 
+  - id: "guard_implementation_presentation_ready"
+    guard_type: "transition"
+    event: "implementation_presentation_ready"
+    condition:
+      type: "any_of"
+      operands:
+        - type: "key_equals"
+          key: "active_gate"
+          value: "Implementation Presentation Gate"
+        - type: "all_of"
+          operands:
+            - type: "key_equals"
+              key: "implementation_package_presented"
+              value: true
+            - type: "key_equals"
+              key: "implementation_quality_stable"
+              value: true
+
   - id: "guard_implementation_execution_in_progress"
     guard_type: "transition"
     event: "implementation_execution_in_progress"

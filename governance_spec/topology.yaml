@@ -162,6 +162,9 @@ states:
     terminal: false
     description: "Phase 6 - Implementation workflow container"
     transitions:
+      - id: "t6-t6.presentation"
+        event: implementation_presentation_ready
+        target: "6.presentation"
       - id: "t6-t6.internal_review"
         event: default
         target: "6.internal_review"

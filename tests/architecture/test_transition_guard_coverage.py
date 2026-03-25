@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import inspect
+
 import yaml
 
 from governance_runtime.kernel.phase_kernel import _build_guard_evaluation_state
+from governance_runtime.kernel.phase_kernel import _transition_guard_passes
+from governance_runtime.kernel.phase_kernel import execute
 from governance_runtime.kernel.phase_kernel import LEGACY_TRANSITION_GUARD_EVENTS
 
 
@@ -56,8 +60,22 @@ def test_all_phase_api_transition_events_are_guarded_or_explicit_legacy() -> Non
 
 
 def test_legacy_transition_events_are_tightly_scoped() -> None:
-    """Legacy guard fallback set remains intentionally minimal."""
-    assert LEGACY_TRANSITION_GUARD_EVENTS == {"implementation_presentation_ready"}
+    """Legacy guard fallback is frozen off to prevent double-truth drift."""
+    assert LEGACY_TRANSITION_GUARD_EVENTS == set()
+
+
+def test_transition_guard_path_contains_no_event_specific_hardcoded_fallbacks() -> None:
+    """Guard path must not reintroduce hardcoded event if/elif branches."""
+    source = inspect.getsource(_transition_guard_passes)
+    assert "if event ==" not in source
+    assert "legacy_transition_guard" not in source
+
+
+def test_execute_contains_no_phase6_topology_correction_backdoor() -> None:
+    """execute() must not rewrite Phase-6 targets after topology resolution."""
+    source = inspect.getsource(execute)
+    assert "topology-corrected" not in source
+    assert "TopologyLoader._ensure_loaded()" not in source
 
 
 def test_phase6_topology_events_are_guarded_or_default() -> None:
@@ -156,3 +174,88 @@ def test_guard_state_normalization_preserves_explicit_workflow_complete() -> Non
     )
 
     assert normalized.get("workflow_complete") is True
+
+
+def test_guard_state_normalization_keeps_explicit_active_gate_precedence() -> None:
+    """Canonical active_gate input must not be replaced by alias values."""
+    state = {
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "ActiveGate": "Implementation Internal Review",
+    }
+
+    normalized = _build_guard_evaluation_state(
+        state,
+        entry=None,
+        plan_record_versions=1,
+    )
+
+    assert normalized.get("active_gate") == "Evidence Presentation Gate"
+
+
+def test_guard_state_normalization_does_not_invent_user_review_decision() -> None:
+    """Invalid or absent user decision must not be fabricated into a valid decision."""
+    state = {
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "UserReviewDecision": {"decision": "maybe"},
+    }
+
+    normalized = _build_guard_evaluation_state(
+        state,
+        entry=None,
+        plan_record_versions=1,
+    )
+
+    assert "user_review_decision" not in normalized
+
+
+def test_guard_state_normalization_does_not_reconstruct_impl_status_from_gate_only() -> None:
+    """Implementation status flags must not be synthesized from gate labels alone."""
+    state = {
+        "Phase": "6-PostFlight",
+        "active_gate": "Implementation Blocked",
+    }
+
+    normalized = _build_guard_evaluation_state(
+        state,
+        entry=None,
+        plan_record_versions=1,
+    )
+
+    assert "implementation_execution_status" not in normalized
+    assert "implementation_hard_blockers" not in normalized
+
+
+def test_guard_state_normalization_does_not_override_explicit_impl_status() -> None:
+    """Explicit implementation status must win over unrelated gate text."""
+    state = {
+        "Phase": "6-PostFlight",
+        "active_gate": "Implementation Blocked",
+        "implementation_execution_status": "in_progress",
+    }
+
+    normalized = _build_guard_evaluation_state(
+        state,
+        entry=None,
+        plan_record_versions=1,
+    )
+
+    assert normalized.get("implementation_execution_status") == "in_progress"
+
+
+def test_guard_state_normalization_workflow_complete_is_not_string_coerced() -> None:
+    """workflow_complete must remain input-driven bool, not string-coerced."""
+    state = {
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "workflow_complete": "true",
+    }
+
+    normalized = _build_guard_evaluation_state(
+        state,
+        entry=None,
+        plan_record_versions=1,
+    )
+
+    assert normalized.get("workflow_complete") == "true"
