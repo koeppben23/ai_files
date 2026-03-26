@@ -1082,7 +1082,7 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
 def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[list[str], list[str]]:
     """Enforce strict local-root top-level allowlist for installer payload."""
     removed: list[str] = []
-    allowed_top_level = {"governance_runtime", "governance_content", "governance_spec", "governance", "VERSION"}
+    allowed_top_level = {"governance_runtime", "governance_content", "governance_spec", "governance", "VERSION", "opencode"}
     harmless_metadata = FORBIDDEN_METADATA_FILENAMES
 
     if local_root.exists() and local_root.is_dir():
