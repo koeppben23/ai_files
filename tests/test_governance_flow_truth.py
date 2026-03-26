@@ -1953,6 +1953,155 @@ class TestE2EContinueRail:
         )
 
 
+@pytest.mark.e2e_governance
+class TestE2EBusinessRulesApplicabilityTruth:
+    """Flow-truth coverage for P5.4 business-rules applicability combinations."""
+
+    @staticmethod
+    def _business_rules_fixture(*, missing_surface_reasons: list[str], invalid_rules: bool = False) -> dict:
+        return {
+            "Outcome": "gap-detected",
+            "ExecutionEvidence": True,
+            "InventoryLoaded": False,
+            "ExtractedCount": 0,
+            "ValidationReasonCodes": [
+                "BUSINESS_RULES_CODE_COVERAGE_INSUFFICIENT",
+                "BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT",
+            ],
+            "QualityInsufficiencyReasons": [
+                "non_business_surface_spike",
+                "insufficient_executable_business_rules",
+            ],
+            "CodeExtractionReport": {
+                "missing_surface_reasons": missing_surface_reasons,
+            },
+            "ValidationReport": {
+                "is_compliant": False,
+                "has_invalid_rules": invalid_rules,
+                "has_render_mismatch": False,
+                "has_source_violation": False,
+                "has_missing_required_rules": False,
+                "has_segmentation_failure": False,
+                "has_code_extraction": True,
+                "code_extraction_sufficient": False,
+                "has_code_coverage_gap": True,
+                "has_code_doc_conflict": False,
+            },
+        }
+
+    @pytest.mark.parametrize(
+        "missing_surface_reasons,invalid_rules,expected",
+        [
+            (
+                [
+                    "validator: filtered_non_business",
+                    "permissions: filtered_non_business",
+                    "workflow: filtered_non_business",
+                ],
+                False,
+                "not-applicable",
+            ),
+            (
+                [
+                    "validator: filtered_non_business",
+                    "workflow: insufficient_business_context",
+                ],
+                False,
+                "gap-detected",
+            ),
+            (
+                [
+                    "validator: filtered_non_business",
+                    "permissions: filtered_non_business",
+                    "workflow: filtered_non_business",
+                ],
+                True,
+                "gap-detected",
+            ),
+        ],
+    )
+    def test_p54_applicability_matrix(self, missing_surface_reasons, invalid_rules, expected):
+        from governance_runtime.engine.gate_evaluator import evaluate_p54_business_rules_gate
+
+        state = {
+            "BusinessRules": self._business_rules_fixture(
+                missing_surface_reasons=missing_surface_reasons,
+                invalid_rules=invalid_rules,
+            )
+        }
+        result = evaluate_p54_business_rules_gate(
+            session_state=state,
+            phase_1_5_executed=True,
+        )
+        assert result.status == expected
+
+    def test_continue_materialize_promotes_non_business_case_to_phase6(self, tmp_path, monkeypatch):
+        config_root, commands_home, session_path, _, _ = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        state = _read_state(session_path)
+        state["phase"] = "5.4-BusinessRules"
+        state["next"] = "5.4"
+        state["active_gate"] = "Business Rules Validation"
+        state["next_gate_condition"] = "Phase 1.5 executed; Phase 5.4 is mandatory before proceeding"
+        state["BusinessRules"] = self._business_rules_fixture(
+            missing_surface_reasons=[
+                "validator: filtered_non_business",
+                "permissions: filtered_non_business",
+                "workflow: filtered_non_business",
+            ],
+            invalid_rules=False,
+        )
+        state["Gates"] = {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.4-BusinessRules": "gap-detected",
+            "P5.5-TechnicalDebt": "not-applicable",
+            "P5.6-RollbackSafety": "not-applicable",
+        }
+        session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_session_reader()
+        rc = module.main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+
+        updated = _read_state(session_path)
+        assert updated.get("Gates", {}).get("P5.4-BusinessRules") == "not-applicable"
+        assert str(updated.get("phase") or "").startswith("6")
+
+    def test_continue_materialize_keeps_true_gap_blocked(self, tmp_path, monkeypatch):
+        config_root, commands_home, session_path, _, _ = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        state = _read_state(session_path)
+        state["phase"] = "5.4-BusinessRules"
+        state["next"] = "5.4"
+        state["active_gate"] = "Business Rules Validation"
+        state["BusinessRules"] = self._business_rules_fixture(
+            missing_surface_reasons=[
+                "validator: filtered_non_business",
+                "workflow: insufficient_business_context",
+            ],
+            invalid_rules=False,
+        )
+        state["Gates"] = {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.4-BusinessRules": "gap-detected",
+            "P5.5-TechnicalDebt": "not-applicable",
+            "P5.6-RollbackSafety": "not-applicable",
+        }
+        session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_session_reader()
+        rc = module.main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+
+        updated = _read_state(session_path)
+        assert updated.get("Gates", {}).get("P5.4-BusinessRules") == "gap-detected"
+        assert str(updated.get("phase") or "").startswith("5.4")
+
+
 # ── K. PHASE-6 GOVERNANCE FAIL-CLOSED ───────────────────────────────────
 
 @pytest.mark.e2e_governance

@@ -28,6 +28,8 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 Use the rendered output as governance context for the response below. Do not infer or mutate any session state beyond the materialized output.
 
+For Phase 5.4 (Business Rules Validation): if extraction evidence shows all missing surfaces were filtered as non-business (`filtered_non_business`) and no invalid-rule/source/render/segmentation defects are present, treat the gate as `not-applicable` rather than `gap-detected`.
+
 ## Response shape
 
 - reflect current `SESSION_STATE.phase` and `SESSION_STATE.next`
