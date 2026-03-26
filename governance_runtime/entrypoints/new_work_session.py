@@ -254,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
             run_id = str(last_guard_map.get("run_id") or state.get("session_run_id") or "")
             if not _state_is_fresh_phase4_run(state, run_id=run_id):
                 _append_jsonl(
-                    session_path.parent / "events.jsonl",
+                    session_path.parent / "logs" / "events.jsonl",
                     {
                         "event": "new_work_session_dedupe_bypassed",
                         "observed_at": observed_at,
@@ -272,7 +272,7 @@ def main(argv: list[str] | None = None) -> int:
             last_guard_map = last_guard if isinstance(last_guard, dict) else {}
             run_id = str(last_guard_map.get("run_id") or state.get("session_run_id") or "")
             _append_jsonl(
-                session_path.parent / "events.jsonl",
+                session_path.parent / "logs" / "events.jsonl",
                 {
                     "event": "new_work_session_deduped",
                     "observed_at": observed_at,
@@ -317,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
                     run_id=archive_id,
                     observed_at=observed_at,
                     workspace_root=session_path.parent,
-                    events_path=session_path.parent / "events.jsonl",
+                    events_path=session_path.parent / "logs" / "events.jsonl",
                 )
             except Exception:
                 pass  # governance hook is fail-open — never blocks session
@@ -327,7 +327,7 @@ def main(argv: list[str] | None = None) -> int:
         new_run_id = _new_run_id()
 
         _append_jsonl(
-            session_path.parent / "events.jsonl",
+            session_path.parent / "logs" / "events.jsonl",
             {
                 "event": "new_work_session_created",
                 "observed_at": observed_at,
@@ -363,7 +363,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         try:
             _append_jsonl(
-                session_path.parent / "events.jsonl",
+                session_path.parent / "logs" / "events.jsonl",
                 {
                     "event": "new_work_session_init_failed",
                     "observed_at": observed_at,

@@ -287,7 +287,7 @@ class TestE2ECommandChains:
         module = _load_phase5()
         module.main(["--plan-text", "Plan for test.", "--quiet"])
 
-        events_file = workspace / "events.jsonl"
+        events_file = workspace / "logs" / "events.jsonl"
         assert events_file.exists()
         events = [
             json.loads(l)
@@ -458,7 +458,7 @@ class TestE2EReviewDecision:
         result = self._setup_and_apply(tmp_path, monkeypatch, "approve", capsys)
         assert result["rc"] == 0
 
-        events_file = result["workspace"] / "events.jsonl"
+        events_file = result["workspace"] / "logs" / "events.jsonl"
         assert events_file.exists()
         events = [
             json.loads(l)

@@ -56,7 +56,7 @@ def test_kernel_writes_flow_and_workspace_events(tmp_path: Path) -> None:
     )
 
     assert result.status == "OK"
-    workspace_events = workspaces_home / "88b39b036804c534a1b2c3d4" / "events.jsonl"
+    workspace_events = workspaces_home / "88b39b036804c534a1b2c3d4" / "logs" / "events.jsonl"
     assert workspace_events.exists()
     rows = [json.loads(line) for line in workspace_events.read_text(encoding="utf-8").splitlines()]
     assert rows[0]["event"] == "PHASE_STARTED"
@@ -109,5 +109,5 @@ def test_kernel_writes_phase_not_applicable_event(tmp_path: Path) -> None:
     )
 
     assert result.status == "OK"
-    rows = [json.loads(line) for line in (workspaces_home / "88b39b036804c534a1b2c3d4" / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+    rows = [json.loads(line) for line in (workspaces_home / "88b39b036804c534a1b2c3d4" / "logs" / "events.jsonl").read_text(encoding="utf-8").splitlines()]
     assert rows[-1]["event"] == "PHASE_NOT_APPLICABLE"

@@ -124,7 +124,7 @@ def _apply_pipeline_auto_approve(
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
     session_path, _, _, workspace_dir = resolve_active_session_paths()
-    events_path = workspace_dir / "events.jsonl"
+    events_path = workspace_dir / "logs" / "events.jsonl"
     return session_path, events_path
 
 

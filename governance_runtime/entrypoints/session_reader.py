@@ -593,7 +593,7 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
             # Persist audit events (entrypoint's responsibility)
             events = review_result.loop_result.to_audit_events()
             if events:
-                events_path = session_path.parent / "events.jsonl"
+                events_path = session_path.parent / "logs" / "events.jsonl"
                 for row in events:
                     row["observed_at"] = _now_iso()
                     append_jsonl(events_path, row)
@@ -684,7 +684,7 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     _sync_conditional_p5_gate_states(state_doc=materialized, gate_evaluators=_gate_evaluators)
     _normalize_phase6_p5_state(
         state_doc=materialized,
-        events_path=session_path.parent / "events.jsonl",
+        events_path=session_path.parent / "logs" / "events.jsonl",
         clock=_now_iso,
         audit_sink=_append_jsonl,
         gate_constants=_gate_constants,
@@ -695,7 +695,7 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
 
     if result.source == "pipeline-auto-approve":
         _write_json_atomic(session_path, materialized)
-        events_path = session_path.parent / "events.jsonl"
+        events_path = session_path.parent / "logs" / "events.jsonl"
         apply_review_decision(
             decision="",
             session_path=session_path,
@@ -767,7 +767,7 @@ def get_canonical_active_gate(materialized: dict) -> str:
     _sync_conditional_p5_gate_states(state_doc=materialized, gate_evaluators=_gate_evaluators)
     _normalize_phase6_p5_state(
         state_doc=materialized,
-        events_path=session_path.parent / "events.jsonl",
+        events_path=session_path.parent / "logs" / "events.jsonl",
         clock=_now_iso,
         audit_sink=_append_jsonl,
         gate_constants=_gate_constants,

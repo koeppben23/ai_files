@@ -51,7 +51,7 @@ from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
     session_path, _, _, workspace_dir = resolve_active_session_paths()
-    events_path = workspace_dir / "events.jsonl"
+    events_path = workspace_dir / "logs" / "events.jsonl"
     return session_path, events_path
 
 

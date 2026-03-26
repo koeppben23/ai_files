@@ -467,7 +467,7 @@ def build_audit_readout(
         "verify_policy_version": active_verify_policy_version,
     }
 
-    events_raw = _parse_jsonl(session_path.parent / "events.jsonl")
+    events_raw = _parse_jsonl(session_path.parent / "logs" / "events.jsonl")
     normalized_events: list[dict[str, object]] = []
     for event in events_raw:
         normalized = _event_with_required_fields(event)

@@ -2132,7 +2132,7 @@ def main() -> int:
             )
             if business_rules_action in {"created", "overwritten", "appended"}:
                 business_rules_bootstrap_event = _append_jsonl_event(
-                    repo_home / "events.jsonl",
+                    repo_home / "logs" / "events.jsonl",
                     {
                         "event": "business-rules-extracted",
                         "observed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -2410,7 +2410,7 @@ def main() -> int:
     decision_pack_normalization_event = "not-emitted"
     if actions.get("decisionPack") == "normalized":
         decision_pack_normalization_event = _append_jsonl_event(
-            repo_home / "events.jsonl",
+            repo_home / "logs" / "events.jsonl",
             {
                 "event": "decision-pack-normalized-legacy-format",
                 "observed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),

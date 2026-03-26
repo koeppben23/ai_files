@@ -212,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         _append_jsonl(
-            session_path.parent / "events.jsonl",
+            session_path.parent / "logs" / "events.jsonl",
             {
                 "event": "work_session_reactivated",
                 "observed_at": observed_at,

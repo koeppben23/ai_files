@@ -26,7 +26,7 @@ from governance_runtime.infrastructure.session_locator import resolve_active_ses
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
     session_path, _, _, workspace_dir = resolve_active_session_paths()
-    events_path = workspace_dir / "events.jsonl"
+    events_path = workspace_dir / "logs" / "events.jsonl"
     return session_path, events_path
 
 

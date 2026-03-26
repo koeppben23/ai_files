@@ -1555,7 +1555,7 @@ def main(argv: list[str] | None = None) -> int:
             if not isinstance(row, Mapping):
                 continue
             _append_jsonl(
-                session_path.parent / "events.jsonl",
+                session_path.parent / "logs" / "events.jsonl",
                 {
                     "event": "phase5-self-review-iteration",
                     "observed_at": _now_iso(),
@@ -1613,7 +1613,7 @@ def main(argv: list[str] | None = None) -> int:
                 document["SESSION_STATE"] = state_after
         _write_json_atomic(session_path, document)
         _append_jsonl(
-            session_path.parent / "events.jsonl",
+            session_path.parent / "logs" / "events.jsonl",
             {
                 "event": "phase5-plan-record-persisted",
                 "observed_at": _now_iso(),

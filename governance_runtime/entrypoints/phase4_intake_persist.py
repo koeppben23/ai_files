@@ -179,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         _write_json_atomic(session_path, document)
         _append_jsonl(
-            session_path.parent / "events.jsonl",
+            session_path.parent / "logs" / "events.jsonl",
             {
                 "event": "phase4-intake-persisted",
                 "observed_at": _now_iso(),

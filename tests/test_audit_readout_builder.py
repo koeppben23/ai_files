@@ -34,6 +34,7 @@ def _setup_workspace(tmp_path: Path) -> tuple[Path, Path, Path]:
     workspace = config_root / "workspaces" / _FP
     commands_home.mkdir(parents=True)
     workspace.mkdir(parents=True)
+    (workspace / "logs").mkdir(parents=True)
 
     pointer = {
         "schema": "opencode-session-pointer.v1",
@@ -115,7 +116,7 @@ def test_happy_build_audit_readout_uses_runs_and_pointer(tmp_path: Path) -> None
         state_phase="6-PostFlight",
     )
 
-    (workspace / "events.jsonl").write_text(
+    (workspace / "logs" / "events.jsonl").write_text(
         json.dumps(
             {
                 "event": "new_work_session_created",
@@ -198,7 +199,7 @@ def test_edge_reactivation_keeps_last_snapshot_from_created_chain(tmp_path: Path
         state_phase="5-ArchitectureReview",
     )
 
-    (workspace / "events.jsonl").write_text(
+    (workspace / "logs" / "events.jsonl").write_text(
         "\n".join(
             [
                 json.dumps(
@@ -281,7 +282,7 @@ def test_bad_pointer_mismatch_sets_integrity_false(tmp_path: Path) -> None:
         state_phase="6-PostFlight",
     )
 
-    (workspace / "events.jsonl").write_text(
+    (workspace / "logs" / "events.jsonl").write_text(
         json.dumps(
             {
                 "event": "new_work_session_created",
@@ -342,7 +343,7 @@ def test_corner_reactivation_missing_run_reports_integrity_note(tmp_path: Path) 
         state_phase="5-ArchitectureReview",
     )
 
-    (workspace / "events.jsonl").write_text(
+    (workspace / "logs" / "events.jsonl").write_text(
         json.dumps(
             {
                 "event": "work_session_reactivated",
@@ -399,7 +400,7 @@ def test_replay_determinism_same_input_same_output(tmp_path: Path) -> None:
         source_phase="5-ArchitectureReview",
         state_phase="5-ArchitectureReview",
     )
-    (workspace / "events.jsonl").write_text(
+    (workspace / "logs" / "events.jsonl").write_text(
         json.dumps(
             {
                 "event": "new_work_session_created",
@@ -453,7 +454,7 @@ def test_archive_without_manifest_or_checksums_emits_notes(tmp_path: Path) -> No
         state_phase="6-PostFlight",
     )
 
-    (workspace / "events.jsonl").write_text(
+    (workspace / "logs" / "events.jsonl").write_text(
         json.dumps(
             {
                 "event": "new_work_session_created",
@@ -541,7 +542,7 @@ def test_last_snapshot_includes_run_and_integrity_status(tmp_path: Path) -> None
         },
     )
 
-    (workspace / "events.jsonl").write_text(
+    (workspace / "logs" / "events.jsonl").write_text(
         json.dumps(
             {
                 "event": "new_work_session_created",
@@ -622,7 +623,7 @@ def test_verified_archive_does_not_emit_run_verify_failed_note(tmp_path: Path) -
     )
 
     snapshot_doc = json.loads((_run_root(workspace, "work-1") / "SESSION_STATE.json").read_text(encoding="utf-8"))
-    (workspace / "events.jsonl").write_text(
+    (workspace / "logs" / "events.jsonl").write_text(
         json.dumps(
             {
                 "event": "new_work_session_created",

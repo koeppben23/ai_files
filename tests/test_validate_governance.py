@@ -1392,7 +1392,7 @@ def test_workspace_persistence_normalizes_legacy_decision_pack_and_emits_event(t
     assert "A) Yes" not in decision_text
     assert "B) No" not in decision_text
 
-    events_text = (workspace / "events.jsonl").read_text(encoding="utf-8")
+    events_text = (workspace / "logs" / "events.jsonl").read_text(encoding="utf-8")
     assert "decision-pack-normalized-legacy-format" in events_text
 
 

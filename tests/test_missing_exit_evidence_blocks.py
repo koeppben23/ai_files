@@ -60,7 +60,7 @@ def test_missing_exit_evidence_blocks_without_completed_event(tmp_path: Path, mo
     )
 
     assert result.status == "BLOCKED"
-    events_file = workspaces_home / fp / "events.jsonl"
+    events_file = workspaces_home / fp / "logs" / "events.jsonl"
     lines = [json.loads(line) for line in events_file.read_text(encoding="utf-8").splitlines()]
     assert any(evt.get("event") == "PHASE_BLOCKED" for evt in lines)
     assert not any(evt.get("event") == "PHASE_COMPLETED" and evt.get("phase_token") == "1.3" for evt in lines)

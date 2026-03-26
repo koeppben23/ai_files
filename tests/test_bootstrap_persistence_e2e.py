@@ -309,7 +309,7 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     assert "Rules" not in business_rules
     assert "Evidence" not in business_rules
 
-    events = _read_jsonl(workspace / "events.jsonl")
+    events = _read_jsonl(workspace / "logs" / "events.jsonl")
     phase_tokens = [str(event.get("phase_token") or "") for event in events]
     assert "2.1" in phase_tokens
     assert "3A" in phase_tokens

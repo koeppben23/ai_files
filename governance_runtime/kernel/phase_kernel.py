@@ -318,12 +318,12 @@ def _resolve_flow_paths(commands_home: Path | None, workspaces_home: Path | None
     Wave 25b: Only return workspace log paths, no commands/logs/ fallback.
     """
     paths: dict[str, Path] = {}
-    # Workspace-only paths (Wave 25b target)
     if workspaces_home is not None and repo_fingerprint:
-        paths["workspace_events"] = workspaces_home / repo_fingerprint / "events.jsonl"
-        paths["workspace_flow"] = get_workspace_logs_root(repo_fingerprint) / "flow.log.jsonl"
-        paths["workspace_boot"] = get_workspace_logs_root(repo_fingerprint) / "boot.log.jsonl"
-        paths["workspace_error"] = get_workspace_logs_root(repo_fingerprint) / "error.log.jsonl"
+        workspace_root = workspaces_home / repo_fingerprint
+        paths["workspace_events"] = workspace_root / "logs" / "events.jsonl"
+        paths["workspace_flow"] = workspace_root / "logs" / "flow.log.jsonl"
+        paths["workspace_boot"] = workspace_root / "logs" / "boot.log.jsonl"
+        paths["workspace_error"] = workspace_root / "logs" / "error.log.jsonl"
     _ = commands_home
     return paths
 
