@@ -251,7 +251,7 @@ def test_phase5_plan_persist_bad_outside_phase5_blocked(
     module = _load_module()
     config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
     payload = json.loads(session_path.read_text(encoding="utf-8"))
-    payload["SESSION_STATE"]["Phase"] = "4"
+    payload["SESSION_STATE"]["phase"] = "4"
     session_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
 
     monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
