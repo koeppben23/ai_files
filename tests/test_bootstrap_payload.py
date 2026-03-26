@@ -19,9 +19,9 @@ def test_bootstrap_payload_pointer_verified_true_golden():
         intent_effective_scope="full",
     )
     s = cast(dict[str, Any], state["SESSION_STATE"])
-    assert s["Phase"] == "1.2-ActivationIntent"
+    assert s["phase"] == "1.2-ActivationIntent"
     assert s["Mode"] == "IN_PROGRESS"
-    assert s["Next"] == "1.3"
+    assert s["next"] == "1.3"
     assert s["ActivationIntent"]["Status"] == "valid"
     assert s["Intent"]["Path"] == "${CONFIG_ROOT}/governance.activation_intent.json"
     assert s["Intent"]["Sha256"] == "a" * 64
@@ -45,9 +45,9 @@ def test_bootstrap_payload_not_satisfied_initial_block():
         pointer_verified=False,
     )
     s = cast(dict[str, Any], state["SESSION_STATE"])
-    assert s["Phase"] == "1.1-Bootstrap"
+    assert s["phase"] == "1.1-Bootstrap"
     assert s["Mode"] == "BLOCKED"
-    assert s["Next"] == "BLOCKED-START-REQUIRED"
+    assert s["next"] == "BLOCKED-START-REQUIRED"
     assert s["Bootstrap"]["Present"] is False
     assert s["Bootstrap"]["Satisfied"] is False
     assert s["Bootstrap"]["Evidence"] == "not-initialized"

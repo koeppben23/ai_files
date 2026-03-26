@@ -602,10 +602,10 @@ def _session_state_payload(
             "phase_transition_evidence": False,
             "session_state_version": 1,
             "ruleset_hash": None,
-            "Phase": phase,
+            "phase": phase,
             "Mode": mode,
             "ConfidenceLevel": 0,
-            "Next": next_gate,
+            "next": next_gate,
             "OutputMode": "ARCHITECT",
             "DecisionSurface": {},
             "Bootstrap": {
