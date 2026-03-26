@@ -4,255 +4,250 @@ AI-assisted engineering with explicit governance, deterministic workflow control
 
 ---
 
-## Positioning
+## Executive Summary
 
-The AI Engineering Governance Platform is designed for organizations that need more than AI-generated code. It provides a governed execution model for planning, implementation, review, approval, and evidence capture across controlled software delivery workflows.
+The **AI Engineering Governance Platform** transforms AI-assisted software delivery from unstructured chat interactions into **deterministic, policy-bound workflows** with explicit phases, gates, canonical state, audit artifacts, and fail-closed enforcement.
 
-It turns AI-assisted software delivery from an unstructured chat interaction into a deterministic, policy-bound workflow with explicit phases, gates, canonical state, audit artifacts, and fail-closed enforcement.
+Built for **regulated industries, enterprise engineering teams, and organizations with audit or compliance requirements**, the platform provides the operating discipline that AI-driven development needs to meet controlled software delivery standards.
+
+**Key Value Proposition:** Organizations can now use AI for software delivery while maintaining proof, control, and auditability — not just generated code.
 
 ---
 
-## Why it exists
+## The Problem
 
-Most AI coding tools optimize for speed and code generation. That is useful, but insufficient for organizations that must answer:
+Most AI coding tools optimize for speed and code generation. That's useful, but insufficient for organizations that must answer:
 
-- Who requested this change?
-- What exactly was approved?
-- Which rules and profiles were active?
-- What evidence exists for the implementation?
-- Which controls blocked or allowed the next step?
-- Can we export the full record for audit, risk, or legal review?
+- **Who** requested this change?
+- **What** exactly was approved?
+- **Which** rules and profiles were active?
+- **What** evidence exists for the implementation?
+- **Which** controls blocked or allowed the next step?
+- **Can** we export the full record for audit, risk, or legal review?
 
-The platform solves that gap. It is designed for organizations that want AI-assisted engineering productivity **with the operating discipline of a controlled software process**.
+Existing AI tools leave these questions unanswered. The platform closes this gap.
+
+---
+
+## Key Capabilities
+
+### Deterministic Workflow Control
+
+- **18 explicit phases** from bootstrap through post-flight
+- **Phase gates** that require evidence before progression
+- **Computed next actions** — the system tells you exactly what is allowed, not guessed
+- **Fail-closed enforcement** — execution blocks when evidence or state is invalid
+
+### Governance & Compliance
+
+- **Role-based profiles:** Solo (individual), Team (collaborative), Regulated (strictest controls)
+- **Business rules extraction** — the platform discovers and tracks governance-relevant code patterns
+- **Code surface analysis** — understanding what surfaces exist in your codebase
+- **Reason-coded blocking** — every blocker has a specific error code and remediation
+
+### Audit & Evidence
+
+- **Two-plane architecture** — separates active runtime state from immutable audit records
+- **Exportable audit bundles** — full provenance, checksums, decisions, and evidence
+- **Decision receipts** — complete trail of who approved what and when
+- **Tamper detection** — checksums and integrity verification
+
+### Enterprise Integration
+
+- **CI/CD ready** — team profile supports automated approval flows
+- **Profile system** — language-specific rules (Python, Java, Angular, etc.)
+- **Add-on architecture** — extensible governance rules and quality gates
+- **Self-hosted** — no external dependencies, full data sovereignty
+
+---
+
+## How It Works
+
+### 1. Bootstrap
+
+Every governed session starts with explicit binding:
+```
+opencode-governance-bootstrap init --profile <solo|team|regulated>
+```
+
+The system establishes workspace context, profile selection, and persistence prerequisites. If required evidence is missing, execution **blocks** rather than guessing.
+
+### 2. Governed Command Surface
+
+Eight governance rails map to workflow phases:
+
+| Command | Purpose |
+|---------|---------|
+| `/continue` | Materialize and display current state |
+| `/ticket` | Submit task/ticket for Phase 4 intake |
+| `/plan` | Persist architecture/planning evidence |
+| `/review` | Submit work for human review |
+| `/review-decision` | Record approve/changes_requested/reject |
+| `/implement` | Execute implementation with evidence |
+| `/implementation-decision` | Record final implementation decision |
+| `/audit-readout` | Export complete audit evidence |
+
+Each command is tied to state transitions, gate expectations, and evidence production.
+
+### 3. Phase Workflow
+
+The platform moves work through **explicit phases** rather than allowing arbitrary jumps:
+
+- **Phase 1:** Bootstrap & Activation — workspace setup, rulebook loading
+- **Phase 2:** Repository Discovery — identity, cache, map digest
+- **Phase 3:** API & Code Surface Analysis — what exists in the codebase
+- **Phase 4:** Ticket Intake — task definition and scope
+- **Phase 5:** Architecture Review — planning, review, quality gates
+- **Phase 6:** Implementation & Post-Flight — execution, verification, audit
+
+**Every phase transition requires evidence.** The system computes whether progression is allowed.
+
+### 4. Canonical State Model
+
+The governance runtime maintains **canonical state** — a stable execution contract that answers:
+
+- Current phase and next allowed action
+- Active profile and rulebooks
+- Evidence chain and decision history
+- Gate status and blockers (if any)
+
+In controlled environments, "the system should probably continue" is not acceptable. The platform says either:
+
+- **This is the next allowed action**, or
+- **Execution is blocked, with a concrete reason**
+
+### 5. Two-Plane Architecture
+
+The system explicitly separates:
+
+- **Runtime Plane** — active session state, derived artifacts, working locks
+- **Audit Plane** — immutable run archives, manifests, checksums, finalized records
+
+This separation is critical for enterprise buyers. Active working state and formal audit records are not the same thing. This enables reviewability, export, retention, and tamper detection.
 
 ---
 
 ## Deployment Profiles
 
-The platform operates in three modes, selected at bootstrap:
-
 ### Solo
 
-For individual engineers who want structured execution, explicit checkpoints, and a complete work record without enterprise overhead.
+For individual engineers who want structured execution, explicit checkpoints, and complete work records without enterprise overhead.
 
 ### Team
 
-For engineering teams that need repeatable planning, review visibility, and shared execution discipline across contributors.
-
-**CI/CD Integration:** The team profile enables non-interactive auto-approve at the Evidence Presentation Gate. When internal review is complete and eligibility conditions are met, the workflow auto-approves without manual intervention. This is designed for automated pipelines.
+For engineering teams needing repeatable planning, review visibility, and shared execution discipline. Includes **CI/CD auto-approve** at the Evidence Presentation Gate for automated pipelines.
 
 ### Regulated
 
-For organizations that require controlled approvals, auditable decisions, retained evidence, redaction support, and fail-closed governance behavior.
-
-**Note:** The regulated profile maps to `agents_strict` runtime mode, not `pipeline`. This ensures stricter enforcement and prevents silent downgrade in CI environments. Pipeline auto-approve does NOT apply to regulated/agents_strict mode.
+For organizations requiring controlled approvals, auditable decisions, retained evidence, redaction support, and **fail-closed governance behavior**. Maps to `agents_strict` runtime mode to prevent silent downgrade in CI environments.
 
 ---
 
-## Built for Controlled Engineering Environments
+## Platform Components
 
-The platform is designed for organizations that cannot rely on opaque assistant behavior alone. It fits environments where software delivery must be governed, reviewable, and operationally accountable — including:
-
-- regulated sectors and quality-sensitive software organizations
-- enterprise engineering teams and software delivery platforms
-- industrial, infrastructure, and financial software providers
-- organizations with audit, approval, and change-control requirements
-
----
-
-## Core Capabilities
-
-The platform does not just document AI-assisted work. It gates, reviews, exports, and enforces it:
-
-- governed AI-assisted engineering workflows
-- deterministic execution through explicit phases and gates
-- reviewable plans, decisions, and receipts
-- exportable audit evidence for internal control environments
-- fail-closed behavior when state or evidence is invalid
+| Component | Description |
+|-----------|-------------|
+| **Desktop Environment** | Interactive AI execution interface for operators |
+| **Governance Runtime** | Deterministic execution core — state, transitions, policy decisions |
+| **Policy & Profiles** | Language-specific rules (Python, Java, Angular, etc.) and control content |
+| **Bootstrap CLI** | Installation, binding, repo-identity, and session initialization |
 
 ---
 
-## How it works
+## Why Enterprise Teams Choose Us
 
-### 1. Bootstrap and binding
+### For Engineering Leadership
 
-Every governed session starts from an explicit bootstrap path:
+Standardize how AI work is initiated, planned, approved, implemented, and evidenced. Reduce the operational risk of chat-driven coding through explicit workflow phases, policy-bound transitions, and review gates.
 
-```
-opencode-governance-bootstrap init --profile <solo|team|regulated> --repo-root <repo-root>
-```
+### For Platform & Compliance Teams
 
-Bootstrap establishes the workspace context, binding data, profile selection, and repo-scoped persistence prerequisites. If required evidence or path binding is missing, the system blocks rather than guessing.
+Get a concrete control plane instead of vague assurances. Inspect active policy and profile selection, run manifests and provenance records, checksums and verification outcomes, classification policy, retention behavior, and reason-coded blocked decisions.
 
-### 2. Governed command surface
+### For Regulated Industries
 
-The platform exposes a constrained command surface mapped to governance rails:
-
-- `/continue`
-- `/ticket`
-- `/plan`
-- `/review`
-- `/review-decision <approve|changes_requested|reject>`
-- `/implement`
-- `/audit-readout`
-
-These are governance entrypoints tied to state, transition logic, gate expectations, and evidence production.
-
-### 3. Explicit phase workflow
-
-The platform uses a multi-phase workflow that moves work through governed stages rather than allowing arbitrary jumps. The runtime includes explicit gate and transition logic so that the next authorized action is computed rather than inferred.
-
-### 4. Canonical state and deterministic next action
-
-The governance runtime is built around a canonical state model. This gives the platform a stable execution contract. In controlled environments, "the system should probably continue" is not good enough. The platform is designed so the runtime can say either:
-
-- **this is the next allowed action**
-- or **execution is blocked, with a concrete reason**
-
-### 5. Review and approval gating
-
-Important progress points require review semantics. Planning output must be reviewed before implementation is authorized. Evidence presentation is required before final approval. `approve`, `changes_requested`, and `reject` outcomes explicitly route the workflow.
-
-### 6. Two-plane architecture
-
-The system separates:
-
-- **runtime plane** — active session state, derived artifacts, and locks
-- **audit plane** — immutable run archives, manifests, checksums, and finalized records
-
-This separation is a core enterprise property. Active working state and formal audit records are not treated as the same thing. That matters for reviewability, export, retention, and tamper detection.
+Answer control expectations around **traceability**, **separation of runtime/audit records**, **integrity verification**, **explicit approval points**, **retention and deletion control**, **field-level classification**, **exportability**, and **fail-closed handling**.
 
 ---
 
-## Governance Model
+## What We Are Not
 
-### Security design principle
+- **Not** a replacement for source control, CI system, or ticket system
+- **Not** a legal or compliance certification product by itself
+- **Not** a generic chatbot front-end
+- **Not** a promise that all AI-generated code is automatically correct
 
-**Repository content is data, not authority.**
-
-Repository files can inform or describe, but they do not silently authorize behavior. Policy authority comes from the governance runtime and its configured profile/policy inputs.
-
-### Fail-closed behavior
-
-Critical boundaries are designed to validate and fail closed:
-
-- missing evidence should block progress
-- invalid state should block progress
-- inconsistent or tampered audit artifacts should block verification
-- unsupported or ambiguous resolution paths should not be best-effort accepted
-
-### Reason-coded blocking
-
-When the platform cannot safely proceed, it emits explicit blocked outcomes rather than vague failure states:
-
-- bootstrap not satisfied
-- missing binding file
-- repo identity resolution failure
-- rulebook or profile resolution problems
-- integrity mismatch
-- persistence path violations
-- permission or operating-mode requirements
-
-That gives operators and compliance stakeholders a concrete vocabulary for why the system stopped.
+The value is the **governed operating model around AI-assisted engineering**, not autonomous software delivery without oversight.
 
 ---
 
-## Why regulated and enterprise teams buy it
+## Competitive Differentiation
 
-### For engineering leadership
-
-Engineering leaders get a way to standardize how AI work is initiated, planned, approved, implemented, and evidenced. It reduces the operational risk of chat-driven coding by introducing explicit workflow phases, policy-bound transitions, deterministic next actions, and review gates before implementation proceeds.
-
-### For platform, security, and compliance teams
-
-Non-feature teams get a concrete control plane instead of vague assurances. They can inspect active policy and profile selection, run manifests and provenance records, checksums and verification outcomes, classification and redaction policy, retention behavior, and reason-coded blocked decisions.
-
-### For regulated customers
-
-The platform helps answer typical control expectations around traceability, separation of runtime and audit records, integrity verification, explicit approval points, retention and deletion control, field-level classification and redaction, exportability for review or proceedings, and fail-closed handling when evidence or policy requirements are not satisfied.
+| Capability | Traditional AI Tools | Our Platform |
+|------------|---------------------|--------------|
+| Workflow phases | None | 18 explicit phases |
+| Evidence requirements | Implicit | Explicit, gate-based |
+| Audit trail | Chat history only | Complete, exportable |
+| Next action computation | Heuristic | Deterministic |
+| Blocking behavior | Silent failure | Reason-coded blocking |
+| Enterprise profiles | None | Solo/Team/Regulated |
+| Two-plane architecture | No | Runtime + Audit separation |
 
 ---
 
-## What it is not
+## Security Principles
 
-- not a replacement for source control, CI system, or ticket system
-- not a legal or compliance certification product by itself
-- not a generic chatbot front-end
-- not a promise that all code is automatically correct
+### Repository Content Is Data, Not Authority
 
-The value is the **governed operating model around AI-assisted engineering**, not a claim of autonomous software delivery without oversight.
+Repository files can inform or describe governance rules, but they do not silently authorize behavior. **Policy authority comes from the governance runtime**, not from repo content.
 
----
+### Fail-Closed by Default
 
-## Platform components
+Critical boundaries validate and fail closed:
+- Missing evidence → blocks progress
+- Invalid state → blocks progress  
+- Tampered audit artifacts → blocks verification
+- Ambiguous resolution → fails rather than best-effort
 
-### Desktop environment
+### Reason-Coded Blocking
 
-The interactive AI execution interface used by operators and engineers.
+When the platform cannot proceed, it emits explicit blocked outcomes with specific codes:
+- `BLOCKED_BOOTSTRAP_INCOMPLETE`
+- `BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE`
+- `BLOCKED_MISSING_BINDING_FILE`
+- `BLOCKED_REPO_IDENTITY_UNRESOLVED`
+- `BLOCKED_P5_PLAN_EMPTY`
+- And 40+ more reason codes
 
-### Governance runtime
-
-The deterministic execution core that handles state, transitions, policy-bound decisions, persistence, and fail-closed validation.
-
-### Policy, profiles, and control content
-
-Profiles, rules, contracts, control mappings, and operational documentation that shape how the runtime behaves in different environments.
-
-### Bootstrap CLI
-
-The installation, binding, repo-identity, and session-init path that makes the governed workflow reproducible and operable.
+This gives operators and compliance stakeholders a concrete vocabulary for system behavior.
 
 ---
 
-## Messaging pillars
+## Product Facts
 
-### 1. Governed, not just assisted
-
-AI can help produce software, but governance determines whether software work is acceptable, reviewable, and authorized.
-
-### 2. Proof, not just output
-
-The platform records why a change happened, how it was reviewed, what evidence exists, and whether the resulting run was finalized and verified.
-
-### 3. Deterministic, not heuristic
-
-The runtime uses canonical state, explicit transitions, and reason-coded blocked outcomes instead of relying on informal chat flow.
-
-### 4. Enterprise-ready by design
-
-The platform is built for separation of concerns, evidence retention, exportability, and fail-closed operation — the qualities regulated buyers actually ask about.
+- **Current Version:** 1.1.0-RC.2
+- **Supported Languages:** Python, Java, JavaScript/TypeScript (Angular), and growing
+- **Profile System:** 15+ language-specific governance profiles
+- **Phase Count:** 18 explicit workflow phases
+- **Command Surface:** 8 governance rails
+- **Add-on Architecture:** Extensible rules and quality gates
+- **Self-Hosted:** No external dependencies, full data sovereignty
 
 ---
 
-## Positioning statement
-
-For regulated and quality-sensitive software teams, the AI Engineering Governance Platform turns AI-assisted development into a deterministic, reviewable, and auditable workflow.
-
-Unlike general-purpose AI coding tools that primarily optimize generation speed, it adds explicit gates, canonical state, policy-bound transitions, immutable audit records, and fail-closed enforcement so organizations can use AI in software delivery under real operational control.
-
----
-
-## Short description
-
-**An AI engineering governance platform for organizations that need proof, control, and auditability — not just generated code.**
-
----
-
-## Non-negotiable product truths
-
-- The governance runtime is the authority for execution.
-- Canonical state and explicit transitions are central to the system.
-- Critical validation paths fail closed.
-- Audit evidence is a first-class product capability, not an afterthought.
-- Regulated and enterprise customers are a primary design target, not a late add-on.
-
----
-
-## In one sentence
+## In One Sentence
 
 The AI Engineering Governance Platform makes AI-assisted software delivery usable in regulated and control-heavy environments by adding deterministic workflow control, explicit approvals, and audit-ready proof.
 
 ---
 
-*Version: 1.2*  
-*Last Updated: 2026-03-23*
+## Contact
+
+For inquiries about deployment, enterprise features, or regulatory compliance:
+
+[Your contact information here]
+
+---
+
+*Version: 1.1.0-RC.2*  
+*Last Updated: 2026-03-26*
