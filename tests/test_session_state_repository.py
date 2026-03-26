@@ -35,9 +35,9 @@ def _session_state_doc(*, version: int = CURRENT_SESSION_STATE_VERSION, ruleset_
         "SESSION_STATE": {
             "session_state_version": version,
             "ruleset_hash": ruleset_hash,
-            "Phase": "1.1-Bootstrap",
+            "phase": "1.1-Bootstrap",
             "Mode": "OK",
-            "Next": "none",
+            "next": "none",
         }
     }
 

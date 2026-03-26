@@ -13,9 +13,9 @@ from governance_runtime.infrastructure.work_run_archive import archive_active_ru
 def _write_session_state(path: Path) -> dict[str, object]:
     state = {
         "session_run_id": "run-human-approval",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "PullRequestTitle": "feat: regulated human approval",
         "PullRequestBody": "body",
         "regulated_mode_state": "active",

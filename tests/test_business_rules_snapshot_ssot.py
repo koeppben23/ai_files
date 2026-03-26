@@ -259,9 +259,9 @@ def test_hydration_preserves_discovery_outcomes_materialization() -> None:
     report = snapshot["CodeExtractionReport"]
     assert isinstance(report, dict)
     assert report["raw_candidate_count"] == 2
-    assert len(report["discovery_outcomes"]) == 2
-    assert report["discovery_outcomes"][0]["path"] == "src/a.py"
-    assert report["discovery_outcomes"][-1]["path"] == "src/b.py"
+    assert isinstance(report["discovery_outcomes"], dict)
+    assert report["discovery_outcomes"]["count"] == 2
+    assert report["discovery_outcomes"]["truncated"] is False
 
 
 def test_hydration_marks_missing_discovery_outcomes_as_explicit_fallback() -> None:
@@ -310,6 +310,8 @@ def test_hydration_marks_missing_discovery_outcomes_as_explicit_fallback() -> No
         },
     )
     report = snapshot["CodeExtractionReport"]
-    assert report["discovery_outcomes"] == []
+    assert isinstance(report["discovery_outcomes"], dict)
+    assert report["discovery_outcomes"]["count"] == 3
+    assert report["discovery_outcomes"]["truncated"] is True
     assert report["discovery_outcomes_count"] == 3
     assert report["discovery_outcomes_truncated"] is True

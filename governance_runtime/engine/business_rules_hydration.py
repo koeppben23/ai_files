@@ -9,7 +9,7 @@ from typing import Any, Mapping, MutableMapping
 from governance_runtime.engine.business_rules_validation import validate_inventory_markdown
 from governance_runtime.infrastructure.session_pointer import is_session_pointer_document
 
-_CANONICAL_OUTCOMES = {"extracted", "gap-detected", "unresolved"}
+_CANONICAL_OUTCOMES = {"extracted", "gap-detected", "not-applicable", "unresolved"}
 _LEGACY_OUTCOMES = {"not-applicable", "deferred", "skipped"}
 _ACCEPTED_OUTCOMES = _CANONICAL_OUTCOMES | _LEGACY_OUTCOMES
 POINTER_AS_SESSION_STATE_ERROR = "SESSION_STATE_POINTER_PASSED_AS_SESSION_STATE"
@@ -351,6 +351,7 @@ def hydrate_code_extraction_report_for_session_state(
     report_map: Mapping[str, Any],
     counters: CodeExtractionCounters,
     report_sha: str,
+    include_discovery_outcomes: bool = False,
 ) -> dict[str, Any]:
     valid_rule_ratio = _parse_float(report_map.get("valid_rule_ratio"), default=0.0)
     if valid_rule_ratio <= 0.0 and counters.candidate_count > 0:
@@ -371,6 +372,14 @@ def hydrate_code_extraction_report_for_session_state(
         and counters.accepted_business_enforcement_count > 0
         and not discovery_outcomes
     )
+
+    # Create summary instead of full outcomes to reduce SESSION_STATE size
+    # Full outcomes can be retrieved from .governance/business_rules/code_extraction_report.json
+    discovery_outcomes_summary: dict[str, Any] = {
+        "count": len(discovery_outcomes) if discovery_outcomes else counters.raw_candidate_count,
+        "truncated": outcomes_missing_with_signal,
+        "samples": discovery_outcomes[:5] if discovery_outcomes and include_discovery_outcomes else [],
+    } if not include_discovery_outcomes else {"count": len(discovery_outcomes), "full": discovery_outcomes}
 
     return {
         "scanned_file_count": max(
@@ -404,9 +413,9 @@ def hydrate_code_extraction_report_for_session_state(
         ),
         "template_overfit_count": max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0),
         "scanned_surfaces": list(report_map.get("scanned_surfaces") or []),
-        # Keep full discovery outcomes materialized for replay/diagnostics.
-        # Counters remain the SSOT for aggregation decisions.
-        "discovery_outcomes": discovery_outcomes,
+        # Summary instead of full outcomes to reduce SESSION_STATE size
+        # Full outcomes available in .governance/business_rules/code_extraction_report.json
+        "discovery_outcomes": discovery_outcomes_summary,
         "discovery_outcomes_count": len(discovery_outcomes) if discovery_outcomes else counters.raw_candidate_count,
         "discovery_outcomes_truncated": outcomes_missing_with_signal,
         "report_sha": report_sha,
@@ -472,11 +481,21 @@ def canonicalize_business_rules_outcome(
     extracted_allowed: bool,
     final_report_available: bool,
     br_signal: bool,
+    all_surfaces_filtered_non_business: bool = False,
 ) -> str:
-    """Resolve canonical business-rules outcome to exactly three states."""
+    """Resolve canonical business-rules outcome to four states.
+
+    States:
+    - extracted: Business rules were found and extracted
+    - gap-detected: Business rules should exist but are missing
+    - not-applicable: Repo type doesn't have relevant business rules (e.g. infrastructure tools)
+    - unresolved: No determination could be made
+    """
 
     if extracted_allowed:
         return "extracted"
+    if all_surfaces_filtered_non_business:
+        return "not-applicable"
     if final_report_available:
         return "gap-detected"
     if br_signal:
@@ -618,11 +637,20 @@ def build_business_rules_state_snapshot(
             "extracted_count": valid_rule_count,
         },
     )
+    missing_surface_reasons = report_map.get("missing_surface_reasons")
+    all_surfaces_filtered_non_business = False
+    if isinstance(missing_surface_reasons, Mapping) and missing_surface_reasons:
+        all_surfaces_filtered_non_business = all(
+            str(reason).startswith("filtered_non_business")
+            for reason in missing_surface_reasons.values()
+        )
+
     outcome = canonicalize_business_rules_outcome(
         declared_outcome=declared_outcome,
         extracted_allowed=extracted_allowed,
         final_report_available=report_finalized,
         br_signal=br_signal,
+        all_surfaces_filtered_non_business=all_surfaces_filtered_non_business,
     )
 
     inventory_file_status = str(persistence_result.get("inventory_file_status") or "unknown").strip() or "unknown"

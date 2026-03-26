@@ -10,7 +10,7 @@ def _write_session(path: Path) -> None:
     payload = {
         "schema": "opencode-session-state.v1",
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "active_gate": "Evidence Presentation Gate",
             "regulated_mode_state": "active",
         },

@@ -105,7 +105,7 @@ def _minimal_session_state(phase: str = "5-Review") -> dict[str, object]:
     """Build minimal session state for contract builder tests."""
     return {
         "phase": phase,
-        "Phase": phase,
+        "phase": phase,
         "effective_operating_mode": "user",
         "activation_hash": "test-activation-hash-001",
         "ruleset_hash": "test-ruleset-hash-001",

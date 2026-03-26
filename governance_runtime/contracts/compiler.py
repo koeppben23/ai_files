@@ -29,6 +29,11 @@ def _slug(text: str) -> str:
     return cleaned[:48] or "requirement"
 
 
+def _owner_test_path_fragment(*, slug: str, digest: str) -> str:
+    base = slug[:36] or "requirement"
+    return f"{base}-{digest.lower()}"
+
+
 def _normalize_plan_lines(plan_text: str) -> list[str]:
     lines: list[str] = []
     for raw in str(plan_text or "").splitlines():
@@ -214,15 +219,16 @@ def compile_plan_to_requirements(
         digest = hashlib.sha256(f"{scope_prefix}|{idx}|{title}".encode("utf-8")).hexdigest()[:8]
         req_id = f"R-{scope_prefix}-{idx:03d}-{digest}".upper()
         slug = _slug(title)
+        owner_fragment = _owner_test_path_fragment(slug=slug, digest=digest)
         required_behavior, forbidden_behavior = _build_requirement_texts(segment)
         methods = _infer_methods(title, required_behavior, forbidden_behavior, segment.kind)
-        acceptance_test = f"tests/test_contract_{slug}.py::test_{slug}"
+        acceptance_test = f"tests/test_contract_{owner_fragment}.py::test_{owner_fragment}"
         out.append(
             {
                 "id": req_id,
                 "title": title,
                 "criticality": "important",
-                "owner_test": f"tests/test_contract_{slug}.py::test_{slug}",
+                "owner_test": f"tests/test_contract_{owner_fragment}.py::test_{owner_fragment}",
                 "live_proof_key": f"lp-{scope_prefix.lower()}-{idx:03d}-{slug[:20]}",
                 "required_behavior": [required_behavior],
                 "forbidden_behavior": [forbidden_behavior],

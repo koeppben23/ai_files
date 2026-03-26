@@ -83,7 +83,7 @@ def test_execute_non_phase6_uses_evaluator_first_guard_match(tmp_path, monkeypat
 
     result = execute(
         current_token="2.1",
-        session_state_doc={"SESSION_STATE": {"Phase": "2.1-DecisionPack", "phase_transition_evidence": True}},
+        session_state_doc={"SESSION_STATE": {"phase": "2.1-DecisionPack", "phase_transition_evidence": True}},
         runtime_ctx=_runtime_ctx(tmp_path),
         readonly=True,
     )
@@ -141,7 +141,7 @@ def test_execute_non_phase6_guarded_implementation_presentation_ready(tmp_path, 
 
     result = execute(
         current_token="6",
-        session_state_doc={"SESSION_STATE": {"Phase": "6-PostFlight", "phase_transition_evidence": True, "active_gate": "Implementation Presentation Gate"}},
+        session_state_doc={"SESSION_STATE": {"phase": "6-PostFlight", "phase_transition_evidence": True, "active_gate": "Implementation Presentation Gate"}},
         runtime_ctx=_runtime_ctx(tmp_path),
         readonly=True,
     )
@@ -187,7 +187,7 @@ def test_execute_non_phase6_guard_evaluator_error_is_visible(tmp_path, monkeypat
     with pytest.raises(GuardEvaluationError, match="non-phase6 evaluator error"):
         execute(
             current_token="2.1",
-            session_state_doc={"SESSION_STATE": {"Phase": "2.1-DecisionPack", "phase_transition_evidence": True}},
+            session_state_doc={"SESSION_STATE": {"phase": "2.1-DecisionPack", "phase_transition_evidence": True}},
             runtime_ctx=_runtime_ctx(tmp_path),
             readonly=True,
         )
@@ -235,7 +235,7 @@ def test_execute_non_allowlisted_legacy_event_does_not_bypass_default(tmp_path, 
         current_token="5",
         session_state_doc={
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "phase_transition_evidence": True,
                 "plan_record_versions": 1,
             }

@@ -125,8 +125,8 @@ def _write_e2e_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str, Path]:
     session = {
         "SESSION_STATE": {
             "RepoFingerprint": repo_fp,
-            "Phase": "5-ArchitectureReview",
-            "Next": "5",
+            "phase": "5-ArchitectureReview",
+            "next": "5",
             "Mode": "IN_PROGRESS",
             "session_run_id": "e2e-workflow-test",
             "active_gate": "Plan Record Preparation Gate",
@@ -210,8 +210,8 @@ def _write_phase6_session(
     doc = {
         "SESSION_STATE": {
             "RepoFingerprint": repo_fp,
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "Mode": "IN_PROGRESS",
             "session_run_id": "e2e-workflow-test",
             "active_gate": "Evidence Presentation Gate",

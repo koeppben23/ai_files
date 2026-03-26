@@ -16,6 +16,7 @@ if __package__ in {None, ""}:
 from governance_runtime.application.use_cases.phase_router import route_phase
 from governance_runtime.application.use_cases.rework_clarification import consume_rework_clarification_state
 from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
+from governance_runtime.application.services.state_accessor import get_phase
 from governance_runtime.domain.phase_state_machine import normalize_phase_token
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.session_pointer import (
@@ -54,6 +55,26 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     out: dict[str, object] = {"status": status}
     out.update(kwargs)
     return out
+
+
+def _ticket_record_path(session_path: Path) -> Path:
+    return session_path.parent / "ticket-record.json"
+
+
+def _persist_ticket_record(*, session_path: Path, repo_fingerprint: str, state: Mapping[str, Any]) -> Path:
+    payload = {
+        "schema": "governance.ticket-record.v1",
+        "repo_fingerprint": repo_fingerprint,
+        "source": "phase4-intake-bridge",
+        "updated_at": _now_iso(),
+        "ticket": str(state.get("Ticket") or ""),
+        "task": str(state.get("Task") or ""),
+        "ticket_digest": str(state.get("TicketRecordDigest") or ""),
+        "task_digest": str(state.get("TaskRecordDigest") or ""),
+    }
+    ticket_path = _ticket_record_path(session_path)
+    _write_json_atomic(ticket_path, payload)
+    return ticket_path
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -123,15 +144,13 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(state, dict):
             raise RuntimeError("SESSION_STATE root missing")
 
-        phase_before = str(state.get("Phase") or "")
+        phase_before = get_phase(state)
 
         # When /ticket is executed from Phase-6 rework clarification,
         # consume clarification state and force deterministic Phase-4 re-entry
         # before routing into the development path.
         if consume_rework_clarification_state(state, consumed_by="ticket", consumed_at=_now_iso()):
-            state["Phase"] = "4"
             state["phase"] = "4"
-            state["Next"] = "4"
             state["next"] = "4"
             state["active_gate"] = "Ticket Input Gate"
             state["next_gate_condition"] = "Collect ticket and planning constraints"
@@ -153,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
             }
 
         routed = route_phase(
-            requested_phase=normalize_phase_token(str(state.get("Phase") or "4")) or "4",
+            requested_phase=normalize_phase_token(get_phase(state) or "4") or "4",
             requested_active_gate=str(state.get("active_gate") or "Ticket Input Gate"),
             requested_next_gate_condition=str(state.get("next_gate_condition") or "Persist ticket intake evidence"),
             session_state_document=document,
@@ -178,8 +197,15 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         _write_json_atomic(session_path, document)
+        state_after = document.get("SESSION_STATE")
+        state_after_map = state_after if isinstance(state_after, dict) else {}
+        ticket_record_path = _persist_ticket_record(
+            session_path=session_path,
+            repo_fingerprint=repo_fingerprint,
+            state=state_after_map,
+        )
         _append_jsonl(
-            session_path.parent / "events.jsonl",
+            session_path.parent / "logs" / "events.jsonl",
             {
                 "event": "phase4-intake-persisted",
                 "observed_at": _now_iso(),
@@ -189,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
                 "ticket_digest_present": bool(ticket),
                 "task_digest_present": bool(task),
                 "source": "phase4-intake-bridge",
+                "ticket_record_path": str(ticket_record_path),
             },
         )
     except Exception as exc:
@@ -213,6 +240,7 @@ def main(argv: list[str] | None = None) -> int:
         next_gate=routed.active_gate,
         next_action="run /continue.",
         active_gate=routed.active_gate,
+        ticket_record_path=str(ticket_record_path),
     )
     if args.quiet:
         print(json.dumps(payload, ensure_ascii=True))

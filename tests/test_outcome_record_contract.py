@@ -12,9 +12,9 @@ def test_archive_writes_outcome_record_with_phase_surface(tmp_path: Path) -> Non
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-outcome",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "result": "success",
     }
 

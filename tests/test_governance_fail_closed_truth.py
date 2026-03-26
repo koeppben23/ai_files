@@ -575,4 +575,3 @@ class TestE2EImplementGovernanceBlockers:
             assert impl_status != "ready_for_review", (
                 "non-compliant implementation must not have status=ready_for_review"
             )
-

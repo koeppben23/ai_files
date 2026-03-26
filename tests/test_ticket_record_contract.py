@@ -12,9 +12,9 @@ def test_archive_writes_ticket_record_with_contract_header(tmp_path: Path) -> No
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-ticket",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "ticket_ref": "T-123",
         "ticket_title": "Contract hardening",
         "TicketRecordDigest": "sha256:ticket123",

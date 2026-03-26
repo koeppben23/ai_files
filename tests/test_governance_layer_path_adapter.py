@@ -50,7 +50,7 @@ class TestPathAdapterHappyPath:
         """Governance runtime root is derived from config root."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.get_governance_runtime_root()
-        assert _posix(result).endswith("/.local/opencode/governance_runtime")
+        assert _posix(result).endswith("/.local/share/opencode/governance_runtime")
         layer_adapter.set_config_root_override(None)
 
     def test_get_workspace_root_with_fingerprint(self) -> None:
@@ -133,35 +133,35 @@ class TestLegacyPathMapping:
         """Legacy commands/governance/ path resolves to runtime root."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands/governance_runtime")
-        assert _posix(result).endswith("/.local/opencode/governance_runtime")
+        assert _posix(result).endswith("/.local/share/opencode/governance_runtime")
         layer_adapter.set_config_root_override(None)
 
     def test_resolve_legacy_governance_with_suffix_preserved(self) -> None:
         """Legacy path with suffix preserves the suffix."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands/governance_runtime/engine/x.py")
-        assert _posix(result).endswith("/.local/opencode/governance_runtime/engine/x.py")
+        assert _posix(result).endswith("/.local/share/opencode/governance_runtime/engine/x.py")
         layer_adapter.set_config_root_override(None)
 
     def test_resolve_legacy_docs_with_suffix_preserved(self) -> None:
         """Legacy docs path with suffix preserves the suffix."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands/docs/foo.md")
-        assert _posix(result).endswith("/.local/opencode/governance_content/docs/foo.md")
+        assert _posix(result).endswith("/.local/share/opencode/governance_content/docs/foo.md")
         layer_adapter.set_config_root_override(None)
 
     def test_resolve_legacy_profiles_with_suffix_preserved(self) -> None:
         """Legacy profiles path with suffix preserves the suffix."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands/profiles/rules.md")
-        assert _posix(result).endswith("/.local/opencode/governance_content/profiles/rules.md")
+        assert _posix(result).endswith("/.local/share/opencode/governance_content/profiles/rules.md")
         layer_adapter.set_config_root_override(None)
 
     def test_resolve_legacy_docs_path(self) -> None:
         """Legacy commands/docs/ path resolves to content root with docs."""
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("commands/docs")
-        assert _posix(result).endswith("/.local/opencode/governance_content/docs")
+        assert _posix(result).endswith("/.local/share/opencode/governance_content/docs")
         layer_adapter.set_config_root_override(None)
 
     def test_resolve_unknown_legacy_path_defaults_to_commands(self) -> None:
@@ -230,5 +230,5 @@ class TestPathAdapterCornerCases:
         layer_adapter.set_config_root_override("/test/config")
         result = layer_adapter.resolve_legacy_path("/commands/governance_runtime")
         # Should not have issues
-        assert _posix(result).endswith("/.local/opencode/governance_runtime")
+        assert _posix(result).endswith("/.local/share/opencode/governance_runtime")
         layer_adapter.set_config_root_override(None)

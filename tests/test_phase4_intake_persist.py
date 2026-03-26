@@ -30,7 +30,13 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     commands_home.mkdir(parents=True, exist_ok=True)
     spec_home.mkdir(parents=True, exist_ok=True)
 
-    (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
+    # Copy required governance specs used by runtime routing and validation.
+    src_spec_dir = REPO_ROOT / "governance_spec"
+    if src_spec_dir.exists():
+        for src in src_spec_dir.glob("*.yaml"):
+            (spec_home / src.name).write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    if not (spec_home / "phase_api.yaml").exists():
+        (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     # Migrate legacy rule/master content into the new SSOT-backed command home for tests
     try:
         master_src = get_master_path()
@@ -59,8 +65,8 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     session = {
         "SESSION_STATE": {
             "RepoFingerprint": repo_fp,
-            "Phase": "4",
-            "Next": "4",
+            "phase": "4",
+            "next": "4",
             "active_gate": "Ticket Input Gate",
             "next_gate_condition": "Collect ticket",
             "PersistenceCommitted": True,
@@ -113,8 +119,12 @@ def test_phase4_intake_good_chat_text_routes_to_phase5(tmp_path: Path, monkeypat
     assert isinstance(state["TicketRecordDigest"], str) and state["TicketRecordDigest"]
     assert state["phase4_intake_evidence"] is True
     assert state["phase4_intake_source"] == "phase4-intake-bridge"
-    assert state["Phase"] == "5-ArchitectureReview"
+    assert state["phase"] == "5-ArchitectureReview"
     assert state["active_gate"] == "Plan Record Preparation Gate"
+    ticket_record = json.loads((session_path.parent / "ticket-record.json").read_text(encoding="utf-8"))
+    assert ticket_record["schema"] == "governance.ticket-record.v1"
+    assert ticket_record["ticket"] == "Implement BR bridge"
+    assert ticket_record["ticket_digest"] == state["TicketRecordDigest"]
 
 
 @pytest.mark.governance
@@ -134,8 +144,11 @@ def test_phase4_intake_good_file_input_routes_to_phase5(tmp_path: Path, monkeypa
     state = payload["SESSION_STATE"]
     assert state["Ticket"] == "Implement from file"
     assert isinstance(state["TicketRecordDigest"], str) and state["TicketRecordDigest"]
-    assert state["Phase"] == "5-ArchitectureReview"
+    assert state["phase"] == "5-ArchitectureReview"
     assert state["active_gate"] == "Plan Record Preparation Gate"
+    ticket_record = json.loads((session_path.parent / "ticket-record.json").read_text(encoding="utf-8"))
+    assert ticket_record["ticket"] == "Implement from file"
+    assert ticket_record["ticket_digest"] == state["TicketRecordDigest"]
 
 
 @pytest.mark.governance
@@ -194,7 +207,7 @@ def test_phase4_intake_happy_consumes_rework_clarification_state(tmp_path: Path,
     config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
     payload = json.loads(session_path.read_text(encoding="utf-8"))
     state = payload["SESSION_STATE"]
-    state["Phase"] = "6-PostFlight"
+    state["phase"] = "6-PostFlight"
     state["active_gate"] = "Rework Clarification Gate"
     state["phase6_state"] = "6.rework"
     state["next_gate_condition"] = "Clarify requested changes in chat, then run directed next rail."
@@ -208,7 +221,8 @@ def test_phase4_intake_happy_consumes_rework_clarification_state(tmp_path: Path,
     assert rc == 0
 
     updated = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
-    assert updated["Phase"] == "5-ArchitectureReview"
+    phase_val = updated.get("phase") or updated.get("Phase") or ""
+    assert phase_val == "5-ArchitectureReview"
     assert updated["active_gate"] == "Plan Record Preparation Gate"
     assert updated.get("phase6_state") is None
     assert updated.get("UserReviewDecision") is None

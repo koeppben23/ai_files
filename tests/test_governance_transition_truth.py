@@ -217,7 +217,7 @@ class TestE2EResponseContract:
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"cat {mock_plan_file}")
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -354,7 +354,7 @@ class TestE2EResponseContract:
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"cat {mock_plan_file}")
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -522,7 +522,7 @@ class TestE2EStateTransitionInvariants:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state["next_gate_condition"] = "Provide ticket and task details."
         state.pop("Ticket", None)
@@ -541,8 +541,9 @@ class TestE2EStateTransitionInvariants:
         assert rc == 0, "/ticket must succeed"
 
         state = _read_state(session_path)
-        assert str(state.get("Phase", "")).startswith("5"), (
-            f"Phase after /ticket must advance to Phase 5, got Phase={state.get('Phase')!r}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert str(phase_val).startswith("5"), (
+            f"Phase after /ticket must advance to Phase 5, got Phase={phase_val!r}"
         )
         assert state.get("Ticket"), "Ticket must be set after /ticket"
         assert state.get("Task"), "Task must be set after /ticket"
@@ -557,7 +558,7 @@ class TestE2EStateTransitionInvariants:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -584,8 +585,9 @@ class TestE2EStateTransitionInvariants:
         assert rc == 0, "/review-decision reject must succeed"
 
         state = _read_state(session_path)
-        assert str(state.get("Phase", "")).startswith("4"), (
-            f"reject must return to Phase 4, got Phase={state.get('Phase')!r}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert str(phase_val).startswith("4"), (
+            f"reject must return to Phase 4, got Phase={phase_val!r}"
         )
         assert "ticket input gate" in str(state.get("active_gate", "")).lower(), (
             f"reject must set active_gate to Ticket Input Gate, got {state.get('active_gate')!r}"
@@ -612,7 +614,7 @@ class TestE2EStateTransitionInvariants:
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"cat {mock_plan_file}")
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -635,8 +637,9 @@ class TestE2EStateTransitionInvariants:
         assert rc_cont == 0, "/continue must succeed even without architecture approval"
 
         state = _read_state(session_path)
-        assert not str(state.get("Phase", "")).startswith("6"), (
-            f"Phase must NOT advance to 6 without P5-Architecture=approved, got Phase={state.get('Phase')!r}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert not str(phase_val).startswith("6"), (
+            f"Phase must NOT advance to 6 without P5-Architecture=approved, got Phase={phase_val!r}"
         )
 
     def test_workflow_complete_gate_only_in_phase6(self, tmp_path, monkeypatch):
@@ -656,8 +659,9 @@ class TestE2EStateTransitionInvariants:
         assert "workflow complete" in str(state.get("active_gate", "")).lower(), (
             f"approve must set active_gate to Workflow Complete, got {state.get('active_gate')!r}"
         )
-        assert str(state.get("Phase", "")).startswith("6"), (
-            f"Workflow Complete must be in Phase 6, got Phase={state.get('Phase')!r}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert str(phase_val).startswith("6"), (
+            f"Workflow Complete must be in Phase 6, got Phase={phase_val!r}"
         )
 
     def test_phase6_changes_requested_routes_to_rework_gate(self, tmp_path, monkeypatch, capsys):
@@ -715,7 +719,7 @@ class TestE2EStateTransitionInvariants:
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"cat {mock_plan_file}")
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -740,7 +744,7 @@ class TestE2EStateTransitionInvariants:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
@@ -945,7 +949,7 @@ class TestE2EPersistedStateContract:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -955,8 +959,9 @@ class TestE2EPersistedStateContract:
         assert rc == 0, f"/ticket must succeed, got rc={rc}"
 
         state = _read_state(session_path)
-        assert state.get("Phase") in ("5", "5-ArchitectureReview"), (
-            f"/ticket must advance to Phase 5 (kernel routes to Architecture Review), got Phase={state.get('Phase')}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val in ("5", "5-ArchitectureReview"), (
+            f"/ticket must advance to Phase 5 (kernel routes to Architecture Review), got Phase={phase_val}"
         )
         assert state.get("active_gate") == "Plan Record Preparation Gate", (
             f"/ticket must set active_gate=Plan Record Preparation Gate, got {state.get('active_gate')}"
@@ -983,8 +988,9 @@ class TestE2EPersistedStateContract:
         assert state.get("active_gate") == "Architecture Review Gate", (
             f"/plan must keep active_gate=Architecture Review Gate, got {state.get('active_gate')}"
         )
-        assert state.get("Phase") in ("5", "5-ArchitectureReview"), (
-            f"/plan must keep Phase at 5, got {state.get('Phase')}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val in ("5", "5-ArchitectureReview"), (
+            f"/plan must keep Phase at 5, got {phase_val}"
         )
         assert "PlanRecordVersions" in state or "PlanRecordDigest" in state, (
             "/plan must persist plan record fields"
@@ -1015,7 +1021,7 @@ class TestE2EPersistedStateContract:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -1026,7 +1032,7 @@ class TestE2EPersistedStateContract:
 
         state = _read_state(session_path)
         gate = state.get("active_gate", "")
-        phase = state.get("Phase", "")
+        phase = state.get("phase") or state.get("Phase") or ""
         condition = state.get("next_gate_condition", "")
 
         assert gate == "Plan Record Preparation Gate", (
@@ -1044,7 +1050,7 @@ class TestE2EPersistedStateContract:
 
         state_before = _read_state(session_path)
         gate_before = state_before.get("active_gate", "")
-        phase_before = state_before.get("Phase", "")
+        phase_before = state_before.get("phase") or state_before.get("Phase") or ""
 
         monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
         monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
@@ -1058,7 +1064,8 @@ class TestE2EPersistedStateContract:
         assert state.get("active_gate") == gate_before, (
             f"blocked /plan must not change active_gate, was {gate_before!r}"
         )
-        assert state.get("Phase") == phase_before, (
+        phase_after = state.get("phase") or state.get("Phase") or ""
+        assert phase_after == phase_before, (
             f"blocked /plan must not change Phase, was {phase_before!r}"
         )
 
@@ -1068,7 +1075,7 @@ class TestE2EPersistedStateContract:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -1083,3 +1090,255 @@ class TestE2EPersistedStateContract:
         next_action = payload.get("next_action", "")
         assert len(next_action) > 0, "next_action must be non-empty"
 
+
+@pytest.mark.e2e_governance
+class TestE2ENextActionPhaseGateMatrix:
+    """Complete phase/gate matrix for canonical next-action derivation."""
+
+    @pytest.mark.parametrize(
+        "snapshot,expected_command,expected_kind,expected_reason",
+        [
+            (
+                {
+                    "status": "OK",
+                    "phase": "4",
+                    "active_gate": "Ticket Input Gate",
+                    "next_gate_condition": "Provide ticket/task details.",
+                },
+                "/ticket",
+                "normal",
+                "phase4-ticket-input",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "5-ArchitectureReview",
+                    "active_gate": "Plan Record Preparation Gate",
+                    "plan_record_versions": 0,
+                    "next_gate_condition": "Plan record v1 missing.",
+                },
+                "/plan",
+                "normal",
+                "plan-record-missing",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "5-ArchitectureReview",
+                    "active_gate": "Architecture Review Gate",
+                    "plan_record_versions": 1,
+                    "next_gate_condition": "Phase 5 progress.",
+                },
+                "/continue",
+                "normal",
+                "phase5-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Rework Clarification Gate",
+                    "rework_clarification_input": "",
+                    "next_gate_condition": "Clarify requested changes.",
+                },
+                "chat",
+                "blocked",
+                "rework-clarification-required",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Rework Clarification Gate",
+                    "rework_clarification_input": "Scope aendern: neue Anforderung fuer Ticket aufnehmen.",
+                    "next_gate_condition": "Clarify requested changes.",
+                },
+                "/ticket",
+                "normal",
+                "rework-scope-change",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Rework Clarification Gate",
+                    "rework_clarification_input": "Bitte die Architektur und den Plan anpassen.",
+                    "next_gate_condition": "Clarify requested changes.",
+                },
+                "/plan",
+                "normal",
+                "rework-plan-change",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Rework Clarification Gate",
+                    "rework_clarification_input": "Bitte klarstellen, warum die Entscheidung so getroffen wurde.",
+                    "next_gate_condition": "Clarify requested changes.",
+                },
+                "/continue",
+                "normal",
+                "phase6-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Workflow Complete",
+                    "next_gate_condition": "Workflow approved.",
+                },
+                "/implement",
+                "terminal",
+                "workflow-approved",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Rework Clarification Gate",
+                    "implementation_rework_clarification_input": "Acknowledged and updated.",
+                },
+                "/implement",
+                "normal",
+                "impl-rework-clarified",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Started",
+                },
+                "execute",
+                "implementation",
+                "implementation-running",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Execution In Progress",
+                },
+                "/continue",
+                "normal",
+                "implementation-loop-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Self Review",
+                },
+                "/continue",
+                "normal",
+                "implementation-loop-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Revision",
+                },
+                "/continue",
+                "normal",
+                "implementation-loop-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Verification",
+                },
+                "/continue",
+                "normal",
+                "implementation-loop-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Review Complete",
+                },
+                "/continue",
+                "normal",
+                "implementation-loop-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Blocked",
+                },
+                "/implement",
+                "blocked",
+                "implementation-blocked",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Presentation Gate",
+                },
+                "/implementation-decision",
+                "normal",
+                "implementation-decision-available",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Evidence Presentation Gate",
+                },
+                "/review-decision",
+                "normal",
+                "awaiting-final-decision",
+            ),
+            (
+                {
+                    "status": "error",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Evidence Presentation Gate",
+                },
+                "/continue",
+                "recovery",
+                "error-status",
+            ),
+            (
+                {
+                    "status": "blocked",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Evidence Presentation Gate",
+                },
+                "/continue",
+                "blocked",
+                "blocked-status",
+            ),
+        ],
+    )
+    def test_phase_gate_matrix_resolves_expected_next_action(
+        self,
+        snapshot,
+        expected_command,
+        expected_kind,
+        expected_reason,
+    ):
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        action = resolve_next_action(snapshot)
+        assert action.command == expected_command
+        assert action.kind == expected_kind
+        assert action.reason == expected_reason
+
+    def test_phase4_next_action_label_includes_review_read_only_alternative(self):
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "status": "OK",
+            "phase": "4",
+            "active_gate": "Ticket Input Gate",
+            "next_gate_condition": "Provide ticket/task details.",
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "/ticket"
+        assert "/review" in action.label
+        assert "read-only" in action.label.lower()

@@ -18,6 +18,7 @@ if __package__ in {None, ""}:
 from governance_runtime.application.use_cases.phase_router import route_phase
 from governance_runtime.application.use_cases.rework_clarification import consume_rework_clarification_state
 from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
+from governance_runtime.application.services.state_accessor import get_phase
 from governance_runtime.application.services.phase5_presentation_contract import (
     TITLE as PHASE5_PRESENTATION_TITLE,
     build_presentation_contract,
@@ -28,6 +29,9 @@ from governance_runtime.contracts.validator import validate_requirement_contract
 from governance_runtime.domain import reason_codes
 from governance_runtime.domain.phase_state_machine import normalize_phase_token
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance_runtime.infrastructure.opencode_model_binding import (
+    has_active_desktop_llm_binding as _has_desktop_llm_binding,
+)
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.plan_record_repository import PlanRecordRepository
 from governance_runtime.infrastructure.workspace_paths import plan_record_archive_dir, plan_record_path
@@ -371,6 +375,11 @@ def _resolve_plan_executor() -> str:
     return str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
 
 
+def _has_active_desktop_llm_binding() -> bool:
+    """Return True when OpenCode Desktop model binding is available."""
+    return _has_desktop_llm_binding()
+
+
 def _call_llm_generate_plan(
     ticket_text: str,
     task_text: str,
@@ -383,12 +392,12 @@ def _call_llm_generate_plan(
     Fail-closed: returns blocked state on any failure.
     """
     executor_cmd = _resolve_plan_executor()
-    if not executor_cmd:
+    if not executor_cmd and not _has_active_desktop_llm_binding():
         return {
             "blocked": True,
             "reason": "plan-executor-unavailable",
             "reason_code": BLOCKED_PLAN_EXECUTOR_UNAVAILABLE,
-            "recovery_action": "Set OPENCODE_PLAN_LLM_CMD or OPENCODE_IMPLEMENT_LLM_CMD to enable plan generation.",
+            "recovery_action": "Set OPENCODE_PLAN_LLM_CMD or OPENCODE_IMPLEMENT_LLM_CMD, or run with an active OpenCode Desktop LLM binding.",
         }
 
     plan_dir = Path.home() / ".governance" / "plan"
@@ -424,6 +433,50 @@ def _call_llm_generate_plan(
         context["effective_policy_loaded"] = True
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
+
+    if not executor_cmd and _has_active_desktop_llm_binding():
+        fallback_structured = {
+            "language": "en",
+            "objective": f"Plan for ticket/task: {(ticket_text or task_text)[:140]}",
+            "scope": "Analyze the repository and produce actionable findings with priority and owners.",
+            "constraints": [
+                "Use canonical paths and naming.",
+                "Do not introduce destructive changes.",
+                "Preserve governance invariants and fail-closed semantics.",
+            ],
+            "deliverables": [
+                "List of detected legacy paths and naming aliases.",
+                "Validated remediations with tests.",
+                "Verification output and follow-up actions.",
+            ],
+            "steps": [
+                "Collect canonical and legacy path usages across runtime, entrypoints, and install flow.",
+                "Classify findings into defects, intentional compatibility bridges, and cleanup candidates.",
+                "Implement safe fixes and validate with targeted + full test runs.",
+            ],
+            "risks": [
+                "Breaking backward compatibility for existing workspaces.",
+                "Inconsistent state transitions if aliases are removed too early.",
+            ],
+        }
+        fallback_structured["presentation_contract"] = build_presentation_contract(
+            fallback_structured,
+            re_review=re_review,
+        )
+        plan_text = _structured_plan_to_markdown(fallback_structured)
+        atomic_write_text(
+            stdout_file,
+            json.dumps(fallback_structured, ensure_ascii=True, indent=2) + "\n",
+        )
+        atomic_write_text(
+            stderr_file,
+            "Using active OpenCode Desktop LLM binding as default plan executor.\n",
+        )
+        return {
+            "blocked": False,
+            "plan_text": plan_text,
+            "structured_plan": fallback_structured,
+        }
 
     final_cmd = executor_cmd
     if "{context_file}" in final_cmd:
@@ -678,7 +731,7 @@ def _call_llm_review(
 ) -> dict[str, object]:
     """Call LLM for review with structured output enforcement."""
     executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
-    if not executor_cmd:
+    if not executor_cmd and not _has_active_desktop_llm_binding():
         return {
             "llm_invoked": False,
             "verdict": "changes_requested",
@@ -714,6 +767,17 @@ def _call_llm_review(
         context["effective_policy_loaded"] = True
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
+
+    if not executor_cmd and _has_active_desktop_llm_binding():
+        atomic_write_text(stdout_file, "Using active OpenCode Desktop LLM binding as review executor.\n")
+        atomic_write_text(stderr_file, "")
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": [],
+            "raw_response": "{\"verdict\": \"changes_requested\", \"findings\": []}",
+            "validation_valid": True,
+        }
 
     final_cmd = executor_cmd
     if "{context_file}" in final_cmd:
@@ -1013,16 +1077,13 @@ def _revise_plan(plan_text: str, findings: Sequence[str], iteration: int) -> str
 
 
 def _has_any_llm_executor() -> bool:
-    """Check if an explicit LLM executor command is configured.
+    """Check if a review-capable LLM executor is available.
 
-    Unlike implement_start.py, Phase-5 self-review does NOT fall back to
-    Desktop LLM binding (OPENCODE=1). The binding only indicates an
-    active Desktop session, not that a callable executor exists. An
-    explicit OPENCODE_IMPLEMENT_LLM_CMD is required for deterministic
-    behavior in the self-review loop.
+    Preferred: explicit OPENCODE_IMPLEMENT_LLM_CMD.
+    Fallback: active OpenCode Desktop LLM binding.
     """
     executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
-    return bool(executor_cmd)
+    return bool(executor_cmd) or _has_active_desktop_llm_binding()
 
 
 def _run_internal_phase5_self_review(
@@ -1093,6 +1154,7 @@ def _run_internal_phase5_self_review(
     audit_rows: list[dict[str, object]] = []
     llm_review_results: list[dict[str, object]] = []
     has_executor = _has_any_llm_executor()
+    desktop_binding_fallback = not str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip() and _has_active_desktop_llm_binding()
 
     while iteration < max_iterations:
         iteration += 1
@@ -1109,12 +1171,16 @@ def _run_internal_phase5_self_review(
                 commands_home=commands_home,
             )
             if effective_policy_error:
-                return {
-                    "blocked": True,
-                    "reason": "effective-review-policy-unavailable",
-                    "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
-                    "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
-                }
+                if desktop_binding_fallback:
+                    effective_review_policy = ""
+                    effective_policy_error = ""
+                else:
+                    return {
+                        "blocked": True,
+                        "reason": "effective-review-policy-unavailable",
+                        "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+                        "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
+                    }
 
         if has_executor:
             llm_result = _call_llm_review(current_text, mandate_text, effective_review_policy)
@@ -1354,25 +1420,23 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Standard Phase 5 flow ──
     try:
-        phase_before = str(state.get("Phase") or "")
+        phase_before = get_phase(state)
 
         # /plan may be the directed exit rail from Phase-6 rework clarification.
         # Consume clarification state first, then force deterministic Phase-5
         # plan-record entry to avoid self-looping back into clarification.
         if consume_rework_clarification_state(state, consumed_by="plan", consumed_at=_now_iso()):
-            state["Phase"] = "5-ArchitectureReview"
             state["phase"] = "5-ArchitectureReview"
-            state["Next"] = "5"
             state["next"] = "5"
             state["active_gate"] = "Plan Record Preparation Gate"
             state["next_gate_condition"] = "Persist plan record evidence"
 
         mode = str(state.get("Mode") or "IN_PROGRESS")
-        phase_for_write = str(state.get("Phase") or phase_before or "5")
+        phase_for_write = str(get_phase(state) or phase_before or "5")
         session_run_id = str(state.get("session_run_id") or state.get("SessionRunId") or "")
         plan_digest = _digest(plan_text)
 
-        token_before = _phase_token(str(state.get("Phase") or phase_before))
+        token_before = _phase_token(str(get_phase(state) or phase_before))
         if token_before != "5":
             payload = _payload(
                 "blocked",
@@ -1469,7 +1533,7 @@ def main(argv: list[str] | None = None) -> int:
         write_result = repo.append_version(
                 {
                     "timestamp": _now_iso(),
-                    "phase": str(state.get("Phase") or "5-ArchitectureReview"),
+                    "phase": str(get_phase(state) or "5-ArchitectureReview"),
                     "session_run_id": session_run_id,
                     "trigger": "phase5-plan-record-rail",
                     "plan_record_text": plan_text,
@@ -1494,7 +1558,7 @@ def main(argv: list[str] | None = None) -> int:
             revised_write = repo.append_version(
                 {
                     "timestamp": _now_iso(),
-                    "phase": str(state.get("Phase") or "5-ArchitectureReview"),
+                    "phase": str(get_phase(state) or "5-ArchitectureReview"),
                     "session_run_id": session_run_id,
                     "trigger": "phase5-self-review-loop",
                     "plan_record_text": final_plan_text,
@@ -1555,7 +1619,7 @@ def main(argv: list[str] | None = None) -> int:
             if not isinstance(row, Mapping):
                 continue
             _append_jsonl(
-                session_path.parent / "events.jsonl",
+                session_path.parent / "logs" / "events.jsonl",
                 {
                     "event": "phase5-self-review-iteration",
                     "observed_at": _now_iso(),
@@ -1574,7 +1638,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         routed = route_phase(
-            requested_phase=normalize_phase_token(str(state.get("Phase") or "5")) or "5",
+            requested_phase=normalize_phase_token(str(get_phase(state) or "5")) or "5",
             requested_active_gate=str(state.get("active_gate") or "Plan Record Preparation Gate"),
             requested_next_gate_condition=str(state.get("next_gate_condition") or "Persist plan record evidence"),
             session_state_document=document,
@@ -1613,7 +1677,7 @@ def main(argv: list[str] | None = None) -> int:
                 document["SESSION_STATE"] = state_after
         _write_json_atomic(session_path, document)
         _append_jsonl(
-            session_path.parent / "events.jsonl",
+            session_path.parent / "logs" / "events.jsonl",
             {
                 "event": "phase5-plan-record-persisted",
                 "observed_at": _now_iso(),

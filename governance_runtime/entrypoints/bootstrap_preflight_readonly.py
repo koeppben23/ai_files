@@ -29,6 +29,7 @@ from governance_runtime.entrypoints.write_policy import writes_allowed, EFFECTIV
 from governance_runtime.infrastructure.tenant_config import load_tenant_config, get_profile_override
 from governance_runtime.application.use_cases.phase_router import route_phase
 from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
+from governance_runtime.application.services.state_accessor import get_next, get_phase
 from governance_runtime.domain.phase_state_machine import normalize_phase_token, phase_rank
 from governance_runtime.engine.sanitization import apply_fresh_start_business_rules_neutralization
 from governance_runtime.engine.business_rules_hydration import (
@@ -93,8 +94,8 @@ HOOK_STATUS_FAILED = "failed"
 
 DEFAULT_ACTIVE_PROFILE_ID = "fallback-minimum"
 DEFAULT_ADDON_KEY = "riskTiering"
-DEFAULT_ADDON_RULEBOOK = "rules.risk-tiering.yml"
-_BUSINESS_RULES_RESOLVED_OUTCOMES = {"extracted", "gap-detected", "unresolved"}
+DEFAULT_ADDON_RULEBOOK = "addons/riskTiering.addon.yml"
+_BUSINESS_RULES_RESOLVED_OUTCOMES = {"extracted", "gap-detected", "not-applicable", "unresolved"}
 SUPPORTED_PROFILE_IDS = {
     "backend-python",
     "backend-java",
@@ -914,7 +915,7 @@ def _apply_ticket_intake_readiness(document: Mapping[str, object], *, phase_toke
     state = _root_state(updated)
     ready = _ticket_intake_ready(state, phase_token)
     state["ticket_intake_ready"] = ready
-    phase_ready = _phase_ready_value(state.get("Phase") or phase_token)
+    phase_ready = _phase_ready_value(get_phase(state) or phase_token)
     if phase_ready is not None:
         state["phase_ready"] = phase_ready
     updated["SESSION_STATE"] = state
@@ -1087,7 +1088,7 @@ def _detect_repo_profile(repo_root: Path | None) -> dict[str, object]:
 
 
 def _profile_rulebook_path_token(profile_id: str) -> str:
-    return f"${{PROFILES_HOME}}/rules.{profile_id}.yml"
+    return f"${{PROFILES_HOME}}/rules.{profile_id}.md"
 
 
 def _addon_rulebook_path_token() -> str:
@@ -1367,13 +1368,13 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
         preflight = {}
     preflight.setdefault("BuildToolchain", _preflight_build_toolchain_snapshot())
     state["Preflight"] = preflight
-    current_phase = str(state.get("Phase") or "")
-    requested_token = normalize_phase_token(current_phase) or "1.2"
+    current_phase = get_phase(state)
+    requested_token = normalize_phase_token(current_phase) or "1.1"
     max_hops = 8
     hops = 0
     last_result: dict[str, object] = {
         "phase": current_phase,
-        "next_token": str(state.get("Next") or ""),
+        "next_token": get_next(state),
         "status": "OK",
         "active_gate": str(state.get("active_gate") or ""),
         "next_gate_condition": str(state.get("next_gate_condition") or ""),
@@ -1444,7 +1445,7 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
     document = _apply_ticket_intake_readiness(document, phase_token=resolved_token)
     final_state = _root_state(document)
     final_state["phase_transition_evidence"] = False
-    final_phase = str(final_state.get("Phase") or final_state.get("phase") or "").strip()
+    final_phase = get_phase(final_state).strip()
     has_ticket = bool(str(final_state.get("Ticket") or "").strip())
     has_task = bool(str(final_state.get("Task") or "").strip())
     has_ticket_digest = bool(str(final_state.get("TicketRecordDigest") or "").strip())

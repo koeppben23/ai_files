@@ -235,8 +235,8 @@ class TestReadSessionSnapshotSuccess:
         """PascalCase keys (legacy convention) are extracted correctly."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "4",
-            "Next": "5",
+            "phase": "4",
+            "next": "5",
             "Mode": "repo-aware",
             "status": "OK",
             "OutputMode": "structured",
@@ -328,7 +328,7 @@ class TestReadSessionSnapshotSuccess:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "status": "OK",
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "active_gate": "Evidence Presentation Gate",
             "Ticket": "Ticket summary example",
             "ImplementationReview": {
@@ -362,7 +362,7 @@ class TestReadSessionSnapshotSuccess:
         ws_dir = fake_config / "workspaces" / "abc123"
         ws_dir.mkdir(parents=True)
         ws_state = ws_dir / "SESSION_STATE.json"
-        _write_workspace_state(ws_state, {"Phase": "2", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "2", "status": "OK"})
 
         pointer = {
             "schema": POINTER_SCHEMA,
@@ -381,8 +381,8 @@ class TestReadSessionSnapshotSuccess:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "4",
-                "Next": "4",
+                "phase": "4",
+                "next": "4",
                 "Mode": "IN_PROGRESS",
                 "OutputMode": "ARCHITECT",
                 "active_gate": "Ticket Input Gate",
@@ -410,7 +410,7 @@ class TestReadSessionSnapshotSuccess:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "5-ArchitectureReview",
+                    "phase": "5-ArchitectureReview",
                     "active_gate": "Architecture Review Gate",
                     "plan_record_status": "active",
                     "plan_record_versions": 2,
@@ -433,7 +433,7 @@ class TestReadSessionSnapshotSuccess:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "5-ArchitectureReview",
+                    "phase": "5-ArchitectureReview",
                     "plan_record_status": "active",
                     "plan_record_versions": "1",
                 }
@@ -471,7 +471,7 @@ class TestPlanRecordLabel:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
                 "plan_record_status": "active",
                 "plan_record_versions": 3,
@@ -491,7 +491,7 @@ class TestPlanRecordLabel:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "4",
+                "phase": "4",
                 "status": "OK",
             }
         })
@@ -509,7 +509,7 @@ class TestPlanRecordLabel:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5",
+                "phase": "5",
                 "status": "OK",
                 "plan_record_status": "error",
                 "plan_record_versions": 2,
@@ -529,7 +529,7 @@ class TestPlanRecordLabel:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5",
+                "phase": "5",
                 "status": "OK",
                 "plan_record_status": "unknown",
                 "plan_record_versions": 1,
@@ -548,7 +548,7 @@ class TestPlanRecordLabel:
         """When kernel result provides plan_record_status/versions, label uses those."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "5",
+            "phase": "5",
             "status": "OK",
             "plan_record_status": "absent",
             "plan_record_versions": 0,
@@ -591,7 +591,7 @@ class TestPlanRecordLabel:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5",
+                "phase": "5",
                 "status": "OK",
                 "plan_record_status": "active",
                 "plan_record_versions": "not-a-number",
@@ -616,7 +616,7 @@ class TestPlanRecordLabel:
         )
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
             }
         })
@@ -639,7 +639,7 @@ class TestReadonlyKernelEvalEnrichment:
         """When kernel eval succeeds, snapshot fields come from KernelResult."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "4",
+            "phase": "4",
             "status": "OK",
             "active_gate": "stale-gate",
             "next_gate_condition": "stale-condition",
@@ -683,8 +683,8 @@ class TestReadonlyKernelEvalEnrichment:
         """When kernel eval raises, snapshot falls back to persisted state."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "4",
-            "Next": "5",
+            "phase": "4",
+            "next": "5",
             "status": "OK",
             "active_gate": "Ticket Input Gate",
             "next_gate_condition": "collect ticket",
@@ -712,7 +712,7 @@ class TestReadonlyKernelEvalEnrichment:
 
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "4",
+                "phase": "4",
                 "status": "OK",
                 "active_gate": "Ticket Input Gate",
                 "next_gate_condition": "Collect ticket and planning constraints",
@@ -768,7 +768,7 @@ class TestReadonlyKernelEvalEnrichment:
         """When kernel eval returns BLOCKED, snapshot reflects BLOCKED."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "4",
+            "phase": "4",
             "status": "OK",
             "active_gate": "stale-gate",
         })
@@ -806,7 +806,7 @@ class TestReadonlyKernelEvalEnrichment:
     def test_readonly_eval_does_not_write_to_disk(self, fake_config: Path) -> None:
         """The readonly code path must never call _write_json_atomic."""
         ws_state = _write_pointer(fake_config)
-        _write_workspace_state(ws_state, {"Phase": "4", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "4", "status": "OK"})
         original_content = ws_state.read_text(encoding="utf-8")
 
         from governance_runtime.kernel.phase_kernel import KernelResult
@@ -976,7 +976,7 @@ class TestFormatSnapshot:
 class TestMain:
     def test_success_exit_code(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
         ws_state = _write_pointer(fake_config)
-        _write_workspace_state(ws_state, {"Phase": "4", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "4", "status": "OK"})
         with _mock_readonly_unavailable():
             rc = main(["--commands-home", str(fake_config / "commands")])
         assert rc == 0
@@ -1005,8 +1005,8 @@ class TestMain:
             {
                 "SESSION_STATE": {
                     "session_run_id": "work-2",
-                    "Phase": "4",
-                    "Next": "5",
+                    "phase": "4",
+                    "next": "5",
                     "active_gate": "Ticket Input Gate",
                     "phase4_intake_updated_at": "2026-03-05T20:34:32Z",
                 }
@@ -1016,9 +1016,9 @@ class TestMain:
         snapshot_doc = {
             "SESSION_STATE": {
                 "session_run_id": "work-1",
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "active_gate": "Post Flight",
-                "Next": "6",
+                "next": "6",
             }
         }
         snapshot_path = ws_state.parent.parent / "governance-records" / ws_state.parent.name / "runs" / "work-1" / "SESSION_STATE.json"
@@ -1057,7 +1057,8 @@ class TestMain:
             ),
             encoding="utf-8",
         )
-        (ws_state.parent / "events.jsonl").write_text(
+        (ws_state.parent / "logs").mkdir(parents=True, exist_ok=True)
+        (ws_state.parent / "logs" / "events.jsonl").write_text(
             json.dumps(
                 {
                     "event": "new_work_session_created",
@@ -1102,8 +1103,8 @@ class TestMain:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "5-ArchitectureReview",
-                    "Next": "5",
+                    "phase": "5-ArchitectureReview",
+                    "next": "5",
                     "active_gate": "Plan Record Preparation Gate",
                     "next_gate_condition": "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review",
                     "status": "OK",
@@ -1188,8 +1189,8 @@ class TestMain:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "5-ArchitectureReview",
-                    "Next": "5",
+                    "phase": "5-ArchitectureReview",
+                    "next": "5",
                     "active_gate": "Architecture Review Gate",
                     "next_gate_condition": "Continue",
                     "status": "OK",
@@ -1266,8 +1267,8 @@ class TestMain:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "5-ArchitectureReview",
-                    "Next": "5.3",
+                    "phase": "5-ArchitectureReview",
+                    "next": "5.3",
                     "active_gate": "Architecture Review Gate",
                     "next_gate_condition": "Proceed to Phase 5.3 test-quality gate.",
                     "status": "OK",
@@ -1343,8 +1344,8 @@ class TestMain:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "4",
-                    "Next": "5",
+                    "phase": "4",
+                    "next": "5",
                     "active_gate": "Ticket Input Gate",
                     "next_gate_condition": "Collect ticket and planning constraints",
                     "status": "OK",
@@ -1416,8 +1417,8 @@ class TestMain:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "6-PostFlight",
-                    "Next": "6",
+                    "phase": "6-PostFlight",
+                    "next": "6",
                     "phase6_state": "6.execution",
                     "active_gate": "Post Flight",
                     "next_gate_condition": "Implement, run deterministic internal implementation review loop, then present evidence.",
@@ -1532,8 +1533,8 @@ class TestMain:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "6-PostFlight",
-                    "Next": "6",
+                    "phase": "6-PostFlight",
+                    "next": "6",
                     "active_gate": "Post Flight",
                     "next_gate_condition": "Complete implementation review iterations.",
                     "status": "OK",
@@ -1649,8 +1650,8 @@ class TestMain:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "6-PostFlight",
-                    "Next": "6",
+                    "phase": "6-PostFlight",
+                    "next": "6",
                     "active_gate": "Evidence Presentation Gate",
                     "next_gate_condition": "Implementation review loop is complete.",
                     "status": "OK",
@@ -1761,8 +1762,8 @@ class TestMain:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "6-PostFlight",
-                    "Next": "6",
+                    "phase": "6-PostFlight",
+                    "next": "6",
                     "active_gate": "Post Flight",
                     "next_gate_condition": "Complete implementation review iterations.",
                     "status": "OK",
@@ -1854,7 +1855,7 @@ class TestCrossPlatform:
         ws_dir = fake_config / "workspaces" / "win_fp"
         ws_dir.mkdir(parents=True)
         ws_state = ws_dir / "SESSION_STATE.json"
-        _write_workspace_state(ws_state, {"Phase": "3", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "3", "status": "OK"})
 
         # Use an absolute path string (works on any OS)
         pointer = {
@@ -1888,7 +1889,7 @@ class TestTransitionEvidenceVisibility:
     def test_happy_evidence_true_from_kernel(self, fake_config: Path) -> None:
         """When kernel reports evidence met, snapshot shows True."""
         ws_state = _write_pointer(fake_config)
-        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "5", "status": "OK"})
 
         from governance_runtime.kernel.phase_kernel import KernelResult
 
@@ -1922,7 +1923,7 @@ class TestTransitionEvidenceVisibility:
     def test_happy_evidence_false_from_kernel_no_block(self, fake_config: Path) -> None:
         """When kernel reports evidence not met but status is OK, shows False without hint."""
         ws_state = _write_pointer(fake_config)
-        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "5", "status": "OK"})
 
         from governance_runtime.kernel.phase_kernel import KernelResult
 
@@ -1957,7 +1958,7 @@ class TestTransitionEvidenceVisibility:
     def test_corner_evidence_blocked_shows_diagnostic_hint(self, fake_config: Path) -> None:
         """When kernel blocks on missing evidence, snapshot includes diagnostic hint."""
         ws_state = _write_pointer(fake_config)
-        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "5", "status": "OK"})
 
         from governance_runtime.kernel.phase_kernel import KernelResult
 
@@ -1994,7 +1995,7 @@ class TestTransitionEvidenceVisibility:
         """When kernel eval fails, evidence is read from persisted state."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "5",
+            "phase": "5",
             "status": "OK",
             "phase_transition_evidence": True,
         })
@@ -2008,7 +2009,7 @@ class TestTransitionEvidenceVisibility:
         """Persisted evidence as non-empty string evaluates to True."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "5",
+            "phase": "5",
             "status": "OK",
             "phase_transition_evidence": "architecture-approved",
         })
@@ -2022,7 +2023,7 @@ class TestTransitionEvidenceVisibility:
         """Persisted evidence as empty string evaluates to False."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "5",
+            "phase": "5",
             "status": "OK",
             "phase_transition_evidence": "",
         })
@@ -2036,7 +2037,7 @@ class TestTransitionEvidenceVisibility:
         """Persisted evidence as non-empty list evaluates to True."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "5",
+            "phase": "5",
             "status": "OK",
             "phase_transition_evidence": ["review-passed"],
         })
@@ -2050,7 +2051,7 @@ class TestTransitionEvidenceVisibility:
         """Persisted evidence as empty list evaluates to False."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "5",
+            "phase": "5",
             "status": "OK",
             "phase_transition_evidence": [],
         })
@@ -2063,7 +2064,7 @@ class TestTransitionEvidenceVisibility:
     def test_bad_no_evidence_field_defaults_to_false(self, fake_config: Path) -> None:
         """When phase_transition_evidence is absent, defaults to False."""
         ws_state = _write_pointer(fake_config)
-        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "5", "status": "OK"})
 
         with _mock_readonly_unavailable():
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -2074,7 +2075,7 @@ class TestTransitionEvidenceVisibility:
         """phase_transition_evidence is rendered in format_snapshot output."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "5",
+            "phase": "5",
             "status": "OK",
             "phase_transition_evidence": True,
         })
@@ -2088,7 +2089,7 @@ class TestTransitionEvidenceVisibility:
     def test_evidence_false_appears_in_formatted_output(self, fake_config: Path) -> None:
         """phase_transition_evidence=false is rendered in format_snapshot output."""
         ws_state = _write_pointer(fake_config)
-        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "5", "status": "OK"})
 
         with _mock_readonly_unavailable():
             snapshot = read_session_snapshot(commands_home=fake_config / "commands")
@@ -2118,8 +2119,8 @@ class TestTransitionEvidenceAutoGrant:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "5-ArchitectureReview",
-                    "Next": "5",
+                    "phase": "5-ArchitectureReview",
+                    "next": "5",
                     "active_gate": "Architecture Review Gate",
                     "next_gate_condition": "Resume via /continue",
                     "status": "OK",
@@ -2199,8 +2200,8 @@ class TestTransitionEvidenceAutoGrant:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "5-ArchitectureReview",
-                    "Next": "5",
+                    "phase": "5-ArchitectureReview",
+                    "next": "5",
                     "active_gate": "Architecture Review Gate",
                     "next_gate_condition": "Continue review",
                     "status": "OK",
@@ -2291,8 +2292,8 @@ class TestTransitionEvidenceStayStrategyRegressions:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": phase,
-                    "Next": next_token,
+                    "phase": phase,
+                    "next": next_token,
                     "active_gate": "Architecture Review Gate",
                     "next_gate_condition": "Continue deterministic review",
                     "status": "OK",
@@ -2415,8 +2416,8 @@ class TestRuntimeContextTransitionSelection:
         pointer = {"activeRepoFingerprint": "abc123"}
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
-                "Next": "4",
+                "phase": "6-PostFlight",
+                "next": "4",
                 "phase_transition_evidence": True,
                 "active_gate": "Evidence Presentation Gate",
                 "next_gate_condition": "Review rejected",
@@ -2434,8 +2435,8 @@ class TestRuntimeContextTransitionSelection:
         pointer = {"activeRepoFingerprint": "abc123"}
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
-                "Next": "4",
+                "phase": "6-PostFlight",
+                "next": "4",
                 "phase_transition_evidence": False,
                 "active_gate": "Evidence Presentation Gate",
                 "next_gate_condition": "Review rejected",
@@ -2493,7 +2494,7 @@ class TestPhase5SelfReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
                 "active_gate": "Architecture Review Gate",
                 "Phase5Review": {
@@ -2519,7 +2520,7 @@ class TestPhase5SelfReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
                 "active_gate": "Architecture Review Gate",
                 "Phase5Review": {
@@ -2544,7 +2545,7 @@ class TestPhase5SelfReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
                 "Phase5Review": {
                     "iteration": 1,
@@ -2568,7 +2569,7 @@ class TestPhase5SelfReviewDiagnostics:
         """Phase 4 snapshot must NOT contain phase5 self-review fields."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "4",
+            "phase": "4",
             "status": "OK",
         })
 
@@ -2586,7 +2587,7 @@ class TestPhase5SelfReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
                 "Phase5Review": {
                     "Iteration": 2,
@@ -2619,7 +2620,7 @@ class TestMissingTransitionEvidenceDiagnosed:
     ) -> None:
         """When kernel source is 'phase-transition-evidence-required', snapshot has hint."""
         ws_state = _write_pointer(fake_config)
-        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "5", "status": "OK"})
 
         from governance_runtime.kernel.phase_kernel import KernelResult
 
@@ -3003,7 +3004,7 @@ class TestRouteTargetExplanation:
     ) -> None:
         """When kernel evaluates route_strategy=next, snapshot explains the route target."""
         ws_state = _write_pointer(fake_config)
-        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "5", "status": "OK"})
 
         from governance_runtime.kernel.phase_kernel import KernelResult
 
@@ -3043,7 +3044,7 @@ class TestRouteTargetExplanation:
     ) -> None:
         """When kernel evaluates route_strategy=stay, no route explanation fields."""
         ws_state = _write_pointer(fake_config)
-        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "5", "status": "OK"})
 
         from governance_runtime.kernel.phase_kernel import KernelResult
 
@@ -3081,7 +3082,7 @@ class TestRouteTargetExplanation:
     ) -> None:
         """Without kernel eval, no route explanation fields appear."""
         ws_state = _write_pointer(fake_config)
-        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+        _write_workspace_state(ws_state, {"phase": "5", "status": "OK"})
 
         with _mock_readonly_unavailable():
             result = read_session_snapshot(commands_home=fake_config / "commands")
@@ -3118,7 +3119,7 @@ class TestPhase6ImplementationReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
                 "ImplementationReview": {
                     "iteration": 2,
@@ -3147,7 +3148,7 @@ class TestPhase6ImplementationReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
                 "ImplementationReview": {
                     "iteration": 3,
@@ -3175,7 +3176,7 @@ class TestPhase6ImplementationReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
                 "ImplementationReview": {
                     "iteration": 1,
@@ -3201,7 +3202,7 @@ class TestPhase6ImplementationReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
                 "ImplementationReview": {
                     "Iteration": 2,
@@ -3230,7 +3231,7 @@ class TestPhase6ImplementationReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
                 "phase6_review_iterations": 1,
                 "phase6_max_review_iterations": 2,
@@ -3254,7 +3255,7 @@ class TestPhase6ImplementationReviewDiagnostics:
         """Phase 4 snapshot must NOT contain phase6 implementation-review fields."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
-            "Phase": "4",
+            "phase": "4",
             "status": "OK",
         })
 
@@ -3272,7 +3273,7 @@ class TestPhase6ImplementationReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
                 "ImplementationReview": {
                     "iteration": 1,
@@ -3299,7 +3300,7 @@ class TestPhase6ImplementationReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
             }
         })
@@ -3321,7 +3322,7 @@ class TestPhase6ImplementationReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
                 "ImplementationReview": "invalid",
             }
@@ -3342,7 +3343,7 @@ class TestPhase6ImplementationReviewDiagnostics:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
                 "ImplementationReview": {
                     "iteration": "not-a-number",
@@ -3370,7 +3371,7 @@ class TestPhase6GovernanceConfigWiring:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
             }
         })
@@ -3388,7 +3389,7 @@ class TestPhase6GovernanceConfigWiring:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
             }
         })
@@ -3418,7 +3419,7 @@ class TestPhase6GovernanceConfigWiring:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
+                "phase": "6-PostFlight",
                 "status": "OK",
                 "ImplementationReview": {
                     "iteration": 1,
@@ -3462,7 +3463,7 @@ class TestPhase6KernelGovernanceConfigWiring:
         
         state = {
             "repo_fingerprint": "abc123",
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
         }
         
         result = _phase6_max_review_iterations(state)
@@ -3510,7 +3511,7 @@ class TestPhase6KernelGovernanceConfigWiring:
         
         state = {
             "repo_fingerprint": "abc123",
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
         }
         
         result = _phase6_max_review_iterations(state)
@@ -3540,7 +3541,7 @@ class TestPhase6KernelGovernanceConfigWiring:
         
         state = {
             "repo_fingerprint": "abc123",
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "ImplementationReview": {
                 "max_iterations": 5,
             },
@@ -3584,7 +3585,7 @@ class TestPhase6KernelGovernanceConfigWiring:
         
         state = {
             "repo_fingerprint": "abc123",
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
         }
         
         with pytest.raises(RuntimeError):
@@ -3872,8 +3873,8 @@ class TestPhase6LLMReviewLoopGatingEvals:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "6-PostFlight",
-                    "Next": "6",
+                    "phase": "6-PostFlight",
+                    "next": "6",
                     "active_gate": "Post Flight",
                     "status": "OK",
                     "ActiveProfile": "profile.fallback-minimum",
@@ -3976,8 +3977,8 @@ class TestPhase6LLMReviewLoopGatingEvals:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "6-PostFlight",
-                    "Next": "6",
+                    "phase": "6-PostFlight",
+                    "next": "6",
                     "active_gate": "Post Flight",
                     "status": "OK",
                     "ActiveProfile": "profile.fallback-minimum",
@@ -4084,8 +4085,8 @@ class TestPhase6LLMReviewLoopGatingEvals:
             ws_state,
             {
                 "SESSION_STATE": {
-                    "Phase": "6-PostFlight",
-                    "Next": "6",
+                    "phase": "6-PostFlight",
+                    "next": "6",
                     "active_gate": "Post Flight",
                     "status": "OK",
                     "ActiveProfile": "profile.fallback-minimum",
@@ -4202,8 +4203,8 @@ class TestPhase6LLMReviewLoopGatingEvals:
         ws_state = _write_pointer(fake_config)
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
-                "Next": "6",
+                "phase": "6-PostFlight",
+                "next": "6",
                 "active_gate": "Post Flight",
                 "status": "OK",
                 "LoadedRulebooks": {

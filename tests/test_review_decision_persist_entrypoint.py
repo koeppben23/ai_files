@@ -24,7 +24,7 @@ def _write_session(path: Path, *, phase: str = "6-PostFlight") -> None:
     payload = {
         "schema": "opencode-session-state.v1",
         "SESSION_STATE": {
-            "Phase": phase,
+            "phase": phase,
             "active_gate": "Evidence Presentation Gate",
             "session_materialization_event_id": "mat-abc",
             "session_state_revision": 1,

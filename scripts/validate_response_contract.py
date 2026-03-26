@@ -211,9 +211,13 @@ def validate(payload: dict) -> list[str]:
         na_type = next_action.get("type")
         if na_type not in {"command", "reply_with_one_number", "manual_step"}:
             errors.append("next_action.type must be one of command|reply_with_one_number|manual_step")
-        for key in ("Status", "Next", "Why", "Command"):
+        for key in ("Status", "Why", "Command"):
             if not _is_nonempty_string(next_action.get(key)):
                 errors.append(f"next_action.{key} must be a non-empty string")
+        # Accept both lowercase 'next' and uppercase 'Next' in next_action
+        next_key = next_action.get("next") or next_action.get("Next")
+        if not _is_nonempty_string(next_key):
+            errors.append("next_action.next must be a non-empty string")
         if na_type == "command":
             if str(next_action.get("Command", "")).strip().lower() == "none":
                 errors.append("next_action.Command must not be none when next_action.type=command")
@@ -221,7 +225,7 @@ def validate(payload: dict) -> list[str]:
             if str(next_action.get("Command", "")).strip().lower() != "none":
                 errors.append("next_action.Command must be none when next_action.type is reply_with_one_number|manual_step")
 
-    next_text = next_action.get("Next") if isinstance(next_action, dict) else None
+    next_text = next_action.get("next") or next_action.get("Next") if isinstance(next_action, dict) else None
     why_text = next_action.get("Why") if isinstance(next_action, dict) else None
     if isinstance(status, str):
         errors.extend(

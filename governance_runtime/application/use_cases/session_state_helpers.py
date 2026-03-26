@@ -241,9 +241,7 @@ def with_kernel_result(
     root = state.get("SESSION_STATE")
     ss = dict(root) if isinstance(root, Mapping) else {}
 
-    ss["Phase"] = phase
     ss["phase"] = phase
-    ss["Next"] = next_token or ""
     ss["next"] = next_token or ""
     ss["active_gate"] = active_gate
     ss["next_gate_condition"] = next_gate_condition

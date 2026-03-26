@@ -12,9 +12,9 @@ def test_archive_writes_evidence_index_with_refs_and_archived_map(tmp_path: Path
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-evidence-index",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "evidence_refs": ["docs/spec.md:10", "tests/test_x.py:5"],
     }
 

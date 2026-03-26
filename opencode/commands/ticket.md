@@ -50,6 +50,7 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 - Ticket files or chat text do not change phase by themselves; the intake command must run.
 - Intake reroute writes evidence and advances from Phase 4 into the Phase 5 review gate path.
+- Intake evidence is persisted to `SESSION_STATE` and `workspaces/<fingerprint>/ticket-record.json`.
 - Intake reroute is not implementation approval; code-producing output remains blocked until Phase 6.
 
 ## Response shape

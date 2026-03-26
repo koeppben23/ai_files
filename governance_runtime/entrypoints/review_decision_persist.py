@@ -124,7 +124,7 @@ def _apply_pipeline_auto_approve(
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
     session_path, _, _, workspace_dir = resolve_active_session_paths()
-    events_path = workspace_dir / "events.jsonl"
+    events_path = workspace_dir / "logs" / "events.jsonl"
     return session_path, events_path
 
 
@@ -417,9 +417,7 @@ def apply_review_decision(
         state.pop("rework_clarification_consumed_at", None)
     elif normalized == "changes_requested":
         # Enter explicit clarification gate before any further rail is chosen.
-        state["Phase"] = "6-PostFlight"
         state["phase"] = "6-PostFlight"
-        state["Next"] = "6"
         state["next"] = "6"
         state["active_gate"] = "Rework Clarification Gate"
         state["next_gate_condition"] = (
@@ -446,9 +444,7 @@ def apply_review_decision(
         state.pop("WorkflowComplete", None)
     elif normalized == "reject":
         # Return to Phase 4 with a consistent visible return path.
-        state["Phase"] = "4"
         state["phase"] = "4"
-        state["Next"] = "4"
         state["next"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state["next_gate_condition"] = (
@@ -501,7 +497,7 @@ def apply_review_decision(
         "ok",
         decision=normalized,
         event_id=event_id,
-        next_phase=str(state.get("Phase") or state.get("phase") or ""),
+        next_phase=get_phase(state),
         next_gate=str(state.get("active_gate") or ""),
         governance_status=str(state.get("governance_status") or ""),
         implementation_status=str(state.get("implementation_status") or ""),

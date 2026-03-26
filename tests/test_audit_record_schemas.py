@@ -44,9 +44,9 @@ def _materialize_run(tmp_path: Path) -> Path:
     workspaces_home = tmp_path / "workspaces"
     state = {
         "session_run_id": "run-schema-artifacts",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "ticket_ref": "T-123",
         "ticket_title": "Ticket title",
         "review_decision": "approve",

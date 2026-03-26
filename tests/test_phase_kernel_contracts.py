@@ -120,7 +120,7 @@ def test_kernel_routes_2_1_to_1_5_when_business_rules_unresolved(tmp_path: Path)
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "2.1-DecisionPack",
+            "phase": "2.1-DecisionPack",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -151,7 +151,7 @@ def test_kernel_routes_2_1_to_1_5_when_business_rules_execute_decision_set(tmp_p
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "2.1-DecisionPack",
+            "phase": "2.1-DecisionPack",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -183,7 +183,7 @@ def test_kernel_routes_2_1_to_1_5_when_business_rules_scope_unresolved(tmp_path:
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "2.1-DecisionPack",
+            "phase": "2.1-DecisionPack",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -219,7 +219,7 @@ def test_kernel_phase4_does_not_route_with_intake_metadata_only(tmp_path: Path) 
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "4",
+            "phase": "4",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -252,7 +252,7 @@ def test_kernel_phase4_does_not_route_with_feature_complexity_only(tmp_path: Pat
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "4",
+            "phase": "4",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -288,7 +288,7 @@ def test_kernel_blocks_phase_1_3_when_exit_evidence_missing(tmp_path: Path) -> N
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "1.3-RulebookLoad",
+            "phase": "1.3-RulebookLoad",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -357,7 +357,7 @@ def test_kernel_blocks_phase_6_when_p6_prerequisites_fail(tmp_path: Path) -> Non
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -396,7 +396,7 @@ def test_kernel_allows_phase_6_when_p6_prerequisites_pass(tmp_path: Path) -> Non
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -436,7 +436,7 @@ def test_kernel_phase_4_advances_to_5_when_ticket_evidence_present(tmp_path: Pat
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "4",
+            "phase": "4",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -473,7 +473,7 @@ def test_kernel_edge_normalizes_legacy_5_implementation_label_to_review_phase(tm
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-Implementation",
+            "phase": "5-Implementation",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -509,7 +509,7 @@ def test_kernel_phase5_requires_plan_record_before_architecture_review(tmp_path:
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -547,7 +547,7 @@ def test_kernel_phase5_routes_to_architecture_review_when_plan_record_present(tm
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -588,7 +588,7 @@ def test_kernel_phase5_uses_workspace_plan_record_when_state_versions_are_stale(
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -630,7 +630,7 @@ def test_kernel_phase5_replaces_stale_phase4_condition_after_plan_record_persist
     )
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -673,7 +673,7 @@ def test_kernel_phase5_prep_gate_condition_explicitly_requires_plan_persist(tmp_
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -715,7 +715,7 @@ def test_kernel_phase5_ignores_stale_requested_gate_fields_and_recomputes_curren
     )
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -757,7 +757,7 @@ def test_kernel_phase5_status_active_without_valid_versions_stays_in_plan_prep(t
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -794,7 +794,7 @@ def test_kernel_phase5_accepts_string_plan_record_versions(tmp_path: Path) -> No
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -830,7 +830,7 @@ def test_kernel_phase5_routing_is_deterministic_for_identical_input(tmp_path: Pa
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -868,7 +868,7 @@ def test_happy_phase5_early_stop_on_unchanged_plan_digest_after_first_iteration(
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -911,7 +911,7 @@ def test_edge_phase5_hard_stop_on_max_iterations_even_when_digest_changes(tmp_pa
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -953,7 +953,7 @@ def test_bad_phase5_first_iteration_without_previous_digest_cannot_early_stop(tm
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -994,7 +994,7 @@ def test_phase5_explicit_completed_state_advances_even_without_iteration_digests
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1037,7 +1037,7 @@ def test_phase5_blocked_state_stays_in_architecture_review_and_emits_reason_code
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1079,7 +1079,7 @@ def test_kernel_phase6_stays_until_implementation_review_complete(tmp_path: Path
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1123,7 +1123,7 @@ def test_kernel_phase6_ready_for_user_review_after_three_iterations(tmp_path: Pa
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1168,7 +1168,7 @@ def test_corner_phase6_allows_early_stop_on_unchanged_implementation_digest(tmp_
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1212,7 +1212,7 @@ def test_bad_phase6_first_iteration_without_previous_digest_cannot_early_stop(tm
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1255,7 +1255,7 @@ def test_edge_phase5_iteration_above_max_is_treated_as_hard_stop(tmp_path: Path)
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1297,7 +1297,7 @@ def test_edge_phase6_iteration_above_max_is_treated_as_hard_stop(tmp_path: Path)
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1342,7 +1342,7 @@ def test_replay_determinism_for_digest_based_review_decision(tmp_path: Path) -> 
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1405,7 +1405,7 @@ def test_e2eish_phase_path_from_ticket_to_phase6_review_ready(tmp_path: Path) ->
 
     phase4_doc = {
         "SESSION_STATE": {
-            "Phase": "4",
+            "phase": "4",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1421,7 +1421,7 @@ def test_e2eish_phase_path_from_ticket_to_phase6_review_ready(tmp_path: Path) ->
 
     phase5_prep_doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1437,7 +1437,7 @@ def test_e2eish_phase_path_from_ticket_to_phase6_review_ready(tmp_path: Path) ->
 
     phase5_review_done_doc = {
         "SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1458,7 +1458,7 @@ def test_e2eish_phase_path_from_ticket_to_phase6_review_ready(tmp_path: Path) ->
 
     phase53_doc = {
         "SESSION_STATE": {
-            "Phase": "5.3-TestQuality",
+            "phase": "5.3-TestQuality",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1474,7 +1474,7 @@ def test_e2eish_phase_path_from_ticket_to_phase6_review_ready(tmp_path: Path) ->
 
     phase6_doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1655,7 +1655,7 @@ def test_kernel_strict_exit_deduplicates_criteria(tmp_path: Path) -> None:
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-Architecture",
+            "phase": "5-Architecture",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1747,7 +1747,7 @@ def test_kernel_strict_exit_blocks_on_incompatible_criteria_conflict(tmp_path: P
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "5-Architecture",
+            "phase": "5-Architecture",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -1819,7 +1819,7 @@ class TestKernelResultRouteStrategy:
         _write_phase_api(commands_home)
         doc = {
             "SESSION_STATE": {
-                "Phase": "5-Review",
+                "phase": "5-Review",
                 "PersistenceCommitted": True,
                 "WorkspaceReadyGateCommitted": True,
                 "WorkspaceArtifactsCommitted": True,
@@ -1847,7 +1847,7 @@ class TestKernelResultRouteStrategy:
         _write_phase_api(commands_home)
         doc = {
             "SESSION_STATE": {
-                "Phase": "4-Intake",
+                "phase": "4-Intake",
                 "PersistenceCommitted": True,
                 "WorkspaceReadyGateCommitted": True,
                 "WorkspaceArtifactsCommitted": True,
@@ -1908,7 +1908,7 @@ class TestKernelResultRouteStrategy:
         _write_phase_api(commands_home)
         doc = {
             "SESSION_STATE": {
-                "Phase": "4-Intake",
+                "phase": "4-Intake",
                 "PersistenceCommitted": True,
                 "WorkspaceReadyGateCommitted": True,
                 "WorkspaceArtifactsCommitted": True,
@@ -1939,8 +1939,8 @@ def test_phase6_routes_to_implementation_presentation_gate_when_package_ready(tm
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "RepoFingerprint": repo,
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
@@ -1983,8 +1983,8 @@ def test_phase6_routes_to_implementation_blocked_when_blockers_present(tmp_path:
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "RepoFingerprint": repo,
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
@@ -2025,8 +2025,8 @@ def test_phase6_routes_to_implementation_accepted_after_external_decision(tmp_pa
 
     doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "RepoFingerprint": repo,
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,

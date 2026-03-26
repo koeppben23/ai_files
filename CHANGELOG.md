@@ -67,7 +67,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 
 ### Session State / Bootstrap
 
-- Bootstrap default launcher local root changed to `~/.local/opencode`
+- Bootstrap default launcher local root changed to `~/.local/share/opencode`
 - Session reader legacy `commands_home` fallback chain removed
 - Workspace persistence hook calls backfill helper when available; auto-materializes `${REPO_BUSINESS_RULES_FILE}`
 - Post-delete tests and guards moved to `governance_runtime/`

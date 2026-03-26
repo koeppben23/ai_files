@@ -39,7 +39,8 @@ def get_phase(state: Mapping) -> str:
 
 def get_next(state: Mapping) -> str:
     """Return the next phase token (e.g. '5', '6', '5.3')."""
-    return str(_get(state, "next") or "")
+    canonical = _to_canonical(state)
+    return str(canonical.get("next_action") or canonical.get("next") or "")
 
 
 def get_active_gate(state: Mapping) -> str:

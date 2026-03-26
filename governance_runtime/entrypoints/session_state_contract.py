@@ -60,10 +60,10 @@ except Exception:
                 "phase_transition_evidence": False,
                 "session_state_version": 1,
                 "ruleset_hash": None,
-                "Phase": "1.1-Bootstrap",
+                "phase": "1.1-Bootstrap",
                 "Mode": "BLOCKED",
                 "ConfidenceLevel": 0,
-                "Next": "BLOCKED-START-REQUIRED",
+                "next": "BLOCKED-START-REQUIRED",
                 "OutputMode": "ARCHITECT",
                 "DecisionSurface": {},
                 "Kernel": {

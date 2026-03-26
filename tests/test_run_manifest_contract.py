@@ -12,9 +12,9 @@ def test_pr_run_manifest_requires_pr_record_and_finalizer_fields(tmp_path: Path)
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-manifest-pr",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "PullRequestTitle": "feat: demo",
         "PullRequestBody": "body",
     }

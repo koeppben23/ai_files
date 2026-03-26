@@ -325,6 +325,23 @@ class BootstrapPersistenceService:
             if not command:
                 command = [payload.binding.python_command, "-m", "governance_runtime.entrypoints.persist_workspace_artifacts"]
             run = self._runner.run(command)
+            
+            # Log backfill execution details for debugging
+            backfill_event = ErrorEvent(
+                code="BACKFILL_EXECUTION",
+                severity="info",
+                message="Artifact backfill execution details.",
+                expected="command executed",
+                observed={
+                    "command": " ".join(command),
+                    "returncode": run.returncode,
+                    "stdout_length": len(run.stdout) if run.stdout else 0,
+                    "stderr_length": len(run.stderr) if run.stderr else 0,
+                    "stderr_preview": run.stderr[:200] if run.stderr else "",
+                },
+            )
+            self._logger.write(backfill_event)
+            
             if run.returncode != 0:
                 event = ErrorEvent(
                     code="BACKFILL_NON_ZERO_EXIT",
@@ -475,10 +492,9 @@ def _merge_final_session_state(
 
     fallback_session = fallback_state.get("SESSION_STATE")
     if isinstance(fallback_session, dict):
-        session["Phase"] = fallback_session.get("Phase")
-        session["phase"] = fallback_session.get("Phase")
+        session["phase"] = fallback_session.get("phase") or fallback_session.get("Phase")
+        session["next"] = fallback_session.get("next") or fallback_session.get("Next")
         session["Mode"] = fallback_session.get("Mode")
-        session["Next"] = fallback_session.get("Next")
         session.setdefault("OutputMode", fallback_session.get("OutputMode"))
 
     session["RepoFingerprint"] = repo_fingerprint
@@ -603,10 +619,10 @@ def _session_state_payload(
             "phase_transition_evidence": False,
             "session_state_version": 1,
             "ruleset_hash": None,
-            "Phase": phase,
+            "phase": phase,
             "Mode": mode,
             "ConfidenceLevel": 0,
-            "Next": next_gate,
+            "next": next_gate,
             "OutputMode": "ARCHITECT",
             "DecisionSurface": {},
             "Bootstrap": {

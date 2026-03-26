@@ -38,9 +38,9 @@ def _minimal_session_state_document() -> dict:
     """Create a minimal valid session state document."""
     return {
         "SESSION_STATE": {
-            "Phase": "6",
             "phase": "6",
-            "Next": "",
+            "phase": "6",
+            "next": "",
             "Mode": "IN_PROGRESS",
             "status": "OK",
             "active_gate": "",

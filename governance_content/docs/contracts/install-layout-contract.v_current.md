@@ -19,7 +19,7 @@ conformance_suite: tests/conformance/test_layout_conformance.py
 | Variable | Resolution | Source |
 |----------|-----------|--------|
 | `${CONFIG_ROOT}` | OpenCode config root, runtime-resolved (e.g. `~/.config/opencode`) | `governance_runtime/paths/layout.py:ConfigLayout` |
-| `${LOCAL_ROOT}` | OpenCode local payload root (e.g. `~/.local/opencode`) | installer (`OPENCODE_LOCAL_ROOT` override or default) |
+| `${LOCAL_ROOT}` | OpenCode local payload root (e.g. `~/.local/share/opencode`) | installer (`OPENCODE_LOCAL_ROOT` override or default) |
 | `${COMMANDS_HOME}` | `${CONFIG_ROOT}/commands` (default from installer binding evidence) | `governance_runtime/infrastructure/binding_paths.py` |
 | `${PROFILES_HOME}` | `${LOCAL_ROOT}/governance_content/profiles` | `governance.paths.json` |
 | `${PLUGINS_HOME}` | `${CONFIG_ROOT}/plugins` | installer (`install.py`) |

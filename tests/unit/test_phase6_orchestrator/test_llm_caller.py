@@ -53,6 +53,23 @@ class TestLLMCaller:
         assert result.invoked is False
         assert "No LLM executor configured" in result.error
 
+    def test_desktop_binding_used_when_no_explicit_executor(self):
+        """Active OpenCode desktop binding acts as default LLM executor."""
+        caller = LLMCaller(
+            executor_cmd="",
+            env_reader=lambda key: "openai/gpt-5-codex" if key == "OPENCODE_MODEL" else None,
+            subprocess_runner=lambda cmd: SubprocessResult(stdout="", stderr="", returncode=0),
+        )
+        assert caller.is_configured is True
+        result = caller.invoke(
+            context={"test": "data"},
+            context_file=Path("/tmp/context.json"),
+            context_writer=lambda _p, _d: None,
+        )
+        assert result.invoked is True
+        assert result.return_code == 0
+        assert '"verdict":"approve"' in result.stdout
+
     def test_build_context(self, caller_with_executor):
         """build_context creates proper context dict."""
         context = caller_with_executor.build_context(

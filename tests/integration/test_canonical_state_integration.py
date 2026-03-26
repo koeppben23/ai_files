@@ -37,8 +37,8 @@ class TestCanonicalStateIntegration:
     def test_legacy_pascal_case_phase_normalized(self):
         """Legacy PascalCase fields should normalize to snake_case."""
         legacy_state = {
-            "Phase": "5-ArchitectureReview",
-            "Next": "5.3",
+            "phase": "5-ArchitectureReview",
+            "next": "5.3",
             "Mode": "IN_PROGRESS",
             "active_gate": "Architecture Review Gate",
         }
@@ -67,7 +67,7 @@ class TestCanonicalStateIntegration:
     def test_mixed_legacy_fields_normalized(self):
         """Mixed legacy field names should all normalize correctly."""
         legacy_state = {
-            "Phase": "4",
+            "phase": "4",
             "phase5_completed": True,
             "phase5_state": "phase5-in-progress",
             "Phase5State": "phase5-completed",
@@ -120,8 +120,8 @@ class TestCanonicalStateIntegration:
         """State wrapped in SESSION_STATE should normalize correctly."""
         legacy_state = {
             "SESSION_STATE": {
-                "Phase": "5",
-                "Next": "5.3",
+                "phase": "5",
+                "next": "5.3",
                 "active_gate": "Test Quality Gate",
             }
         }
@@ -144,7 +144,7 @@ class TestCanonicalStateIntegration:
     def test_partial_legacy_state_normalizes_known_fields(self):
         """Partial legacy state should normalize known fields, ignore unknown."""
         legacy_state = {
-            "Phase": "6",
+            "phase": "6",
             "unknown_field": "should be ignored",
             "another_unknown": 123,
         }
@@ -215,7 +215,7 @@ class TestStateAccessorIntegration:
 
     def test_accessor_with_legacy_pascal_case(self):
         """State accessor should resolve legacy PascalCase fields."""
-        legacy_state = {"Phase": "5-ArchitectureReview"}
+        legacy_state = {"phase": "5-ArchitectureReview"}
         assert get_phase(legacy_state) == "5-ArchitectureReview"
 
     def test_accessor_with_canonical_snake_case(self):
@@ -261,8 +261,8 @@ class TestRoundTripScenarios:
         """Simulate a Phase 5 Architecture Review session state."""
         persisted_state = {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
-                "Next": "5",
+                "phase": "5-ArchitectureReview",
+                "next": "5",
                 "phase": "5-ArchitectureReview",
                 "next": "5",
                 "active_gate": "Architecture Review Gate",
@@ -345,8 +345,8 @@ class TestRoundTripScenarios:
     def test_kernel_reads_canonical_state(self):
         """Simulate kernel code reading canonical state."""
         session_state = {
-            "Phase": "5",
-            "Next": "5.3",
+            "phase": "5",
+            "next": "5.3",
             "active_gate": "Test Quality Gate",
             "next_gate_condition": "Complete test quality gate",
             "phase5_completed": False,
@@ -375,9 +375,9 @@ class TestEdgeCases:
     def test_none_values_not_included(self):
         """None values should not be included in canonical state."""
         legacy_state = {
-            "Phase": None,
+            "phase": None,
             "phase": "5",
-            "Next": None,
+            "next": None,
         }
         canonical = normalize_to_canonical(legacy_state)
         assert "Phase" not in canonical
@@ -423,7 +423,7 @@ class TestEdgeCases:
     def test_does_not_mutate_input(self):
         """normalize_to_canonical should not mutate the input."""
         original = {
-            "Phase": "5",
+            "phase": "5",
             "Unknown": "value",
         }
         original_copy = dict(original)

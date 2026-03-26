@@ -130,7 +130,7 @@ class TestR16FinalClaimConformance:
             assert "python -m governance" not in text
             assert "python -m governance_runtime" not in text
             assert ".config/opencode" in text
-            assert ".local/opencode" in text
+            assert ".local/share/opencode" in text
             assert ("~/.config/opencode/bin" in text) or ("${CONFIG_ROOT}/bin" in text), (
                 f"canonical bin truth missing in {path.relative_to(REPO_ROOT)}"
             )

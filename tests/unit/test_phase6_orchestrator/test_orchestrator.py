@@ -127,8 +127,8 @@ class TestRunReviewLoop:
         """run_review_loop returns None result for non-Phase-6 states."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
-                "Next": "5",
+                "phase": "5-ArchitectureReview",
+                "next": "5",
             }
         }
         config = ReviewLoopConfig(
@@ -154,8 +154,8 @@ class TestRunReviewLoop:
 
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
-                "Next": "6",
+                "phase": "6-PostFlight",
+                "next": "6",
                 "LoadedRulebooks": {"core": "rules.md"},
             }
         }
@@ -178,8 +178,8 @@ class TestRunReviewLoop:
         """run_review_loop completes when LLM approves at max iterations."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
-                "Next": "6",
+                "phase": "6-PostFlight",
+                "next": "6",
                 "phase5_plan_record_digest": "sha256:plan-v1",
                 "phase6_force_stable_digest": True,  # Force stable for deterministic test
             }
@@ -211,8 +211,8 @@ class TestRunReviewLoop:
         """to_state_updates returns proper state dict."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
-                "Next": "6",
+                "phase": "6-PostFlight",
+                "next": "6",
                 "phase5_plan_record_digest": "sha256:plan-v1",
                 "phase6_force_stable_digest": True,
             }
@@ -244,8 +244,8 @@ class TestRunReviewLoop:
         """to_audit_events returns audit events for each iteration."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
-                "Next": "6",
+                "phase": "6-PostFlight",
+                "next": "6",
                 "phase5_plan_record_digest": "sha256:plan-v1",
                 "phase6_force_stable_digest": True,
             }

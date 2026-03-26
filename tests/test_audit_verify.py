@@ -71,7 +71,7 @@ def _run_root(workspaces_home: Path, fingerprint: str, run_id: str) -> Path:
 def test_verify_detects_tamper_and_incomplete_runs(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-verify", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-verify", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -112,7 +112,7 @@ def test_verify_detects_tamper_and_incomplete_runs(tmp_path: Path) -> None:
 def test_verify_detects_run_id_and_fingerprint_mismatch(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-ids", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-ids", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -148,7 +148,7 @@ def test_verify_detects_run_id_and_fingerprint_mismatch(tmp_path: Path) -> None:
 def test_verify_rejects_invalid_checksums_schema(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-checksum-schema", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-checksum-schema", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -173,7 +173,7 @@ def test_verify_rejects_invalid_checksums_schema(tmp_path: Path) -> None:
 def test_verify_rejects_invalid_manifest_metadata_provenance_schema(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-schema", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-schema", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -221,7 +221,7 @@ def test_verify_rejects_invalid_manifest_metadata_provenance_schema(tmp_path: Pa
 def test_verify_rejects_provenance_binding_mismatch(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-binding", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-binding", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -250,7 +250,7 @@ def test_verify_rejects_provenance_binding_mismatch(tmp_path: Path) -> None:
 def test_verify_rejects_invalid_run_repo_fingerprint_format(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-fp-format", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-fp-format", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -288,7 +288,7 @@ def test_verify_rejects_invalid_run_repo_fingerprint_format(tmp_path: Path) -> N
 def test_verify_rejects_non_utc_z_timestamps(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-ts-format", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-ts-format", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -316,9 +316,9 @@ def test_verify_rejects_required_artifact_not_marked_archived(tmp_path: Path) ->
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-required-archive",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "PullRequestTitle": "feat: demo",
         "PullRequestBody": "## Summary\n- demo",
     }
@@ -351,7 +351,7 @@ def test_verify_rejects_required_artifact_not_marked_archived(tmp_path: Path) ->
 def test_verify_rejects_malformed_archive_json_payloads(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-malformed", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-malformed", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -472,7 +472,7 @@ def test_verify_repository_manifest_rejects_missing_required_context_fields(tmp_
 def test_verify_rejects_required_artifacts_key_and_run_type_mismatch(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-artifacts", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-artifacts", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -514,7 +514,7 @@ def test_verify_rejects_required_artifacts_key_and_run_type_mismatch(tmp_path: P
 def test_verify_rejects_invalid_common_header_in_ticket_record(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-ticket-header", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-ticket-header", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -540,7 +540,7 @@ def test_verify_rejects_invalid_common_header_in_ticket_record(tmp_path: Path) -
 def test_verify_rejects_failed_run_without_failure_reason(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-failure-reason", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-failure-reason", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -576,7 +576,7 @@ def test_verify_rejects_failed_run_without_failure_reason(tmp_path: Path) -> Non
 def test_verify_rejects_materialized_run_with_non_pending_integrity(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-materialized", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-materialized", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -605,7 +605,7 @@ def test_verify_rejects_materialized_run_with_non_pending_integrity(tmp_path: Pa
 def test_verify_rejects_materialized_timestamp_mismatch(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-ts", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-ts", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -631,7 +631,7 @@ def test_verify_rejects_materialized_timestamp_mismatch(tmp_path: Path) -> None:
 def test_verify_rejects_failed_run_with_finalized_at(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-failed-finalized-at", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-failed-finalized-at", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -667,7 +667,7 @@ def test_verify_rejects_failed_run_with_finalized_at(tmp_path: Path) -> None:
 def test_verify_rejects_conflicting_metadata_reasons(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-reasons", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-reasons", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -693,7 +693,7 @@ def test_verify_rejects_conflicting_metadata_reasons(tmp_path: Path) -> None:
 def test_verify_rejects_finalized_run_with_finalization_errors(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-finalized-errors", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-finalized-errors", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -719,7 +719,7 @@ def test_verify_rejects_finalized_run_with_finalization_errors(tmp_path: Path) -
 def test_verify_rejects_invalid_archived_files_contract(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-archived-files", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-archived-files", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -748,7 +748,7 @@ def test_verify_rejects_invalid_archived_files_contract(tmp_path: Path) -> None:
 def test_verify_rejects_archived_files_presence_mismatch(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-archived-presence", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-archived-presence", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -777,7 +777,7 @@ def test_verify_rejects_archived_files_presence_mismatch(tmp_path: Path) -> None
 def test_verify_rejects_present_optional_artifact_without_checksum(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-optional-checksum", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-optional-checksum", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -835,7 +835,7 @@ def test_verify_rejects_present_optional_artifact_without_checksum(tmp_path: Pat
 def test_verify_rejects_unsupported_checksum_file_entry(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-bad-checksum-entry", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-bad-checksum-entry", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -865,9 +865,9 @@ def test_verify_rejects_finalized_run_without_finalization_record(tmp_path: Path
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-no-finalization-record",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
     }
 
     archive_active_run(
@@ -894,9 +894,9 @@ def test_verify_rejects_finalization_record_with_bundle_hash_mismatch(tmp_path: 
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-finalization-hash-mismatch",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
     }
 
     archive_active_run(
@@ -925,9 +925,9 @@ def test_verify_rejects_finalization_record_reason_mismatch(tmp_path: Path) -> N
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-finalization-reason-mismatch",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
     }
 
     archive_active_run(
@@ -956,9 +956,9 @@ def test_verify_rejects_finalized_pr_record_pending_approval(tmp_path: Path) -> 
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-pr-approval-mismatch",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "PullRequestTitle": "feat: approval invariant",
         "PullRequestBody": "body",
         "requires_human_approval": True,
@@ -1008,7 +1008,7 @@ def test_verify_rejects_finalized_pr_record_pending_approval(tmp_path: Path) -> 
 def test_verify_rejects_required_artifact_baseline_false(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-baseline-required", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-baseline-required", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -1037,7 +1037,7 @@ def test_verify_rejects_required_artifact_baseline_false(tmp_path: Path) -> None
 def test_verify_rejects_archived_files_baseline_false(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-baseline-archived", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-baseline-archived", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -1068,9 +1068,9 @@ def test_verify_rejects_manifest_resolved_operating_mode_mismatch(tmp_path: Path
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-resolved-mode-mismatch",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Post Flight",
-        "Next": "6",
+        "next": "6",
         "resolvedOperatingMode": "solo",
     }
 
@@ -1100,9 +1100,9 @@ def test_verify_rejects_manifest_verify_policy_version_mismatch(tmp_path: Path) 
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-verify-policy-mismatch",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Post Flight",
-        "Next": "6",
+        "next": "6",
         "verifyPolicyVersion": "v1",
     }
 
@@ -1132,9 +1132,9 @@ def test_verify_rejects_finalization_record_mode_version_mismatch(tmp_path: Path
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-finalization-mode-version-mismatch",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Post Flight",
-        "Next": "6",
+        "next": "6",
         "resolvedOperatingMode": "solo",
         "verifyPolicyVersion": "v1",
     }
@@ -1165,9 +1165,9 @@ def test_verify_rejects_finalization_record_verify_policy_mismatch(tmp_path: Pat
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-finalization-verify-policy-mismatch",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Post Flight",
-        "Next": "6",
+        "next": "6",
         "resolvedOperatingMode": "solo",
         "verifyPolicyVersion": "v1",
     }
@@ -1198,9 +1198,9 @@ def test_verify_reports_mode_and_verify_policy_checks(tmp_path: Path) -> None:
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-verify-result-keys",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Post Flight",
-        "Next": "6",
+        "next": "6",
         "resolvedOperatingMode": "solo",
         "verifyPolicyVersion": "v1",
     }
@@ -1227,9 +1227,9 @@ def test_verify_rejects_manifest_without_operating_mode_resolution(tmp_path: Pat
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-resolution-missing",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Post Flight",
-        "Next": "6",
+        "next": "6",
     }
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -1255,9 +1255,9 @@ def test_verify_rejects_manifest_break_glass_missing_actor(tmp_path: Path) -> No
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-breakglass-invalid",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Post Flight",
-        "Next": "6",
+        "next": "6",
         "breakGlass": {
             "actor": "ops.lead",
             "timestamp": "2026-03-11T14:25:00Z",

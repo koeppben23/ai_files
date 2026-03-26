@@ -12,9 +12,9 @@ def test_archive_writes_provenance_record_with_required_fields(tmp_path: Path) -
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-prov",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "SpecHash": "sha256:policy123",
     }
 
@@ -43,9 +43,9 @@ def test_archive_writes_structured_provenance_context_fields(tmp_path: Path) -> 
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-prov-ctx",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "model_context": {
             "provider": "openai",
             "model": "gpt-5.3-codex",

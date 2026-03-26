@@ -104,7 +104,7 @@ class TestReadSnapshotNeverWritesState:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": phase_value,
+                "phase": phase_value,
                 "status": "OK",
                 "active_gate": "Test Gate",
                 "next_gate_condition": "Test condition",
@@ -135,7 +135,7 @@ class TestReadSnapshotNeverWritesState:
         )
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
                 "plan_record_status": "active",
                 "plan_record_versions": 1,
@@ -159,7 +159,7 @@ class TestReadSnapshotNeverWritesState:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
             }
         })
@@ -191,7 +191,7 @@ class TestReadSnapshotNeverWritesPlanRecord:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
                 "plan_record_status": "absent",
             }
@@ -220,7 +220,7 @@ class TestReadSnapshotNeverWritesPlanRecord:
         )
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
                 "plan_record_status": "active",
                 "plan_record_versions": 2,
@@ -261,7 +261,7 @@ class TestFreeTextStateValuesNoWrites:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
                 "next_gate_condition": freetext_value,
             }
@@ -282,7 +282,7 @@ class TestFreeTextStateValuesNoWrites:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5",
+                "phase": "5",
                 "status": "OK",
                 "active_gate": "go ahead and proceed",
             }
@@ -328,7 +328,7 @@ class TestCorruptedStateNoWrites:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": 42,  # int instead of string
+                "phase": 42,  # int instead of string
                 "status": True,  # bool instead of string
                 "Gates": "not-a-dict",  # string instead of dict
                 "phase_transition_evidence": [1, 2, 3],  # list instead of bool
@@ -469,7 +469,7 @@ class TestEvaluateReadonlyNoSideEffects:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
+                "phase": "5-ArchitectureReview",
                 "status": "OK",
             }
         })

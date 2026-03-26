@@ -58,9 +58,9 @@ def _setup_workspace(tmp_path: Path, *, phase: str = "5-ArchitectureReview") -> 
                 "PersistenceCommitted": True,
                 "WorkspaceReadyGateCommitted": True,
                 "phase_transition_evidence": True,
-                "Phase": phase,
                 "phase": phase,
-                "Next": "5.3",
+                "phase": phase,
+                "next": "5.3",
                 "Mode": "IN_PROGRESS",
                 "OutputMode": "ARCHITECT",
                 "DecisionSurface": {},
@@ -115,8 +115,8 @@ class TestNewWorkSessionEntrypoint:
         assert payload["reason"] == "new-work-session-created"
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert state["Phase"] == "4"
-        assert state["Next"] == "4"
+        assert state["phase"] == "4"
+        assert state["next"] == "4"
         assert state["Ticket"] is None
         assert state["Task"] is None
         assert state["TicketRecordDigest"] is None
@@ -147,7 +147,7 @@ class TestNewWorkSessionEntrypoint:
         assert archived_meta["archived_files"]["plan_record"] is False
         assert "events.jsonl" not in {p.name for p in archived_dir.iterdir()}
 
-        events = [json.loads(line) for line in (session_path.parent / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+        events = [json.loads(line) for line in (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
         created = [e for e in events if e.get("event") == "new_work_session_created"][-1]
         assert created["snapshot_path"] == str(archived_dir / "SESSION_STATE.json")
         assert created["snapshot_digest"] == canonical_json_hash(archived_state)
@@ -209,7 +209,7 @@ class TestNewWorkSessionEntrypoint:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["reason"] == "new-work-session-init-failed"
 
-        events = [json.loads(line) for line in (session_path.parent / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+        events = [json.loads(line) for line in (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
         failed = [e for e in events if e.get("event") == "new_work_session_init_failed"]
         assert failed, "failure marker event must be appended"
         assert failed[-1]["reason"] == "new-work-session-init-failed"
@@ -230,7 +230,7 @@ class TestNewWorkSessionEntrypoint:
         assert second_payload["reason"] == "new-work-session-deduped"
         assert second_payload["run_id"] == run_id
 
-        events = (session_path.parent / "events.jsonl").read_text(encoding="utf-8")
+        events = (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8")
         assert "new_work_session_created" in events
         assert "new_work_session_deduped" in events
         parsed = [json.loads(line) for line in events.splitlines() if line.strip()]
@@ -260,7 +260,7 @@ class TestNewWorkSessionEntrypoint:
         assert second_payload["reason"] == "new-work-session-created"
         assert second_payload["run_id"] != first_run_id
 
-        events = (session_path.parent / "events.jsonl").read_text(encoding="utf-8")
+        events = (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8")
         assert "new_work_session_dedupe_bypassed" in events
         assert events.count("new_work_session_created") >= 2
 
@@ -306,7 +306,7 @@ class TestNewWorkSessionEntrypoint:
 
         after = json.loads(session_path.read_text(encoding="utf-8"))
         assert after == before
-        events = [json.loads(line) for line in (session_path.parent / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+        events = [json.loads(line) for line in (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
         assert not [e for e in events if e.get("event") == "new_work_session_created"]
         assert [e for e in events if e.get("event") == "new_work_session_init_failed"]
 
@@ -401,8 +401,8 @@ class TestNewWorkSessionEntrypoint:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["reason"] == "new-work-session-created"
 
-        assert not (workspace / "repo-cache.yaml").exists()
-        assert not (workspace / "workspace-memory.yaml").exists()
-        assert not (workspace / "decision-pack.md").exists()
+        assert (workspace / "repo-cache.yaml").exists()
+        assert (workspace / "workspace-memory.yaml").exists()
+        assert (workspace / "decision-pack.md").exists()
         assert (workspace / "notes.tmp").exists()
         assert (run_dir(workspace.parent, workspace.name, "run-old-001") / "run-manifest.json").is_file()

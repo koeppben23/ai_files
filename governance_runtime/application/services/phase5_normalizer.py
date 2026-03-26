@@ -109,9 +109,7 @@ def canonicalize_legacy_p5x_surface(*, state_doc: dict) -> None:
         return
 
     canonical_phase, canonical_next, canonical_gate = target
-    state["Phase"] = canonical_phase
     state["phase"] = canonical_phase
-    state["Next"] = canonical_next
     state["next"] = canonical_next
     state["active_gate"] = canonical_gate
 
@@ -166,7 +164,8 @@ def sync_conditional_p5_gate_states(
         session_state=state,
         phase_1_5_executed=gate_evaluators.phase_1_5_executed(state),
     )
-    if str(gates.get("P5.4-BusinessRules", "")).strip().lower() == "pending":
+    current_p54 = str(gates.get("P5.4-BusinessRules", "")).strip().lower()
+    if current_p54 in {"pending", "gap-detected"}:
         if p54_eval.status in {
             "compliant",
             "compliant-with-exceptions",
@@ -313,9 +312,7 @@ def normalize_phase6_p5_state(
 
     # ── Fail-closed reset: bring the document back to a P5-consistent
     #    snapshot so no mixed Phase-6 / open-P5 state is visible.  ──
-    state["Phase"] = corrected_phase
     state["phase"] = corrected_phase
-    state["Next"] = corrected_next
     state["next"] = corrected_next
     state["phase6_state"] = ""
     state["implementation_review_complete"] = False

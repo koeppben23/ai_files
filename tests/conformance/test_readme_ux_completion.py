@@ -129,7 +129,7 @@ class TestReadmeUxCompletion:
         contents = {path: _read(path) for path in docs}
         for path, content in contents.items():
             assert ".config/opencode" in content, f"{path.relative_to(REPO_ROOT)} missing config root truth"
-            assert ".local/opencode" in content, f"{path.relative_to(REPO_ROOT)} missing local root truth"
+            assert ".local/share/opencode" in content, f"{path.relative_to(REPO_ROOT)} missing local root truth"
             assert "commands" in content, f"{path.relative_to(REPO_ROOT)} missing commands truth"
             assert "plugins" in content, f"{path.relative_to(REPO_ROOT)} missing plugins truth"
             assert "workspaces" in content, f"{path.relative_to(REPO_ROOT)} missing workspaces truth"
@@ -153,14 +153,14 @@ class TestReadmeUxCompletion:
             assert "governance/kernel/*" not in content
             assert "opencode-governance-bootstrap init --profile" in content
             assert ".config/opencode" in content
-            assert ".local/opencode" in content
+            assert ".local/share/opencode" in content
             assert "removed from productive runtime authority" in content
 
     def test_operator_runbook_contains_canonical_operator_truth(self) -> None:
         runbook = _read(REPO_ROOT / "governance_content" / "docs" / "operator-runbook.md")
         assert "opencode-governance-bootstrap init --profile" in runbook
         assert ".config/opencode" in runbook
-        assert ".local/opencode" in runbook
+        assert ".local/share/opencode" in runbook
         assert "python -m ..." in runbook
         assert "not primary operator guidance" in runbook
 
