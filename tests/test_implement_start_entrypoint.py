@@ -409,7 +409,8 @@ def test_happy_desktop_binding_resolves_callable_bridge_executor(
         "_resolve_desktop_executor_bridge_cmd",
         lambda **_kwargs: "python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\"",
     )
-    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: ["src/service.py"])
+    states = iter([[], ["src/service.py"]])
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: next(states))
 
     result = _ORIGINAL_RUN_LLM_EDIT_STEP(
         repo_root=repo_root,
@@ -527,6 +528,65 @@ def test_happy_bridge_command_includes_model_and_context_placeholder(
     assert "--model" in cmd
     assert "openai/gpt-5.3-codex" in cmd
     assert "{context_file}" in cmd
+
+
+def test_happy_changed_files_use_executor_delta_not_preexisting_noise(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\"")
+
+    states = iter([
+        ["docs/already_dirty.md"],
+        ["docs/already_dirty.md", "src/service.py"],
+    ])
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: next(states))
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+    )
+
+    assert result["executor_invoked"] is True
+    assert result["changed_files"] == ["src/service.py"]
+
+
+def test_happy_hotspot_hash_delta_detects_real_change_on_preexisting_dirty_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    src = repo_root / "src"
+    src.mkdir(parents=True, exist_ok=True)
+    target = src / "service.py"
+    target.write_text("before\n", encoding="utf-8")
+
+    monkeypatch.setenv(
+        "OPENCODE_IMPLEMENT_LLM_CMD",
+        "python3 -c \"from pathlib import Path; Path('src/service.py').write_text('after\\n', encoding='utf-8'); print('{\\\"result\\\":\\\"ok\\\"}')\"",
+    )
+    monkeypatch.setattr(
+        entrypoint,
+        "_parse_changed_files_from_git_status",
+        lambda _repo: ["src/service.py"],
+    )
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+    )
+
+    assert result["executor_invoked"] is True
+    assert result["changed_files"] == ["src/service.py"]
 
 
 def test_bad_approval_required_before_implement_start(

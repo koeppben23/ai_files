@@ -367,6 +367,26 @@ def _parse_changed_files_from_git_status(repo_root: Path) -> list[str]:
     return sorted(set(changed_files))
 
 
+def _file_sha256(path: Path) -> str:
+    try:
+        data = path.read_bytes()
+    except Exception:
+        return ""
+    return hashlib.sha256(data).hexdigest()
+
+
+def _capture_hotspot_hashes(repo_root: Path, hotspots: list[str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for token in hotspots:
+        rel = str(token or "").strip().replace("\\", "/")
+        if not rel or rel.startswith(".."):
+            continue
+        digest = _file_sha256(repo_root / rel)
+        if digest:
+            out[rel] = digest
+    return out
+
+
 def _has_active_desktop_llm_binding() -> bool:
     if str(os.environ.get("OPENCODE") or "").strip() == "1":
         return True
@@ -521,6 +541,9 @@ def _run_llm_edit_step(
         )
     _write_text_atomic(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
+    before_changed = set(_parse_changed_files_from_git_status(repo_root))
+    before_hotspot_hashes = _capture_hotspot_hashes(repo_root, required_hotspots)
+
     bridge_mode = False
     if not executor_cmd:
         if _has_active_desktop_llm_binding():
@@ -600,7 +623,15 @@ def _run_llm_edit_step(
         if response_text:
             validation_violations = ["response-not-structured-json"]
 
-    changed_files = _parse_changed_files_from_git_status(repo_root)
+    after_changed = set(_parse_changed_files_from_git_status(repo_root))
+    delta_changed = sorted(after_changed - before_changed)
+    after_hotspot_hashes = _capture_hotspot_hashes(repo_root, required_hotspots)
+    hotspot_changed = sorted(
+        path
+        for path, before_digest in before_hotspot_hashes.items()
+        if before_digest != after_hotspot_hashes.get(path, "")
+    )
+    changed_files = sorted(set(delta_changed).union(hotspot_changed))
     return {
         "executor_invoked": True,
         "exit_code": int(result.returncode),
