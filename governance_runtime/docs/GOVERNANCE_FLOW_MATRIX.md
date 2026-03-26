@@ -51,3 +51,11 @@ It mirrors the deterministic resolver behavior in
 - `/review` is read-only and does not mutate governance session state.
 - In Phase 4 guidance, `/continue` must present `/review` as the explicit read-only alternative to `/ticket`.
 - `/review` and `/review-decision` are distinct rails: `/review` is analysis-only; `/review-decision` mutates state in Phase 6 evidence presentation.
+
+## Verification Matrix Tests
+
+- `tests/test_implement_start_entrypoint.py::TestImplementFlowTruthMatrix`
+  - happy: new hotspot file is created and implementation passes
+  - bad: executor failure blocks
+  - corner: targeted-check failure blocks despite domain diffs
+  - edge: hotspot coverage missing blocks despite unrelated diffs

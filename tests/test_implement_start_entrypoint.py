@@ -464,6 +464,7 @@ def test_edge_implement_start_with_desktop_binding_but_no_bridge_blocks_cleanly(
 
     monkeypatch.setattr(entrypoint, "_run_llm_edit_step", _ORIGINAL_RUN_LLM_EDIT_STEP)
     monkeypatch.setattr(entrypoint, "_resolve_desktop_executor_bridge_cmd", lambda **_kwargs: "")
+    monkeypatch.setattr(entrypoint, "_load_effective_authoring_policy_text", lambda *args, **_kwargs: ("", ""))
     monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
     monkeypatch.setenv("OPENCODE", "1")
 
@@ -607,3 +608,187 @@ def test_bad_approval_required_before_implement_start(
     assert rc == 2
     assert out["status"] == "error"
     assert "approved final review decision" in out["message"]
+
+
+class TestImplementFlowTruthMatrix:
+    def test_happy_main_implements_new_hotspot_file(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+        session_path = tmp_path / "SESSION_STATE.json"
+        events_path = tmp_path / "events.jsonl"
+        _write_session(session_path)
+        _write_plan(tmp_path / "plan-record.json")
+        payload = {
+            "schema": "governance-compiled-requirements.v1",
+            "requirements": [
+                {
+                    "id": "PLAN-STEP-001",
+                    "title": "Create new service implementation",
+                    "code_hotspots": ["src/new_service.py"],
+                    "acceptance_tests": ["tests/test_service.py::test_happy"],
+                }
+            ],
+        }
+        contracts = tmp_path / ".governance" / "contracts" / "compiled_requirements.json"
+        contracts.parent.mkdir(parents=True, exist_ok=True)
+        contracts.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+        _wire_active_paths(monkeypatch, session_path, events_path)
+
+        monkeypatch.setattr(entrypoint, "_run_llm_edit_step", _ORIGINAL_RUN_LLM_EDIT_STEP)
+        monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+        monkeypatch.setenv("OPENCODE", "1")
+        monkeypatch.setattr(entrypoint, "_load_effective_authoring_policy_text", lambda *args, **_kwargs: ("", ""))
+        monkeypatch.setattr(
+            entrypoint,
+            "_resolve_desktop_executor_bridge_cmd",
+            lambda **_kwargs: "python3 -c \"from pathlib import Path; Path('src').mkdir(exist_ok=True); Path('src/new_service.py').write_text('def run():\\n    return 1\\n', encoding='utf-8'); print('{\\\"result\\\":\\\"ok\\\"}')\"",
+        )
+        monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: [])
+        monkeypatch.setattr(
+            entrypoint,
+            "_run_targeted_checks",
+            lambda _repo_root, _requirements: (
+                (
+                    entrypoint.CheckResult(
+                        name="tests/test_service.py::test_happy",
+                        passed=True,
+                        exit_code=0,
+                        output_path="checks.log",
+                    ),
+                ),
+                True,
+            ),
+        )
+
+        rc = entrypoint.main(["--quiet"])
+        out = json.loads(capsys.readouterr().out.strip())
+
+        assert rc == 0
+        assert out["status"] == "ok"
+        assert out["implementation_domain_changed_files"] == ["src/new_service.py"]
+        assert (tmp_path / "src" / "new_service.py").exists()
+
+    def test_bad_main_blocks_when_executor_fails(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+        session_path = tmp_path / "SESSION_STATE.json"
+        events_path = tmp_path / "events.jsonl"
+        _write_session(session_path)
+        _write_plan(tmp_path / "plan-record.json")
+        _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+        _wire_active_paths(monkeypatch, session_path, events_path)
+
+        monkeypatch.setattr(
+            entrypoint,
+            "_run_llm_edit_step",
+            lambda **_kwargs: {
+                "executor_invoked": True,
+                "exit_code": 2,
+                "stdout_path": "stdout.log",
+                "stderr_path": "stderr.log",
+                "changed_files": ["src/service.py"],
+                "reason_code": "",
+                "message": "",
+            },
+        )
+
+        rc = entrypoint.main(["--quiet"])
+        out = json.loads(capsys.readouterr().out.strip())
+
+        assert rc == 2
+        assert out["status"] == "blocked"
+        assert "IMPLEMENTATION_LLM_EXECUTOR_FAILED" in out["reason_codes"]
+
+    def test_corner_main_blocks_when_targeted_checks_fail(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+        session_path = tmp_path / "SESSION_STATE.json"
+        events_path = tmp_path / "events.jsonl"
+        _write_session(session_path)
+        _write_plan(tmp_path / "plan-record.json")
+        _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+        _wire_active_paths(monkeypatch, session_path, events_path)
+
+        monkeypatch.setattr(
+            entrypoint,
+            "_run_llm_edit_step",
+            lambda **_kwargs: {
+                "executor_invoked": True,
+                "exit_code": 0,
+                "stdout_path": "stdout.log",
+                "stderr_path": "stderr.log",
+                "changed_files": ["src/service.py"],
+                "reason_code": "",
+                "message": "",
+            },
+        )
+        monkeypatch.setattr(
+            entrypoint,
+            "_run_targeted_checks",
+            lambda _repo_root, _requirements: (
+                (
+                    entrypoint.CheckResult(
+                        name="tests/test_service.py::test_happy",
+                        passed=False,
+                        exit_code=1,
+                        output_path="checks.log",
+                    ),
+                ),
+                True,
+            ),
+        )
+
+        rc = entrypoint.main(["--quiet"])
+        out = json.loads(capsys.readouterr().out.strip())
+
+        assert rc == 2
+        assert out["status"] == "blocked"
+        assert RC_TARGETED_CHECKS_FAILED in out["reason_codes"]
+
+    def test_edge_main_blocks_when_hotspot_coverage_missing(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+        session_path = tmp_path / "SESSION_STATE.json"
+        events_path = tmp_path / "events.jsonl"
+        _write_session(session_path)
+        _write_plan(tmp_path / "plan-record.json")
+        _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+        _wire_active_paths(monkeypatch, session_path, events_path)
+
+        monkeypatch.setattr(
+            entrypoint,
+            "_run_llm_edit_step",
+            lambda **_kwargs: {
+                "executor_invoked": True,
+                "exit_code": 0,
+                "stdout_path": "stdout.log",
+                "stderr_path": "stderr.log",
+                "changed_files": ["src/other.py"],
+                "reason_code": "",
+                "message": "",
+            },
+        )
+
+        rc = entrypoint.main(["--quiet"])
+        out = json.loads(capsys.readouterr().out.strip())
+
+        assert rc == 2
+        assert out["status"] == "blocked"
+        assert "IMPLEMENTATION_PLAN_COVERAGE_MISSING" in out["reason_codes"]
+
+    def test_edge_main_surfaces_non_executor_precheck_reason(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+        session_path = tmp_path / "SESSION_STATE.json"
+        events_path = tmp_path / "events.jsonl"
+        _write_session(session_path)
+        _write_plan(tmp_path / "plan-record.json")
+        _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+        _wire_active_paths(monkeypatch, session_path, events_path)
+
+        monkeypatch.setattr(
+            entrypoint,
+            "_run_llm_edit_step",
+            lambda **_kwargs: {
+                "blocked": True,
+                "reason_code": "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE",
+                "reason": "effective-policy-unavailable",
+            },
+        )
+
+        rc = entrypoint.main(["--quiet"])
+        out = json.loads(capsys.readouterr().out.strip())
+
+        assert rc == 2
+        assert out["status"] == "blocked"
+        assert out["reason_code"] == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"

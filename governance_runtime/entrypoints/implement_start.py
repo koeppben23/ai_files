@@ -381,9 +381,7 @@ def _capture_hotspot_hashes(repo_root: Path, hotspots: list[str]) -> dict[str, s
         rel = str(token or "").strip().replace("\\", "/")
         if not rel or rel.startswith(".."):
             continue
-        digest = _file_sha256(repo_root / rel)
-        if digest:
-            out[rel] = digest
+        out[rel] = _file_sha256(repo_root / rel)
     return out
 
 
@@ -628,8 +626,8 @@ def _run_llm_edit_step(
     after_hotspot_hashes = _capture_hotspot_hashes(repo_root, required_hotspots)
     hotspot_changed = sorted(
         path
-        for path, before_digest in before_hotspot_hashes.items()
-        if before_digest != after_hotspot_hashes.get(path, "")
+        for path in sorted(set(before_hotspot_hashes).union(after_hotspot_hashes))
+        if before_hotspot_hashes.get(path, "") != after_hotspot_hashes.get(path, "")
     )
     changed_files = sorted(set(delta_changed).union(hotspot_changed))
     return {
@@ -794,7 +792,11 @@ def start_implementation(
         commands_home=commands_home,
     )
 
-    if bool(llm_result.get("blocked")) or str(llm_result.get("reason_code") or "") == RC_EXECUTOR_NOT_CONFIGURED:
+    if bool(llm_result.get("blocked")):
+        reason_code = str(llm_result.get("reason_code") or "IMPLEMENTATION_LLM_PRECHECK_BLOCKED").strip()
+        message = str(llm_result.get("message") or llm_result.get("reason") or "LLM precheck blocked").strip()
+        if not message:
+            message = "LLM precheck blocked"
         state["implementation_authorized"] = True
         state["implementation_started"] = True
         state["implementation_started_at"] = ts
@@ -802,10 +804,15 @@ def start_implementation(
         state["implementation_execution_started"] = False
         state["next"] = "6"
         state["active_gate"] = "Implementation Blocked"
-        state["next_gate_condition"] = (
-            "Implementation executor unavailable in current process. "
-            "Set OPENCODE_IMPLEMENT_LLM_CMD to a callable command and rerun /implement."
-        )
+        if reason_code == RC_EXECUTOR_NOT_CONFIGURED:
+            state["next_gate_condition"] = (
+                "Implementation executor unavailable in current process. "
+                "Set OPENCODE_IMPLEMENT_LLM_CMD to a callable command and rerun /implement."
+            )
+        else:
+            state["next_gate_condition"] = (
+                f"Implementation precheck failed ({reason_code}). {message}. Resolve and rerun /implement."
+            )
         _write_json_atomic(session_path, state_doc)
         if events_path is not None:
             _append_event(
@@ -816,8 +823,8 @@ def start_implementation(
                     "event_id": event_id,
                     "event": "IMPLEMENTATION_BLOCKED_PRECHECK",
                     "phase": phase_text,
-                    "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
-                    "message": str(llm_result.get("message") or "").strip(),
+                    "reason_code": reason_code,
+                    "message": message,
                 },
             )
         return _payload(
@@ -837,12 +844,16 @@ def start_implementation(
                 "domain_changed_files": [],
                 "plan_coverage": [],
                 "checks": [],
-                "reason_codes": [RC_EXECUTOR_NOT_CONFIGURED],
+                "reason_codes": [reason_code],
                 "is_compliant": False,
             },
-            reason_code=RC_EXECUTOR_NOT_CONFIGURED,
-            reason_codes=[RC_EXECUTOR_NOT_CONFIGURED],
-            next_action="Set OPENCODE_IMPLEMENT_LLM_CMD to a callable executor bridge and rerun /implement.",
+            reason_code=reason_code,
+            reason_codes=[reason_code],
+            next_action=(
+                "Set OPENCODE_IMPLEMENT_LLM_CMD to a callable executor bridge and rerun /implement."
+                if reason_code == RC_EXECUTOR_NOT_CONFIGURED
+                else "Resolve the precheck blocker and rerun /implement."
+            ),
         )
 
     validation_violations = llm_result.get("validation_violations") or []
