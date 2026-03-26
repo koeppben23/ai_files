@@ -39,7 +39,8 @@ class TestNormalizeToCanonical:
 
     def test_canonical_takes_precedence_over_legacy(self):
         """Canonical field takes precedence when both exist."""
-        result = normalize_to_canonical({"phase": "canonical", "phase": "legacy"})
+        # Test with both uppercase (legacy) and lowercase (canonical) keys
+        result = normalize_to_canonical({"phase": "canonical", "Phase": "legacy"})
         assert result["phase"] == "canonical"
 
     def test_next_action_field(self):
@@ -110,7 +111,8 @@ class TestNormalizeToCanonical:
 
     def test_none_values_not_included(self):
         """None values are not included in canonical state."""
-        raw_state = {"phase": "test", "phase": None, "gates": None}
+        # Test with both lowercase and uppercase keys, one with None
+        raw_state = {"phase": "test", "Phase": None, "gates": None}
         result = normalize_to_canonical(raw_state)
         assert "phase" in result
         assert "gates" not in result

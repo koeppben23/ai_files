@@ -107,9 +107,9 @@ class TestSchemaValidator:
         doc = _minimal_valid_session_state()
         session_state = doc["SESSION_STATE"]
         assert isinstance(session_state, dict)
-        session_state["Phase"] = "99"
+        session_state["phase"] = "99"
         errors = validate_against_schema(schema=SESSION_STATE_CORE_SCHEMA, value=doc)
-        assert any("Phase:enum" in e for e in errors)
+        assert any("phase:enum" in e for e in errors)
 
     def test_bootstrap_missing_required(self):
         doc = _minimal_valid_session_state()
@@ -191,7 +191,8 @@ class TestInvariantValidators:
         assert validate_blocked_next_invariant(state) == ()
 
     def test_next_fields_must_match_when_both_present(self):
-        state: dict[str, object] = {"next": "6", "next": "4"}
+        # Test with both lowercase and uppercase keys (legacy scenario)
+        state: dict[str, object] = {"next": "6", "Next": "4"}
         errors = validate_next_field_sync(state)
         assert "next_field_mismatch" in errors
 
