@@ -45,8 +45,8 @@ def test_rework_e2e_changes_requested_still_blocks_on_invalid_business_rules() -
     _normalize_phase6_p5_state(state_doc=state_doc)
 
     ss = state_doc["SESSION_STATE"]
-    assert ss["Phase"] == "5.4-BusinessRules"
-    assert ss["Next"] == "5.4"
+    assert ss["phase"] == "5.4-BusinessRules"
+    assert ss["next"] == "5.4"
     assert ss["phase6_state"] in ("", "6.none", "phase5_in_progress")
     assert "BLOCKED-P5-4-BUSINESS-RULES-GATE" in ss["next_gate_condition"]
 
@@ -93,6 +93,6 @@ def test_rework_e2e_changes_requested_blocks_on_code_coverage_gap() -> None:
     _normalize_phase6_p5_state(state_doc=state_doc)
 
     ss = state_doc["SESSION_STATE"]
-    assert ss["Phase"] == "5.4-BusinessRules"
+    assert ss["phase"] == "5.4-BusinessRules"
     assert ss["phase6_state"] in ("", "6.none", "phase5_in_progress")
     assert "BLOCKED-P5-4-BUSINESS-RULES-GATE" in ss["next_gate_condition"]
