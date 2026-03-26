@@ -121,6 +121,10 @@ def test_phase4_intake_good_chat_text_routes_to_phase5(tmp_path: Path, monkeypat
     assert state["phase4_intake_source"] == "phase4-intake-bridge"
     assert state["phase"] == "5-ArchitectureReview"
     assert state["active_gate"] == "Plan Record Preparation Gate"
+    ticket_record = json.loads((session_path.parent / "ticket-record.json").read_text(encoding="utf-8"))
+    assert ticket_record["schema"] == "governance.ticket-record.v1"
+    assert ticket_record["ticket"] == "Implement BR bridge"
+    assert ticket_record["ticket_digest"] == state["TicketRecordDigest"]
 
 
 @pytest.mark.governance
@@ -142,6 +146,9 @@ def test_phase4_intake_good_file_input_routes_to_phase5(tmp_path: Path, monkeypa
     assert isinstance(state["TicketRecordDigest"], str) and state["TicketRecordDigest"]
     assert state["phase"] == "5-ArchitectureReview"
     assert state["active_gate"] == "Plan Record Preparation Gate"
+    ticket_record = json.loads((session_path.parent / "ticket-record.json").read_text(encoding="utf-8"))
+    assert ticket_record["ticket"] == "Implement from file"
+    assert ticket_record["ticket_digest"] == state["TicketRecordDigest"]
 
 
 @pytest.mark.governance

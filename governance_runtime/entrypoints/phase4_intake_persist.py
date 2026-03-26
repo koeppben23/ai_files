@@ -57,6 +57,26 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     return out
 
 
+def _ticket_record_path(session_path: Path) -> Path:
+    return session_path.parent / "ticket-record.json"
+
+
+def _persist_ticket_record(*, session_path: Path, repo_fingerprint: str, state: Mapping[str, Any]) -> Path:
+    payload = {
+        "schema": "governance.ticket-record.v1",
+        "repo_fingerprint": repo_fingerprint,
+        "source": "phase4-intake-bridge",
+        "updated_at": _now_iso(),
+        "ticket": str(state.get("Ticket") or ""),
+        "task": str(state.get("Task") or ""),
+        "ticket_digest": str(state.get("TicketRecordDigest") or ""),
+        "task_digest": str(state.get("TaskRecordDigest") or ""),
+    }
+    ticket_path = _ticket_record_path(session_path)
+    _write_json_atomic(ticket_path, payload)
+    return ticket_path
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Persist Phase-4 intake evidence and reroute kernel state")
     parser.add_argument("--ticket-text", default="", help="Ticket text input")
@@ -177,6 +197,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         _write_json_atomic(session_path, document)
+        state_after = document.get("SESSION_STATE")
+        state_after_map = state_after if isinstance(state_after, dict) else {}
+        ticket_record_path = _persist_ticket_record(
+            session_path=session_path,
+            repo_fingerprint=repo_fingerprint,
+            state=state_after_map,
+        )
         _append_jsonl(
             session_path.parent / "logs" / "events.jsonl",
             {
@@ -188,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
                 "ticket_digest_present": bool(ticket),
                 "task_digest_present": bool(task),
                 "source": "phase4-intake-bridge",
+                "ticket_record_path": str(ticket_record_path),
             },
         )
     except Exception as exc:
@@ -212,6 +240,7 @@ def main(argv: list[str] | None = None) -> int:
         next_gate=routed.active_gate,
         next_action="run /continue.",
         active_gate=routed.active_gate,
+        ticket_record_path=str(ticket_record_path),
     )
     if args.quiet:
         print(json.dumps(payload, ensure_ascii=True))
