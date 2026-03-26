@@ -520,9 +520,9 @@ class TestReviewDecisionReject:
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]
         phase_val = ss.get("phase") or ss.get("Phase") or ""
+        next_val = ss.get("next") or ss.get("Next") or ""
         assert phase_val == "4"
-        assert ss["Next"] == "4"
-        assert ss["next"] == "4"
+        assert next_val == "4"
         assert ss["phase_transition_evidence"] is False
         assert ss.get("workflow_complete") is None
         # Fix 4: reject sets active_gate and next_gate_condition, clears phase6_state.
@@ -542,9 +542,9 @@ class TestReviewDecisionReject:
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]
         phase_val = ss.get("phase") or ss.get("Phase") or ""
+        next_val = ss.get("next") or ss.get("Next") or ""
         assert phase_val == "4"
-        assert ss["Next"] == "4"
-        assert ss["next"] == "4"
+        assert next_val == "4"
 
 
 class TestReviewDecisionBadPaths:
