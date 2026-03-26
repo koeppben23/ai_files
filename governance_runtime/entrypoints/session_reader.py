@@ -266,23 +266,36 @@ def _resolve_next_action_line(snapshot: Snapshot) -> str:
         elif rail == "/continue":
             return "Next action: run /continue."
     
-    p54_status = str(snapshot.get("p54_evaluated_status") or "").strip().lower()
-    if p54_status == "gap-detected":
-        return "Next action: complete the active business-rules validation work in chat."
-    
-    p55_status = str(snapshot.get("p55_evaluated_status") or "").strip().lower()
-    if p55_status == "pending":
-        return "Next action: complete the active technical-debt validation work in chat."
-    
-    p56_status = str(snapshot.get("p56_evaluated_status") or "").strip().lower()
-    if p56_status == "pending":
-        return "Next action: complete the active rollback-safety validation work in chat."
-    
     if (phase.startswith("4") or gate == "ticket input gate") and "/review" not in label.lower():
         label = (
             "run /ticket with the ticket/task details. "
             "Alternative: run /review for read-only feedback (no state change)."
         )
+
+    p54_status = str(snapshot.get("p54_evaluated_status") or "").strip().lower()
+    if p54_status == "gap-detected" and (
+        "business rules validation" in gate
+        or phase.startswith("5.4")
+        or "businessrules" in phase
+    ):
+        return "Next action: complete the active business-rules validation work in chat."
+
+    p55_status = str(snapshot.get("p55_evaluated_status") or "").strip().lower()
+    if p55_status == "pending" and (
+        "technical debt" in gate
+        or phase.startswith("5.5")
+        or "technicaldebt" in phase
+    ):
+        return "Next action: complete the active technical-debt validation work in chat."
+
+    p56_status = str(snapshot.get("p56_evaluated_status") or "").strip().lower()
+    if p56_status == "pending" and (
+        "rollback safety" in gate
+        or phase.startswith("5.6")
+        or "rollbacksafety" in phase
+    ):
+        return "Next action: complete the active rollback-safety validation work in chat."
+
     return f"Next action: {label}"
 
 # Import Phase-5 normalizer functions

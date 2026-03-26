@@ -12,10 +12,6 @@ RECORD_STATUSES = {"draft", "finalized", "superseded", "invalidated"}
 RUNTIME_PURGE_SAFE_FILES = {
     "SESSION_STATE.json",
     "plan-record.json",
-    "repo-cache.yaml",
-    "repo-map-digest.md",
-    "workspace-memory.yaml",
-    "decision-pack.md",
     "current_run.json",
 }
 

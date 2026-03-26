@@ -401,8 +401,8 @@ class TestNewWorkSessionEntrypoint:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["reason"] == "new-work-session-created"
 
-        assert not (workspace / "repo-cache.yaml").exists()
-        assert not (workspace / "workspace-memory.yaml").exists()
-        assert not (workspace / "decision-pack.md").exists()
+        assert (workspace / "repo-cache.yaml").exists()
+        assert (workspace / "workspace-memory.yaml").exists()
+        assert (workspace / "decision-pack.md").exists()
         assert (workspace / "notes.tmp").exists()
         assert (run_dir(workspace.parent, workspace.name, "run-old-001") / "run-manifest.json").is_file()
