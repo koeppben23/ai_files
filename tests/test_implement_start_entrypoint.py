@@ -329,24 +329,24 @@ def test_security_local_writes_are_governance_or_state_only(
     assert out["status"] == "blocked"
     assert json_writes == [session_path]
     assert event_writes == [events_path]
-    assert len(writes) == 1
-    report_path = writes[0]
-    rel = report_path.relative_to(tmp_path).as_posix()
-    assert rel.startswith(".governance/implementation/")
-    assert len(text_writes) >= 3
+    if writes:
+        assert len(writes) == 1
+        report_path = writes[0]
+        rel = report_path.relative_to(tmp_path).as_posix()
+        assert rel.startswith(".governance/implementation/")
+    assert len(text_writes) >= 2
     for path in text_writes:
         rel_text = path.relative_to(tmp_path).as_posix()
         assert rel_text.startswith(".governance/implementation/")
 
 
-def test_happy_desktop_llm_binding_used_as_default_executor(
+def test_bad_desktop_llm_binding_without_callable_bridge_blocks(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     repo_root = tmp_path
     monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
     monkeypatch.setenv("OPENCODE", "1")
-    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: ["src/service.py"])
 
     result = _ORIGINAL_RUN_LLM_EDIT_STEP(
         repo_root=repo_root,
@@ -357,10 +357,11 @@ def test_happy_desktop_llm_binding_used_as_default_executor(
         required_hotspots=["src/service.py"],
     )
 
-    assert result["executor_invoked"] is True
-    assert result["exit_code"] == 0
-    assert result["reason_code"] == ""
-    assert result["changed_files"] == ["src/service.py"]
+    assert result["executor_invoked"] is False
+    assert result["exit_code"] == 2
+    assert result["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
+    assert result.get("blocked") is True
+    assert result["changed_files"] == []
 
 
 def test_happy_override_executor_precedence_over_desktop_default(
@@ -416,6 +417,33 @@ def test_bad_no_executor_binding_blocks_with_not_configured_reason(
 
     assert result["executor_invoked"] is False
     assert result["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
+
+
+def test_edge_implement_start_with_desktop_binding_but_no_bridge_blocks_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+
+    monkeypatch.setattr(entrypoint, "_run_llm_edit_step", _ORIGINAL_RUN_LLM_EDIT_STEP)
+    monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+    monkeypatch.setenv("OPENCODE", "1")
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "blocked"
+    assert out["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
+    assert out["reason_codes"] == [entrypoint.RC_EXECUTOR_NOT_CONFIGURED]
+    assert out["implementation_validation"]["checks"] == []
+    assert out["implementation_validation"]["plan_coverage"] == []
 
 
 def test_bad_effective_authoring_policy_unavailable_blocks_with_executor(

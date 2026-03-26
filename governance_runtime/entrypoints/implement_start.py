@@ -470,17 +470,26 @@ def _run_llm_edit_step(
 
     if not executor_cmd:
         if _has_active_desktop_llm_binding():
-            changed_files = _parse_changed_files_from_git_status(repo_root)
-            _write_text_atomic(stdout_file, "Using current OpenCode LLM session as implementation executor.\n")
-            _write_text_atomic(stderr_file, "")
+            _write_text_atomic(stdout_file, "")
+            _write_text_atomic(
+                stderr_file,
+                (
+                    "Desktop LLM binding detected, but no callable executor command is available "
+                    "in this process. Set OPENCODE_IMPLEMENT_LLM_CMD.\n"
+                ),
+            )
             return {
-                "executor_invoked": True,
-                "exit_code": 0,
-                "reason_code": "",
-                "message": "",
+                "executor_invoked": False,
+                "exit_code": 2,
+                "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
+                "message": (
+                    "Desktop LLM binding detected but no callable executor bridge is available in this shell process. "
+                    "Set OPENCODE_IMPLEMENT_LLM_CMD to an executable command."
+                ),
                 "stdout_path": str(stdout_file),
                 "stderr_path": str(stderr_file),
-                "changed_files": changed_files,
+                "changed_files": [],
+                "blocked": True,
             }
         _write_text_atomic(stdout_file, "")
         _write_text_atomic(stderr_file, "LLM executor command missing\n")
@@ -690,6 +699,57 @@ def start_implementation(
         required_hotspots=required_hotspots,
         commands_home=commands_home,
     )
+
+    if bool(llm_result.get("blocked")) or str(llm_result.get("reason_code") or "") == RC_EXECUTOR_NOT_CONFIGURED:
+        state["implementation_authorized"] = True
+        state["implementation_started"] = True
+        state["implementation_started_at"] = ts
+        state["implementation_started_by"] = actor.strip() or "operator"
+        state["implementation_execution_started"] = False
+        state["next"] = "6"
+        state["active_gate"] = "Implementation Blocked"
+        state["next_gate_condition"] = (
+            "Implementation executor unavailable in current process. "
+            "Set OPENCODE_IMPLEMENT_LLM_CMD to a callable command and rerun /implement."
+        )
+        _write_json_atomic(session_path, state_doc)
+        if events_path is not None:
+            _append_event(
+                events_path,
+                {
+                    "schema": "opencode.implementation-started.v2",
+                    "ts_utc": ts,
+                    "event_id": event_id,
+                    "event": "IMPLEMENTATION_BLOCKED_PRECHECK",
+                    "phase": phase_text,
+                    "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
+                    "message": str(llm_result.get("message") or "").strip(),
+                },
+            )
+        return _payload(
+            "blocked",
+            event_id=event_id,
+            phase="6-PostFlight",
+            next="6",
+            active_gate="Implementation Blocked",
+            next_gate_condition=state["next_gate_condition"],
+            implementation_started=True,
+            implementation_validation={
+                "executor_invoked": False,
+                "executor_succeeded": False,
+                "has_domain_diffs": False,
+                "governance_only_changes": False,
+                "changed_files": [],
+                "domain_changed_files": [],
+                "plan_coverage": [],
+                "checks": [],
+                "reason_codes": [RC_EXECUTOR_NOT_CONFIGURED],
+                "is_compliant": False,
+            },
+            reason_code=RC_EXECUTOR_NOT_CONFIGURED,
+            reason_codes=[RC_EXECUTOR_NOT_CONFIGURED],
+            next_action="Set OPENCODE_IMPLEMENT_LLM_CMD to a callable executor bridge and rerun /implement.",
+        )
 
     validation_violations = llm_result.get("validation_violations") or []
     response_valid = bool(llm_result.get("response_valid"))
