@@ -1305,23 +1305,33 @@ def _select_transition_topology_authoritative(
 
 
 def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -> tuple[bool, dict[str, str]]:
-    # Boot log: boot.log.jsonl (bootstrap lifecycle events)
-    # Canonical audit log: events.jsonl
-    # Operational mirror/debug: flow.log.jsonl
+    # Boot log: boot.log.jsonl (bootstrap lifecycle only - phases 1.x)
+    # Canonical audit log: events.jsonl (all governance events)
+    # Operational mirror: flow.log.jsonl (phase transitions only)
     workspace_written = False
     workspace_path = log_paths.get("workspace_events")
     workspace_flow = log_paths.get("workspace_flow")
     workspace_boot = log_paths.get("workspace_boot")
+    
     if workspace_path is None and workspace_boot is None:
         return True, {
             "phase_flow": str(workspace_flow or ""),
             "workspace_events": "",
         }
+    
+    event_str = str(event.get("event", ""))
+    event_phase = str(event.get("phase", ""))
+    is_bootstrap_phase = event_phase.startswith("1.") or event_phase in ("1.1-Bootstrap", "0-None")
+    is_transition = "COMPLETED" in event_str or "STARTED" in event_str
+    is_blocked = "BLOCKED" in event_str
+    
     if workspace_path is not None:
         workspace_written = _append_event(workspace_path, event)
-        if workspace_flow is not None:
-            _append_event(workspace_flow, event)
-    if workspace_boot is not None:
+    
+    if workspace_flow is not None and (is_transition or is_blocked):
+        _append_event(workspace_flow, event)
+    
+    if workspace_boot is not None and is_bootstrap_phase:
         _append_event(workspace_boot, event)
 
     if workspace_written:
