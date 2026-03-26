@@ -44,6 +44,9 @@ from governance_runtime.infrastructure.binding_evidence_resolver import BindingE
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
+from governance_runtime.infrastructure.opencode_model_binding import (
+    has_active_desktop_llm_binding as _has_desktop_llm_binding,
+)
 from governance_runtime.infrastructure.plan_record_state import resolve_plan_record_signal
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
@@ -365,18 +368,7 @@ def _parse_changed_files_from_git_status(repo_root: Path) -> list[str]:
 def _has_active_desktop_llm_binding() -> bool:
     if str(os.environ.get("OPENCODE") or "").strip() == "1":
         return True
-    binding_tokens = (
-        "OPENCODE_MODEL",
-        "OPENCODE_MODEL_ID",
-        "OPENCODE_MODEL_PROVIDER",
-        "OPENCODE_MODEL_CONTEXT_LIMIT",
-        "OPENCODE_CLIENT_MODEL",
-        "OPENCODE_CLIENT_PROVIDER",
-    )
-    for key in binding_tokens:
-        if str(os.environ.get(key) or "").strip():
-            return True
-    return False
+    return _has_desktop_llm_binding()
 
 
 def _run_llm_edit_step(

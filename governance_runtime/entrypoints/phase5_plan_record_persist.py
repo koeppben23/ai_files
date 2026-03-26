@@ -29,6 +29,9 @@ from governance_runtime.contracts.validator import validate_requirement_contract
 from governance_runtime.domain import reason_codes
 from governance_runtime.domain.phase_state_machine import normalize_phase_token
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance_runtime.infrastructure.opencode_model_binding import (
+    has_active_desktop_llm_binding as _has_desktop_llm_binding,
+)
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.plan_record_repository import PlanRecordRepository
 from governance_runtime.infrastructure.workspace_paths import plan_record_archive_dir, plan_record_path
@@ -373,16 +376,8 @@ def _resolve_plan_executor() -> str:
 
 
 def _has_active_desktop_llm_binding() -> bool:
-    """Return True when OpenCode Desktop model binding is present in env."""
-    binding_tokens = (
-        "OPENCODE_MODEL",
-        "OPENCODE_MODEL_ID",
-        "OPENCODE_MODEL_PROVIDER",
-        "OPENCODE_MODEL_CONTEXT_LIMIT",
-        "OPENCODE_CLIENT_MODEL",
-        "OPENCODE_CLIENT_PROVIDER",
-    )
-    return any(str(os.environ.get(key) or "").strip() for key in binding_tokens)
+    """Return True when OpenCode Desktop model binding is available."""
+    return _has_desktop_llm_binding()
 
 
 def _call_llm_generate_plan(

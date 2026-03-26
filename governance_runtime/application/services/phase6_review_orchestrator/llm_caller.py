@@ -95,6 +95,8 @@ class LLMCaller:
             self._executor_cmd = ""
 
     def _has_active_desktop_llm_binding(self) -> bool:
+        if str(self._env_reader("OPENCODE") or "").strip() == "1":
+            return True
         binding_tokens = (
             "OPENCODE_MODEL",
             "OPENCODE_MODEL_ID",

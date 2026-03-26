@@ -681,6 +681,49 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     state_map["session_materialization_event_id"] = f"mat-{uuid.uuid4().hex}"
     state_map["session_materialized_at"] = _now_iso()
 
+    _phase_value = str(state_map.get("phase") or "").strip()
+    _p6_review_raw = state_map.get("ImplementationReview")
+    if _phase_value.startswith("6") or isinstance(_p6_review_raw, dict):
+        _default_p6_max = _get_phase6_max_review_iterations(session_path.parent)
+        _p6_review = _p6_review_raw if isinstance(_p6_review_raw, dict) else {}
+        _p6_iter = _coerce_int(
+            _p6_review.get("iteration")
+            or _p6_review.get("Iteration")
+            or state_map.get("phase6_review_iterations")
+            or state_map.get("phase6ReviewIterations")
+        )
+        _p6_max_raw = _coerce_int(
+            _p6_review.get("max_iterations")
+            or _p6_review.get("MaxIterations")
+            or state_map.get("phase6_max_review_iterations")
+            or state_map.get("phase6MaxReviewIterations")
+        )
+        if _p6_max_raw <= 0:
+            _p6_max = _default_p6_max
+        else:
+            _p6_max = min(_p6_max_raw, _default_p6_max)
+        _p6_min_raw = _coerce_int(
+            _p6_review.get("min_self_review_iterations")
+            or _p6_review.get("MinSelfReviewIterations")
+            or state_map.get("phase6_min_review_iterations")
+            or state_map.get("phase6MinReviewIterations")
+            or state_map.get("phase6_min_self_review_iterations")
+            or state_map.get("phase6MinSelfReviewIterations")
+        )
+        if _p6_min_raw <= 0:
+            _p6_min = 1
+        else:
+            _p6_min = min(_p6_min_raw, _p6_max)
+        if _p6_iter < _p6_min:
+            _p6_iter = _p6_min
+        if _p6_iter > _p6_max:
+            _p6_iter = _p6_max
+
+        state_map["phase6_review_iterations"] = _p6_iter
+        state_map["phase6_max_review_iterations"] = _p6_max
+        state_map["phase6_min_review_iterations"] = _p6_min
+        state_map["phase6_min_self_review_iterations"] = _p6_min
+
     _gate_evaluators = GateEvaluators(
         evaluate_p53=evaluate_p53_test_quality_gate,
         evaluate_p54=evaluate_p54_business_rules_gate,
@@ -1159,7 +1202,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     # Surface kernel-owned exit conditions for the Phase 6 internal
     # implementation review loop, mirroring the Phase 5 self-review block.
     # Without this, users cannot see iteration progress or exit criteria.
-    if phase_str.startswith("6"):
+    if phase_str.startswith("6") or isinstance(state_view.get("ImplementationReview"), dict):
         p6_review = state_view.get("ImplementationReview") or state.get("ImplementationReview") or {}
         if isinstance(p6_review, dict):
             _p6_iter = _coerce_int(

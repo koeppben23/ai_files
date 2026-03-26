@@ -44,7 +44,7 @@ $env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --plan-per
 
 ## Plan LLM executor
 
-Default executor is the active OpenCode Desktop LLM binding. Optional overrides: `OPENCODE_PLAN_LLM_CMD` (plan-specific) and fallback `OPENCODE_IMPLEMENT_LLM_CMD`.
+Default executor is the active OpenCode Desktop LLM binding. Resolution uses direct model env tokens first, then the active OpenCode session model from local session storage (`opencode.db`) via the workspace guard/session pointer. Optional overrides: `OPENCODE_PLAN_LLM_CMD` (plan-specific) and fallback `OPENCODE_IMPLEMENT_LLM_CMD`.
 
 ## If execution is unavailable
 
