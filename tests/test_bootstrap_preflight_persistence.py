@@ -302,8 +302,8 @@ def test_hydrate_transition_state_sets_mandatory_profile_and_addon_evidence():
     state = hydrated["SESSION_STATE"]
 
     assert state["ActiveProfile"] == "profile.fallback-minimum"
-    assert state["LoadedRulebooks"]["profile"].endswith("rules.fallback-minimum.yml")
-    assert state["LoadedRulebooks"]["addons"]["riskTiering"].endswith("rules.risk-tiering.yml")
+    assert state["LoadedRulebooks"]["profile"].endswith("rules.fallback-minimum.md")
+    assert state["LoadedRulebooks"]["addons"]["riskTiering"].endswith("riskTiering.addon.yml")
     assert state["AddonsEvidence"]["riskTiering"]["status"] == "loaded"
 
 

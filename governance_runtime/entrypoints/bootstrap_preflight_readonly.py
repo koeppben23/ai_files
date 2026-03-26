@@ -94,7 +94,7 @@ HOOK_STATUS_FAILED = "failed"
 
 DEFAULT_ACTIVE_PROFILE_ID = "fallback-minimum"
 DEFAULT_ADDON_KEY = "riskTiering"
-DEFAULT_ADDON_RULEBOOK = "rules.risk-tiering.yml"
+DEFAULT_ADDON_RULEBOOK = "addons/riskTiering.addon.yml"
 _BUSINESS_RULES_RESOLVED_OUTCOMES = {"extracted", "gap-detected", "unresolved"}
 SUPPORTED_PROFILE_IDS = {
     "backend-python",
@@ -1088,7 +1088,7 @@ def _detect_repo_profile(repo_root: Path | None) -> dict[str, object]:
 
 
 def _profile_rulebook_path_token(profile_id: str) -> str:
-    return f"${{PROFILES_HOME}}/rules.{profile_id}.yml"
+    return f"${{PROFILES_HOME}}/rules.{profile_id}.md"
 
 
 def _addon_rulebook_path_token() -> str:
