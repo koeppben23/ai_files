@@ -147,7 +147,7 @@ class TestNewWorkSessionEntrypoint:
         assert archived_meta["archived_files"]["plan_record"] is False
         assert "events.jsonl" not in {p.name for p in archived_dir.iterdir()}
 
-        events = [json.loads(line) for line in (session_path.parent / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+        events = [json.loads(line) for line in (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
         created = [e for e in events if e.get("event") == "new_work_session_created"][-1]
         assert created["snapshot_path"] == str(archived_dir / "SESSION_STATE.json")
         assert created["snapshot_digest"] == canonical_json_hash(archived_state)
@@ -209,7 +209,7 @@ class TestNewWorkSessionEntrypoint:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["reason"] == "new-work-session-init-failed"
 
-        events = [json.loads(line) for line in (session_path.parent / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+        events = [json.loads(line) for line in (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
         failed = [e for e in events if e.get("event") == "new_work_session_init_failed"]
         assert failed, "failure marker event must be appended"
         assert failed[-1]["reason"] == "new-work-session-init-failed"
@@ -230,7 +230,7 @@ class TestNewWorkSessionEntrypoint:
         assert second_payload["reason"] == "new-work-session-deduped"
         assert second_payload["run_id"] == run_id
 
-        events = (session_path.parent / "events.jsonl").read_text(encoding="utf-8")
+        events = (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8")
         assert "new_work_session_created" in events
         assert "new_work_session_deduped" in events
         parsed = [json.loads(line) for line in events.splitlines() if line.strip()]
@@ -260,7 +260,7 @@ class TestNewWorkSessionEntrypoint:
         assert second_payload["reason"] == "new-work-session-created"
         assert second_payload["run_id"] != first_run_id
 
-        events = (session_path.parent / "events.jsonl").read_text(encoding="utf-8")
+        events = (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8")
         assert "new_work_session_dedupe_bypassed" in events
         assert events.count("new_work_session_created") >= 2
 
@@ -306,7 +306,7 @@ class TestNewWorkSessionEntrypoint:
 
         after = json.loads(session_path.read_text(encoding="utf-8"))
         assert after == before
-        events = [json.loads(line) for line in (session_path.parent / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+        events = [json.loads(line) for line in (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
         assert not [e for e in events if e.get("event") == "new_work_session_created"]
         assert [e for e in events if e.get("event") == "new_work_session_init_failed"]
 

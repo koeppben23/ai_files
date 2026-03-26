@@ -363,7 +363,7 @@ def test_phase5_plan_persist_happy_writes_iteration_audit_rows(tmp_path: Path, m
     rc = module.main(["--plan-text", "## Zielbild\n## Soll-Flow\n## State-Machine\n## Blocker-Taxonomie\n## Audit\n## Go/No-Go\nReason code", "--quiet"])
     assert rc == 0
 
-    events = (session_path.parent / "events.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    events = (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8").strip().splitlines()
     iteration_events = [json.loads(line) for line in events if '"event":"phase5-self-review-iteration"' in line]
     assert len(iteration_events) >= 1
     row = iteration_events[0]

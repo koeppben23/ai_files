@@ -1057,7 +1057,8 @@ class TestMain:
             ),
             encoding="utf-8",
         )
-        (ws_state.parent / "events.jsonl").write_text(
+        (ws_state.parent / "logs").mkdir(parents=True, exist_ok=True)
+        (ws_state.parent / "logs" / "events.jsonl").write_text(
             json.dumps(
                 {
                     "event": "new_work_session_created",

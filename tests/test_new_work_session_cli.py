@@ -78,5 +78,5 @@ class TestNewWorkSessionCliPath:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["reason"] in {"new-work-session-created", "new-work-session-deduped"}
 
-        events = (session_path.parent / "events.jsonl").read_text(encoding="utf-8")
+        events = (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8")
         assert "\"trigger_source\":\"pipeline\"" in events
