@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from governance_runtime.contracts.compiler import compile_plan_to_requirements
+from governance_runtime.contracts.validator import validate_requirement_contracts
 
 
 def test_compiler_groups_lines_into_semantic_segments() -> None:
@@ -59,3 +60,17 @@ def test_compiler_seeds_unverified_completion_rows() -> None:
     compiled = compile_plan_to_requirements(plan_text="- enforce receipt gate")
     assert compiled.completion_seed
     assert all(row.get("overall") == "UNVERIFIED" for row in compiled.completion_seed)
+
+
+def test_compiler_owner_tests_remain_unique_for_long_similar_titles() -> None:
+    long_a = (
+        "breaking backward compatibility for existing workflow by changing"
+        " route semantics in ticket intake edge path alpha"
+    )
+    long_b = (
+        "breaking backward compatibility for existing workflow by changing"
+        " route semantics in ticket intake edge path beta"
+    )
+    compiled = compile_plan_to_requirements(plan_text=f"- {long_a}\n- {long_b}")
+    result = validate_requirement_contracts(compiled.requirements)
+    assert result.ok is True
