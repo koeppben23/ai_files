@@ -101,7 +101,10 @@ def _resolve_content_path(
         content_home = local_root / "governance_content"
         resolved = path_ref.replace("${CONTENT_HOME}", str(content_home))
         p = Path(resolved)
-        return p if p.exists() else None
+        if p.exists():
+            return p
+        fallback = config_root / path_ref.replace("${CONTENT_HOME}/", "")
+        return fallback if fallback.exists() else None
     if path_ref.startswith("${SPEC_HOME}"):
         config_root = commands_home.parent
         local_root = config_root.parent / f"{config_root.name}-local"
