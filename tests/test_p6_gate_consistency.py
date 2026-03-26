@@ -890,8 +890,10 @@ class TestNormalizePhase6P5StateFailClosed:
         # Gate value is NOT overwritten.
         assert ss["Gates"]["P5.3-TestQuality"] == "pending"
         # Fail-closed reset fields:
-        assert ss["Phase"] == "5.3-TestQuality"
-        assert ss["Next"] == "5.3"
+        phase_val = ss.get("phase") or ss.get("Phase") or ""
+        next_val = ss.get("next") or ss.get("Next") or ""
+        assert phase_val == "5.3-TestQuality"
+        assert next_val == "5.3"
         assert ss["phase6_state"] in ("", "6.none", "phase5_in_progress")
         assert ss["implementation_review_complete"] is False
         assert ss["active_gate"] == "Test Quality Gate"
@@ -921,8 +923,10 @@ class TestNormalizePhase6P5StateFailClosed:
         assert norm["blocking_reason_code"] == "BLOCKED-P6-PREREQUISITES-NOT-MET"
         assert norm["action"] == "fail-closed-reset-to-p5"
         # Fail-closed reset:
-        assert ss["Phase"] == "5-ArchitectureReview"
-        assert ss["Next"] == "5"
+        phase_val = ss.get("phase") or ss.get("Phase") or ""
+        next_val = ss.get("next") or ss.get("Next") or ""
+        assert phase_val == "5-ArchitectureReview"
+        assert next_val == "5"
         assert ss["phase6_state"] in ("", "6.none", "phase5_in_progress")
         assert ss["active_gate"] == "Architecture Review Gate"
 
@@ -976,8 +980,10 @@ class TestNormalizePhase6P5StateFailClosed:
         }}
         _normalize_phase6_p5_state(state_doc=state_doc)
         ss = state_doc["SESSION_STATE"]
-        assert ss["Phase"] == "5.4-BusinessRules"
-        assert ss["Next"] == "5.4"
+        phase_val = ss.get("phase") or ss.get("Phase") or ""
+        next_val = ss.get("next") or ss.get("Next") or ""
+        assert phase_val == "5.4-BusinessRules"
+        assert next_val == "5.4"
         assert ss["active_gate"] == "Business Rules Validation"
 
     def test_fail_closed_routes_p56_to_canonical_phase(self) -> None:
@@ -994,8 +1000,10 @@ class TestNormalizePhase6P5StateFailClosed:
         }}
         _normalize_phase6_p5_state(state_doc=state_doc)
         ss = state_doc["SESSION_STATE"]
-        assert ss["Phase"] == "5.6-RollbackSafety"
-        assert ss["Next"] == "5.6"
+        phase_val = ss.get("phase") or ss.get("Phase") or ""
+        next_val = ss.get("next") or ss.get("Next") or ""
+        assert phase_val == "5.6-RollbackSafety"
+        assert next_val == "5.6"
         assert ss["active_gate"] == "Rollback Safety Review"
 
     def test_all_gates_terminal_no_flag(self) -> None:
@@ -1048,7 +1056,8 @@ class TestNormalizePhase6P5StateFailClosed:
         _normalize_phase6_p5_state(state_doc=state_doc)
 
         ss = state_doc["SESSION_STATE"]
-        assert ss["Phase"] == "6-PostFlight"
+        phase_val = ss.get("phase") or ss.get("Phase") or ""
+        assert phase_val == "6-PostFlight"
         assert "_p6_state_normalization" not in ss
 
     def test_rework_state_does_not_bypass_p54_failure(self) -> None:
@@ -1090,7 +1099,8 @@ class TestNormalizePhase6P5StateFailClosed:
         _normalize_phase6_p5_state(state_doc=state_doc)
 
         ss = state_doc["SESSION_STATE"]
-        assert ss["Phase"] == "6-PostFlight"
+        phase_val = ss.get("phase") or ss.get("Phase") or ""
+        assert phase_val == "6-PostFlight"
         assert "_p6_state_normalization" not in ss
 
 
@@ -1223,7 +1233,8 @@ class TestConditionalP5GateSync:
         }}
         _normalize_phase6_p5_state(state_doc=state_doc)
         ss = state_doc["SESSION_STATE"]
-        assert ss["Phase"] == "5.4-BusinessRules"
+        phase_val = ss.get("phase") or ss.get("Phase") or ""
+        assert phase_val == "5.4-BusinessRules"
         assert ss["next"] == "5.4"
 
     def test_gap_detected_keeps_phase5_completed_stable(self) -> None:
@@ -1269,15 +1280,14 @@ class TestCanonicalizeLegacyP5xSurface:
     def test_happy_p54_legacy_surface_is_canonicalized(self) -> None:
         state_doc = {"SESSION_STATE": {
             "phase": "5-ArchitectureReview",
-            "phase": "5-ArchitectureReview",
             "next": "5.4",
             "active_gate": "Business Rules Compliance Gate",
             "next_gate_condition": "Phase 6 promotion blocked: BLOCKED-P5-4-BUSINESS-RULES-GATE",
         }}
         _canonicalize_legacy_p5x_surface(state_doc=state_doc)
         ss = state_doc["SESSION_STATE"]
-        assert ss["Phase"] == "5.4-BusinessRules"
-        assert ss["Next"] == "5.4"
+        assert ss["phase"] == "5.4-BusinessRules"
+        assert ss["next"] == "5.4"
         assert ss["active_gate"] == "Business Rules Validation"
 
     def test_edge_p55_legacy_surface_is_canonicalized(self) -> None:
@@ -1288,8 +1298,8 @@ class TestCanonicalizeLegacyP5xSurface:
         }}
         _canonicalize_legacy_p5x_surface(state_doc=state_doc)
         ss = state_doc["SESSION_STATE"]
-        assert ss["Phase"] == "5.5-TechnicalDebt"
-        assert ss["Next"] == "5.5"
+        assert ss["phase"] == "5.5-TechnicalDebt"
+        assert ss["next"] == "5.5"
         assert ss["active_gate"] == "Technical Debt Review"
 
     def test_corner_non_legacy_phase_unchanged(self) -> None:
@@ -1300,7 +1310,7 @@ class TestCanonicalizeLegacyP5xSurface:
         }}
         _canonicalize_legacy_p5x_surface(state_doc=state_doc)
         ss = state_doc["SESSION_STATE"]
-        assert ss["Phase"] == "5.4-BusinessRules"
+        assert ss["phase"] == "5.4-BusinessRules"
         assert ss["active_gate"] == "Business Rules Validation"
 
     def test_bad_unknown_legacy_gate_keeps_architecture_surface(self) -> None:
@@ -1311,7 +1321,7 @@ class TestCanonicalizeLegacyP5xSurface:
         }}
         _canonicalize_legacy_p5x_surface(state_doc=state_doc)
         ss = state_doc["SESSION_STATE"]
-        assert ss["Phase"] == "5-ArchitectureReview"
+        assert ss["phase"] == "5-ArchitectureReview"
         assert ss["active_gate"] == "Architecture Review Gate"
 
     def test_p54_not_applicable_is_terminal(self) -> None:
