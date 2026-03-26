@@ -325,6 +325,23 @@ class BootstrapPersistenceService:
             if not command:
                 command = [payload.binding.python_command, "-m", "governance_runtime.entrypoints.persist_workspace_artifacts"]
             run = self._runner.run(command)
+            
+            # Log backfill execution details for debugging
+            backfill_event = ErrorEvent(
+                code="BACKFILL_EXECUTION",
+                severity="info",
+                message="Artifact backfill execution details.",
+                expected="command executed",
+                observed={
+                    "command": " ".join(command),
+                    "returncode": run.returncode,
+                    "stdout_length": len(run.stdout) if run.stdout else 0,
+                    "stderr_length": len(run.stderr) if run.stderr else 0,
+                    "stderr_preview": run.stderr[:200] if run.stderr else "",
+                },
+            )
+            self._logger.write(backfill_event)
+            
             if run.returncode != 0:
                 event = ErrorEvent(
                     code="BACKFILL_NON_ZERO_EXIT",
