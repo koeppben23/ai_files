@@ -33,7 +33,7 @@ Use the rendered output as governance context for the response below. Do not inf
 - reflect current `SESSION_STATE.phase` and `SESSION_STATE.next`
 - include delta-only progress for the active step
 - if kernel reports a blocker or warning, render it with concise evidence and one recovery action
-- end with one explicit `Next action:` line as the final output line (including terminal states)
+- end with one explicit `Next action:` line as the final output line (including terminal states); for Phase 4 / Ticket Input Gate include both options: `/ticket` and the read-only alternative `/review` (no state change)
 
 ---
 
