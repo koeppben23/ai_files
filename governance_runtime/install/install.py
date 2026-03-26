@@ -1080,16 +1080,19 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
 
 
 def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[list[str], list[str]]:
-    """Enforce strict local-root top-level allowlist for installer payload."""
+    """Preserve existing local-root contents, only manage installer-owned governance directories.
+    
+    CRITICAL: This function MUST NOT delete or modify any pre-existing content in local_root.
+    It only ensures governance-owned directories exist and removes installer-generated
+    metadata (like error logs), while PRESERVING all user content including 'opencode'.
+    """
     removed: list[str] = []
-    allowed_top_level = {"governance_runtime", "governance_content", "governance_spec", "governance", "VERSION", "opencode"}
+    governance_dirs = {"governance_runtime", "governance_content", "governance_spec"}
     harmless_metadata = FORBIDDEN_METADATA_FILENAMES
 
     if local_root.exists() and local_root.is_dir():
         for path in sorted(local_root.iterdir(), key=lambda p: p.name):
             if path.name in harmless_metadata:
-                # Local-root metadata files are non-governance noise.
-                # Remove when possible but never treat as hard hygiene violation.
                 rel = path.relative_to(local_root).as_posix()
                 removed.append(rel)
                 if dry_run:
@@ -1100,29 +1103,9 @@ def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[l
                     except Exception:
                         pass
                 continue
-            if path.name in allowed_top_level:
+            if path.name in governance_dirs:
                 continue
-            rel = path.relative_to(local_root).as_posix()
-            removed.append(rel)
-            if dry_run:
-                if path.is_dir():
-                    print(f"  [DRY-RUN] rm -rf {path}")
-                else:
-                    print(f"  [DRY-RUN] rm {path}")
-                continue
-            if path.is_dir():
-                if path.is_symlink():
-                    try:
-                        path.unlink()
-                    except Exception:
-                        pass
-                else:
-                    shutil.rmtree(path, ignore_errors=True)
-            else:
-                try:
-                    path.unlink()
-                except Exception:
-                    pass
+            print(f"  🛡️  PRESERVED (non-governance): {path.name}/")
 
     governance_logs = local_root / "governance_runtime" / ERROR_LOGS_DIR_NAME
     if governance_logs.exists() and governance_logs.is_dir():
@@ -1133,15 +1116,7 @@ def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[l
         else:
             shutil.rmtree(governance_logs, ignore_errors=True)
 
-    violations: list[str] = []
-    if local_root.exists() and local_root.is_dir():
-        for path in sorted(local_root.iterdir(), key=lambda p: p.name):
-            if path.name in harmless_metadata:
-                continue
-            if path.name not in allowed_top_level:
-                suffix = "/" if path.is_dir() else ""
-                violations.append(path.name + suffix)
-    return removed, violations
+    return removed, []
 
 def collect_command_root_files(source_dir: Path) -> list[Path]:
     """
@@ -2337,17 +2312,11 @@ def install(
         eprint("Recovery: remove forbidden artifacts and rerun installer.")
         return 3
 
-    local_removed, local_hygiene_violations = enforce_local_payload_hygiene(local_root=plan.local_root, dry_run=dry_run)
+    local_removed, _ = enforce_local_payload_hygiene(local_root=plan.local_root, dry_run=dry_run)
     if local_removed:
         preview = ", ".join(local_removed[:6])
         suffix = "" if len(local_removed) <= 6 else ", ..."
         print(f"  ✅ removed forbidden local payload artifacts: {preview}{suffix}")
-    if local_hygiene_violations:
-        eprint("❌ Local payload hygiene failed. Forbidden top-level artifacts remain under local root:")
-        for rel in local_hygiene_violations:
-            eprint(f"  - {rel}")
-        eprint("Recovery: remove forbidden local-root artifacts and rerun installer.")
-        return 3
 
     # --- OpenCode Desktop bridge: opencode.json + session reader path injection ---
     print("\n🔗 Configuring OpenCode Desktop governance bridge...")
