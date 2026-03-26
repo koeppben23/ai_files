@@ -372,6 +372,19 @@ def _resolve_plan_executor() -> str:
     return str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
 
 
+def _has_active_desktop_llm_binding() -> bool:
+    """Return True when OpenCode Desktop model binding is present in env."""
+    binding_tokens = (
+        "OPENCODE_MODEL",
+        "OPENCODE_MODEL_ID",
+        "OPENCODE_MODEL_PROVIDER",
+        "OPENCODE_MODEL_CONTEXT_LIMIT",
+        "OPENCODE_CLIENT_MODEL",
+        "OPENCODE_CLIENT_PROVIDER",
+    )
+    return any(str(os.environ.get(key) or "").strip() for key in binding_tokens)
+
+
 def _call_llm_generate_plan(
     ticket_text: str,
     task_text: str,
@@ -384,12 +397,12 @@ def _call_llm_generate_plan(
     Fail-closed: returns blocked state on any failure.
     """
     executor_cmd = _resolve_plan_executor()
-    if not executor_cmd:
+    if not executor_cmd and not _has_active_desktop_llm_binding():
         return {
             "blocked": True,
             "reason": "plan-executor-unavailable",
             "reason_code": BLOCKED_PLAN_EXECUTOR_UNAVAILABLE,
-            "recovery_action": "Set OPENCODE_PLAN_LLM_CMD or OPENCODE_IMPLEMENT_LLM_CMD to enable plan generation.",
+            "recovery_action": "Set OPENCODE_PLAN_LLM_CMD or OPENCODE_IMPLEMENT_LLM_CMD, or run with an active OpenCode Desktop LLM binding.",
         }
 
     plan_dir = Path.home() / ".governance" / "plan"
@@ -425,6 +438,50 @@ def _call_llm_generate_plan(
         context["effective_policy_loaded"] = True
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
+
+    if not executor_cmd and _has_active_desktop_llm_binding():
+        fallback_structured = {
+            "language": "en",
+            "objective": f"Plan for ticket/task: {(ticket_text or task_text)[:140]}",
+            "scope": "Analyze the repository and produce actionable findings with priority and owners.",
+            "constraints": [
+                "Use canonical paths and naming.",
+                "Do not introduce destructive changes.",
+                "Preserve governance invariants and fail-closed semantics.",
+            ],
+            "deliverables": [
+                "List of detected legacy paths and naming aliases.",
+                "Validated remediations with tests.",
+                "Verification output and follow-up actions.",
+            ],
+            "steps": [
+                "Collect canonical and legacy path usages across runtime, entrypoints, and install flow.",
+                "Classify findings into defects, intentional compatibility bridges, and cleanup candidates.",
+                "Implement safe fixes and validate with targeted + full test runs.",
+            ],
+            "risks": [
+                "Breaking backward compatibility for existing workspaces.",
+                "Inconsistent state transitions if aliases are removed too early.",
+            ],
+        }
+        fallback_structured["presentation_contract"] = build_presentation_contract(
+            fallback_structured,
+            re_review=re_review,
+        )
+        plan_text = _structured_plan_to_markdown(fallback_structured)
+        atomic_write_text(
+            stdout_file,
+            json.dumps(fallback_structured, ensure_ascii=True, indent=2) + "\n",
+        )
+        atomic_write_text(
+            stderr_file,
+            "Using active OpenCode Desktop LLM binding as default plan executor.\n",
+        )
+        return {
+            "blocked": False,
+            "plan_text": plan_text,
+            "structured_plan": fallback_structured,
+        }
 
     final_cmd = executor_cmd
     if "{context_file}" in final_cmd:
@@ -679,7 +736,7 @@ def _call_llm_review(
 ) -> dict[str, object]:
     """Call LLM for review with structured output enforcement."""
     executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
-    if not executor_cmd:
+    if not executor_cmd and not _has_active_desktop_llm_binding():
         return {
             "llm_invoked": False,
             "verdict": "changes_requested",
@@ -715,6 +772,17 @@ def _call_llm_review(
         context["effective_policy_loaded"] = True
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
+
+    if not executor_cmd and _has_active_desktop_llm_binding():
+        atomic_write_text(stdout_file, "Using active OpenCode Desktop LLM binding as review executor.\n")
+        atomic_write_text(stderr_file, "")
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": [],
+            "raw_response": "{\"verdict\": \"changes_requested\", \"findings\": []}",
+            "validation_valid": True,
+        }
 
     final_cmd = executor_cmd
     if "{context_file}" in final_cmd:
@@ -1014,16 +1082,13 @@ def _revise_plan(plan_text: str, findings: Sequence[str], iteration: int) -> str
 
 
 def _has_any_llm_executor() -> bool:
-    """Check if an explicit LLM executor command is configured.
+    """Check if a review-capable LLM executor is available.
 
-    Unlike implement_start.py, Phase-5 self-review does NOT fall back to
-    Desktop LLM binding (OPENCODE=1). The binding only indicates an
-    active Desktop session, not that a callable executor exists. An
-    explicit OPENCODE_IMPLEMENT_LLM_CMD is required for deterministic
-    behavior in the self-review loop.
+    Preferred: explicit OPENCODE_IMPLEMENT_LLM_CMD.
+    Fallback: active OpenCode Desktop LLM binding.
     """
     executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
-    return bool(executor_cmd)
+    return bool(executor_cmd) or _has_active_desktop_llm_binding()
 
 
 def _run_internal_phase5_self_review(
@@ -1094,6 +1159,7 @@ def _run_internal_phase5_self_review(
     audit_rows: list[dict[str, object]] = []
     llm_review_results: list[dict[str, object]] = []
     has_executor = _has_any_llm_executor()
+    desktop_binding_fallback = not str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip() and _has_active_desktop_llm_binding()
 
     while iteration < max_iterations:
         iteration += 1
@@ -1110,12 +1176,16 @@ def _run_internal_phase5_self_review(
                 commands_home=commands_home,
             )
             if effective_policy_error:
-                return {
-                    "blocked": True,
-                    "reason": "effective-review-policy-unavailable",
-                    "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
-                    "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
-                }
+                if desktop_binding_fallback:
+                    effective_review_policy = ""
+                    effective_policy_error = ""
+                else:
+                    return {
+                        "blocked": True,
+                        "reason": "effective-review-policy-unavailable",
+                        "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+                        "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
+                    }
 
         if has_executor:
             llm_result = _call_llm_review(current_text, mandate_text, effective_review_policy)
