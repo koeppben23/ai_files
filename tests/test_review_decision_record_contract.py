@@ -12,9 +12,9 @@ def test_archive_writes_review_decision_record_with_decision_fields(tmp_path: Pa
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-review-decision",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "review_decision": "approve",
         "review_decision_note": "looks good",
     }

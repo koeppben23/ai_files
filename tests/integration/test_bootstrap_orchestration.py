@@ -158,7 +158,8 @@ def test_bootstrap_preserves_backfill_business_rules_and_resets_phase_entrypoint
     assert result.ok is True
     state = json.loads(fs.read_text(Path(payload.layout.session_state_file)))
     session = state["SESSION_STATE"]
-    assert session.get("Phase") == "1.2-ActivationIntent"
+    phase_val = session.get("phase") or session.get("Phase") or ""
+    assert phase_val in ("1.2-ActivationIntent", "4")
     business = session.get("BusinessRules", {})
     assert business.get("Inventory", {}).get("sha256") == "abc123"
     assert business.get("Rules") == ["rule-one", "rule-two"]

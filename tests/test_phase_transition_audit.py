@@ -512,7 +512,7 @@ class TestMonotonicEnforcement:
             current_token="1.1",
             session_state_doc={
                 "SESSION_STATE": {
-                    "Phase": "1.2-ActivationIntent",
+                    "phase": "1.2-ActivationIntent",
                     "PersistenceCommitted": False,
                     "WorkspaceReadyGateCommitted": False,
                     "WorkspaceArtifactsCommitted": False,
@@ -766,7 +766,7 @@ class TestEndToEndPhaseFlow:
         assert r0.phase == "1.1-Bootstrap"
 
         # 1.2 -> 1.3 rulebook load
-        state["Phase"] = "1.2-ActivationIntent"
+        state["phase"] = "1.2-ActivationIntent"
         state["phase"] = "1.2-ActivationIntent"
         state["Intent"] = {"Path": "intent.md", "Sha256": "abc", "EffectiveScope": "repo"}
         r1 = execute(current_token="1.2", session_state_doc=doc, runtime_ctx=ctx)
@@ -774,7 +774,7 @@ class TestEndToEndPhaseFlow:
         assert r1.phase == "1.3-RulebookLoad"
 
         # 4 -> 5 ticket intake
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["phase"] = "4"
         state["Ticket"] = "Implement approved governance plan"
         state["TicketRecordDigest"] = "Context: scope update\nTest Strategy: unit + integration"
@@ -784,7 +784,7 @@ class TestEndToEndPhaseFlow:
         assert r2.phase == "5-ArchitectureReview"
 
         # 5 -> 5.3 manual requested jump with transition evidence
-        state["Phase"] = "5-ArchitectureReview"
+        state["phase"] = "5-ArchitectureReview"
         state["phase"] = "5-ArchitectureReview"
         state["phase_transition_evidence"] = True
         r3 = execute(current_token="5.3", session_state_doc=doc, runtime_ctx=ctx)
@@ -792,7 +792,7 @@ class TestEndToEndPhaseFlow:
 
         # 5.3 -> 6 default route (or already at 6 if engine advanced immediately)
         if r3.phase != "6-PostFlight":
-            state["Phase"] = r3.phase
+            state["phase"] = r3.phase
             state["phase"] = r3.phase
             r4 = execute(current_token="5.3", session_state_doc=doc, runtime_ctx=ctx)
             assert r4.status == "OK"
@@ -807,7 +807,7 @@ class TestEndToEndPhaseFlow:
             current_token="1.3",
             session_state_doc={
                 "SESSION_STATE": {
-                    "Phase": "1.3-RulebookLoad",
+                    "phase": "1.3-RulebookLoad",
                     "PersistenceCommitted": True,
                     "WorkspaceReadyGateCommitted": True,
                     "WorkspaceArtifactsCommitted": True,
@@ -928,9 +928,9 @@ class TestRunLifecycleReset:
         assert payload["reason"] == "new-work-session-created"
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert state["Phase"] == "4"
         assert state["phase"] == "4"
-        assert state["Next"] == "4"
+        assert state["phase"] == "4"
+        assert state["next"] == "4"
         assert state["Ticket"] is None
         assert state["Task"] is None
 
@@ -946,7 +946,7 @@ class TestRunLifecycleReset:
         _ = capsys.readouterr()
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert state["Phase"] == "4"
+        assert state["phase"] == "4"
 
     def test_new_session_from_phase4_idempotent(
         self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -960,7 +960,7 @@ class TestRunLifecycleReset:
         _ = capsys.readouterr()
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert state["Phase"] == "4"
+        assert state["phase"] == "4"
         assert state["Ticket"] is None
         assert state["Gates"]["P5-Architecture"] == "pending"
 
@@ -979,7 +979,7 @@ class TestRunLifecycleReset:
         _ = capsys.readouterr()
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert state["Phase"] == "4"
+        assert state["phase"] == "4"
 
     def test_new_session_archives_previous_run(
         self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -1191,7 +1191,7 @@ class TestCorruptedStateRecovery:
         result = execute(
             current_token="4",
             session_state_doc={"SESSION_STATE": {
-                "Phase": "99-Unknown",
+                "phase": "99-Unknown",
                 "PersistenceCommitted": True,
                 "WorkspaceReadyGateCommitted": True,
                 "WorkspaceArtifactsCommitted": True,
@@ -1210,7 +1210,7 @@ class TestCorruptedStateRecovery:
         result = execute(
             current_token="4",
             session_state_doc={"SESSION_STATE": {
-                "Phase": 5,
+                "phase": 5,
                 "PersistenceCommitted": True,
                 "WorkspaceReadyGateCommitted": True,
                 "WorkspaceArtifactsCommitted": True,
@@ -1273,8 +1273,8 @@ class TestCLILifecycleEntrypoint:
         assert payload["reason"] == "new-work-session-created"
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert state["Phase"] == "4"
-        assert state["Next"] == "4"
+        assert state["phase"] == "4"
+        assert state["next"] == "4"
 
     def test_cli_entrypoint_returns_exit_code_2_without_pointer(
         self, short_tmp: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -1311,7 +1311,7 @@ class TestCLILifecycleEntrypoint:
         _ = capsys.readouterr()
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert state["Phase"] == "4"
+        assert state["phase"] == "4"
 
 
 # ────────────────────────────────────────────────────────────────────

@@ -49,7 +49,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -83,7 +83,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -109,7 +109,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -122,8 +122,9 @@ class TestE2ETicketRail:
         module.main(["--ticket-text=Build auth", "--task-text=Add JWT", "--quiet"])
 
         state = _read_state(session_path)
-        assert str(state.get("Phase", "")).startswith("5"), (
-            f"Phase after /ticket must start with 5, got Phase={state.get('Phase')!r}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert str(phase_val).startswith("5"), (
+            f"Phase after /ticket must start with 5, got Phase={phase_val!r}"
         )
         assert state.get("active_gate") != "Ticket Input Gate", (
             "active_gate must NOT be Ticket Input Gate after /ticket"
@@ -135,7 +136,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -165,7 +166,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -182,7 +183,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -287,7 +288,7 @@ class TestE2ECommandChains:
         module = _load_phase5()
         module.main(["--plan-text", "Plan for test.", "--quiet"])
 
-        events_file = workspace / "events.jsonl"
+        events_file = workspace / "logs" / "events.jsonl"
         assert events_file.exists()
         events = [
             json.loads(l)
@@ -322,8 +323,9 @@ class TestE2ESessionReader:
         rc = module.main(["--commands-home", str(commands_home)])
 
         state = _read_state(session_path)
-        assert state.get("Phase") is not None
-        assert state.get("Phase") == "5-ArchitectureReview"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val is not None
+        assert phase_val == "5-ArchitectureReview"
         assert rc in (0, 1)
 
 
@@ -388,8 +390,10 @@ class TestE2EReviewDecision:
         state = _read_state(result["session_path"])
         assert state.get("active_gate") == "Rework Clarification Gate"
         assert state.get("workflow_complete") in (None, False)
-        assert state.get("Phase") == "6-PostFlight"
-        assert state.get("Next") == "6"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        next_val = state.get("next") or state.get("Next") or ""
+        assert phase_val == "6-PostFlight"
+        assert next_val == "6"
         assert state.get("phase6_state") == "6.rework"
 
     def test_changes_requested_next_action_ux(self, tmp_path, monkeypatch, capsys):
@@ -406,7 +410,8 @@ class TestE2EReviewDecision:
         assert result["rc"] == 0, f"Expected rc=0, got {result['rc']}: {result['payload']}"
 
         state = _read_state(result["session_path"])
-        assert state.get("Phase") == "4"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val == "4"
         assert state.get("active_gate") == "Ticket Input Gate"
         assert "ticket" in state.get("next_gate_condition", "").lower()
 
@@ -458,7 +463,7 @@ class TestE2EReviewDecision:
         result = self._setup_and_apply(tmp_path, monkeypatch, "approve", capsys)
         assert result["rc"] == 0
 
-        events_file = result["workspace"] / "events.jsonl"
+        events_file = result["workspace"] / "logs" / "events.jsonl"
         assert events_file.exists()
         events = [
             json.loads(l)
@@ -695,7 +700,7 @@ class TestE2EReworkRouting:
 
         doc = _read_json(session_path)
         doc["SESSION_STATE"]["active_gate"] = "Rework Clarification Gate"
-        doc["SESSION_STATE"]["Phase"] = "6-PostFlight"
+        doc["SESSION_STATE"]["phase"] = "6-PostFlight"
         doc["SESSION_STATE"]["TicketRecordDigest"] = "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
         doc["SESSION_STATE"]["TaskRecordDigest"] = "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
         session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
@@ -747,9 +752,9 @@ class TestE2EReworkRouting:
         assert state.get("active_gate") == "Rework Clarification Gate"
         assert state.get("phase6_state") == "6.rework"
 
-        state["Phase"] = "6-PostFlight"
+        state["phase"] = "6-PostFlight"
         state["active_gate"] = "Rework Clarification Gate"
-        state["Next"] = "6"
+        state["next"] = "6"
         state["PersistenceCommitted"] = True
         state["WorkspaceReadyGateCommitted"] = True
         state["WorkspaceArtifactsCommitted"] = True
@@ -778,9 +783,10 @@ class TestE2EReworkRouting:
         assert payload.get("status") == "ok"
 
         state = _read_state(session_path)
-        assert state.get("Phase") == "5-ArchitectureReview", (
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val == "5-ArchitectureReview", (
             f"After scope_change rework via /ticket, Phase must be 5-ArchitectureReview "
-            f"(scope change re-triggers Phase 5 review), got {state.get('Phase')}"
+            f"(scope change re-triggers Phase 5 review), got {phase_val}"
         )
         assert state.get("active_gate") == "Plan Record Preparation Gate", (
             f"After scope_change rework, must be at Plan Record Preparation Gate, got {state.get('active_gate')}"
@@ -799,8 +805,8 @@ class TestE2EReworkRouting:
         state = _read_state(session_path)
         assert state.get("active_gate") == "Rework Clarification Gate"
 
-        state["Phase"] = "6-PostFlight"
-        state["Next"] = "6"
+        state["phase"] = "6-PostFlight"
+        state["next"] = "6"
         state["PersistenceCommitted"] = True
         state["WorkspaceReadyGateCommitted"] = True
         state["WorkspaceArtifactsCommitted"] = True
@@ -823,7 +829,7 @@ class TestE2EReworkRouting:
         assert rc == 0, f"/continue on Rework Clarification Gate should succeed, got rc={rc}"
 
         state = _read_state(session_path)
-        phase = str(state.get("Phase") or "")
+        phase = str(state.get("phase") or state.get("Phase") or "")
         assert phase.startswith("6"), (
             f"/continue must stay in Phase 6 at Rework Clarification Gate, got Phase={phase}"
         )
@@ -846,8 +852,8 @@ class TestE2EReworkRouting:
         state = _read_state(session_path)
         assert state.get("active_gate") == "Rework Clarification Gate"
 
-        state["Phase"] = "6-PostFlight"
-        state["Next"] = "6"
+        state["phase"] = "6-PostFlight"
+        state["next"] = "6"
         state["PersistenceCommitted"] = True
         state["WorkspaceReadyGateCommitted"] = True
         state["WorkspaceArtifactsCommitted"] = True
@@ -898,8 +904,8 @@ class TestE2EReworkRouting:
         assert state.get("active_gate") == "Rework Clarification Gate"
         assert state.get("phase6_state") == "6.rework"
 
-        state["Phase"] = "6-PostFlight"
-        state["Next"] = "6"
+        state["phase"] = "6-PostFlight"
+        state["next"] = "6"
         state["PersistenceCommitted"] = True
         state["WorkspaceReadyGateCommitted"] = True
         state["WorkspaceArtifactsCommitted"] = True
@@ -945,8 +951,8 @@ class TestE2EPhase6ReviewLoop:
 
         doc = _read_json(session_path)
         stable_digest = "sha256:" + hashlib.sha256(b"e2e:stable:digest").hexdigest()
-        doc["SESSION_STATE"]["Phase"] = "6-PostFlight"
-        doc["SESSION_STATE"]["Next"] = "6"
+        doc["SESSION_STATE"]["phase"] = "6-PostFlight"
+        doc["SESSION_STATE"]["next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
         doc["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
@@ -1007,8 +1013,8 @@ class TestE2EPhase6ReviewLoop:
         _write_phase6_session(session_path, workspace, repo_fp)
 
         doc = _read_json(session_path)
-        doc["SESSION_STATE"]["Phase"] = "6-PostFlight"
-        doc["SESSION_STATE"]["Next"] = "6"
+        doc["SESSION_STATE"]["phase"] = "6-PostFlight"
+        doc["SESSION_STATE"]["next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
         doc["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
@@ -1063,8 +1069,8 @@ class TestE2EPhase6ReviewLoop:
 
         doc = _read_json(session_path)
         stable_digest = "sha256:" + hashlib.sha256(b"e2e:review:complete").hexdigest()
-        doc["SESSION_STATE"]["Phase"] = "6-PostFlight"
-        doc["SESSION_STATE"]["Next"] = "6"
+        doc["SESSION_STATE"]["phase"] = "6-PostFlight"
+        doc["SESSION_STATE"]["next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
         doc["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
@@ -1130,8 +1136,8 @@ class TestE2EPhase6ReviewLoop:
 
         doc = _read_json(session_path)
         stable_digest = "sha256:" + hashlib.sha256(b"e2e:preserve:digest").hexdigest()
-        doc["SESSION_STATE"]["Phase"] = "6-PostFlight"
-        doc["SESSION_STATE"]["Next"] = "6"
+        doc["SESSION_STATE"]["phase"] = "6-PostFlight"
+        doc["SESSION_STATE"]["next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
         doc["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
@@ -1206,7 +1212,7 @@ class TestE2EComprehensiveChain:
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"cat {mock_plan_file}")
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -1260,7 +1266,7 @@ class TestE2EComprehensiveChain:
         assert rc_cont1 == 0, f"/continue (Phase 5 routing) failed"
 
         state = _read_state(session_path)
-        phase_after_p5 = str(state.get("Phase") or "")
+        phase_after_p5 = str(state.get("phase") or state.get("Phase") or "")
         assert phase_after_p5.startswith("6"), (
             f"After Phase 5 routing, must be in Phase 6, got Phase={phase_after_p5}"
         )
@@ -1603,8 +1609,9 @@ class TestE2EReviewDecisionSemantics:
         assert state.get("active_gate") == "Rework Clarification Gate", (
             f"changes_requested must set active_gate=Rework Clarification Gate, got {state.get('active_gate')}"
         )
-        assert state.get("Phase") == "6-PostFlight", (
-            f"changes_requested must set Phase=6-PostFlight, got {state.get('Phase')}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val == "6-PostFlight", (
+            f"changes_requested must set Phase=6-PostFlight, got {phase_val}"
         )
         assert state.get("implementation_review_complete") is False, (
             "changes_requested must reset implementation_review_complete for re-review"
@@ -1625,8 +1632,9 @@ class TestE2EReviewDecisionSemantics:
         assert state.get("active_gate") == "Ticket Input Gate", (
             f"reject must route to Ticket Input Gate, got {state.get('active_gate')}"
         )
-        assert state.get("Phase") in ("4", "4-TicketIntake"), (
-            f"reject must return to Phase 4, got Phase={state.get('Phase')}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val in ("4", "4-TicketIntake"), (
+            f"reject must return to Phase 4, got Phase={phase_val}"
         )
 
     def test_review_decision_blocks_at_wrong_gate(self, tmp_path, monkeypatch, capsys):
@@ -1636,7 +1644,7 @@ class TestE2EReviewDecisionSemantics:
 
         doc = _read_json(session_path)
         doc["SESSION_STATE"]["active_gate"] = "Plan Record Preparation Gate"
-        doc["SESSION_STATE"]["Phase"] = "5-ArchitectureReview"
+        doc["SESSION_STATE"]["phase"] = "5-ArchitectureReview"
         session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
 
         module = _load_review_decision()
@@ -1945,6 +1953,194 @@ class TestE2EContinueRail:
         )
 
 
+@pytest.mark.e2e_governance
+class TestE2EReviewReadOnlyRail:
+    """Flow-truth tests for `/review` read-only behavior."""
+
+    def test_review_pr_read_only_does_not_mutate_session_state(self, tmp_path, monkeypatch):
+        from governance_runtime.entrypoints import review_pr
+
+        config_root, commands_home, session_path, _, _ = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        before = _read_json(session_path)
+
+        monkeypatch.setattr(
+            review_pr,
+            "analyze_pr",
+            lambda repo_root, remote, base_branch, head_ref: review_pr.ReviewResult(
+                status="ok",
+                mode="remote",
+                base_sha="a" * 40,
+                head_sha="b" * 40,
+                merge_base_sha="c" * 40,
+                files_changed=3,
+                reason_code="none",
+                message="review comparison prepared",
+            ),
+        )
+
+        rc = review_pr.main([
+            "--head-ref",
+            "refs/heads/feat/x",
+            "--repo-root",
+            str(tmp_path),
+        ])
+        assert rc == 0
+
+        after = _read_json(session_path)
+        assert after == before, "`/review` must be read-only and must not mutate SESSION_STATE"
+
+
+@pytest.mark.e2e_governance
+class TestE2EBusinessRulesApplicabilityTruth:
+    """Flow-truth coverage for P5.4 business-rules applicability combinations."""
+
+    @staticmethod
+    def _business_rules_fixture(*, missing_surface_reasons: list[str], invalid_rules: bool = False) -> dict:
+        return {
+            "Outcome": "gap-detected",
+            "ExecutionEvidence": True,
+            "InventoryLoaded": False,
+            "ExtractedCount": 0,
+            "ValidationReasonCodes": [
+                "BUSINESS_RULES_CODE_COVERAGE_INSUFFICIENT",
+                "BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT",
+            ],
+            "QualityInsufficiencyReasons": [
+                "non_business_surface_spike",
+                "insufficient_executable_business_rules",
+            ],
+            "CodeExtractionReport": {
+                "missing_surface_reasons": missing_surface_reasons,
+            },
+            "ValidationReport": {
+                "is_compliant": False,
+                "has_invalid_rules": invalid_rules,
+                "has_render_mismatch": False,
+                "has_source_violation": False,
+                "has_missing_required_rules": False,
+                "has_segmentation_failure": False,
+                "has_code_extraction": True,
+                "code_extraction_sufficient": False,
+                "has_code_coverage_gap": True,
+                "has_code_doc_conflict": False,
+            },
+        }
+
+    @pytest.mark.parametrize(
+        "missing_surface_reasons,invalid_rules,expected",
+        [
+            (
+                [
+                    "validator: filtered_non_business",
+                    "permissions: filtered_non_business",
+                    "workflow: filtered_non_business",
+                ],
+                False,
+                "not-applicable",
+            ),
+            (
+                [
+                    "validator: filtered_non_business",
+                    "workflow: insufficient_business_context",
+                ],
+                False,
+                "gap-detected",
+            ),
+            (
+                [
+                    "validator: filtered_non_business",
+                    "permissions: filtered_non_business",
+                    "workflow: filtered_non_business",
+                ],
+                True,
+                "gap-detected",
+            ),
+        ],
+    )
+    def test_p54_applicability_matrix(self, missing_surface_reasons, invalid_rules, expected):
+        from governance_runtime.engine.gate_evaluator import evaluate_p54_business_rules_gate
+
+        state = {
+            "BusinessRules": self._business_rules_fixture(
+                missing_surface_reasons=missing_surface_reasons,
+                invalid_rules=invalid_rules,
+            )
+        }
+        result = evaluate_p54_business_rules_gate(
+            session_state=state,
+            phase_1_5_executed=True,
+        )
+        assert result.status == expected
+
+    def test_continue_materialize_promotes_non_business_case_to_phase6(self, tmp_path, monkeypatch):
+        config_root, commands_home, session_path, _, _ = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        state = _read_state(session_path)
+        state["phase"] = "5.4-BusinessRules"
+        state["next"] = "5.4"
+        state["active_gate"] = "Business Rules Validation"
+        state["next_gate_condition"] = "Phase 1.5 executed; Phase 5.4 is mandatory before proceeding"
+        state["BusinessRules"] = self._business_rules_fixture(
+            missing_surface_reasons=[
+                "validator: filtered_non_business",
+                "permissions: filtered_non_business",
+                "workflow: filtered_non_business",
+            ],
+            invalid_rules=False,
+        )
+        state["Gates"] = {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.4-BusinessRules": "gap-detected",
+            "P5.5-TechnicalDebt": "not-applicable",
+            "P5.6-RollbackSafety": "not-applicable",
+        }
+        session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_session_reader()
+        rc = module.main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+
+        updated = _read_state(session_path)
+        assert updated.get("Gates", {}).get("P5.4-BusinessRules") == "not-applicable"
+        assert str(updated.get("phase") or "").startswith("6")
+
+    def test_continue_materialize_keeps_true_gap_blocked(self, tmp_path, monkeypatch):
+        config_root, commands_home, session_path, _, _ = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        state = _read_state(session_path)
+        state["phase"] = "5.4-BusinessRules"
+        state["next"] = "5.4"
+        state["active_gate"] = "Business Rules Validation"
+        state["BusinessRules"] = self._business_rules_fixture(
+            missing_surface_reasons=[
+                "validator: filtered_non_business",
+                "workflow: insufficient_business_context",
+            ],
+            invalid_rules=False,
+        )
+        state["Gates"] = {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.4-BusinessRules": "gap-detected",
+            "P5.5-TechnicalDebt": "not-applicable",
+            "P5.6-RollbackSafety": "not-applicable",
+        }
+        session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
+
+        module = _load_session_reader()
+        rc = module.main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+
+        updated = _read_state(session_path)
+        assert updated.get("Gates", {}).get("P5.4-BusinessRules") == "gap-detected"
+        assert str(updated.get("phase") or "").startswith("5.4")
+
+
 # ── K. PHASE-6 GOVERNANCE FAIL-CLOSED ───────────────────────────────────
 
 @pytest.mark.e2e_governance
@@ -1974,8 +2170,8 @@ class TestE2EPhase6GovernanceFailClosed:
         doc = {
             "SESSION_STATE": {
                 "RepoFingerprint": repo_fp,
-                "Phase": "6-PostFlight",
-                "Next": "6",
+                "phase": "6-PostFlight",
+                "next": "6",
                 "Mode": "IN_PROGRESS",
                 "session_run_id": "e2e-phase6-gov",
                 "active_gate": "Implementation Review Gate",
@@ -2207,5 +2403,3 @@ class TestE2EPhase6GovernanceFailClosed:
         assert result.get("verdict") == "changes_requested", (
             f"Decision-rule-violating response must have verdict=changes_requested, got {result.get('verdict')}"
         )
-
-

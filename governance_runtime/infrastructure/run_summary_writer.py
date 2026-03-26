@@ -16,16 +16,21 @@ except Exception:  # pragma: no cover
     yaml = None  # type: ignore
 
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance_runtime.application.services.state_normalizer import normalize_to_canonical
 
 
 def compute_run_id(session_state: Mapping[str, Any], timestamp: str) -> str:
     """Compute deterministic run ID from session state + timestamp."""
+    canonical = normalize_to_canonical(dict(session_state))
+    phase_value = canonical["phase"] if "phase" in canonical else "unknown"
+    repo_fingerprint = canonical["repo_fingerprint"] if "repo_fingerprint" in canonical else ""
     payload = json.dumps(
         {
-            "phase": session_state.get("Phase", "unknown"),
+            "phase": phase_value,
             "mode": session_state.get("Mode", "unknown"),
             "timestamp": timestamp,
             "ruleset_hash": session_state.get("ruleset_hash", ""),
+            "repo_fingerprint": repo_fingerprint,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -208,7 +213,8 @@ def create_run_summary(
     if mode not in {"user", "pipeline", "architect", "implement"}:
         mode = "unknown"
 
-    phase = str(session_state.get("Phase", "0"))
+    canonical = normalize_to_canonical(dict(session_state))
+    phase = str(canonical["phase"] if "phase" in canonical else "0")
 
     reason: dict[str, Any] = {"code": reason_code or "OK"}
     if reason_code and reason_code != "OK":

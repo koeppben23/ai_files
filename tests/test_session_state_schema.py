@@ -35,11 +35,11 @@ def _minimal_valid_session_state() -> dict[str, object]:
         "SESSION_STATE": {
             "session_state_version": 1,
             "ruleset_hash": "abc123",
-            "Phase": "1",
+            "phase": "1",
             "Mode": "NORMAL",
             "OutputMode": "ARCHITECT",
             "ConfidenceLevel": 85,
-            "Next": "Continue",
+            "next": "Continue",
             "Bootstrap": {
                 "Present": True,
                 "Satisfied": True,
@@ -107,9 +107,9 @@ class TestSchemaValidator:
         doc = _minimal_valid_session_state()
         session_state = doc["SESSION_STATE"]
         assert isinstance(session_state, dict)
-        session_state["Phase"] = "99"
+        session_state["phase"] = "99"
         errors = validate_against_schema(schema=SESSION_STATE_CORE_SCHEMA, value=doc)
-        assert any("Phase:enum" in e for e in errors)
+        assert any("phase:enum" in e for e in errors)
 
     def test_bootstrap_missing_required(self):
         doc = _minimal_valid_session_state()
@@ -173,30 +173,31 @@ class TestSchemaValidator:
 @pytest.mark.governance
 class TestInvariantValidators:
     def test_blocked_next_valid(self):
-        state: dict[str, object] = {"Mode": "BLOCKED", "Next": "BLOCKED-TEST"}
+        state: dict[str, object] = {"Mode": "BLOCKED", "next": "BLOCKED-TEST"}
         assert validate_blocked_next_invariant(state) == ()
 
     def test_blocked_next_missing_prefix(self):
-        state: dict[str, object] = {"Mode": "BLOCKED", "Next": "Continue"}
+        state: dict[str, object] = {"Mode": "BLOCKED", "next": "Continue"}
         errors = validate_blocked_next_invariant(state)
         assert "blocked_next_missing_prefix" in errors
 
     def test_blocked_next_not_string(self):
-        state: dict[str, object] = {"Mode": "BLOCKED", "Next": 123}
+        state: dict[str, object] = {"Mode": "BLOCKED", "next": 123}
         errors = validate_blocked_next_invariant(state)
         assert "blocked_next_not_string" in errors
 
     def test_non_blocked_mode_skips_check(self):
-        state: dict[str, object] = {"Mode": "NORMAL", "Next": "Continue"}
+        state: dict[str, object] = {"Mode": "NORMAL", "next": "Continue"}
         assert validate_blocked_next_invariant(state) == ()
 
     def test_next_fields_must_match_when_both_present(self):
-        state: dict[str, object] = {"Next": "6", "next": "4"}
+        # Test with both lowercase and uppercase keys (legacy scenario)
+        state: dict[str, object] = {"next": "6", "Next": "4"}
         errors = validate_next_field_sync(state)
         assert "next_field_mismatch" in errors
 
     def test_next_fields_sync_ok(self):
-        state: dict[str, object] = {"Next": "6", "next": "6"}
+        state: dict[str, object] = {"next": "6", "next": "6"}
         assert validate_next_field_sync(state) == ()
 
     def test_confidence_low_with_draft_ok(self):
@@ -231,7 +232,7 @@ class TestInvariantValidators:
 
     def test_ticket_intake_ready_ok(self):
         state: dict[str, object] = {
-            "Phase": "4",
+            "phase": "4",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "Bootstrap": {"Satisfied": True},
@@ -242,7 +243,7 @@ class TestInvariantValidators:
 
     def test_ticket_intake_ready_blocks_without_bootstrap_satisfied(self):
         state: dict[str, object] = {
-            "Phase": "4",
+            "phase": "4",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "Bootstrap": {"Satisfied": False},
@@ -253,7 +254,7 @@ class TestInvariantValidators:
 
     def test_ticket_intake_ready_blocks_without_persistence_committed(self):
         state: dict[str, object] = {
-            "Phase": "4",
+            "phase": "4",
             "PersistenceCommitted": False,
             "WorkspaceReadyGateCommitted": True,
             "Bootstrap": {"Satisfied": True},
@@ -264,7 +265,7 @@ class TestInvariantValidators:
 
     def test_ticket_intake_ready_blocks_without_workspace_ready_gate(self):
         state: dict[str, object] = {
-            "Phase": "4",
+            "phase": "4",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": False,
             "Bootstrap": {"Satisfied": True},
@@ -275,7 +276,7 @@ class TestInvariantValidators:
 
     def test_ticket_intake_ready_blocks_below_phase_4(self):
         state: dict[str, object] = {
-            "Phase": "3A",
+            "phase": "3A",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "Bootstrap": {"Satisfied": True},
@@ -286,7 +287,7 @@ class TestInvariantValidators:
 
     def test_ticket_intake_ready_blocks_phase_ready_below_4(self):
         state: dict[str, object] = {
-            "Phase": "4",
+            "phase": "4",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "Bootstrap": {"Satisfied": True},
@@ -298,7 +299,7 @@ class TestInvariantValidators:
 
     def test_ticket_intake_ready_missing_when_preconditions_met(self):
         state: dict[str, object] = {
-            "Phase": "4",
+            "phase": "4",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "Bootstrap": {"Satisfied": True},
@@ -314,18 +315,18 @@ class TestInvariantValidators:
     def test_reason_payloads_present_ok(self):
         state: dict[str, object] = {
             "Mode": "BLOCKED",
-            "Next": "BLOCKED-TEST",
+            "next": "BLOCKED-TEST",
             "Diagnostics": {"ReasonPayloads": [{"reason_code": "BLOCKED-TEST", "surface": "test"}]},
         }
         assert validate_reason_payloads_required(state) == ()
 
     def test_reason_payloads_missing_fails(self):
-        state: dict[str, object] = {"Mode": "BLOCKED", "Next": "BLOCKED-TEST"}
+        state: dict[str, object] = {"Mode": "BLOCKED", "next": "BLOCKED-TEST"}
         errors = validate_reason_payloads_required(state)
         assert "missing_governance_for_reason_code" in errors
 
     def test_reason_payloads_empty_fails(self):
-        state: dict[str, object] = {"Mode": "BLOCKED", "Next": "BLOCKED-TEST", "Diagnostics": {"ReasonPayloads": []}}
+        state: dict[str, object] = {"Mode": "BLOCKED", "next": "BLOCKED-TEST", "Diagnostics": {"ReasonPayloads": []}}
         errors = validate_reason_payloads_required(state)
         assert "missing_reason_payloads" in errors
 
@@ -394,7 +395,7 @@ class TestFullInvariantValidation:
                 "Mode": "NORMAL",
                 "ConfidenceLevel": 85,
                 "ProfileSource": "user-explicit",
-                "Next": "Continue",
+                "next": "Continue",
                 "OutputMode": "IMPLEMENT",
                 "LoadedRulebooks": {},
             }
@@ -407,7 +408,7 @@ class TestFullInvariantValidation:
                 "Mode": "BLOCKED",
                 "ConfidenceLevel": 50,
                 "ProfileSource": "ambiguous",
-                "Next": "Continue",
+                "next": "Continue",
             }
         }
         errors = validate_session_state_invariants(doc)
@@ -421,7 +422,7 @@ class TestFullInvariantValidation:
     def test_fresh_phase4_start_requires_fail_closed_business_rules(self):
         doc: dict[str, object] = {
             "SESSION_STATE": {
-                "Phase": "4",
+                "phase": "4",
                 "phase": "4",
                 "Mode": "IN_PROGRESS",
                 "active_gate": "Ticket Input Gate",
@@ -455,7 +456,7 @@ class TestFullInvariantValidation:
     def test_non_fresh_phase4_context_skips_fresh_start_invariant(self):
         doc: dict[str, object] = {
             "SESSION_STATE": {
-                "Phase": "4",
+                "phase": "4",
                 "active_gate": "Plan Record Preparation Gate",
                 "phase4_intake_source": "phase4-intake-bridge",
                 "Ticket": "T-123",
@@ -546,7 +547,7 @@ class TestPathInvariantValidation:
                 "Mode": "NORMAL",
                 "ConfidenceLevel": 85,
                 "ProfileSource": "user-explicit",
-                "Next": "Continue",
+                "next": "Continue",
                 "OutputMode": "IMPLEMENT",
                 "LoadedRulebooks": {},
                 "TargetPath": "C:\\bad",
@@ -598,7 +599,7 @@ class TestP5ArchitectureDecisionsInvariant:
 class TestPhaseGatePrerequisitesInvariant:
     def test_phase5_implementation_requires_p5_approved(self):
         state: dict[str, object] = {
-            "Phase": "5.1-Implement",
+            "phase": "5.1-Implement",
             "Gates": {"P5-Architecture": "pending"},
         }
         errors = validate_phase_gate_prerequisites(state)
@@ -606,7 +607,7 @@ class TestPhaseGatePrerequisitesInvariant:
 
     def test_phase6_requires_p5_approved_and_p53_pass(self):
         state: dict[str, object] = {
-            "Phase": "6-ImplementationQA",
+            "phase": "6-ImplementationQA",
             "Gates": {"P5-Architecture": "approved", "P5.3-TestQuality": "pending"},
         }
         errors = validate_phase_gate_prerequisites(state)
@@ -614,7 +615,7 @@ class TestPhaseGatePrerequisitesInvariant:
 
     def test_phase6_with_all_prerequisites_ok(self):
         state: dict[str, object] = {
-            "Phase": "6-ImplementationQA",
+            "phase": "6-ImplementationQA",
             "Gates": {"P5-Architecture": "approved", "P5.3-TestQuality": "pass"},
         }
         errors = validate_phase_gate_prerequisites(state)
@@ -622,7 +623,7 @@ class TestPhaseGatePrerequisitesInvariant:
 
     def test_phase4_skips_check(self):
         state: dict[str, object] = {
-            "Phase": "4-Plan",
+            "phase": "4-Plan",
             "Gates": {},
         }
         errors = validate_phase_gate_prerequisites(state)
@@ -630,7 +631,7 @@ class TestPhaseGatePrerequisitesInvariant:
 
     def test_phase5_architecture_review_skips_code_prereq_check(self):
         state: dict[str, object] = {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             "Gates": {"P5-Architecture": "pending"},
         }
         errors = validate_phase_gate_prerequisites(state)
@@ -638,7 +639,7 @@ class TestPhaseGatePrerequisitesInvariant:
 
     def test_code_step_without_p5_approved(self):
         state: dict[str, object] = {
-            "Phase": "5",
+            "phase": "5",
             "PhaseRouterFacts": {"next_action_class": "code_producing"},
             "Gates": {"P5-Architecture": "pending"},
         }

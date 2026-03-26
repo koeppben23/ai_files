@@ -29,9 +29,9 @@ def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str
         "SESSION_STATE": {
             "RepoFingerprint": "abc123def456abc123def456",
             "session_run_id": run_id,
-            "Phase": phase,
             "phase": phase,
-            "Next": next_token,
+            "phase": phase,
+            "next": next_token,
             "active_gate": gate,
         }
     }
@@ -248,9 +248,9 @@ def _setup_workspace(tmp_path: Path) -> tuple[Path, Path, str]:
             "SESSION_STATE": {
                 "RepoFingerprint": fingerprint,
                 "session_run_id": "work-2",
-                "Phase": "4",
                 "phase": "4",
-                "Next": "5",
+                "phase": "4",
+                "next": "5",
                 "active_gate": "Ticket Input Gate",
             }
         },
@@ -280,7 +280,7 @@ class TestWorkSessionRestoreEntrypoint:
     ) -> None:
         config_root, workspace, _ = _setup_workspace(tmp_path)
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
-        before = (workspace / "events.jsonl").read_text(encoding="utf-8") if (workspace / "events.jsonl").exists() else ""
+        before = (workspace / "logs" / "events.jsonl").read_text(encoding="utf-8") if (workspace / "logs" / "events.jsonl").exists() else ""
 
         code = work_session_restore.main(["--mode", "revisit", "--run-id", "work-1", "--quiet"])
         assert code == 0
@@ -291,7 +291,7 @@ class TestWorkSessionRestoreEntrypoint:
         assert payload["resolved_operating_mode"] == "solo"
         assert payload["verify_policy_version"] == "v1"
 
-        after = (workspace / "events.jsonl").read_text(encoding="utf-8") if (workspace / "events.jsonl").exists() else ""
+        after = (workspace / "logs" / "events.jsonl").read_text(encoding="utf-8") if (workspace / "logs" / "events.jsonl").exists() else ""
         assert after == before
 
     def test_reactivate_restores_root_updates_pointer_and_writes_event(
@@ -313,7 +313,7 @@ class TestWorkSessionRestoreEntrypoint:
         assert pointer["active_run_id"] == "work-1"
         assert pointer["activation_reason"] == "reactivate-run"
 
-        events = [json.loads(line) for line in (workspace / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+        events = [json.loads(line) for line in (workspace / "logs" / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
         reactivated = [e for e in events if e.get("event") == "work_session_reactivated"]
         assert reactivated
         assert reactivated[-1]["previous_run_id"] == "work-2"
@@ -342,7 +342,7 @@ class TestWorkSessionRestoreEntrypoint:
         assert code == 0
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["reason"] == "work-session-reactivate-noop"
-        assert not (workspace / "events.jsonl").exists()
+        assert not (workspace / "logs" / "events.jsonl").exists()
 
     def test_missing_run_blocks_without_mutation(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -359,7 +359,7 @@ class TestWorkSessionRestoreEntrypoint:
 
         assert (workspace / "SESSION_STATE.json").read_text(encoding="utf-8") == before_state
         assert (workspace / "current_run.json").read_text(encoding="utf-8") == before_pointer
-        assert not (workspace / "events.jsonl").exists()
+        assert not (workspace / "logs" / "events.jsonl").exists()
 
     def test_tampered_archive_blocks_reactivation(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
         config_root, workspace, _ = _setup_workspace(tmp_path)

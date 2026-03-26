@@ -42,7 +42,7 @@ def _make_state(
 ) -> dict:
     return {
         "effective_operating_mode": effective_operating_mode,
-        "Phase": phase,
+        "phase": phase,
         "phase": phase,
         "active_gate": active_gate,
         "Phase6Review": {
@@ -760,7 +760,7 @@ class TestPipelineAutoApproveE2E:
         ws_dir = config_root / "workspaces" / "test-repo"
         ws_dir.mkdir(parents=True, exist_ok=True)
         session_path = ws_dir / "SESSION_STATE.json"
-        events_path = ws_dir / "events.jsonl"
+        events_path = ws_dir / "logs" / "events.jsonl"
 
         pointer = {
             "schema": "opencode-session-pointer.v1",
@@ -885,7 +885,7 @@ class TestPipelineAutoApproveE2E:
         ws_dir = config_root / "workspaces" / "test-repo"
         ws_dir.mkdir(parents=True, exist_ok=True)
         session_path = ws_dir / "SESSION_STATE.json"
-        events_path = ws_dir / "events.jsonl"
+        events_path = ws_dir / "logs" / "events.jsonl"
 
         pointer = {
             "schema": "opencode-session-pointer.v1",
@@ -1002,7 +1002,7 @@ class TestPipelineAutoApproveE2E:
         ws_dir = config_root / "workspaces" / "test-repo"
         ws_dir.mkdir(parents=True, exist_ok=True)
         session_path = ws_dir / "SESSION_STATE.json"
-        events_path = ws_dir / "events.jsonl"
+        events_path = ws_dir / "logs" / "events.jsonl"
 
         pointer = {
             "schema": "opencode-session-pointer.v1",
@@ -1110,7 +1110,7 @@ class TestRegulatedModeE2E:
         ws_dir = config_root / "workspaces" / "test-repo"
         ws_dir.mkdir(parents=True, exist_ok=True)
         session_path = ws_dir / "SESSION_STATE.json"
-        events_path = ws_dir / "events.jsonl"
+        events_path = ws_dir / "logs" / "events.jsonl"
         repo_root = ws_dir
 
         governance_mode_path = repo_root / "governance-mode.json"

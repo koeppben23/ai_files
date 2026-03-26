@@ -208,7 +208,7 @@ def test_persist_workspace_artifacts_blocks_legacy_decision_pack_before_phase4(t
     ws_repo = cfg / "workspaces" / fp
     ws_repo.mkdir(parents=True, exist_ok=True)
     (ws_repo / "SESSION_STATE.json").write_text(
-        json.dumps({"SESSION_STATE": {"Phase": "1.2-ActivationIntent", "PersistenceCommitted": True}}),
+        json.dumps({"SESSION_STATE": {"phase": "1.2-ActivationIntent", "PersistenceCommitted": True}}),
         encoding="utf-8",
     )
     (ws_repo / "decision-pack.md").write_text("D-001\nA) Yes\nB) No\n", encoding="utf-8")
@@ -247,7 +247,7 @@ def test_persist_workspace_artifacts_normalizes_legacy_decision_pack_on_write_pa
     ws_repo = cfg / "workspaces" / fp
     ws_repo.mkdir(parents=True, exist_ok=True)
     (ws_repo / "SESSION_STATE.json").write_text(
-        json.dumps({"SESSION_STATE": {"Phase": "1.2-ActivationIntent", "PersistenceCommitted": True}}),
+        json.dumps({"SESSION_STATE": {"phase": "1.2-ActivationIntent", "PersistenceCommitted": True}}),
         encoding="utf-8",
     )
     decision_pack = ws_repo / "decision-pack.md"

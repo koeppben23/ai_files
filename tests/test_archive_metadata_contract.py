@@ -12,9 +12,9 @@ def test_archive_metadata_tracks_materialization_and_finalization(tmp_path: Path
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-meta",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
     }
 
     archive_active_run(

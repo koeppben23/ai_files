@@ -325,9 +325,17 @@ def get_config_root() -> Path:
     - Canonical path on all OS: <user-home>/.config/opencode
     - Override with OPENCODE_CONFIG_ROOT environment variable.
     """
-    env_config = os.environ.get("OPENCODE_CONFIG_ROOT")
-    if env_config:
-        return Path(env_config).resolve()
+    env_config_file = os.environ.get("OPENCODE_CONFIG")
+    if env_config_file:
+        return Path(env_config_file).expanduser().resolve().parent
+
+    env_config_dir = os.environ.get("OPENCODE_CONFIG_DIR")
+    if env_config_dir:
+        return Path(env_config_dir).expanduser().resolve()
+
+    env_config_root = os.environ.get("OPENCODE_CONFIG_ROOT")
+    if env_config_root:
+        return Path(env_config_root).expanduser().resolve()
 
     system = platform.system()
 
@@ -348,13 +356,41 @@ def get_config_root() -> Path:
 def get_local_root() -> Path:
     """Determine local payload root for runtime/content/spec payloads.
 
-    Default: <user-home>/.local/opencode
+    Default: <user-home>/.local/share/opencode
     Override: OPENCODE_LOCAL_ROOT
     """
     env_local = os.environ.get("OPENCODE_LOCAL_ROOT")
     if env_local:
-        return Path(env_local).resolve()
-    return (Path.home().resolve() / ".local" / "opencode").resolve()
+        return Path(env_local).expanduser().resolve()
+    return (Path.home().resolve() / ".local" / "share" / "opencode").resolve()
+
+
+def resolve_known_config_roots(primary_root: Path | None = None) -> list[Path]:
+    """Resolve official config roots (single-root by design)."""
+    roots: list[Path] = []
+    if primary_root is not None:
+        roots.append(primary_root.resolve())
+    else:
+        roots.append(get_config_root())
+
+    deduped: list[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        marker = root.as_posix()
+        if marker in seen:
+            continue
+        seen.add(marker)
+        deduped.append(root)
+    return deduped
+
+
+def has_installation(root: Path) -> bool:
+    """Best-effort check whether governance appears installed at root."""
+    commands = root / "commands"
+    if not commands.exists() or not commands.is_dir():
+        return False
+    rails = sorted(p.name for p in commands.glob("*.md") if p.is_file())
+    return rails == sorted(CANONICAL_RAIL_FILENAMES)
 
 
 def ensure_dirs(config_root: Path, local_root: Path | None = None, dry_run: bool = False) -> None:
@@ -1044,35 +1080,32 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
 
 
 def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[list[str], list[str]]:
-    """Enforce strict local-root top-level allowlist for installer payload."""
+    """Preserve existing local-root contents, only manage installer-owned governance directories.
+    
+    CRITICAL: This function MUST NOT delete or modify any pre-existing content in local_root.
+    It only ensures governance-owned directories exist and removes installer-generated
+    metadata (like error logs), while PRESERVING all user content including 'opencode'.
+    """
     removed: list[str] = []
-    allowed_top_level = {"governance_runtime", "governance_content", "governance_spec", "governance", "VERSION"}
+    governance_dirs = {"governance_runtime", "governance_content", "governance_spec"}
+    harmless_metadata = FORBIDDEN_METADATA_FILENAMES
 
     if local_root.exists() and local_root.is_dir():
         for path in sorted(local_root.iterdir(), key=lambda p: p.name):
-            if path.name in allowed_top_level:
-                continue
-            rel = path.relative_to(local_root).as_posix()
-            removed.append(rel)
-            if dry_run:
-                if path.is_dir():
-                    print(f"  [DRY-RUN] rm -rf {path}")
-                else:
+            if path.name in harmless_metadata:
+                rel = path.relative_to(local_root).as_posix()
+                removed.append(rel)
+                if dry_run:
                     print(f"  [DRY-RUN] rm {path}")
-                continue
-            if path.is_dir():
-                if path.is_symlink():
+                else:
                     try:
                         path.unlink()
                     except Exception:
                         pass
-                else:
-                    shutil.rmtree(path, ignore_errors=True)
-            else:
-                try:
-                    path.unlink()
-                except Exception:
-                    pass
+                continue
+            if path.name in governance_dirs:
+                continue
+            print(f"  🛡️  PRESERVED (non-governance): {path.name}/")
 
     governance_logs = local_root / "governance_runtime" / ERROR_LOGS_DIR_NAME
     if governance_logs.exists() and governance_logs.is_dir():
@@ -1083,13 +1116,7 @@ def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[l
         else:
             shutil.rmtree(governance_logs, ignore_errors=True)
 
-    violations: list[str] = []
-    if local_root.exists() and local_root.is_dir():
-        for path in sorted(local_root.iterdir(), key=lambda p: p.name):
-            if path.name not in allowed_top_level:
-                suffix = "/" if path.is_dir() else ""
-                violations.append(path.name + suffix)
-    return removed, violations
+    return removed, []
 
 def collect_command_root_files(source_dir: Path) -> list[Path]:
     """
@@ -1753,12 +1780,18 @@ PYTHON_COMMAND_PLACEHOLDER = "{{PYTHON_COMMAND}}"
 BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
 
-def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
+def ensure_opencode_json(
+    config_root: Path,
+    *,
+    dry_run: bool,
+    include_legacy_command_files: bool = False,
+) -> dict:
     """Generate or merge ``opencode.json`` with governance instructions for Desktop.
 
     - If the file does not exist, create it with the ``instructions`` array.
     - If it exists, merge: add missing instruction entries, ensure plugin is set,
-      and actively remove any legacy ``command_files`` key.
+      and actively remove any legacy ``command_files`` key unless
+      include_legacy_command_files=True.
       Other user keys are preserved.
 
     Returns a status dict for logging.
@@ -1787,8 +1820,12 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
             except Exception:
                 pass  # best-effort backup
 
-        # Remove legacy command_files key — Desktop uses instructions instead
-        existing.pop("command_files", None)
+        # Keep legacy command_files only when explicitly requested for
+        # compatibility with older Desktop builds.
+        if include_legacy_command_files:
+            existing["command_files"] = list(OPENCODE_INSTRUCTIONS)
+        else:
+            existing.pop("command_files", None)
 
         current = existing.get("instructions")
         if not isinstance(current, list):
@@ -1821,6 +1858,8 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
         "instructions": list(OPENCODE_INSTRUCTIONS),
         OPENCODE_PLUGIN_KEY: [plugin_uri],
     }
+    if include_legacy_command_files:
+        payload["command_files"] = list(OPENCODE_INSTRUCTIONS)
     if dry_run:
         print(f"  [DRY-RUN] create {target}")
         return {"status": "planned-create", "dst": str(target)}
@@ -2004,7 +2043,14 @@ def inject_session_reader_path(
     )
 
 
-def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool) -> int:
+def install(
+    plan: InstallPlan,
+    dry_run: bool,
+    force: bool,
+    backup_enabled: bool,
+    *,
+    include_legacy_command_files: bool = False,
+) -> int:
     ok, missing, unsafe_symlinks = precheck_source(plan.source_dir)
     # Allow dry-run to bypass safety gating for unsafe symlinks to enable planning
     if not ok:
@@ -2266,21 +2312,19 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         eprint("Recovery: remove forbidden artifacts and rerun installer.")
         return 3
 
-    local_removed, local_hygiene_violations = enforce_local_payload_hygiene(local_root=plan.local_root, dry_run=dry_run)
+    local_removed, _ = enforce_local_payload_hygiene(local_root=plan.local_root, dry_run=dry_run)
     if local_removed:
         preview = ", ".join(local_removed[:6])
         suffix = "" if len(local_removed) <= 6 else ", ..."
         print(f"  ✅ removed forbidden local payload artifacts: {preview}{suffix}")
-    if local_hygiene_violations:
-        eprint("❌ Local payload hygiene failed. Forbidden top-level artifacts remain under local root:")
-        for rel in local_hygiene_violations:
-            eprint(f"  - {rel}")
-        eprint("Recovery: remove forbidden local-root artifacts and rerun installer.")
-        return 3
 
     # --- OpenCode Desktop bridge: opencode.json + session reader path injection ---
     print("\n🔗 Configuring OpenCode Desktop governance bridge...")
-    ojs = ensure_opencode_json(plan.config_root, dry_run=dry_run)
+    ojs = ensure_opencode_json(
+        plan.config_root,
+        dry_run=dry_run,
+        include_legacy_command_files=include_legacy_command_files,
+    )
     print(f"  opencode.json: {ojs['status']}")
 
     binding_python = _resolve_python_executable(
@@ -2619,7 +2663,7 @@ def uninstall(
 
         rc = delete_targets(targets, plan, dry_run=dry_run)
         rc = max(rc, purge_tree_contents(plan.commands_dir, dry_run=dry_run))
-        rc = max(rc, purge_tree_contents(plan.local_root, dry_run=dry_run))
+        rc = max(rc, purge_governance_local_payload(plan.local_root, dry_run=dry_run))
         if not keep_error_logs:
             rc = max(rc, purge_runtime_error_logs(plan.config_root, dry_run=dry_run))
         if not keep_workspace_state:
@@ -2683,7 +2727,7 @@ def uninstall(
 
     rc = delete_targets(targets, plan, dry_run=dry_run)
     rc = max(rc, purge_tree_contents(plan.commands_dir, dry_run=dry_run))
-    rc = max(rc, purge_tree_contents(plan.local_root, dry_run=dry_run))
+    rc = max(rc, purge_governance_local_payload(plan.local_root, dry_run=dry_run))
 
     # Manifest-backed uninstall can safely clear stale installer trees that may
     # survive due to historical path drift (for example legacy "governnce/").
@@ -2806,6 +2850,85 @@ def purge_tree_contents(root: Path, dry_run: bool) -> int:
             try_remove_empty_dir(item, dry_run=dry_run)
 
     try_remove_empty_dir(root, dry_run=dry_run)
+    return 0 if errors == 0 else 9
+
+
+FORBIDDEN_LOCAL_ROOT_DIRS = {"opencode"}
+
+
+def purge_governance_local_payload(local_root: Path, dry_run: bool) -> int:
+    """Remove only governance-owned payloads from local_root.
+
+    ONLY the following are deleted:
+    - governance_content/ directory
+    - governance_spec/ directory
+    - governance_runtime/ directory
+    - VERSION file
+
+    The 'opencode' directory and any other unknown top-level items are
+    STRICTLY PRESERVED to prevent accidental data loss.
+
+    This is the ONLY safe way to clean local_root during uninstall.
+    """
+    if not local_root.exists() or not local_root.is_dir():
+        return 0
+
+    errors = 0
+
+    allowed_local_payloads = {"governance_content", "governance_spec", "governance_runtime"}
+
+    for item in sorted(local_root.iterdir(), key=lambda p: p.name):
+        if item.name in FORBIDDEN_LOCAL_ROOT_DIRS:
+            print(f"  🛡️  PRESERVED (forbidden): {item.name}/")
+            continue
+
+        if item.is_symlink():
+            if dry_run:
+                print(f"  [DRY-RUN] rm {item}")
+            else:
+                try:
+                    item.unlink()
+                    print(f"  ✅ Removed symlink: {item.name}")
+                except Exception as e:
+                    eprint(f"  ❌ Failed removing symlink {item.name}: {e}")
+                    errors += 1
+            continue
+
+        if not item.is_dir() and item.name == "VERSION":
+            if dry_run:
+                print(f"  [DRY-RUN] rm {item}")
+            else:
+                try:
+                    item.unlink()
+                    print(f"  ✅ Removed: {item.name}")
+                except Exception as e:
+                    eprint(f"  ❌ Failed removing {item.name}: {e}")
+                    errors += 1
+            continue
+
+        if item.name not in allowed_local_payloads:
+            print(f"  🛡️  PRESERVED (unknown): {item.name}/")
+            continue
+
+        if item.name == "VERSION":
+            continue
+
+        for subitem in sorted(item.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+            if subitem.is_symlink() or subitem.is_file():
+                if dry_run:
+                    print(f"  [DRY-RUN] rm {subitem}")
+                else:
+                    try:
+                        subitem.unlink()
+                        print(f"  ✅ Removed: {subitem.relative_to(local_root)}")
+                    except Exception as e:
+                        eprint(f"  ❌ Failed removing {subitem.relative_to(local_root)}: {e}")
+                        errors += 1
+            elif subitem.is_dir():
+                try_remove_empty_dir(subitem, dry_run=dry_run)
+
+        try_remove_empty_dir(item, dry_run=dry_run)
+
     return 0 if errors == 0 else 9
 
 
@@ -3163,6 +3286,61 @@ def try_remove_empty_dir(d: Path, dry_run: bool) -> None:
         return
 
 
+def _detect_root_drift(primary_root: Path) -> tuple[list[Path], list[Path]]:
+    """Return (known_roots, installed_roots)."""
+    known_roots = resolve_known_config_roots(primary_root)
+    installed_roots = [root for root in known_roots if has_installation(root)]
+    return known_roots, installed_roots
+
+
+def show_doctor(_source_dir: Path, config_root_arg: Path | None) -> int:
+    """Run root-drift diagnostics and print concrete recovery commands."""
+    print("=" * 60)
+    print("LLM Governance System Doctor")
+    print("=" * 60)
+
+    config_root = config_root_arg if config_root_arg is not None else get_config_root()
+    known_roots, installed_roots = _detect_root_drift(config_root)
+
+    print(f"Primary config root: {config_root}")
+    print("Known config roots:")
+    for root in known_roots:
+        marker = "installed" if root in installed_roots else "not-installed"
+        print(f"  - {root} [{marker}]")
+
+    issues: list[str] = []
+    if not installed_roots:
+        issues.append("no-installation")
+    if len(installed_roots) > 1:
+        issues.append("multiple-installed-roots")
+    if installed_roots and config_root not in installed_roots:
+        issues.append("primary-root-not-installed")
+
+    local_root = get_local_root()
+    for fname in sorted(FORBIDDEN_METADATA_FILENAMES):
+        metadata_file = local_root / fname
+        if metadata_file.exists():
+            issues.append(f"harmless-local-metadata:{fname}")
+
+    print("\nDiagnosis:")
+    if not issues:
+        print("  ✅ No drift detected.")
+    else:
+        for issue in issues:
+            print(f"  ⚠️  {issue}")
+
+    py = _path_for_json(Path(sys.executable))
+    print("\nRecovery commands:")
+    print(f"  - rm -f \"{_path_for_json(local_root / '.DS_Store')}\"")
+    print(
+        "  - "
+        f"\"{py}\" install.py --force --config-root \"{_path_for_json(config_root)}\" "
+        f"--local-root \"{_path_for_json(local_root)}\""
+    )
+    print("\n" + "=" * 60)
+    return 0 if not issues else 1
+
+
 def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
     """Show installation status (read-only). Returns 0 on success, non-zero on errors."""
 
@@ -3179,6 +3357,17 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
 
     print(f"Config Root: {config_root}")
     print(f"Commands Home: {config_root / 'commands'}")
+
+    known_roots, installed_roots = _detect_root_drift(config_root)
+    if len(known_roots) > 1:
+        print("Known Roots:")
+        for root in known_roots:
+            marker = "installed" if root in installed_roots else "not-installed"
+            print(f"  - {root} [{marker}]")
+    if len(installed_roots) > 1:
+        print("⚠️  Root drift detected: multiple config roots have installations.")
+    elif installed_roots and config_root not in installed_roots:
+        print("⚠️  Selected config root has no install; another known root is installed.")
 
     # Check if installed
     commands_home = config_root / "commands"
@@ -3261,6 +3450,16 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
         print(f"\n❌ Config root: failed to resolve ({e})")
         issues_found.append("config-root-resolution")
         return 1
+
+    known_roots, installed_roots = _detect_root_drift(config_root)
+    if len(known_roots) > 1:
+        print("\n📍 Known roots:")
+        for root in known_roots:
+            marker = "installed" if root in installed_roots else "not-installed"
+            print(f"   - {root} [{marker}]")
+    if len(installed_roots) > 1:
+        print("   ⚠️  root drift: multiple known roots have active installations")
+        issues_found.append("root-drift-multiple")
 
     # Probe 4: Write permissions per scope
     print("\n📁 Write permissions:")
@@ -3514,7 +3713,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--local-root",
         type=Path,
         default=None,
-        help="Override local payload root (default: ~/.local/opencode).",
+        help="Override local payload root (default: ~/.local/share/opencode).",
     )
     p.add_argument("--dry-run", action="store_true", help="Show what would happen without writing anything.")
     p.add_argument("--force", action="store_true", help="Overwrite without prompting / uninstall without prompt.")
@@ -3539,6 +3738,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument("--version", action="store_true", help="Show installer and governance version, then exit.")
     p.add_argument("--status", action="store_true", help="Show installation status (read-only), then exit.")
+    p.add_argument("--doctor", action="store_true", help="Diagnose root drift and print concrete recovery commands.")
     p.add_argument("--health", action="store_true", help="Run read-only health probes and show compact status, then exit.")
     p.add_argument("--smoketest", action="store_true", help="Run installation smoketest (checks launcher, paths.json, installed runtime execution).")
     return p.parse_args(argv)
@@ -3569,6 +3769,10 @@ def main(argv: list[str]) -> int:
     # --status: show installation status and exit (read-only)
     if args.status:
         return show_status(args.source_dir, args.config_root)
+
+    # --doctor: root-drift diagnosis and concrete recovery commands
+    if args.doctor:
+        return show_doctor(args.source_dir, args.config_root)
 
     # --health: run read-only health probes and exit
     if args.health:
@@ -3618,7 +3822,12 @@ def main(argv: list[str]) -> int:
             return 0
 
     backup_enabled = not args.no_backup
-    return install(plan, dry_run=args.dry_run, force=args.force, backup_enabled=backup_enabled)
+    return install(
+        plan,
+        dry_run=args.dry_run,
+        force=args.force,
+        backup_enabled=backup_enabled,
+    )
 
 
 if __name__ == "__main__":

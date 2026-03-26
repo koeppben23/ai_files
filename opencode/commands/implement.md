@@ -42,8 +42,10 @@ If no snapshot is available, proceed using only the context visible in the curre
 - `/implement` is a controller + validator; it must not locally edit domain/source files.
 - Local writes are restricted to runtime diagnostics/state (for example `.runtime_state/implementation/*`, session state, and audit events).
 - Domain/source edits must come exclusively from the resolved authorized executor.
+- Validation uses executor-attributed change evidence (pre/post delta plus hotspot file hash changes) to avoid counting unrelated pre-existing dirty files as implementation output.
 - A separate executor configuration is optional override only; default executor is the active OpenCode Desktop LLM binding.
-- `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED` applies only when neither override nor active Desktop LLM binding is available.
+- `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED` applies when neither override nor active Desktop LLM binding is available.
+- In shell/bootstrap subprocess mode, governance first attempts a callable Desktop bridge via `opencode-cli run` using the active session model binding. If no callable bridge binary is available, fail closed with `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED` and set `OPENCODE_IMPLEMENT_LLM_CMD`.
 - Ends in `Implementation Review Complete` (ready to continue) or `Implementation Blocked`.
 
 ## Response shape

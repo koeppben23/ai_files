@@ -13,9 +13,9 @@ def test_checksums_cover_required_materialized_artifacts(tmp_path: Path) -> None
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-checksum-contract",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
     }
 
     archive_active_run(
@@ -40,9 +40,9 @@ def test_verify_fails_on_tampered_artifact_content(tmp_path: Path) -> None:
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-checksum-tamper",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
     }
 
     archive_active_run(

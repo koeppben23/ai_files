@@ -30,11 +30,11 @@ class TestGetPhase:
         assert get_phase(state) == "5-ArchitectureReview"
 
     def test_legacy_phase(self):
-        state = {"Phase": "6-PostFlight"}
+        state = {"phase": "6-PostFlight"}
         assert get_phase(state) == "6-PostFlight"
 
     def test_canonical_takes_precedence(self):
-        state = {"Phase": "legacy", "phase": "canonical"}
+        state = {"phase": "legacy", "phase": "canonical"}
         assert get_phase(state) == "canonical"
 
     def test_empty_state(self):

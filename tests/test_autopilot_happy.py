@@ -122,7 +122,7 @@ def test_bootstrap_autopilot_happy_until_phase_2_1(tmp_path: Path, monkeypatch) 
     assert kernel_block["PhaseApiSha256"]
     assert kernel_block["PhaseApiPath"].endswith("phase_api.yaml")
 
-    events_file = workspaces_home / fp / "events.jsonl"
+    events_file = workspaces_home / fp / "logs" / "events.jsonl"
     rows = [json.loads(line) for line in events_file.read_text(encoding="utf-8").splitlines()]
     started = {row.get("phase_token") for row in rows if row.get("event") == "PHASE_STARTED"}
     completed = {row.get("phase_token") for row in rows if row.get("event") == "PHASE_COMPLETED"}

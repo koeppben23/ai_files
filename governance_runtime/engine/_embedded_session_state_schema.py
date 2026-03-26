@@ -36,11 +36,11 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
             "required": [
                 "session_state_version",
                 "ruleset_hash",
-                "Phase",
+                "phase",
                 "Mode",
                 "OutputMode",
                 "ConfidenceLevel",
-                "Next",
+                "next",
                 "Bootstrap",
                 "Scope",
                 "RepoFacts",
@@ -55,7 +55,7 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
             "properties": {
                 "session_state_version": {"type": "integer", "minimum": 1},
                 "ruleset_hash": {"type": ["string", "null"], "minLength": 1},
-                "Phase": {
+                "phase": {
                     "type": "string",
                     "enum": [
                         "1", "1.1-Bootstrap", "1.2-ActivationIntent", "1.3-CoreRulesActivation",
@@ -67,7 +67,7 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
                 "Mode": {"type": "string", "enum": ["NORMAL", "DEGRADED", "DRAFT", "BLOCKED"]},
                 "OutputMode": {"type": "string", "enum": ["ARCHITECT", "IMPLEMENT", "VERIFY"]},
                 "ConfidenceLevel": {"type": "integer", "minimum": 0, "maximum": 100},
-                "Next": {"type": "string", "minLength": 1},
+                "next": {"type": "string", "minLength": 1},
                 "Bootstrap": {
                     "type": "object",
                     "required": ["Present", "Satisfied", "Evidence"],

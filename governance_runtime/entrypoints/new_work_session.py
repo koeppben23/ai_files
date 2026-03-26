@@ -29,6 +29,7 @@ from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
+from governance_runtime.application.services.state_accessor import get_next, get_phase
 
 try:
     from governance_runtime.infrastructure.governance_hooks import run_post_archive_governance as _run_post_archive_governance
@@ -71,9 +72,7 @@ def _reset_for_new_work(
     state["phase4_intake_updated_at"] = observed_at
     state["phase_transition_evidence"] = False
 
-    state["Phase"] = "4"
     state["phase"] = "4"
-    state["Next"] = "4"
     state["next"] = "4"
     state["Mode"] = "IN_PROGRESS"
     state["status"] = "OK"
@@ -182,11 +181,11 @@ def _state_is_fresh_phase4_run(state: Mapping[str, object], *, run_id: str) -> b
     if current_run_id != run_id:
         return False
 
-    phase = str(state.get("Phase") or state.get("phase") or "").strip()
+    phase = get_phase(state).strip()
     if phase != "4":
         return False
 
-    next_token = str(state.get("Next") or "").strip()
+    next_token = get_next(state).strip()
     if next_token != "4":
         return False
 
@@ -254,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
             run_id = str(last_guard_map.get("run_id") or state.get("session_run_id") or "")
             if not _state_is_fresh_phase4_run(state, run_id=run_id):
                 _append_jsonl(
-                    session_path.parent / "events.jsonl",
+                    session_path.parent / "logs" / "events.jsonl",
                     {
                         "event": "new_work_session_dedupe_bypassed",
                         "observed_at": observed_at,
@@ -272,7 +271,7 @@ def main(argv: list[str] | None = None) -> int:
             last_guard_map = last_guard if isinstance(last_guard, dict) else {}
             run_id = str(last_guard_map.get("run_id") or state.get("session_run_id") or "")
             _append_jsonl(
-                session_path.parent / "events.jsonl",
+                session_path.parent / "logs" / "events.jsonl",
                 {
                     "event": "new_work_session_deduped",
                     "observed_at": observed_at,
@@ -289,8 +288,8 @@ def main(argv: list[str] | None = None) -> int:
                 repo_fingerprint=repo_fingerprint,
                 session_state_path=str(session_path),
                 run_id=run_id,
-                phase=str(state.get("Phase") or state.get("phase") or ""),
-                next_token=str(state.get("Next") or ""),
+                phase=get_phase(state),
+                next_token=get_next(state),
                 active_gate=str(state.get("active_gate") or ""),
             )
             print(json.dumps(payload, ensure_ascii=True))
@@ -317,7 +316,7 @@ def main(argv: list[str] | None = None) -> int:
                     run_id=archive_id,
                     observed_at=observed_at,
                     workspace_root=session_path.parent,
-                    events_path=session_path.parent / "events.jsonl",
+                    events_path=session_path.parent / "logs" / "events.jsonl",
                 )
             except Exception:
                 pass  # governance hook is fail-open — never blocks session
@@ -327,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
         new_run_id = _new_run_id()
 
         _append_jsonl(
-            session_path.parent / "events.jsonl",
+            session_path.parent / "logs" / "events.jsonl",
             {
                 "event": "new_work_session_created",
                 "observed_at": observed_at,
@@ -363,7 +362,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         try:
             _append_jsonl(
-                session_path.parent / "events.jsonl",
+                session_path.parent / "logs" / "events.jsonl",
                 {
                     "event": "new_work_session_init_failed",
                     "observed_at": observed_at,

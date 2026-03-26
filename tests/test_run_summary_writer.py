@@ -21,7 +21,7 @@ from governance_runtime.infrastructure.run_summary_writer import (
 class TestRunIdComputation:
     def test_run_id_is_deterministic(self):
         ts = "2026-02-19T12:00:00Z"
-        state = {"Phase": "4", "Mode": "user", "ruleset_hash": "abc123"}
+        state = {"phase": "4", "Mode": "user", "ruleset_hash": "abc123"}
         
         id1 = compute_run_id(state, ts)
         id2 = compute_run_id(state, ts)
@@ -31,8 +31,8 @@ class TestRunIdComputation:
     
     def test_run_id_changes_with_different_input(self):
         ts = "2026-02-19T12:00:00Z"
-        state1 = {"Phase": "4", "Mode": "user"}
-        state2 = {"Phase": "5", "Mode": "user"}
+        state1 = {"phase": "4", "Mode": "user"}
+        state2 = {"phase": "5", "Mode": "user"}
         
         id1 = compute_run_id(state1, ts)
         id2 = compute_run_id(state2, ts)
@@ -60,7 +60,7 @@ class TestReasonRemediation:
 class TestCreateRunSummary:
     def test_creates_summary_with_ok_result(self):
         state = {
-            "Phase": "4",
+            "phase": "4",
             "Mode": "user",
             "ruleset_hash": "abc123",
         }
@@ -75,7 +75,7 @@ class TestCreateRunSummary:
     
     def test_creates_summary_with_blocked_result(self):
         state = {
-            "Phase": "1.1",
+            "phase": "1.1",
             "Mode": "pipeline",
             "ruleset_hash": "abc123",
         }
@@ -94,7 +94,7 @@ class TestCreateRunSummary:
     
     def test_includes_precedence_events(self):
         state = {
-            "Phase": "4",
+            "phase": "4",
             "Mode": "user",
             "ActivationHash": "abc123",
             "ruleset_hash": "def456",
@@ -108,7 +108,7 @@ class TestCreateRunSummary:
     
     def test_includes_prompt_budget(self):
         state = {
-            "Phase": "4",
+            "phase": "4",
             "Mode": "user",
             "PromptBudget": {
                 "used": 5,

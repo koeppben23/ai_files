@@ -13,9 +13,9 @@ def test_invalidate_archived_run_marks_manifest_and_metadata(tmp_path: Path) -> 
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-invalidate",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
     }
 
     archive_active_run(
@@ -52,9 +52,9 @@ def test_invalidate_archived_run_supports_non_superseding_mode(tmp_path: Path) -
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-invalidate-nosupersede",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
     }
 
     archive_active_run(

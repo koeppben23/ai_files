@@ -13,7 +13,7 @@ def test_render_response_envelope_script_markdown_output(tmp_path: Path):
         "session_state": {"phase": "2", "activation_hash": "abc", "workspace_ready": True},
         "next_action": {
             "Status": "OK",
-            "Next": "Set working set and component scope",
+            "next": "Set working set and component scope",
             "Why": "Phase 2 exits through scoped routing",
             "Command": "set working set and component scope",
         },
@@ -39,7 +39,7 @@ def test_render_response_envelope_script_mode_mismatch_fails(tmp_path: Path):
     payload = {
         "mode": "COMPAT",
         "status": "BLOCKED",
-        "next_action": {"Status": "BLOCKED", "Next": "fix", "Why": "blocked", "Command": "none"},
+        "next_action": {"Status": "BLOCKED", "next": "fix", "Why": "blocked", "Command": "none"},
     }
     input_file = tmp_path / "payload.json"
     input_file.write_text(json.dumps(payload), encoding="utf-8")
@@ -63,7 +63,7 @@ def test_render_response_envelope_script_rejects_phase_contract_mismatch(tmp_pat
         "session_state": {"phase": "2.1-DecisionPack"},
         "next_action": {
             "Status": "WARN",
-            "Next": "Provide the ticket/goal and scope to plan",
+            "next": "Provide the ticket/goal and scope to plan",
             "Why": "Phase 4 requires a concrete task and component scope",
             "Command": "none",
         },
@@ -94,7 +94,7 @@ def test_render_response_envelope_script_rejects_manual_step_before_phase4(tmp_p
         "next_action": {
             "Type": "manual_step",
             "Status": "OK",
-            "Next": "Provide objective",
+            "next": "Provide objective",
             "Why": "Need intent",
             "Command": "none",
         },

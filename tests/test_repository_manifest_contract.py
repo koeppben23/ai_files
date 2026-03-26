@@ -12,9 +12,9 @@ def test_archive_writes_repository_manifest_with_required_context(tmp_path: Path
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-repository-manifest",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "remote_url": "https://example.invalid/repo.git",
         "default_branch": "main",
         "tenant_context": "default",

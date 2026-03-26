@@ -12,9 +12,9 @@ def test_archive_materializes_ticket_review_outcome_and_evidence_records(tmp_pat
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-full-artifacts",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
     }
 
     archive_active_run(
@@ -39,9 +39,9 @@ def test_core_artifacts_include_common_contract_header_fields(tmp_path: Path) ->
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-header-fields",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "PullRequestTitle": "feat: harden contracts",
         "PullRequestBody": "body",
     }

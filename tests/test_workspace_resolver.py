@@ -64,7 +64,7 @@ class TestResolveWorkspaceDirFromState:
         """Returns None when state has no fingerprint."""
         from governance_runtime.infrastructure.workspace_resolver import resolve_workspace_dir_from_state
         
-        state = {"Phase": "5"}
+        state = {"phase": "5"}
         result = resolve_workspace_dir_from_state(state)
         assert result is None
 
@@ -87,7 +87,7 @@ class TestResolveWorkspaceDirFromState:
         (tmp_path / "governance.paths.json").write_text(json.dumps(paths_config), encoding="utf-8")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(tmp_path))
         
-        state = {"repo_fingerprint": "xyz789", "Phase": "5"}
+        state = {"repo_fingerprint": "xyz789", "phase": "5"}
         result = resolve_workspace_dir_from_state(state)
         assert result == workspaces_home / "xyz789"
 
@@ -110,7 +110,7 @@ class TestResolveWorkspaceDirFromState:
         (tmp_path / "governance.paths.json").write_text(json.dumps(paths_config), encoding="utf-8")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(tmp_path))
         
-        state = {"RepoFingerprint": "abc123", "Phase": "5"}
+        state = {"RepoFingerprint": "abc123", "phase": "5"}
         result = resolve_workspace_dir_from_state(state)
         assert result == workspaces_home / "abc123"
 
@@ -133,6 +133,6 @@ class TestResolveWorkspaceDirFromState:
         (tmp_path / "governance.paths.json").write_text(json.dumps(paths_config), encoding="utf-8")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(tmp_path))
         
-        state = {"RepoFingerprint": "upper", "repo_fingerprint": "lower", "Phase": "5"}
+        state = {"RepoFingerprint": "upper", "repo_fingerprint": "lower", "phase": "5"}
         result = resolve_workspace_dir_from_state(state)
         assert result == workspaces_home / "upper"

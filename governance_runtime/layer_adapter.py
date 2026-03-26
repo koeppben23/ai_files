@@ -14,6 +14,12 @@ def set_config_root_override(path: str | Path | None) -> None:
 def get_config_root() -> Path:
     if _config_root_override is not None:
         return _config_root_override
+    env_config = os.environ.get("OPENCODE_CONFIG")
+    if env_config:
+        return Path(env_config).expanduser().resolve().parent
+    env_config_dir = os.environ.get("OPENCODE_CONFIG_DIR")
+    if env_config_dir:
+        return Path(env_config_dir).expanduser()
     env_root = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_root:
         return Path(env_root)
@@ -25,7 +31,7 @@ def get_opencode_command_root() -> Path:
 
 
 def get_governance_runtime_root() -> Path:
-    return get_config_root() / ".local" / "opencode" / "governance_runtime"
+    return Path.home() / ".local" / "share" / "opencode" / "governance_runtime"
 
 
 def get_workspace_root(repo_fingerprint: str) -> Path:
@@ -45,10 +51,10 @@ def resolve_legacy_path(path: str | Path) -> Path:
         suffix = normalized[len("commands/") :]
 
         if suffix == "docs" or suffix.startswith("docs/"):
-            return get_config_root() / ".local" / "opencode" / "governance_content" / suffix
+            return Path.home() / ".local" / "share" / "opencode" / "governance_content" / suffix
 
         if suffix == "profiles" or suffix.startswith("profiles/"):
-            return get_config_root() / ".local" / "opencode" / "governance_content" / suffix
+            return Path.home() / ".local" / "share" / "opencode" / "governance_content" / suffix
 
         if suffix == "governance_runtime" or suffix.startswith("governance_runtime/"):
             runtime_suffix = suffix[len("governance_runtime") :].lstrip("/")

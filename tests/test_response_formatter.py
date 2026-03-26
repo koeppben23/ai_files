@@ -24,7 +24,7 @@ def _sample_payload() -> dict[str, object]:
         "next_action": {
             "Type": "command",
             "Status": "OK",
-            "Next": "Set working set and component scope",
+            "next": "Set working set and component scope",
             "Why": "Phase 2 exits through decision-pack and scoped routing",
             "Command": "set working set and component scope",
         },

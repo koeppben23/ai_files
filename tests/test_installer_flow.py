@@ -1289,7 +1289,7 @@ class TestRepoLauncherContractDrift:
         assert "PYTHON_BINDING" in content
         assert "FATAL: No valid Python interpreter found" in content
         assert "OPENCODE_PYTHON" in content
-        assert "OPENCODE_LOCAL_ROOT=\"${OPENCODE_LOCAL_ROOT:-\"${HOME}/.local/opencode\"}\"" in content
+        assert "OPENCODE_LOCAL_ROOT=\"${OPENCODE_LOCAL_ROOT:-\"${HOME}/.local/share/opencode\"}\"" in content
         assert "${OPENCODE_CONFIG_ROOT}" not in content.split("OPENCODE_LOCAL_ROOT", 1)[1].split("\n", 1)[0]
 
     def test_happy_repo_windows_wrapper_uses_binding_cascade(self) -> None:
@@ -1297,7 +1297,7 @@ class TestRepoLauncherContractDrift:
         assert "PYTHON_BINDING" in content
         assert "FATAL: No valid Python interpreter found" in content
         assert "OPENCODE_PYTHON" in content
-        assert "%USERPROFILE%\\.local\\opencode" in content
+        assert "%USERPROFILE%\\.local\\share\\opencode" in content
         assert "set \"OPENCODE_LOCAL_ROOT=%OPENCODE_CONFIG_ROOT%\"" not in content
 
     def test_corner_repo_wrappers_support_canonical_subcommands(self) -> None:
@@ -1511,3 +1511,220 @@ class TestInstallLogsDirectory:
             else:
                 import subprocess as _sp
                 _sp.run(["attrib", "-R", str(logs_dir)], check=False)
+
+
+# ---------------------------------------------------------------------------
+# Uninstall safety: opencode directory must NEVER be deleted
+# ---------------------------------------------------------------------------
+
+@pytest.mark.installer
+def test_uninstall_preserves_opencode_directory_in_local_root(tmp_path: Path):
+    """
+    CRITICAL SAFETY: Uninstall must NEVER delete the 'opencode' directory
+    under local_root (~/.local/share/opencode/).
+
+    Allowed for deletion during uninstall:
+    - governance_content/
+    - governance_spec/
+    - governance_runtime/
+    - VERSION file
+
+    STRICTLY PROTECTED (must be preserved):
+    - opencode/ directory and ALL its contents
+
+    This test creates an opencode directory with user data inside local_root,
+    performs uninstall, and verifies the directory survives.
+    """
+    config_root = tmp_path / "opencode-config-opencode-preservation"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    local_root = _local_dir(config_root)
+
+    opencode_dir = local_root / "opencode"
+    opencode_dir.mkdir(parents=True, exist_ok=True)
+    (opencode_dir / "user_data.json").write_text('{"important": true}', encoding="utf-8")
+    (opencode_dir / "cache").mkdir(parents=True, exist_ok=True)
+    (opencode_dir / "cache" / "session.bin").write_text("cached data", encoding="utf-8")
+
+    assert opencode_dir.exists(), "opencode directory should exist before uninstall"
+    assert (opencode_dir / "user_data.json").exists()
+    assert (opencode_dir / "cache").exists()
+    assert (opencode_dir / "cache" / "session.bin").exists()
+
+    r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+    assert opencode_dir.exists(), (
+        "CRITICAL: opencode directory must be PRESERVED after uninstall! "
+        "User data in ~/.local/share/opencode/opencode/ must not be deleted."
+    )
+    assert (opencode_dir / "user_data.json").exists(), (
+        "User data file must be preserved after uninstall"
+    )
+    assert (opencode_dir / "cache" / "session.bin").exists(), (
+        "Cached session data must be preserved after uninstall"
+    )
+
+
+@pytest.mark.installer
+def test_uninstall_only_deletes_governance_payloads_from_local_root(tmp_path: Path):
+    """
+    Verify uninstall deletes ONLY the expected governance payloads from local_root:
+    - governance_content/
+    - governance_spec/
+    - governance_runtime/
+    - VERSION
+
+    And preserves ALL other top-level directories/files.
+    """
+    config_root = tmp_path / "opencode-config-payload-scope"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    local_root = _local_dir(config_root)
+
+    opencode_dir = local_root / "opencode"
+    opencode_dir.mkdir(parents=True, exist_ok=True)
+    (opencode_dir / "important.json").write_text('{"preserved": true}', encoding="utf-8")
+
+    other_dir = local_root / "other_user_data"
+    other_dir.mkdir(parents=True, exist_ok=True)
+    (other_dir / "file.txt").write_text("must be preserved", encoding="utf-8")
+
+    r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+    assert (local_root / "governance_content").exists() or not (local_root / "governance_content").exists(), (
+        "governance_content should be cleaned up"
+    )
+    assert (local_root / "governance_spec").exists() or not (local_root / "governance_spec").exists(), (
+        "governance_spec should be cleaned up"
+    )
+    assert (local_root / "governance_runtime").exists() or not (local_root / "governance_runtime").exists(), (
+        "governance_runtime should be cleaned up"
+    )
+
+    assert opencode_dir.exists(), "opencode/ must be preserved"
+    assert (opencode_dir / "important.json").exists(), "opencode/ contents must be preserved"
+    assert other_dir.exists(), "other_user_data/ must be preserved"
+    assert (other_dir / "file.txt").exists(), "other_user_data contents must be preserved"
+
+
+class TestPurgeGovernanceLocalPayload:
+    """
+    Unit tests for purge_governance_local_payload function.
+    """
+
+    def test_happy_deletes_only_governance_payloads(self, tmp_path: Path) -> None:
+        """Happy: purge_governance_local_payload removes only governance directories."""
+        from install import purge_governance_local_payload
+
+        local_root = tmp_path / "local"
+        local_root.mkdir(parents=True)
+
+        (local_root / "governance_content").mkdir()
+        (local_root / "governance_content" / "test.md").write_text("# test", encoding="utf-8")
+        (local_root / "governance_spec").mkdir()
+        (local_root / "governance_spec" / "rules.yml").write_text("rules: []", encoding="utf-8")
+        (local_root / "governance_runtime").mkdir()
+        (local_root / "governance_runtime" / "engine.py").write_text("pass", encoding="utf-8")
+        (local_root / "VERSION").write_text("1.0.0", encoding="utf-8")
+
+        rc = purge_governance_local_payload(local_root, dry_run=False)
+
+        assert rc == 0, "Should return 0 on success"
+        assert not (local_root / "governance_content").exists(), "governance_content must be deleted"
+        assert not (local_root / "governance_spec").exists(), "governance_spec must be deleted"
+        assert not (local_root / "governance_runtime").exists(), "governance_runtime must be deleted"
+        assert not (local_root / "VERSION").exists(), "VERSION must be deleted"
+
+    def test_happy_preserves_opencode_directory(self, tmp_path: Path) -> None:
+        """Happy: purge_governance_local_payload MUST NOT delete opencode directory."""
+        from install import purge_governance_local_payload
+
+        local_root = tmp_path / "local"
+        local_root.mkdir(parents=True)
+
+        (local_root / "governance_content").mkdir()
+        (local_root / "governance_content" / "test.md").write_text("# test", encoding="utf-8")
+        (local_root / "opencode").mkdir()
+        (local_root / "opencode" / "user_data.json").write_text('{"data": true}', encoding="utf-8")
+        (local_root / "opencode" / "cache").mkdir()
+        (local_root / "opencode" / "cache" / "file.bin").write_text("bin", encoding="utf-8")
+
+        rc = purge_governance_local_payload(local_root, dry_run=False)
+
+        assert rc == 0, "Should return 0 on success"
+        assert not (local_root / "governance_content").exists(), "governance_content must be deleted"
+        assert local_root.exists(), "local_root must still exist"
+        assert (local_root / "opencode").exists(), "opencode directory must be PRESERVED"
+        assert (local_root / "opencode" / "user_data.json").exists(), "opencode/user_data.json must be PRESERVED"
+        assert (local_root / "opencode" / "cache" / "file.bin").exists(), "opencode/cache/file.bin must be PRESERVED"
+
+    def test_happy_preserves_unknown_directories(self, tmp_path: Path) -> None:
+        """Happy: preserves any unknown top-level directory that is not in the allowed set."""
+        from install import purge_governance_local_payload
+
+        local_root = tmp_path / "local"
+        local_root.mkdir(parents=True)
+
+        (local_root / "governance_runtime").mkdir()
+        (local_root / "unknown_app").mkdir()
+        (local_root / "unknown_app" / "config.yml").write_text("config: true", encoding="utf-8")
+
+        rc = purge_governance_local_payload(local_root, dry_run=False)
+
+        assert rc == 0, "Should return 0 on success"
+        assert not (local_root / "governance_runtime").exists(), "governance_runtime must be deleted"
+        assert (local_root / "unknown_app").exists(), "unknown_app directory must be preserved"
+        assert (local_root / "unknown_app" / "config.yml").exists(), "unknown_app contents must be preserved"
+
+    def test_happy_dry_run_preserves_everything(self, tmp_path: Path) -> None:
+        """Edge: dry-run mode must not delete anything."""
+        from install import purge_governance_local_payload
+
+        local_root = tmp_path / "local"
+        local_root.mkdir(parents=True)
+
+        (local_root / "governance_content").mkdir()
+        (local_root / "governance_content" / "test.md").write_text("# test", encoding="utf-8")
+        (local_root / "opencode").mkdir()
+        (local_root / "opencode" / "data.json").write_text('{"x": 1}', encoding="utf-8")
+
+        rc = purge_governance_local_payload(local_root, dry_run=True)
+
+        assert rc == 0, "dry-run should return 0"
+        assert (local_root / "governance_content").exists(), "governance_content must NOT be deleted in dry-run"
+        assert (local_root / "opencode").exists(), "opencode must NOT be deleted in dry-run"
+
+    def test_happy_handles_missing_local_root(self, tmp_path: Path) -> None:
+        """Edge: handles non-existent local_root gracefully."""
+        from install import purge_governance_local_payload
+
+        non_existent = tmp_path / "does_not_exist"
+        rc = purge_governance_local_payload(non_existent, dry_run=False)
+        assert rc == 0, "Should return 0 for non-existent path"
+
+    def test_happy_preserves_nested_governance_inside_opencode(self, tmp_path: Path) -> None:
+        """Edge: governance directories nested inside opencode must be preserved."""
+        from install import purge_governance_local_payload
+
+        local_root = tmp_path / "local"
+        local_root.mkdir(parents=True)
+
+        (local_root / "opencode").mkdir()
+        (local_root / "opencode" / "governance_content").mkdir()
+        (local_root / "opencode" / "governance_content" / "inner.md").write_text("# inner", encoding="utf-8")
+        (local_root / "opencode" / "some_other_file.txt").write_text("text", encoding="utf-8")
+
+        rc = purge_governance_local_payload(local_root, dry_run=False)
+
+        assert rc == 0, "Should return 0 on success"
+        assert (local_root / "opencode").exists(), "opencode directory must be preserved"
+        assert (local_root / "opencode" / "governance_content").exists(), (
+            "governance_content INSIDE opencode/ must be preserved"
+        )
+        assert (local_root / "opencode" / "governance_content" / "inner.md").exists(), (
+            "Files inside opencode/governance_content must be preserved"
+        )

@@ -26,11 +26,12 @@ from governance_runtime.infrastructure.session_pointer import (
 )
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
+from governance_runtime.application.services.state_accessor import get_phase
 
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
     session_path, _, _, workspace_dir = resolve_active_session_paths()
-    events_path = workspace_dir / "events.jsonl"
+    events_path = workspace_dir / "logs" / "events.jsonl"
     return session_path, events_path
 
 
@@ -207,7 +208,7 @@ def apply_implementation_decision(
             message=f"{enforcement.reason}: {';'.join(enforcement.details)}",
         )
 
-    phase_text = str(state.get("Phase") or state.get("phase") or "").strip()
+    phase_text = get_phase(state).strip()
     if not phase_text.startswith("6"):
         return _payload(
             "error",
@@ -306,7 +307,7 @@ def apply_implementation_decision(
         "ok",
         decision=normalized,
         event_id=event_id,
-        next_phase=str(state.get("Phase") or state.get("phase") or ""),
+        next_phase=get_phase(state),
         next_gate=str(state.get("active_gate") or ""),
         implementation_status=str(state.get("implementation_status") or ""),
         next_action=next_action,

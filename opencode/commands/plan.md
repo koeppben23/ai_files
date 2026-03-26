@@ -9,7 +9,7 @@ The command is mutating — it writes evidence and reroutes kernel state.
 
 **Auto-generation (default):** When no `--plan-text` or `--plan-file` is provided, `/plan` reads the ticket and task from session state and generates a structured plan via the configured Desktop LLM. The generated plan is reviewed (max 3 self-review iterations) and only persisted when valid.
 
-**Explicit input:** You may also provide plan text directly via `--plan-text` or `--plan-file`. In this case the LLM generation step is skipped.
+**Explicit input:** You may also provide plan text directly via `--plan-text` or `--plan-file`. In this case only the LLM generation step is skipped; the mandatory self-review loop still uses the resolved LLM executor.
 
 Deterministic plan flow:
 1. read Ticket/Task from session state
@@ -44,7 +44,7 @@ $env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --plan-per
 
 ## Plan LLM executor
 
-`/plan` uses `OPENCODE_PLAN_LLM_CMD` (plan-specific executor). If not set, falls back to `OPENCODE_IMPLEMENT_LLM_CMD`.
+Default executor is the active OpenCode Desktop LLM binding. Resolution uses direct model env tokens first, then the active OpenCode session model from local session storage (`opencode.db`) via the workspace guard/session pointer. Optional overrides: `OPENCODE_PLAN_LLM_CMD` (plan-specific) and fallback `OPENCODE_IMPLEMENT_LLM_CMD`.
 
 ## If execution is unavailable
 

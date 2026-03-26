@@ -14,9 +14,9 @@ def test_archive_failure_persists_failed_run_state(tmp_path: Path) -> None:
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-fail",
-        "Phase": "5-ArchitectureReview",
+        "phase": "5-ArchitectureReview",
         "active_gate": "Architecture Review Gate",
-        "Next": "5.3",
+        "next": "5.3",
         "plan_record_status": "active",
         "plan_record_versions": 1,
     }

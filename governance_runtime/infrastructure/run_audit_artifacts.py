@@ -12,10 +12,6 @@ RECORD_STATUSES = {"draft", "finalized", "superseded", "invalidated"}
 RUNTIME_PURGE_SAFE_FILES = {
     "SESSION_STATE.json",
     "plan-record.json",
-    "repo-cache.yaml",
-    "repo-map-digest.md",
-    "workspace-memory.yaml",
-    "decision-pack.md",
     "current_run.json",
 }
 
@@ -488,9 +484,9 @@ def build_outcome_record(
     session_id = str(state_view.get("session_run_id") or run_id)
     payload = {
         "result": str(state_view.get("result") or "success"),
-        "phase": str(state_view.get("Phase") or state_view.get("phase") or ""),
+        "phase": str(state_view.get("phase") or state_view.get("Phase") or ""),
         "active_gate": str(state_view.get("active_gate") or ""),
-        "next": str(state_view.get("Next") or state_view.get("next") or ""),
+        "next": str(state_view.get("next") or state_view.get("Next") or ""),
     }
     return _artifact_header(
         schema="governance.outcome-record.v1",

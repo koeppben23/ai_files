@@ -321,10 +321,10 @@ def test_live_success_fixture_persists_extracted_artifacts_with_ssot_invariants(
     persisted_report = persisted_state.get("CodeExtractionReport")
     assert isinstance(persisted_report, dict)
     discovery_outcomes = persisted_report.get("discovery_outcomes")
-    assert isinstance(discovery_outcomes, list)
-    assert len(discovery_outcomes) > 0
-    assert len(discovery_outcomes) == int(str(persisted_state["RawCandidateCount"]))
-    assert len(discovery_outcomes) == int(str(code_report["raw_candidate_count"]))
+    assert isinstance(discovery_outcomes, dict)
+    assert discovery_outcomes.get("count", 0) > 0
+    assert discovery_outcomes.get("count") == int(str(persisted_state["RawCandidateCount"]))
+    assert discovery_outcomes.get("count") == int(str(code_report["raw_candidate_count"]))
 
     hydrated_state: dict[str, object] = {}
     applied = hydrate_business_rules_state_from_artifacts(

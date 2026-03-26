@@ -463,6 +463,8 @@ def _should_include_file(
         return True
     if rel in {"phase_api.yaml", "governance_spec/phase_api.yaml"} or rel_legacy == "phase_api.yaml":
         return True
+    if rel.startswith("governance_spec/") and p.suffix.lower() in {".yaml", ".yml", ".json"}:
+        return True
     # Canonical rail command templates required for strict command-surface install.
     if rel.startswith("opencode/commands/") and p.suffix.lower() == ".md":
         return True

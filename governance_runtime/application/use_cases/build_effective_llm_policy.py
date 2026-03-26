@@ -77,6 +77,17 @@ def _load_schema(schema_path: Path) -> dict[str, Any]:
     return _SCHEMA_CACHE[schema_path]
 
 
+def _find_local_root(config_root: Path) -> Path:
+    home = Path.home()
+    local_root_candidate = home / ".local" / "share" / config_root.name
+    if local_root_candidate.exists():
+        return local_root_candidate
+    local_root_legacy = config_root.parent / f"{config_root.name}-local"
+    if local_root_legacy.exists():
+        return local_root_legacy
+    return local_root_candidate
+
+
 def _resolve_content_path(
     commands_home: Path,
     path_ref: str,
@@ -90,21 +101,24 @@ def _resolve_content_path(
         return p if p.exists() else None
     if path_ref.startswith("${PROFILES_HOME}"):
         config_root = commands_home.parent
-        local_root = config_root.parent / f"{config_root.name}-local"
+        local_root = _find_local_root(config_root)
         profiles_home = local_root / "governance_content" / "profiles"
         resolved = path_ref.replace("${PROFILES_HOME}", str(profiles_home))
         p = Path(resolved)
         return p if p.exists() else None
     if path_ref.startswith("${CONTENT_HOME}"):
         config_root = commands_home.parent
-        local_root = config_root.parent / f"{config_root.name}-local"
+        local_root = _find_local_root(config_root)
         content_home = local_root / "governance_content"
         resolved = path_ref.replace("${CONTENT_HOME}", str(content_home))
         p = Path(resolved)
-        return p if p.exists() else None
+        if p.exists():
+            return p
+        fallback = config_root / path_ref.replace("${CONTENT_HOME}/", "")
+        return fallback if fallback.exists() else None
     if path_ref.startswith("${SPEC_HOME}"):
         config_root = commands_home.parent
-        local_root = config_root.parent / f"{config_root.name}-local"
+        local_root = _find_local_root(config_root)
         spec_home = local_root / "governance_spec"
         resolved = path_ref.replace("${SPEC_HOME}", str(spec_home))
         p = Path(resolved)

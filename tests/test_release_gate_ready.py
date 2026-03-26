@@ -492,7 +492,7 @@ class TestE2ETestMatrix:
         monkeypatch.setattr(Path, "home", staticmethod(lambda: isolated_env["home"]))
         
         ss_with_rulebooks = {
-            "Phase": "4",
+            "phase": "4",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -524,7 +524,7 @@ class TestE2ETestMatrix:
         assert routed.phase == "4", f"T7: With core rulebook, should allow Phase 4: {routed.phase}"
         
         ss_without_rulebooks = {
-            "Phase": "2.1-DecisionPack",
+            "phase": "2.1-DecisionPack",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,

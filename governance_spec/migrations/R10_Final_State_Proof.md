@@ -14,7 +14,7 @@ Generated: 2026-03-18
 - `governance/**` is a frozen passive compatibility surface only.
 - Compatibility surface files are not primary installer/bootstrap/runtime authorities.
 - Installer placement invariant:
-  - `~/.local/opencode/governance/` may exist for compatibility.
+  - `~/.local/share/opencode/governance/` may exist for compatibility.
   - `~/.config/opencode/commands/governance/` must not be used as active runtime installation target.
 
 ## Explicit Active Compatibility Surface

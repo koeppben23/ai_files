@@ -14,7 +14,7 @@ proceeding with any upgrade or troubleshooting.
 ### 1.0 Canonical operator path truth
 
 - Config root: `~/.config/opencode` (`commands/`, `plugins/`, `workspaces/`, `bin/`)
-- Local root: `~/.local/opencode` (`governance_runtime/`, `governance_content/`, `governance_spec/`, `VERSION`)
+- Local root: `~/.local/share/opencode` (`governance_runtime/`, `governance_content/`, `governance_spec/`, `VERSION`)
 - Primary bootstrap command: `opencode-governance-bootstrap init --profile <solo|team|regulated> --repo-root <repo-root>`
 - `python -m ...` invocation is internal/debug/compatibility only, not primary operator guidance.
 

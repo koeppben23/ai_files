@@ -266,23 +266,36 @@ def _resolve_next_action_line(snapshot: Snapshot) -> str:
         elif rail == "/continue":
             return "Next action: run /continue."
     
-    p54_status = str(snapshot.get("p54_evaluated_status") or "").strip().lower()
-    if p54_status == "gap-detected":
-        return "Next action: complete the active business-rules validation work in chat."
-    
-    p55_status = str(snapshot.get("p55_evaluated_status") or "").strip().lower()
-    if p55_status == "pending":
-        return "Next action: complete the active technical-debt validation work in chat."
-    
-    p56_status = str(snapshot.get("p56_evaluated_status") or "").strip().lower()
-    if p56_status == "pending":
-        return "Next action: complete the active rollback-safety validation work in chat."
-    
     if (phase.startswith("4") or gate == "ticket input gate") and "/review" not in label.lower():
         label = (
             "run /ticket with the ticket/task details. "
             "Alternative: run /review for read-only feedback (no state change)."
         )
+
+    p54_status = str(snapshot.get("p54_evaluated_status") or "").strip().lower()
+    if p54_status == "gap-detected" and (
+        "business rules validation" in gate
+        or phase.startswith("5.4")
+        or "businessrules" in phase
+    ):
+        return "Next action: complete the active business-rules validation work in chat."
+
+    p55_status = str(snapshot.get("p55_evaluated_status") or "").strip().lower()
+    if p55_status == "pending" and (
+        "technical debt" in gate
+        or phase.startswith("5.5")
+        or "technicaldebt" in phase
+    ):
+        return "Next action: complete the active technical-debt validation work in chat."
+
+    p56_status = str(snapshot.get("p56_evaluated_status") or "").strip().lower()
+    if p56_status == "pending" and (
+        "rollback safety" in gate
+        or phase.startswith("5.6")
+        or "rollbacksafety" in phase
+    ):
+        return "Next action: complete the active rollback-safety validation work in chat."
+
     return f"Next action: {label}"
 
 # Import Phase-5 normalizer functions
@@ -593,10 +606,22 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
             # Persist audit events (entrypoint's responsibility)
             events = review_result.loop_result.to_audit_events()
             if events:
-                events_path = session_path.parent / "events.jsonl"
+                events_path = session_path.parent / "logs" / "events.jsonl"
                 for row in events:
                     row["observed_at"] = _now_iso()
                     append_jsonl(events_path, row)
+
+    _pre_gate_evaluators = GateEvaluators(
+        evaluate_p53=evaluate_p53_test_quality_gate,
+        evaluate_p54=evaluate_p54_business_rules_gate,
+        evaluate_p55=evaluate_p55_technical_debt_gate,
+        evaluate_p56=evaluate_p56_rollback_safety_gate,
+        phase_1_5_executed=_phase_1_5_executed,
+    )
+    _sync_conditional_p5_gate_states(
+        state_doc=state_doc,
+        gate_evaluators=_pre_gate_evaluators,
+    )
 
     result = execute(
         current_token=requested_phase,
@@ -668,6 +693,49 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     state_map["session_materialization_event_id"] = f"mat-{uuid.uuid4().hex}"
     state_map["session_materialized_at"] = _now_iso()
 
+    _phase_value = str(state_map.get("phase") or "").strip()
+    _p6_review_raw = state_map.get("ImplementationReview")
+    if _phase_value.startswith("6") or isinstance(_p6_review_raw, dict):
+        _default_p6_max = _get_phase6_max_review_iterations(session_path.parent)
+        _p6_review = _p6_review_raw if isinstance(_p6_review_raw, dict) else {}
+        _p6_iter = _coerce_int(
+            _p6_review.get("iteration")
+            or _p6_review.get("Iteration")
+            or state_map.get("phase6_review_iterations")
+            or state_map.get("phase6ReviewIterations")
+        )
+        _p6_max_raw = _coerce_int(
+            _p6_review.get("max_iterations")
+            or _p6_review.get("MaxIterations")
+            or state_map.get("phase6_max_review_iterations")
+            or state_map.get("phase6MaxReviewIterations")
+        )
+        if _p6_max_raw <= 0:
+            _p6_max = _default_p6_max
+        else:
+            _p6_max = min(_p6_max_raw, _default_p6_max)
+        _p6_min_raw = _coerce_int(
+            _p6_review.get("min_self_review_iterations")
+            or _p6_review.get("MinSelfReviewIterations")
+            or state_map.get("phase6_min_review_iterations")
+            or state_map.get("phase6MinReviewIterations")
+            or state_map.get("phase6_min_self_review_iterations")
+            or state_map.get("phase6MinSelfReviewIterations")
+        )
+        if _p6_min_raw <= 0:
+            _p6_min = 1
+        else:
+            _p6_min = min(_p6_min_raw, _p6_max)
+        if _p6_iter < _p6_min:
+            _p6_iter = _p6_min
+        if _p6_iter > _p6_max:
+            _p6_iter = _p6_max
+
+        state_map["phase6_review_iterations"] = _p6_iter
+        state_map["phase6_max_review_iterations"] = _p6_max
+        state_map["phase6_min_review_iterations"] = _p6_min
+        state_map["phase6_min_self_review_iterations"] = _p6_min
+
     _gate_evaluators = GateEvaluators(
         evaluate_p53=evaluate_p53_test_quality_gate,
         evaluate_p54=evaluate_p54_business_rules_gate,
@@ -684,7 +752,7 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     _sync_conditional_p5_gate_states(state_doc=materialized, gate_evaluators=_gate_evaluators)
     _normalize_phase6_p5_state(
         state_doc=materialized,
-        events_path=session_path.parent / "events.jsonl",
+        events_path=session_path.parent / "logs" / "events.jsonl",
         clock=_now_iso,
         audit_sink=_append_jsonl,
         gate_constants=_gate_constants,
@@ -695,7 +763,7 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
 
     if result.source == "pipeline-auto-approve":
         _write_json_atomic(session_path, materialized)
-        events_path = session_path.parent / "events.jsonl"
+        events_path = session_path.parent / "logs" / "events.jsonl"
         apply_review_decision(
             decision="",
             session_path=session_path,
@@ -767,7 +835,7 @@ def get_canonical_active_gate(materialized: dict) -> str:
     _sync_conditional_p5_gate_states(state_doc=materialized, gate_evaluators=_gate_evaluators)
     _normalize_phase6_p5_state(
         state_doc=materialized,
-        events_path=session_path.parent / "events.jsonl",
+        events_path=session_path.parent / "logs" / "events.jsonl",
         clock=_now_iso,
         audit_sink=_append_jsonl,
         gate_constants=_gate_constants,
@@ -1146,7 +1214,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     # Surface kernel-owned exit conditions for the Phase 6 internal
     # implementation review loop, mirroring the Phase 5 self-review block.
     # Without this, users cannot see iteration progress or exit criteria.
-    if phase_str.startswith("6"):
+    if phase_str.startswith("6") or isinstance(state_view.get("ImplementationReview"), dict):
         p6_review = state_view.get("ImplementationReview") or state.get("ImplementationReview") or {}
         if isinstance(p6_review, dict):
             _p6_iter = _coerce_int(

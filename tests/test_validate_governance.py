@@ -1108,10 +1108,10 @@ def test_workspace_persistence_backfill_script_creates_missing_artifacts(tmp_pat
     session_file = workspace / "SESSION_STATE.json"
     session_payload = {
         "SESSION_STATE": {
-            "Phase": "2",
+            "phase": "2",
             "Mode": "NORMAL",
             "ConfidenceLevel": 80,
-            "Next": "Phase2.1-DecisionPack",
+            "next": "Phase2.1-DecisionPack",
             "Scope": {"Repository": "Demo Repo", "RepositoryType": "governance-rulebook-repo"},
             "ActiveProfile": "docs-governance",
             "ProfileEvidence": "user-explicit",
@@ -1183,10 +1183,10 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
     session_file = workspace / "SESSION_STATE.json"
     session_payload = {
         "SESSION_STATE": {
-            "Phase": "1.5",
+            "phase": "1.5",
             "Mode": "NORMAL",
             "ConfidenceLevel": 85,
-            "Next": "Phase 4",
+            "next": "Phase 4",
             "Scope": {
                 "Repository": "Demo Repo",
                 "RepositoryType": "governance-rulebook-repo",
@@ -1225,10 +1225,10 @@ def test_workspace_persistence_backfill_writes_business_rules_status_for_gap_det
     session_file = workspace / "SESSION_STATE.json"
     session_payload = {
         "SESSION_STATE": {
-            "Phase": "2.1-DecisionPack",
+            "phase": "2.1-DecisionPack",
             "Mode": "NORMAL",
             "ConfidenceLevel": 80,
-            "Next": "4",
+            "next": "4",
             "Scope": {
                 "Repository": "Demo Repo",
                 "RepositoryType": "governance-rulebook-repo",
@@ -1285,10 +1285,10 @@ def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_fo
     session_file = workspace / "SESSION_STATE.json"
     session_payload = {
         "SESSION_STATE": {
-            "Phase": "4",
+            "phase": "4",
             "Mode": "NORMAL",
             "ConfidenceLevel": 80,
-            "Next": "Phase5",
+            "next": "Phase5",
             "Scope": {
                 "Repository": "Demo Repo",
                 "RepositoryType": "governance-rulebook-repo",
@@ -1343,10 +1343,10 @@ def test_workspace_persistence_normalizes_legacy_decision_pack_and_emits_event(t
     session_file = workspace / "SESSION_STATE.json"
     session_payload = {
         "SESSION_STATE": {
-            "Phase": "2.1-DecisionPack",
+            "phase": "2.1-DecisionPack",
             "Mode": "IN_PROGRESS",
             "ConfidenceLevel": 80,
-            "Next": "3A-API-Inventory",
+            "next": "3A-API-Inventory",
             "Scope": {
                 "Repository": "Demo Repo",
                 "RepositoryType": "governance-rulebook-repo",
@@ -1392,7 +1392,7 @@ def test_workspace_persistence_normalizes_legacy_decision_pack_and_emits_event(t
     assert "A) Yes" not in decision_text
     assert "B) No" not in decision_text
 
-    events_text = (workspace / "events.jsonl").read_text(encoding="utf-8")
+    events_text = (workspace / "logs" / "events.jsonl").read_text(encoding="utf-8")
     assert "decision-pack-normalized-legacy-format" in events_text
 
 

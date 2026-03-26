@@ -31,8 +31,8 @@ class TestNewWorkSessionCliPath:
         _ = json.loads(capsys.readouterr().out.strip())
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert state["Phase"] == "4"
-        assert state["Next"] == "4"
+        assert state["phase"] == "4"
+        assert state["next"] == "4"
 
     # -- Bad --
     def test_script_wrapper_forwards_failure_exit_code(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -61,8 +61,8 @@ class TestNewWorkSessionCliPath:
         _ = capsys.readouterr().out
         desktop_state = json.loads(desktop_state_path.read_text(encoding="utf-8"))["SESSION_STATE"]
 
-        assert cli_state["Phase"] == desktop_state["Phase"] == "4"
-        assert cli_state["Next"] == desktop_state["Next"] == "4"
+        assert cli_state["phase"] == desktop_state["phase"] == "4"
+        assert cli_state["next"] == desktop_state["next"] == "4"
         assert cli_state["Ticket"] == desktop_state["Ticket"] is None
         assert cli_state["Task"] == desktop_state["Task"] is None
 
@@ -78,5 +78,5 @@ class TestNewWorkSessionCliPath:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["reason"] in {"new-work-session-created", "new-work-session-deduped"}
 
-        events = (session_path.parent / "events.jsonl").read_text(encoding="utf-8")
+        events = (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8")
         assert "\"trigger_source\":\"pipeline\"" in events

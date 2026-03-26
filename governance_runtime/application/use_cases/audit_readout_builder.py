@@ -458,16 +458,16 @@ def build_audit_readout(
 
     active = {
         "run_id": _state_text(state, "session_run_id") or "unknown",
-        "phase": _state_text(state, "Phase", "phase") or "unknown",
+        "phase": _state_text(state, "phase", "Phase") or "unknown",
         "active_gate": _state_text(state, "active_gate", "ActiveGate") or "unknown",
-        "next": _state_text(state, "Next", "next") or "unknown",
+        "next": _state_text(state, "next", "Next") or "unknown",
         "updated_at": _extract_updated_at(state, session_path=session_path),
         "effective_operating_mode": active_effective_mode,
         "resolved_operating_mode": active_resolved_mode,
         "verify_policy_version": active_verify_policy_version,
     }
 
-    events_raw = _parse_jsonl(session_path.parent / "events.jsonl")
+    events_raw = _parse_jsonl(session_path.parent / "logs" / "events.jsonl")
     normalized_events: list[dict[str, object]] = []
     for event in events_raw:
         normalized = _event_with_required_fields(event)

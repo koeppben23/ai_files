@@ -90,7 +90,7 @@ def test_phase6_topology_events_are_guarded_or_default() -> None:
 def test_guard_state_normalization_does_not_invent_consumed_flag() -> None:
     """Normalization must not silently set rework_clarification_consumed=true."""
     state = {
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "phase6_state": "6.rework",
         "active_gate": "Rework Clarification Gate",
     }
@@ -109,7 +109,7 @@ def test_guard_state_normalization_does_not_invent_consumed_flag() -> None:
 def test_guard_state_normalization_does_not_invent_phase6_state() -> None:
     """Normalization must not fabricate phase6_state when missing."""
     state = {
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Implementation Internal Review",
     }
 
@@ -125,7 +125,7 @@ def test_guard_state_normalization_does_not_invent_phase6_state() -> None:
 def test_guard_state_normalization_keeps_explicit_status_and_flags() -> None:
     """Normalization preserves explicit business-critical status flags."""
     state = {
-        "Phase": "5-ArchitectureReview",
+        "phase": "5-ArchitectureReview",
         "active_gate": "Architecture Review Gate",
         "implementation_execution_status": "blocked",
         "technical_debt_proposed": True,
@@ -146,7 +146,7 @@ def test_guard_state_normalization_keeps_explicit_status_and_flags() -> None:
 def test_guard_state_normalization_does_not_invent_workflow_complete() -> None:
     """workflow_complete must not be implicitly created when absent."""
     state = {
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Implementation Internal Review",
     }
 
@@ -162,7 +162,7 @@ def test_guard_state_normalization_does_not_invent_workflow_complete() -> None:
 def test_guard_state_normalization_preserves_explicit_workflow_complete() -> None:
     """Explicit workflow_complete must be preserved for guard evaluation."""
     state = {
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
         "workflow_complete": True,
     }
@@ -179,7 +179,7 @@ def test_guard_state_normalization_preserves_explicit_workflow_complete() -> Non
 def test_guard_state_normalization_keeps_explicit_active_gate_precedence() -> None:
     """Canonical active_gate input must not be replaced by alias values."""
     state = {
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
         "ActiveGate": "Implementation Internal Review",
     }
@@ -196,7 +196,7 @@ def test_guard_state_normalization_keeps_explicit_active_gate_precedence() -> No
 def test_guard_state_normalization_does_not_invent_user_review_decision() -> None:
     """Invalid or absent user decision must not be fabricated into a valid decision."""
     state = {
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
         "UserReviewDecision": {"decision": "maybe"},
     }
@@ -213,7 +213,7 @@ def test_guard_state_normalization_does_not_invent_user_review_decision() -> Non
 def test_guard_state_normalization_does_not_reconstruct_impl_status_from_gate_only() -> None:
     """Implementation status flags must not be synthesized from gate labels alone."""
     state = {
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Implementation Blocked",
     }
 
@@ -230,7 +230,7 @@ def test_guard_state_normalization_does_not_reconstruct_impl_status_from_gate_on
 def test_guard_state_normalization_does_not_override_explicit_impl_status() -> None:
     """Explicit implementation status must win over unrelated gate text."""
     state = {
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Implementation Blocked",
         "implementation_execution_status": "in_progress",
     }
@@ -247,7 +247,7 @@ def test_guard_state_normalization_does_not_override_explicit_impl_status() -> N
 def test_guard_state_normalization_workflow_complete_is_not_string_coerced() -> None:
     """workflow_complete must remain input-driven bool, not string-coerced."""
     state = {
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
         "workflow_complete": "true",
     }
