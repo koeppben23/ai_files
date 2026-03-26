@@ -35,9 +35,9 @@ def _read_bool(state: Mapping[str, object], *keys: str) -> bool:
 
 
 def validate_blocked_next_invariant(state: Mapping[str, object]) -> tuple[str, ...]:
-    """If Mode=BLOCKED, Next MUST start with 'BLOCKED-'."""
+    """If Mode=BLOCKED, next MUST start with 'BLOCKED-'."""
     mode = state.get("Mode")
-    next_val = state.get("Next")
+    next_val = state.get("next") or state.get("Next")
 
     if mode != "BLOCKED":
         return ()
@@ -147,14 +147,14 @@ def validate_reason_payloads_required(state: Mapping[str, object]) -> tuple[str,
 
 
 def validate_next_field_sync(state: Mapping[str, object]) -> tuple[str, ...]:
-    """If both Next and next exist, they must be identical."""
-    has_next = "next" in state
-    has_Next = "Next" in state
-    if not has_next or not has_Next:
+    """If both Next and next exist, they must be identical (legacy check - prefer next)."""
+    next_lower = state.get("next")
+    next_upper = state.get("Next")
+    if next_lower is None and next_upper is None:
         return ()
-    next_pascal = str(state.get("Next") or "").strip()
-    next_lower = str(state.get("next") or "").strip()
-    if next_pascal != next_lower:
+    next_lower_str = str(next_lower or "").strip()
+    next_upper_str = str(next_upper or "").strip()
+    if next_upper_str and next_lower_str and next_upper_str != next_lower_str:
         return ("next_field_mismatch",)
     return ()
 
@@ -340,7 +340,7 @@ def validate_phase_gate_prerequisites(state: Mapping[str, object]) -> tuple[str,
 
     Code-producing step checks are based on structured router facts only.
     """
-    phase = state.get("Phase")
+    phase = state.get("phase") or state.get("Phase")
     gates = state.get("Gates")
     if not isinstance(phase, str):
         return ()

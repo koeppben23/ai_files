@@ -125,7 +125,7 @@ def _make_phase6_state(*, gates: dict | None = None, extra: dict | None = None) 
     )
 
     state = {
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
         **PERSISTENCE_BASE,
         **RULEBOOK_BASE,
@@ -562,7 +562,7 @@ class TestReviewDecisionBadPaths:
 
     def test_wrong_phase_rejected(self, tmp_path: Path) -> None:
         state = {
-            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
             **PERSISTENCE_BASE,
             **RULEBOOK_BASE,
         }
@@ -775,7 +775,7 @@ class TestNormalizePhase6P5State:
         normalization skips absent gates (they're conditionally not-applicable).
         Only gates PRESENT with non-terminal values are flagged."""
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
@@ -790,7 +790,7 @@ class TestNormalizePhase6P5State:
 
     def test_does_not_patch_when_gates_present(self) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
@@ -801,7 +801,7 @@ class TestNormalizePhase6P5State:
         assert "_p6_state_normalization" not in state_doc["SESSION_STATE"]
 
     def test_no_op_for_non_phase6(self) -> None:
-        state_doc = {"SESSION_STATE": {"Phase": "5-ArchitectureReview", "Gates": {}}}
+        state_doc = {"SESSION_STATE": {"phase": "5-ArchitectureReview", "Gates": {}}}
         _normalize_phase6_p5_state(state_doc=state_doc)
         assert "P5.5-TechnicalDebt" not in state_doc["SESSION_STATE"].get("Gates", {})
 
@@ -809,7 +809,7 @@ class TestNormalizePhase6P5State:
         """When Gates key is missing entirely, normalization creates
         the dict but does NOT populate absent gates.  The empty Gates dict
         has no present non-terminal values to flag."""
-        state_doc = {"SESSION_STATE": {"Phase": "6-PostFlight"}}
+        state_doc = {"SESSION_STATE": {"phase": "6-PostFlight"}}
         _normalize_phase6_p5_state(state_doc=state_doc)
         assert "Gates" in state_doc["SESSION_STATE"]
         gates = state_doc["SESSION_STATE"]["Gates"]
@@ -869,7 +869,7 @@ class TestNormalizePhase6P5StateFailClosed:
         fail-closed reset: phase6_state, implementation_review_complete,
         active_gate are written; workflow_complete is removed."""
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "phase6_state": "implementation_review_pending",
             "implementation_review_complete": True,
             "workflow_complete": True,
@@ -903,7 +903,7 @@ class TestNormalizePhase6P5StateFailClosed:
         """All non-terminal gates are listed; first_open_gate is deterministic.
         Fail-closed reset active_gate matches first_open_gate."""
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "Gates": {
                 "P5-Architecture": "pending",
                 "P5.3-TestQuality": "fail",
@@ -928,8 +928,8 @@ class TestNormalizePhase6P5StateFailClosed:
 
     def test_normalization_writes_context_fields(self) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pending",
@@ -946,8 +946,8 @@ class TestNormalizePhase6P5StateFailClosed:
 
     def test_normalization_writes_warning_event_when_events_path_provided(self, tmp_path: Path) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.5-TechnicalDebt": "rejected",
@@ -965,8 +965,8 @@ class TestNormalizePhase6P5StateFailClosed:
 
     def test_fail_closed_routes_p54_to_canonical_phase(self) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
@@ -982,8 +982,8 @@ class TestNormalizePhase6P5StateFailClosed:
 
     def test_fail_closed_routes_p56_to_canonical_phase(self) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
@@ -1001,7 +1001,7 @@ class TestNormalizePhase6P5StateFailClosed:
     def test_all_gates_terminal_no_flag(self) -> None:
         """When every present gate is terminal, no normalization flag."""
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass-with-exceptions",
@@ -1015,8 +1015,8 @@ class TestNormalizePhase6P5StateFailClosed:
 
     def test_fail_closed_uses_p54_evaluator_even_when_gate_is_stale_compliant(self) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "BusinessRules": {
                 "Outcome": "extracted",
                 "ExecutionEvidence": True,
@@ -1053,8 +1053,8 @@ class TestNormalizePhase6P5StateFailClosed:
 
     def test_rework_state_does_not_bypass_p54_failure(self) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "phase6_state": "6.rework",
             "BusinessRules": {
                 "Outcome": "extracted",
@@ -1209,7 +1209,7 @@ class TestConditionalP5GateSync:
     def test_regression_normalize_phase6_skips_p54_eval_when_phase15_not_executed(self) -> None:
         """Fix regression: normalization must not fail when Phase 1.5 was never executed."""
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
@@ -1268,9 +1268,9 @@ class TestConditionalP5GateSync:
 class TestCanonicalizeLegacyP5xSurface:
     def test_happy_p54_legacy_surface_is_canonicalized(self) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
             "phase": "5-ArchitectureReview",
-            "Next": "5.4",
+            "phase": "5-ArchitectureReview",
+            "next": "5.4",
             "active_gate": "Business Rules Compliance Gate",
             "next_gate_condition": "Phase 6 promotion blocked: BLOCKED-P5-4-BUSINESS-RULES-GATE",
         }}
@@ -1282,8 +1282,8 @@ class TestCanonicalizeLegacyP5xSurface:
 
     def test_edge_p55_legacy_surface_is_canonicalized(self) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
-            "Next": "5.5",
+            "phase": "5-ArchitectureReview",
+            "next": "5.5",
             "active_gate": "Technical Debt Gate",
         }}
         _canonicalize_legacy_p5x_surface(state_doc=state_doc)
@@ -1294,8 +1294,8 @@ class TestCanonicalizeLegacyP5xSurface:
 
     def test_corner_non_legacy_phase_unchanged(self) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "5.4-BusinessRules",
-            "Next": "5.4",
+            "phase": "5.4-BusinessRules",
+            "next": "5.4",
             "active_gate": "Business Rules Validation",
         }}
         _canonicalize_legacy_p5x_surface(state_doc=state_doc)
@@ -1305,8 +1305,8 @@ class TestCanonicalizeLegacyP5xSurface:
 
     def test_bad_unknown_legacy_gate_keeps_architecture_surface(self) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "5-ArchitectureReview",
-            "Next": "5",
+            "phase": "5-ArchitectureReview",
+            "next": "5",
             "active_gate": "Architecture Review Gate",
         }}
         _canonicalize_legacy_p5x_surface(state_doc=state_doc)
@@ -1316,7 +1316,7 @@ class TestCanonicalizeLegacyP5xSurface:
 
     def test_p54_not_applicable_is_terminal(self) -> None:
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
@@ -1809,7 +1809,7 @@ class TestNormalizationSSOT:
         """P5-Architecture is checked before P5.3 in normalization
         (matching evaluator priority order)."""
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "Gates": {
                 "P5-Architecture": "pending",  # non-terminal
                 "P5.3-TestQuality": "fail",     # also non-terminal
@@ -1825,7 +1825,7 @@ class TestNormalizationSSOT:
         """The blocking_reason_code from normalization matches what the
         evaluator would produce for the same first_open_gate."""
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
@@ -1845,7 +1845,7 @@ class TestNormalizationSSOT:
     def test_normalization_cleans_implementation_review_block(self) -> None:
         """Fail-closed reset also cleans the ImplementationReview block."""
         state_doc = {"SESSION_STATE": {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pending",

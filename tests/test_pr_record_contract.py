@@ -13,7 +13,7 @@ def test_pr_record_required_only_for_pr_runs(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
 
-    plan_state = {"session_run_id": "run-plan", "Phase": "5-ArchitectureReview", "active_gate": "Architecture Review Gate", "Next": "5.3"}
+    plan_state = {"session_run_id": "run-plan", "phase": "5-ArchitectureReview", "active_gate": "Architecture Review Gate", "next": "5.3"}
     archive_active_run(
         workspaces_home=workspaces_home,
         repo_fingerprint=fingerprint,
@@ -26,9 +26,9 @@ def test_pr_record_required_only_for_pr_runs(tmp_path: Path) -> None:
 
     pr_state = {
         "session_run_id": "run-pr",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "PullRequestTitle": "feat: add audit contract",
         "PullRequestBody": "## Summary\n- Added records",
     }
@@ -48,9 +48,9 @@ def test_plan_run_requires_plan_record_for_finalization(tmp_path: Path) -> None:
     fingerprint = "abc123def456abc123def456"
     plan_state = {
         "session_run_id": "run-plan-required",
-        "Phase": "5-ArchitectureReview",
+        "phase": "5-ArchitectureReview",
         "active_gate": "Architecture Review Gate",
-        "Next": "5.3",
+        "next": "5.3",
         "plan_record_status": "active",
         "plan_record_versions": 2,
     }

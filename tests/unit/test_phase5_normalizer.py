@@ -1,4 +1,4 @@
-"""Tests for Phase-5 Normalizer."""
+"""Tests for phase-5 Normalizer."""
 
 from __future__ import annotations
 
@@ -92,75 +92,75 @@ class TestCanonicalizeLegacyP5xSurface:
         """No changes when phase is not 5-ArchitectureReview."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "4-TicketIntake",
-                "Next": "4",
+                "phase": "4-TicketIntake",
+                "next": "4",
             }
         }
         canonicalize_legacy_p5x_surface(state_doc=state_doc)
-        assert state_doc["SESSION_STATE"]["Phase"] == "4-TicketIntake"
+        assert state_doc["SESSION_STATE"]["phase"] == "4-TicketIntake"
 
     def test_canonicalizes_to_54_business_rules(self):
         """Canonicalizes 5-ArchitectureReview with 5.4 next to 5.4-BusinessRules."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
-                "Next": "5.4",
+                "phase": "5-ArchitectureReview",
+                "next": "5.4",
                 "active_gate": "Architecture Review Gate",
             }
         }
         canonicalize_legacy_p5x_surface(state_doc=state_doc)
         state = state_doc["SESSION_STATE"]
-        assert state["Phase"] == "5.4-BusinessRules"
-        assert state["Next"] == "5.4"
+        assert state["phase"] == "5.4-BusinessRules"
+        assert state["next"] == "5.4"
         assert state["active_gate"] == "Business Rules Validation"
 
     def test_canonicalizes_to_55_technical_debt(self):
         """Canonicalizes 5-ArchitectureReview with blocked P5.5 gate."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
-                "Next": "5",
+                "phase": "5-ArchitectureReview",
+                "next": "5",
                 "active_gate": "Technical Debt Gate",
             }
         }
         canonicalize_legacy_p5x_surface(state_doc=state_doc)
         state = state_doc["SESSION_STATE"]
-        assert state["Phase"] == "5.5-TechnicalDebt"
-        assert state["Next"] == "5.5"
+        assert state["phase"] == "5.5-TechnicalDebt"
+        assert state["next"] == "5.5"
 
     def test_canonicalizes_to_56_rollback_safety(self):
         """Canonicalizes 5-ArchitectureReview with blocked P5.6 gate."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
-                "Next": "5",
+                "phase": "5-ArchitectureReview",
+                "next": "5",
                 "next_gate_condition": "BLOCKED-P5-6-ROLLBACK-SAFETY-GATE",
             }
         }
         canonicalize_legacy_p5x_surface(state_doc=state_doc)
         state = state_doc["SESSION_STATE"]
-        assert state["Phase"] == "5.6-RollbackSafety"
+        assert state["phase"] == "5.6-RollbackSafety"
         assert state["Next"] == "5.6"
 
     def test_no_canonicalization_when_no_match(self):
         """No changes when no target gate matches."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
-                "Next": "5",
+                "phase": "5-ArchitectureReview",
+                "next": "5",
                 "active_gate": "Unknown Gate",
             }
         }
         canonicalize_legacy_p5x_surface(state_doc=state_doc)
         state = state_doc["SESSION_STATE"]
-        assert state["Phase"] == "5-ArchitectureReview"
+        assert state["phase"] == "5-ArchitectureReview"
 
     def test_updates_normalization_marker(self):
         """Updates _p6_state_normalization marker when present."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "5-ArchitectureReview",
-                "Next": "5.4",
+                "phase": "5-ArchitectureReview",
+                "next": "5.4",
                 "_p6_state_normalization": {},
             }
         }
@@ -171,15 +171,15 @@ class TestCanonicalizeLegacyP5xSurface:
         assert marker["corrected_active_gate"] == "Business Rules Validation"
 
 
-class TestNormalizePhase6P5State:
+class TestNormalizephase6P5State:
     """Tests for normalize_phase6_p5_state."""
 
     def test_no_action_for_non_phase6(self):
         """No changes when phase does not start with 6."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "5.4-BusinessRules",
-                "Next": "5.4",
+                "phase": "5.4-BusinessRules",
+                "next": "5.4",
                 "Gates": {
                     "P5.4-BusinessRules": "pending",
                 },
@@ -190,14 +190,14 @@ class TestNormalizePhase6P5State:
             gate_constants=MOCK_GATE_CONSTANTS,
             gate_evaluators=MOCK_GATE_EVALUATORS,
         )
-        assert state_doc["SESSION_STATE"]["Phase"] == "5.4-BusinessRules"
+        assert state_doc["SESSION_STATE"]["phase"] == "5.4-BusinessRules"
 
     def test_no_action_when_no_gates_dict(self):
         """No changes when Gates is not a dict."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
-                "Next": "6",
+                "phase": "6-PostFlight",
+                "next": "6",
             }
         }
         normalize_phase6_p5_state(
@@ -226,8 +226,8 @@ class TestNormalizePhase6P5State:
 
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
-                "Next": "6",
+                "phase": "6-PostFlight",
+                "next": "6",
                 "active_gate": "Post Flight",
                 "Gates": {
                     "P5-Architecture": "approved",
@@ -246,7 +246,7 @@ class TestNormalizePhase6P5State:
         state = state_doc["SESSION_STATE"]
 
         # Should have reset to P5.4
-        assert state["Phase"] == "5.4-BusinessRules"
+        assert state["phase"] == "5.4-BusinessRules"
         assert state["phase6_state"] in ("", "6.none", "phase5_in_progress")
         assert state["implementation_review_complete"] is False
         assert "_p6_state_normalization" in state
@@ -256,8 +256,8 @@ class TestNormalizePhase6P5State:
         """No reset when all P5 gates are in terminal states."""
         state_doc = {
             "SESSION_STATE": {
-                "Phase": "6-PostFlight",
-                "Next": "6",
+                "phase": "6-PostFlight",
+                "next": "6",
                 "active_gate": "Post Flight",
                 "Gates": {
                     "P5-Architecture": "approved",
@@ -276,7 +276,7 @@ class TestNormalizePhase6P5State:
         state = state_doc["SESSION_STATE"]
 
         # Should remain in phase 6
-        assert state["Phase"] == "6-PostFlight"
+        assert state["phase"] == "6-PostFlight"
         assert "_p6_state_normalization" not in state
 
 

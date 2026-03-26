@@ -39,9 +39,9 @@ def _archive_minimal_run(tmp_path: Path, run_id: str = "run-sec-1") -> Path:
     workspaces_home = tmp_path / "workspaces"
     state = {
         "session_run_id": run_id,
-        "Phase": "4",
+        "phase": "4",
         "active_gate": "Ticket Input Gate",
-        "Next": "5",
+        "next": "5",
     }
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -259,9 +259,9 @@ class TestDuplicateArchivePrevention:
         workspaces_home = tmp_path / "workspaces"
         state = {
             "session_run_id": "run-dup",
-            "Phase": "4",
+            "phase": "4",
             "active_gate": "Ticket Input Gate",
-            "Next": "5",
+            "next": "5",
         }
         archive_active_run(
             workspaces_home=workspaces_home,

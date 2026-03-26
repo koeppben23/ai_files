@@ -37,11 +37,11 @@ def _minimal_session_with_codebase_context(candidates: object | None = None) -> 
         "SESSION_STATE": {
             "session_state_version": 1,
             "ruleset_hash": "abc123",
-            "Phase": "2",
+            "phase": "2",
             "Mode": "NORMAL",
             "OutputMode": "ARCHITECT",
             "ConfidenceLevel": 85,
-            "Next": "Continue",
+            "next": "Continue",
             "Bootstrap": {"Present": True, "Satisfied": True, "Evidence": "test"},
             "Scope": {},
             "RepoFacts": {},

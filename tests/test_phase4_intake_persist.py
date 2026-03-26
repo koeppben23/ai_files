@@ -59,8 +59,8 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     session = {
         "SESSION_STATE": {
             "RepoFingerprint": repo_fp,
-            "Phase": "4",
-            "Next": "4",
+            "phase": "4",
+            "next": "4",
             "active_gate": "Ticket Input Gate",
             "next_gate_condition": "Collect ticket",
             "PersistenceCommitted": True,

@@ -18,7 +18,7 @@ def test_archive_writes_repository_and_run_manifest(tmp_path: Path) -> None:
     workspace = workspaces_home / fingerprint
     workspace.mkdir(parents=True)
 
-    document = {"SESSION_STATE": {"session_run_id": "run-1", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}}
+    document = {"SESSION_STATE": {"session_run_id": "run-1", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}}
     result = archive_active_run(
         workspaces_home=workspaces_home,
         repo_fingerprint=fingerprint,
@@ -50,7 +50,7 @@ def test_archive_writes_repository_and_run_manifest(tmp_path: Path) -> None:
 def test_repository_manifest_is_stable_across_multiple_archives(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-1", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+    state = {"session_run_id": "run-1", "phase": "6-PostFlight", "active_gate": "Post Flight", "next": "6"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -63,7 +63,7 @@ def test_repository_manifest_is_stable_across_multiple_archives(tmp_path: Path) 
     manifest_path = workspaces_home / "governance-records" / fingerprint / "runs" / "repository-manifest.json"
     first_manifest = manifest_path.read_text(encoding="utf-8")
 
-    state2 = {"session_run_id": "run-2", "Phase": "4", "active_gate": "Ticket Input Gate", "Next": "5"}
+    state2 = {"session_run_id": "run-2", "phase": "4", "active_gate": "Ticket Input Gate", "next": "5"}
     archive_active_run(
         workspaces_home=workspaces_home,
         repo_fingerprint=fingerprint,

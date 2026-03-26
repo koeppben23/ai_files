@@ -312,7 +312,7 @@ class TestBackfillFromSessionState:
                 "Rollback/Release safety": {"status": "OK", "detail": "Safe"},
             },
             "TestStrategy": ["Unit tests", "Integration tests"],
-            "Phase": "4",
+            "phase": "4",
         }
         result = repo.backfill_from_session_state(
             state, repo_fingerprint=_FP, session_run_id="sess-bf"

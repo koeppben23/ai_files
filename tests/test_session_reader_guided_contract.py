@@ -122,8 +122,8 @@ def test_guided_edge_materialize_normal_mode_has_no_yaml_dump(tmp_path: Path, ca
             {
                 "schema": "opencode-session-state.v1",
                 "SESSION_STATE": {
-                    "Phase": "4",
-                    "Next": "4",
+                    "phase": "4",
+                    "next": "4",
                     "status": "OK",
                     "active_gate": "Ticket Input Gate",
                     "next_gate_condition": "Provide ticket/task details.",

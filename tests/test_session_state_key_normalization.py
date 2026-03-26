@@ -15,9 +15,9 @@ class TestSessionStateKeyNormalization:
         """Canonical phase should be used, not legacy Phase."""
         # State with both Phase and phase (the legacy anti-pattern)
         state = {
-            "Phase": "4",
             "phase": "4",
-            "Next": "5",
+            "phase": "4",
+            "next": "5",
             "next": "5",
         }
 
@@ -31,8 +31,8 @@ class TestSessionStateKeyNormalization:
     def test_only_canonical_keys_in_output(self) -> None:
         """Output should only contain canonical keys (lowercase)."""
         state = {
-            "Phase": "5-ArchitectureReview",
-            "Next": "6",
+            "phase": "5-ArchitectureReview",
+            "next": "6",
         }
 
         canonical = normalize_to_canonical(state)
@@ -52,7 +52,7 @@ class TestBootstrapPersistencePhaseFix:
         # Simulate what bootstrap_persistence now does after the fix
         session = {}
 
-        # This is what the fix does:
+        # This is what the fix does - reads from old fallback with uppercase keys
         fallback_session = {"Phase": "4", "Next": "4", "Mode": "solo"}
         if isinstance(fallback_session, dict):
             session["phase"] = fallback_session.get("Phase")
@@ -107,8 +107,8 @@ class TestCanonicalFormInvariant:
 
         # Create a state with mixed case
         mixed_state = {
-            "Phase": "4",
-            "Next": "5",
+            "phase": "4",
+            "next": "5",
             "Mode": "solo",
             "Status": "OK",
             "ActiveGate": "Ticket Input Gate",

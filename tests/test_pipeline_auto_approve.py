@@ -42,7 +42,7 @@ def _make_state(
 ) -> dict:
     return {
         "effective_operating_mode": effective_operating_mode,
-        "Phase": phase,
+        "phase": phase,
         "phase": phase,
         "active_gate": active_gate,
         "Phase6Review": {

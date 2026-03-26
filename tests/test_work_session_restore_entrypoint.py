@@ -29,9 +29,9 @@ def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str
         "SESSION_STATE": {
             "RepoFingerprint": "abc123def456abc123def456",
             "session_run_id": run_id,
-            "Phase": phase,
             "phase": phase,
-            "Next": next_token,
+            "phase": phase,
+            "next": next_token,
             "active_gate": gate,
         }
     }
@@ -248,9 +248,9 @@ def _setup_workspace(tmp_path: Path) -> tuple[Path, Path, str]:
             "SESSION_STATE": {
                 "RepoFingerprint": fingerprint,
                 "session_run_id": "work-2",
-                "Phase": "4",
                 "phase": "4",
-                "Next": "5",
+                "phase": "4",
+                "next": "5",
                 "active_gate": "Ticket Input Gate",
             }
         },

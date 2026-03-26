@@ -34,17 +34,17 @@ class TestNormalizeToCanonical:
 
     def test_legacy_Phase_field_resolved(self):
         """Legacy 'Phase' field is resolved to canonical 'phase'."""
-        result = normalize_to_canonical({"Phase": "5.4-BusinessRules"})
+        result = normalize_to_canonical({"phase": "5.4-BusinessRules"})
         assert result["phase"] == "5.4-BusinessRules"
 
     def test_canonical_takes_precedence_over_legacy(self):
         """Canonical field takes precedence when both exist."""
-        result = normalize_to_canonical({"phase": "canonical", "Phase": "legacy"})
+        result = normalize_to_canonical({"phase": "canonical", "phase": "legacy"})
         assert result["phase"] == "canonical"
 
     def test_next_action_field(self):
         """next_action field is resolved from Next/next aliases."""
-        result = normalize_to_canonical({"Next": "continue"})
+        result = normalize_to_canonical({"next": "continue"})
         assert result["next_action"] == "continue"
 
     def test_gates_normalized_with_canonical_keys(self):
@@ -110,14 +110,14 @@ class TestNormalizeToCanonical:
 
     def test_none_values_not_included(self):
         """None values are not included in canonical state."""
-        raw_state = {"phase": "test", "Phase": None, "gates": None}
+        raw_state = {"phase": "test", "phase": None, "gates": None}
         result = normalize_to_canonical(raw_state)
         assert "phase" in result
         assert "gates" not in result
 
     def test_does_not_mutate_input(self):
         """Original state dict is not modified."""
-        raw_state = {"Phase": "test", "Gates": {"P5.3-TestQuality": "pass"}}
+        raw_state = {"phase": "test", "Gates": {"P5.3-TestQuality": "pass"}}
         original = dict(raw_state)
         original_gates = dict(raw_state["Gates"])
         normalize_to_canonical(raw_state)

@@ -10,7 +10,7 @@ from governance_runtime.infrastructure.work_run_archive import archive_active_ru
 def test_run_manifest_contains_lifecycle_fields(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
-    state = {"session_run_id": "run-lifecycle", "Phase": "5-ArchitectureReview", "active_gate": "Architecture Review Gate", "Next": "5.3"}
+    state = {"session_run_id": "run-lifecycle", "phase": "5-ArchitectureReview", "active_gate": "Architecture Review Gate", "next": "5.3"}
 
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -38,9 +38,9 @@ def test_regulated_mode_blocks_pr_finalization_without_approval(tmp_path: Path) 
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-regulated-pr",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "PullRequestTitle": "feat: guarded export",
         "PullRequestBody": "body",
         "regulated_mode_state": "active",
@@ -73,9 +73,9 @@ def test_regulated_mode_blocks_pr_finalization_with_non_independent_approver(tmp
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-regulated-same-approver",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "PullRequestTitle": "feat: guarded export",
         "PullRequestBody": "body",
         "regulated_mode_state": "active",
@@ -110,9 +110,9 @@ def test_regulated_mode_allows_pr_finalization_with_independent_approver(tmp_pat
     fingerprint = "abc123def456abc123def456"
     state = {
         "session_run_id": "run-regulated-approved",
-        "Phase": "6-PostFlight",
+        "phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
-        "Next": "6",
+        "next": "6",
         "PullRequestTitle": "feat: guarded export",
         "PullRequestBody": "body",
         "regulated_mode_state": "active",

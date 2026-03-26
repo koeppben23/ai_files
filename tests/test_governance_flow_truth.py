@@ -122,8 +122,9 @@ class TestE2ETicketRail:
         module.main(["--ticket-text=Build auth", "--task-text=Add JWT", "--quiet"])
 
         state = _read_state(session_path)
-        assert str(state.get("Phase", "")).startswith("5"), (
-            f"Phase after /ticket must start with 5, got Phase={state.get('Phase')!r}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert str(phase_val).startswith("5"), (
+            f"Phase after /ticket must start with 5, got Phase={phase_val!r}"
         )
         assert state.get("active_gate") != "Ticket Input Gate", (
             "active_gate must NOT be Ticket Input Gate after /ticket"
@@ -1974,8 +1975,8 @@ class TestE2EPhase6GovernanceFailClosed:
         doc = {
             "SESSION_STATE": {
                 "RepoFingerprint": repo_fp,
-                "Phase": "6-PostFlight",
-                "Next": "6",
+                "phase": "6-PostFlight",
+                "next": "6",
                 "Mode": "IN_PROGRESS",
                 "session_run_id": "e2e-phase6-gov",
                 "active_gate": "Implementation Review Gate",

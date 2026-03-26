@@ -255,7 +255,7 @@ class TestRealKernelPathUsesTopology:
         monkeypatch.setattr("governance_runtime.kernel.phase_kernel._validate_exit", lambda _entry, _state: (True, ""))
 
         state = {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -328,7 +328,7 @@ class TestRealKernelPathUsesTopology:
         monkeypatch.setattr("governance_runtime.kernel.phase_kernel._validate_exit", lambda _entry, _state: (True, ""))
 
         state = {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -393,7 +393,7 @@ class TestRealKernelPathUsesTopology:
         monkeypatch.setattr("governance_runtime.kernel.phase_kernel._validate_exit", lambda _entry, _state: (True, ""))
 
         state = {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -474,7 +474,7 @@ class TestRealKernelPathUsesTopology:
         monkeypatch.setattr("governance_runtime.kernel.phase_kernel._validate_exit", lambda _entry, _state: (True, ""))
 
         state = {
-            "Phase": "6-PostFlight",
+            "phase": "6-PostFlight",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,

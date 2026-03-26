@@ -20,7 +20,7 @@ def test_kernel_writes_flow_and_workspace_events(tmp_path: Path) -> None:
     doc = {
         "SESSION_STATE": {
             "RepoFingerprint": "88b39b036804c534a1b2c3d4",
-            "Phase": "3B-1",
+            "phase": "3B-1",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
@@ -71,7 +71,7 @@ def test_kernel_writes_phase_not_applicable_event(tmp_path: Path) -> None:
     doc = {
         "SESSION_STATE": {
             "RepoFingerprint": "88b39b036804c534a1b2c3d4",
-            "Phase": "3A-API-Inventory",
+            "phase": "3A-API-Inventory",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,

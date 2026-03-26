@@ -54,7 +54,7 @@ def _write_session(path: Path, *, phase: str = "6-PostFlight", decision: str = "
     payload = {
         "schema": "opencode-session-state.v1",
         "SESSION_STATE": {
-            "Phase": phase,
+            "phase": phase,
             "active_gate": "Workflow Complete",
             "workflow_complete": decision == "approve",
             "WorkflowComplete": decision == "approve",
@@ -350,7 +350,7 @@ def test_happy_desktop_llm_binding_used_as_default_executor(
 
     result = _ORIGINAL_RUN_LLM_EDIT_STEP(
         repo_root=repo_root,
-        state={"Phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
         ticket_text="t",
         task_text="task",
         plan_text="plan",
@@ -382,7 +382,7 @@ def test_happy_override_executor_precedence_over_desktop_default(
 
     result = _ORIGINAL_RUN_LLM_EDIT_STEP(
         repo_root=repo_root,
-        state={"Phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
         ticket_text="t",
         task_text="task",
         plan_text="plan",
@@ -407,7 +407,7 @@ def test_bad_no_executor_binding_blocks_with_not_configured_reason(
 
     result = _ORIGINAL_RUN_LLM_EDIT_STEP(
         repo_root=repo_root,
-        state={"Phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
         ticket_text="t",
         task_text="task",
         plan_text="plan",
@@ -436,7 +436,7 @@ def test_bad_effective_authoring_policy_unavailable_blocks_with_executor(
 
     result = _ORIGINAL_RUN_LLM_EDIT_STEP(
         repo_root=repo_root,
-        state={"Phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
         ticket_text="t",
         task_text="task",
         plan_text="plan",

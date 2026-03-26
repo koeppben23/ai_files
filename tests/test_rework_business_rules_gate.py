@@ -6,8 +6,8 @@ from governance_runtime.entrypoints.session_reader import _normalize_phase6_p5_s
 def test_rework_e2e_changes_requested_still_blocks_on_invalid_business_rules() -> None:
     state_doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "phase6_state": "6.rework",
             "active_gate": "Rework Clarification Gate",
             "BusinessRules": {
@@ -54,8 +54,8 @@ def test_rework_e2e_changes_requested_still_blocks_on_invalid_business_rules() -
 def test_rework_e2e_changes_requested_blocks_on_code_coverage_gap() -> None:
     state_doc = {
         "SESSION_STATE": {
-            "Phase": "6-PostFlight",
-            "Next": "6",
+            "phase": "6-PostFlight",
+            "next": "6",
             "phase6_state": "6.rework",
             "active_gate": "Rework Clarification Gate",
             "BusinessRules": {

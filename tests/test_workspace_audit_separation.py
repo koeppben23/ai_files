@@ -15,7 +15,7 @@ def test_runtime_purge_does_not_touch_audit_runs(tmp_path: Path) -> None:
     workspace.mkdir(parents=True)
     (workspace / "logs").mkdir(parents=True)
 
-    state = {"session_run_id": "run-sep", "Phase": "4", "active_gate": "Ticket Input Gate", "Next": "5"}
+    state = {"session_run_id": "run-sep", "phase": "4", "active_gate": "Ticket Input Gate", "next": "5"}
     archive_active_run(
         workspaces_home=workspaces_home,
         repo_fingerprint=fingerprint,

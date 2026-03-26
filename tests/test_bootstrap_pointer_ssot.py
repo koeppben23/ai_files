@@ -200,7 +200,7 @@ class TestPointerVerification:
         session_data = {
             "SESSION_STATE": {
                 "PersistenceCommitted": True,
-                "Phase": "1.1-Bootstrap",
+                "phase": "1.1-Bootstrap",
             }
         }
         session_file.write_text(json.dumps(session_data))
@@ -222,7 +222,7 @@ class TestPointerVerification:
         session_data = {
             "SESSION_STATE": {
                 "PersistenceCommitted": False,
-                "Phase": "1.1-Bootstrap",
+                "phase": "1.1-Bootstrap",
             }
         }
         session_file.write_text(json.dumps(session_data))

@@ -512,7 +512,7 @@ class TestMonotonicEnforcement:
             current_token="1.1",
             session_state_doc={
                 "SESSION_STATE": {
-                    "Phase": "1.2-ActivationIntent",
+                    "phase": "1.2-ActivationIntent",
                     "PersistenceCommitted": False,
                     "WorkspaceReadyGateCommitted": False,
                     "WorkspaceArtifactsCommitted": False,
@@ -807,7 +807,7 @@ class TestEndToEndPhaseFlow:
             current_token="1.3",
             session_state_doc={
                 "SESSION_STATE": {
-                    "Phase": "1.3-RulebookLoad",
+                    "phase": "1.3-RulebookLoad",
                     "PersistenceCommitted": True,
                     "WorkspaceReadyGateCommitted": True,
                     "WorkspaceArtifactsCommitted": True,
@@ -1191,7 +1191,7 @@ class TestCorruptedStateRecovery:
         result = execute(
             current_token="4",
             session_state_doc={"SESSION_STATE": {
-                "Phase": "99-Unknown",
+                "phase": "99-Unknown",
                 "PersistenceCommitted": True,
                 "WorkspaceReadyGateCommitted": True,
                 "WorkspaceArtifactsCommitted": True,
@@ -1210,7 +1210,7 @@ class TestCorruptedStateRecovery:
         result = execute(
             current_token="4",
             session_state_doc={"SESSION_STATE": {
-                "Phase": 5,
+                "phase": 5,
                 "PersistenceCommitted": True,
                 "WorkspaceReadyGateCommitted": True,
                 "WorkspaceArtifactsCommitted": True,

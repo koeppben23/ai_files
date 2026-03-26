@@ -15,8 +15,8 @@ def test_response_contract_checker_accepts_valid_payload(tmp_path: Path):
         "status": "blocked",
         "session_state": {
             "Mode": "BLOCKED",
-            "Phase": "1.3",
-            "Next": "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
+            "phase": "1.3",
+            "next": "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
             "LoadedRulebooks": {"core": "${COMMANDS_HOME}/rules.md", "addons": {}},
             "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/rules.md"},
         },
@@ -31,7 +31,7 @@ def test_response_contract_checker_accepts_valid_payload(tmp_path: Path):
         "next_action": {
             "type": "command",
             "Status": "blocked",
-            "Next": "Provide load evidence",
+            "next": "Provide load evidence",
             "Why": "Rulebook evidence is required before phase completion.",
             "Command": "opencode-governance-bootstrap",
         },
@@ -49,7 +49,7 @@ def test_response_contract_checker_accepts_valid_payload(tmp_path: Path):
 def test_response_contract_checker_rejects_command_coherence_violation(tmp_path: Path):
     payload = {
         "status": "blocked",
-        "session_state": {"Mode": "BLOCKED", "Phase": "1.3", "Next": "BLOCKED-TEST"},
+        "session_state": {"Mode": "BLOCKED", "phase": "1.3", "next": "BLOCKED-TEST"},
         "reason_payload": {
             "status": "blocked",
             "reason_code": "BLOCKED-TEST",
@@ -58,7 +58,7 @@ def test_response_contract_checker_rejects_command_coherence_violation(tmp_path:
             "next_command": "cmd-a",
         },
         "quick_fix_commands": ["cmd-b"],
-        "next_action": {"type": "command", "Status": "blocked", "Next": "n", "Why": "w", "Command": "cmd-c"},
+        "next_action": {"type": "command", "Status": "blocked", "next": "n", "Why": "w", "Command": "cmd-c"},
         "snapshot": {"Confidence": "50%", "Risk": "LOW", "Scope": "global"},
     }
     f = tmp_path / "invalid.json"
@@ -76,13 +76,13 @@ def test_response_contract_checker_rejects_ticket_prompt_before_phase_4(tmp_path
         "status": "degraded",
         "session_state": {
             "Mode": "DEGRADED",
-            "Phase": "2-RepoDiscovery",
-            "Next": "Complete repo discovery + set working set/component scope before Phase 4 planning",
+            "phase": "2-RepoDiscovery",
+            "next": "Complete repo discovery + set working set/component scope before Phase 4 planning",
         },
         "next_action": {
             "type": "manual_step",
             "Status": "OK",
-            "Next": "Provide the task/ticket to plan against (Phase 4 entry)",
+            "next": "Provide the task/ticket to plan against (Phase 4 entry)",
             "Why": "Phase 4 requires a concrete goal; repo identity and profile are now established",
             "Command": "none",
         },
@@ -103,13 +103,13 @@ def test_response_contract_checker_allows_ticket_prompt_at_phase_4(tmp_path: Pat
         "status": "normal",
         "session_state": {
             "Mode": "OK",
-            "Phase": "4-Implement",
-            "Next": "Phase 4 entry",
+            "phase": "4-Implement",
+            "next": "Phase 4 entry",
         },
         "next_action": {
             "type": "manual_step",
             "Status": "OK",
-            "Next": "Provide the task/ticket to plan against",
+            "next": "Provide the task/ticket to plan against",
             "Why": "Phase 4 requires ticket goal input",
             "Command": "none",
         },
@@ -129,14 +129,14 @@ def test_response_contract_checker_rejects_next_action_mismatch_with_scope_gate(
         "status": "degraded",
         "session_state": {
             "Mode": "DEGRADED",
-            "Phase": "2-RepoDiscovery",
+            "phase": "2-RepoDiscovery",
             "workspace_ready": True,
             "next_gate_condition": "Complete repo discovery + set working set/component scope before Phase 4 planning",
         },
         "next_action": {
             "type": "manual_step",
             "Status": "OK",
-            "Next": "Review details and continue",
+            "next": "Review details and continue",
             "Why": "Repo identity established",
             "Command": "none",
         },
@@ -157,14 +157,14 @@ def test_response_contract_checker_accepts_scope_aligned_next_action(tmp_path: P
         "status": "degraded",
         "session_state": {
             "Mode": "DEGRADED",
-            "Phase": "2-RepoDiscovery",
+            "phase": "2-RepoDiscovery",
             "workspace_ready": True,
             "next_gate_condition": "Complete repo discovery + set working set/component scope before Phase 4 planning",
         },
         "next_action": {
             "type": "manual_step",
             "Status": "OK",
-            "Next": "Set working set and component scope for Phase 3 entry",
+            "next": "Set working set and component scope for Phase 3 entry",
             "Why": "Phase 4 planning requires scope to be locked first",
             "Command": "none",
         },
@@ -184,14 +184,14 @@ def test_response_contract_checker_rejects_phase_3a_next_action_without_3b_progr
         "status": "normal",
         "session_state": {
             "Mode": "OK",
-            "Phase": "3A",
+            "phase": "3A",
             "workspace_ready": True,
             "next_gate_condition": "Proceed to Phase 3B-1",
         },
         "next_action": {
             "type": "manual_step",
             "Status": "OK",
-            "Next": "Summarize repository findings",
+            "next": "Summarize repository findings",
             "Why": "Discovery complete",
             "Command": "none",
         },
@@ -212,14 +212,14 @@ def test_response_contract_checker_accepts_phase_3a_next_action_with_3b_progress
         "status": "normal",
         "session_state": {
             "Mode": "OK",
-            "Phase": "3A",
+            "phase": "3A",
             "workspace_ready": True,
             "next_gate_condition": "Proceed to Phase 3B-1",
         },
         "next_action": {
             "type": "manual_step",
             "Status": "OK",
-            "Next": "Proceed to Phase 3B-1 API logical validation",
+            "next": "Proceed to Phase 3B-1 API logical validation",
             "Why": "Phase 3A exits to 3B-1",
             "Command": "none",
         },
@@ -239,14 +239,14 @@ def test_response_contract_checker_rejects_phase_15_without_phase_21_predecessor
         "status": "degraded",
         "session_state": {
             "Mode": "DEGRADED",
-            "Phase": "1.5-BusinessRules",
+            "phase": "1.5-BusinessRules",
             "previous_phase": "2-RepoDiscovery",
             "next_gate_condition": "Proceed to Phase 3A",
         },
         "next_action": {
             "type": "manual_step",
             "Status": "OK",
-            "Next": "Proceed to Phase 3A API inventory",
+            "next": "Proceed to Phase 3A API inventory",
             "Why": "Business rules extraction complete",
             "Command": "none",
         },
@@ -267,14 +267,14 @@ def test_response_contract_checker_accepts_phase_15_after_phase_21(tmp_path: Pat
         "status": "degraded",
         "session_state": {
             "Mode": "DEGRADED",
-            "Phase": "1.5-BusinessRules",
+            "phase": "1.5-BusinessRules",
             "previous_phase": "2.1-DecisionPack",
             "next_gate_condition": "Proceed to Phase 3A",
         },
         "next_action": {
             "type": "manual_step",
             "Status": "OK",
-            "Next": "Proceed to Phase 3A API inventory",
+            "next": "Proceed to Phase 3A API inventory",
             "Why": "Phase 1.5 completed after decision pack",
             "Command": "none",
         },
@@ -294,7 +294,7 @@ def test_response_contract_checker_rejects_phase_history_where_15_precedes_21(tm
         "status": "degraded",
         "session_state": {
             "Mode": "DEGRADED",
-            "Phase": "1.5-BusinessRules",
+            "phase": "1.5-BusinessRules",
             "previous_phase": "4-Implement",
             "phase_history": ["1", "2", "1.5-BusinessRules", "2.1-DecisionPack", "4-Implement", "1.5-BusinessRules"],
             "next_gate_condition": "Proceed to Phase 3A",
@@ -302,7 +302,7 @@ def test_response_contract_checker_rejects_phase_history_where_15_precedes_21(tm
         "next_action": {
             "type": "manual_step",
             "Status": "OK",
-            "Next": "Proceed to Phase 3A API inventory",
+            "next": "Proceed to Phase 3A API inventory",
             "Why": "Reopened phase 1.5",
             "Command": "none",
         },
