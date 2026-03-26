@@ -1035,6 +1035,7 @@ These documents remain the authoritative sources for their respective domains:
 | [BOOTSTRAP.md](BOOTSTRAP.md) | Bootstrap details |
 | [QUICKSTART.md](QUICKSTART.md) | Quick start reference |
 | [install-layout.md](governance_content/docs/install-layout.md) | Install layout details |
+| [GOVERNANCE_FLOW_MATRIX.md](governance_runtime/docs/GOVERNANCE_FLOW_MATRIX.md) | Phase/gate to next-action matrix |
 
 ### Generated Artifacts
 
