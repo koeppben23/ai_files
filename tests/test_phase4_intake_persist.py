@@ -113,7 +113,7 @@ def test_phase4_intake_good_chat_text_routes_to_phase5(tmp_path: Path, monkeypat
     assert isinstance(state["TicketRecordDigest"], str) and state["TicketRecordDigest"]
     assert state["phase4_intake_evidence"] is True
     assert state["phase4_intake_source"] == "phase4-intake-bridge"
-    assert state["Phase"] == "5-ArchitectureReview"
+    assert state["phase"] == "5-ArchitectureReview"
     assert state["active_gate"] == "Plan Record Preparation Gate"
 
 
@@ -134,7 +134,7 @@ def test_phase4_intake_good_file_input_routes_to_phase5(tmp_path: Path, monkeypa
     state = payload["SESSION_STATE"]
     assert state["Ticket"] == "Implement from file"
     assert isinstance(state["TicketRecordDigest"], str) and state["TicketRecordDigest"]
-    assert state["Phase"] == "5-ArchitectureReview"
+    assert state["phase"] == "5-ArchitectureReview"
     assert state["active_gate"] == "Plan Record Preparation Gate"
 
 
@@ -194,7 +194,7 @@ def test_phase4_intake_happy_consumes_rework_clarification_state(tmp_path: Path,
     config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
     payload = json.loads(session_path.read_text(encoding="utf-8"))
     state = payload["SESSION_STATE"]
-    state["Phase"] = "6-PostFlight"
+    state["phase"] = "6-PostFlight"
     state["active_gate"] = "Rework Clarification Gate"
     state["phase6_state"] = "6.rework"
     state["next_gate_condition"] = "Clarify requested changes in chat, then run directed next rail."

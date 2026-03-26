@@ -109,9 +109,7 @@ def canonicalize_legacy_p5x_surface(*, state_doc: dict) -> None:
         return
 
     canonical_phase, canonical_next, canonical_gate = target
-    state["Phase"] = canonical_phase
     state["phase"] = canonical_phase
-    state["Next"] = canonical_next
     state["next"] = canonical_next
     state["active_gate"] = canonical_gate
 
@@ -313,9 +311,7 @@ def normalize_phase6_p5_state(
 
     # ── Fail-closed reset: bring the document back to a P5-consistent
     #    snapshot so no mixed Phase-6 / open-P5 state is visible.  ──
-    state["Phase"] = corrected_phase
     state["phase"] = corrected_phase
-    state["Next"] = corrected_next
     state["next"] = corrected_next
     state["phase6_state"] = ""
     state["implementation_review_complete"] = False

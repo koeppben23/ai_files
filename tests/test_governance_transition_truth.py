@@ -217,7 +217,7 @@ class TestE2EResponseContract:
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"cat {mock_plan_file}")
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -354,7 +354,7 @@ class TestE2EResponseContract:
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"cat {mock_plan_file}")
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -522,7 +522,7 @@ class TestE2EStateTransitionInvariants:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state["next_gate_condition"] = "Provide ticket and task details."
         state.pop("Ticket", None)
@@ -557,7 +557,7 @@ class TestE2EStateTransitionInvariants:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -612,7 +612,7 @@ class TestE2EStateTransitionInvariants:
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"cat {mock_plan_file}")
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -715,7 +715,7 @@ class TestE2EStateTransitionInvariants:
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"cat {mock_plan_file}")
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -740,7 +740,7 @@ class TestE2EStateTransitionInvariants:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
@@ -945,7 +945,7 @@ class TestE2EPersistedStateContract:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -1015,7 +1015,7 @@ class TestE2EPersistedStateContract:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -1068,7 +1068,7 @@ class TestE2EPersistedStateContract:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 

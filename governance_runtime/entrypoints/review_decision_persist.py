@@ -417,9 +417,7 @@ def apply_review_decision(
         state.pop("rework_clarification_consumed_at", None)
     elif normalized == "changes_requested":
         # Enter explicit clarification gate before any further rail is chosen.
-        state["Phase"] = "6-PostFlight"
         state["phase"] = "6-PostFlight"
-        state["Next"] = "6"
         state["next"] = "6"
         state["active_gate"] = "Rework Clarification Gate"
         state["next_gate_condition"] = (
@@ -446,9 +444,7 @@ def apply_review_decision(
         state.pop("WorkflowComplete", None)
     elif normalized == "reject":
         # Return to Phase 4 with a consistent visible return path.
-        state["Phase"] = "4"
         state["phase"] = "4"
-        state["Next"] = "4"
         state["next"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state["next_gate_condition"] = (

@@ -71,9 +71,7 @@ def _reset_for_new_work(
     state["phase4_intake_updated_at"] = observed_at
     state["phase_transition_evidence"] = False
 
-    state["Phase"] = "4"
     state["phase"] = "4"
-    state["Next"] = "4"
     state["next"] = "4"
     state["Mode"] = "IN_PROGRESS"
     state["status"] = "OK"
@@ -182,11 +180,11 @@ def _state_is_fresh_phase4_run(state: Mapping[str, object], *, run_id: str) -> b
     if current_run_id != run_id:
         return False
 
-    phase = str(state.get("Phase") or state.get("phase") or "").strip()
+    phase = str(state.get("phase") or state.get("Phase") or "").strip()
     if phase != "4":
         return False
 
-    next_token = str(state.get("Next") or "").strip()
+    next_token = str(state.get("next") or state.get("Next") or "").strip()
     if next_token != "4":
         return False
 

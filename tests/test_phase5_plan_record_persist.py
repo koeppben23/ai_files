@@ -160,7 +160,7 @@ def test_phase5_plan_persist_good_chat_text_persists_and_routes(tmp_path: Path, 
 
     payload = json.loads(session_path.read_text(encoding="utf-8"))
     state = payload["SESSION_STATE"]
-    assert state["Phase"] == "5-ArchitectureReview"
+    assert state["phase"] == "5-ArchitectureReview"
     assert state["active_gate"] == "Architecture Review Gate"
     assert state["PlanRecordStatus"] == "active"
     assert state["PlanRecordVersions"] >= 1
@@ -273,7 +273,7 @@ def test_phase5_plan_persist_happy_consumes_rework_clarification_state(
     config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
     payload = json.loads(session_path.read_text(encoding="utf-8"))
     state = payload["SESSION_STATE"]
-    state["Phase"] = "6-PostFlight"
+    state["phase"] = "6-PostFlight"
     state["phase"] = "6-PostFlight"
     state["active_gate"] = "Rework Clarification Gate"
     state["phase6_state"] = "6.rework"

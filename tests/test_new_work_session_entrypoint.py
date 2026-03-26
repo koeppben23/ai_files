@@ -115,8 +115,8 @@ class TestNewWorkSessionEntrypoint:
         assert payload["reason"] == "new-work-session-created"
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert state["Phase"] == "4"
-        assert state["Next"] == "4"
+        assert state["phase"] == "4"
+        assert state["next"] == "4"
         assert state["Ticket"] is None
         assert state["Task"] is None
         assert state["TicketRecordDigest"] is None

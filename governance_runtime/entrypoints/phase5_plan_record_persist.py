@@ -1360,9 +1360,7 @@ def main(argv: list[str] | None = None) -> int:
         # Consume clarification state first, then force deterministic Phase-5
         # plan-record entry to avoid self-looping back into clarification.
         if consume_rework_clarification_state(state, consumed_by="plan", consumed_at=_now_iso()):
-            state["Phase"] = "5-ArchitectureReview"
             state["phase"] = "5-ArchitectureReview"
-            state["Next"] = "5"
             state["next"] = "5"
             state["active_gate"] = "Plan Record Preparation Gate"
             state["next_gate_condition"] = "Persist plan record evidence"
