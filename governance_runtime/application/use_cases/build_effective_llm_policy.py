@@ -78,13 +78,14 @@ def _load_schema(schema_path: Path) -> dict[str, Any]:
 
 
 def _find_local_root(config_root: Path) -> Path:
-    local_root_candidate = config_root.parent / ".local" / "share" / config_root.name
+    home = Path.home()
+    local_root_candidate = home / ".local" / "share" / config_root.name
     if local_root_candidate.exists():
         return local_root_candidate
     local_root_legacy = config_root.parent / f"{config_root.name}-local"
     if local_root_legacy.exists():
         return local_root_legacy
-    return config_root.parent / f"{config_root.name}-local"
+    return local_root_candidate
 
 
 def _resolve_content_path(
