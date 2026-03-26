@@ -2694,7 +2694,7 @@ def uninstall(
 
         rc = delete_targets(targets, plan, dry_run=dry_run)
         rc = max(rc, purge_tree_contents(plan.commands_dir, dry_run=dry_run))
-        rc = max(rc, purge_tree_contents(plan.local_root, dry_run=dry_run))
+        rc = max(rc, purge_governance_local_payload(plan.local_root, dry_run=dry_run))
         if not keep_error_logs:
             rc = max(rc, purge_runtime_error_logs(plan.config_root, dry_run=dry_run))
         if not keep_workspace_state:
@@ -2758,7 +2758,7 @@ def uninstall(
 
     rc = delete_targets(targets, plan, dry_run=dry_run)
     rc = max(rc, purge_tree_contents(plan.commands_dir, dry_run=dry_run))
-    rc = max(rc, purge_tree_contents(plan.local_root, dry_run=dry_run))
+    rc = max(rc, purge_governance_local_payload(plan.local_root, dry_run=dry_run))
 
     # Manifest-backed uninstall can safely clear stale installer trees that may
     # survive due to historical path drift (for example legacy "governnce/").
@@ -2881,6 +2881,85 @@ def purge_tree_contents(root: Path, dry_run: bool) -> int:
             try_remove_empty_dir(item, dry_run=dry_run)
 
     try_remove_empty_dir(root, dry_run=dry_run)
+    return 0 if errors == 0 else 9
+
+
+FORBIDDEN_LOCAL_ROOT_DIRS = {"opencode"}
+
+
+def purge_governance_local_payload(local_root: Path, dry_run: bool) -> int:
+    """Remove only governance-owned payloads from local_root.
+
+    ONLY the following are deleted:
+    - governance_content/ directory
+    - governance_spec/ directory
+    - governance_runtime/ directory
+    - VERSION file
+
+    The 'opencode' directory and any other unknown top-level items are
+    STRICTLY PRESERVED to prevent accidental data loss.
+
+    This is the ONLY safe way to clean local_root during uninstall.
+    """
+    if not local_root.exists() or not local_root.is_dir():
+        return 0
+
+    errors = 0
+
+    allowed_local_payloads = {"governance_content", "governance_spec", "governance_runtime"}
+
+    for item in sorted(local_root.iterdir(), key=lambda p: p.name):
+        if item.name in FORBIDDEN_LOCAL_ROOT_DIRS:
+            print(f"  🛡️  PRESERVED (forbidden): {item.name}/")
+            continue
+
+        if item.is_symlink():
+            if dry_run:
+                print(f"  [DRY-RUN] rm {item}")
+            else:
+                try:
+                    item.unlink()
+                    print(f"  ✅ Removed symlink: {item.name}")
+                except Exception as e:
+                    eprint(f"  ❌ Failed removing symlink {item.name}: {e}")
+                    errors += 1
+            continue
+
+        if not item.is_dir() and item.name == "VERSION":
+            if dry_run:
+                print(f"  [DRY-RUN] rm {item}")
+            else:
+                try:
+                    item.unlink()
+                    print(f"  ✅ Removed: {item.name}")
+                except Exception as e:
+                    eprint(f"  ❌ Failed removing {item.name}: {e}")
+                    errors += 1
+            continue
+
+        if item.name not in allowed_local_payloads:
+            print(f"  🛡️  PRESERVED (unknown): {item.name}/")
+            continue
+
+        if item.name == "VERSION":
+            continue
+
+        for subitem in sorted(item.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+            if subitem.is_symlink() or subitem.is_file():
+                if dry_run:
+                    print(f"  [DRY-RUN] rm {subitem}")
+                else:
+                    try:
+                        subitem.unlink()
+                        print(f"  ✅ Removed: {subitem.relative_to(local_root)}")
+                    except Exception as e:
+                        eprint(f"  ❌ Failed removing {subitem.relative_to(local_root)}: {e}")
+                        errors += 1
+            elif subitem.is_dir():
+                try_remove_empty_dir(subitem, dry_run=dry_run)
+
+        try_remove_empty_dir(item, dry_run=dry_run)
+
     return 0 if errors == 0 else 9
 
 
