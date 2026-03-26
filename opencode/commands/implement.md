@@ -44,7 +44,7 @@ If no snapshot is available, proceed using only the context visible in the curre
 - Domain/source edits must come exclusively from the resolved authorized executor.
 - A separate executor configuration is optional override only; default executor is the active OpenCode Desktop LLM binding.
 - `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED` applies when neither override nor active Desktop LLM binding is available.
-- In shell/bootstrap subprocess mode, the Desktop binding alone is not a callable executor bridge. If no callable command is available, fail closed with `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED` and set `OPENCODE_IMPLEMENT_LLM_CMD`.
+- In shell/bootstrap subprocess mode, governance first attempts a callable Desktop bridge via `opencode-cli run` using the active session model binding. If no callable bridge binary is available, fail closed with `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED` and set `OPENCODE_IMPLEMENT_LLM_CMD`.
 - Ends in `Implementation Review Complete` (ready to continue) or `Implementation Blocked`.
 
 ## Response shape

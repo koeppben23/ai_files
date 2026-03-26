@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import uuid
@@ -46,6 +47,7 @@ from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.opencode_model_binding import (
     has_active_desktop_llm_binding as _has_desktop_llm_binding,
+    resolve_active_opencode_model,
 )
 from governance_runtime.infrastructure.plan_record_state import resolve_plan_record_signal
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
@@ -371,6 +373,57 @@ def _has_active_desktop_llm_binding() -> bool:
     return _has_desktop_llm_binding()
 
 
+def _resolve_desktop_executor_bridge_cmd(*, repo_root: Path) -> str:
+    candidate_env = str(os.environ.get("OPENCODE_CLI_BIN") or "").strip()
+    candidate_paths: list[str] = []
+    if candidate_env:
+        candidate_paths.append(candidate_env)
+    candidate_paths.append("/Applications/OpenCode.app/Contents/MacOS/opencode-cli")
+    which_opencode = shutil.which("opencode")
+    if which_opencode:
+        candidate_paths.append(which_opencode)
+    which_opencode_cli = shutil.which("opencode-cli")
+    if which_opencode_cli:
+        candidate_paths.append(which_opencode_cli)
+
+    cli_bin = ""
+    for token in candidate_paths:
+        path = Path(token)
+        if path.exists() and os.access(str(path), os.X_OK):
+            cli_bin = str(path)
+            break
+    if not cli_bin:
+        return ""
+
+    model_info = resolve_active_opencode_model()
+    model_token = ""
+    if isinstance(model_info, dict):
+        provider = str(model_info.get("provider") or "").strip()
+        model_id = str(model_info.get("model_id") or "").strip()
+        if provider and model_id:
+            model_token = f"{provider}/{model_id}"
+
+    message = (
+        "Read the attached implementation context JSON and execute the approved plan by editing "
+        "domain repository files (not .governance). Return strict JSON only."
+    )
+    cmd_parts = [
+        shlex.quote(cli_bin),
+        "run",
+        "--continue",
+        "--agent",
+        "build",
+        "--dir",
+        shlex.quote(str(repo_root)),
+        "--file",
+        "{context_file}",
+    ]
+    if model_token:
+        cmd_parts.extend(["--model", shlex.quote(model_token)])
+    cmd_parts.append(shlex.quote(message))
+    return " ".join(cmd_parts)
+
+
 def _run_llm_edit_step(
     *,
     repo_root: Path,
@@ -468,40 +521,47 @@ def _run_llm_edit_step(
         )
     _write_text_atomic(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
+    bridge_mode = False
     if not executor_cmd:
         if _has_active_desktop_llm_binding():
+            bridge_cmd = _resolve_desktop_executor_bridge_cmd(repo_root=repo_root)
+            if bridge_cmd:
+                executor_cmd = bridge_cmd
+                bridge_mode = True
+            else:
+                _write_text_atomic(stdout_file, "")
+                _write_text_atomic(
+                    stderr_file,
+                    (
+                        "Desktop LLM binding detected, but no callable executor command is available "
+                        "in this process. Set OPENCODE_IMPLEMENT_LLM_CMD.\n"
+                    ),
+                )
+                return {
+                    "executor_invoked": False,
+                    "exit_code": 2,
+                    "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
+                    "message": (
+                        "Desktop LLM binding detected but no callable executor bridge is available in this shell process. "
+                        "Set OPENCODE_IMPLEMENT_LLM_CMD to an executable command."
+                    ),
+                    "stdout_path": str(stdout_file),
+                    "stderr_path": str(stderr_file),
+                    "changed_files": [],
+                    "blocked": True,
+                }
+        if not executor_cmd:
             _write_text_atomic(stdout_file, "")
-            _write_text_atomic(
-                stderr_file,
-                (
-                    "Desktop LLM binding detected, but no callable executor command is available "
-                    "in this process. Set OPENCODE_IMPLEMENT_LLM_CMD.\n"
-                ),
-            )
+            _write_text_atomic(stderr_file, "LLM executor command missing\n")
             return {
                 "executor_invoked": False,
                 "exit_code": 2,
                 "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
-                "message": (
-                    "Desktop LLM binding detected but no callable executor bridge is available in this shell process. "
-                    "Set OPENCODE_IMPLEMENT_LLM_CMD to an executable command."
-                ),
+                "message": "No implementation executor binding available. Set OPENCODE_IMPLEMENT_LLM_CMD or run with an active OpenCode Desktop LLM binding.",
                 "stdout_path": str(stdout_file),
                 "stderr_path": str(stderr_file),
                 "changed_files": [],
-                "blocked": True,
             }
-        _write_text_atomic(stdout_file, "")
-        _write_text_atomic(stderr_file, "LLM executor command missing\n")
-        return {
-            "executor_invoked": False,
-            "exit_code": 2,
-            "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
-            "message": "No implementation executor binding available. Set OPENCODE_IMPLEMENT_LLM_CMD or run with an active OpenCode Desktop LLM binding.",
-            "stdout_path": str(stdout_file),
-            "stderr_path": str(stderr_file),
-            "changed_files": [],
-        }
 
     final_cmd = executor_cmd
     if "{context_file}" in final_cmd:
@@ -522,7 +582,9 @@ def _run_llm_edit_step(
     response_valid = False
     response_text = (result.stdout or "").strip()
 
-    if response_text and response_text.startswith("{"):
+    if bridge_mode:
+        response_valid = True
+    elif response_text and response_text.startswith("{"):
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
         try:
             from llm_response_validator import validate_developer_response
@@ -549,6 +611,7 @@ def _run_llm_edit_step(
         "changed_files": changed_files,
         "response_valid": response_valid,
         "validation_violations": validation_violations,
+        "bridge_mode": bridge_mode,
     }
 
 

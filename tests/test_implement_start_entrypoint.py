@@ -347,6 +347,7 @@ def test_bad_desktop_llm_binding_without_callable_bridge_blocks(
     repo_root = tmp_path
     monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
     monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setattr(entrypoint, "_resolve_desktop_executor_bridge_cmd", lambda **_kwargs: "")
 
     result = _ORIGINAL_RUN_LLM_EDIT_STEP(
         repo_root=repo_root,
@@ -396,6 +397,35 @@ def test_happy_override_executor_precedence_over_desktop_default(
     assert result["exit_code"] == 0
 
 
+def test_happy_desktop_binding_resolves_callable_bridge_executor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setattr(
+        entrypoint,
+        "_resolve_desktop_executor_bridge_cmd",
+        lambda **_kwargs: "python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\"",
+    )
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: ["src/service.py"])
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+    )
+
+    assert result["executor_invoked"] is True
+    assert result["exit_code"] == 0
+    assert result["changed_files"] == ["src/service.py"]
+    assert result.get("bridge_mode") is True
+
+
 def test_bad_no_executor_binding_blocks_with_not_configured_reason(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -432,6 +462,7 @@ def test_edge_implement_start_with_desktop_binding_but_no_bridge_blocks_cleanly(
     _wire_active_paths(monkeypatch, session_path, events_path)
 
     monkeypatch.setattr(entrypoint, "_run_llm_edit_step", _ORIGINAL_RUN_LLM_EDIT_STEP)
+    monkeypatch.setattr(entrypoint, "_resolve_desktop_executor_bridge_cmd", lambda **_kwargs: "")
     monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
     monkeypatch.setenv("OPENCODE", "1")
 
@@ -475,6 +506,27 @@ def test_bad_effective_authoring_policy_unavailable_blocks_with_executor(
     assert result.get("blocked") is True
     assert result.get("reason") == "effective-policy-unavailable"
     assert result.get("reason_code") == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+
+
+def test_happy_bridge_command_includes_model_and_context_placeholder(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cli_bin = tmp_path / "opencode-cli"
+    cli_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    cli_bin.chmod(0o755)
+    monkeypatch.setenv("OPENCODE_CLI_BIN", str(cli_bin))
+    monkeypatch.setattr(
+        entrypoint,
+        "resolve_active_opencode_model",
+        lambda **_kwargs: {"provider": "openai", "model_id": "gpt-5.3-codex"},
+    )
+
+    cmd = entrypoint._resolve_desktop_executor_bridge_cmd(repo_root=tmp_path)
+    assert "run --continue" in cmd
+    assert "--model" in cmd
+    assert "openai/gpt-5.3-codex" in cmd
+    assert "{context_file}" in cmd
 
 
 def test_bad_approval_required_before_implement_start(
