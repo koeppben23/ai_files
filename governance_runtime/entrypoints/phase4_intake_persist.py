@@ -151,7 +151,7 @@ def main(argv: list[str] | None = None) -> int:
             }
 
         routed = route_phase(
-            requested_phase=normalize_phase_token(str(state.get("Phase") or "4")) or "4",
+            requested_phase=normalize_phase_token(str(state.get("phase") or state.get("Phase") or "4")) or "4",
             requested_active_gate=str(state.get("active_gate") or "Ticket Input Gate"),
             requested_next_gate_condition=str(state.get("next_gate_condition") or "Persist ticket intake evidence"),
             session_state_document=document,

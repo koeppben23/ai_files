@@ -754,7 +754,7 @@ class TestE2EReworkRouting:
 
         state["phase"] = "6-PostFlight"
         state["active_gate"] = "Rework Clarification Gate"
-        state["Next"] = "6"
+        state["next"] = "6"
         state["PersistenceCommitted"] = True
         state["WorkspaceReadyGateCommitted"] = True
         state["WorkspaceArtifactsCommitted"] = True
@@ -783,9 +783,10 @@ class TestE2EReworkRouting:
         assert payload.get("status") == "ok"
 
         state = _read_state(session_path)
-        assert state.get("Phase") == "5-ArchitectureReview", (
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val == "5-ArchitectureReview", (
             f"After scope_change rework via /ticket, Phase must be 5-ArchitectureReview "
-            f"(scope change re-triggers Phase 5 review), got {state.get('Phase')}"
+            f"(scope change re-triggers Phase 5 review), got {phase_val}"
         )
         assert state.get("active_gate") == "Plan Record Preparation Gate", (
             f"After scope_change rework, must be at Plan Record Preparation Gate, got {state.get('active_gate')}"
@@ -805,7 +806,7 @@ class TestE2EReworkRouting:
         assert state.get("active_gate") == "Rework Clarification Gate"
 
         state["phase"] = "6-PostFlight"
-        state["Next"] = "6"
+        state["next"] = "6"
         state["PersistenceCommitted"] = True
         state["WorkspaceReadyGateCommitted"] = True
         state["WorkspaceArtifactsCommitted"] = True
@@ -828,7 +829,7 @@ class TestE2EReworkRouting:
         assert rc == 0, f"/continue on Rework Clarification Gate should succeed, got rc={rc}"
 
         state = _read_state(session_path)
-        phase = str(state.get("Phase") or "")
+        phase = str(state.get("phase") or state.get("Phase") or "")
         assert phase.startswith("6"), (
             f"/continue must stay in Phase 6 at Rework Clarification Gate, got Phase={phase}"
         )
@@ -852,7 +853,7 @@ class TestE2EReworkRouting:
         assert state.get("active_gate") == "Rework Clarification Gate"
 
         state["phase"] = "6-PostFlight"
-        state["Next"] = "6"
+        state["next"] = "6"
         state["PersistenceCommitted"] = True
         state["WorkspaceReadyGateCommitted"] = True
         state["WorkspaceArtifactsCommitted"] = True
@@ -904,7 +905,7 @@ class TestE2EReworkRouting:
         assert state.get("phase6_state") == "6.rework"
 
         state["phase"] = "6-PostFlight"
-        state["Next"] = "6"
+        state["next"] = "6"
         state["PersistenceCommitted"] = True
         state["WorkspaceReadyGateCommitted"] = True
         state["WorkspaceArtifactsCommitted"] = True
@@ -951,7 +952,7 @@ class TestE2EPhase6ReviewLoop:
         doc = _read_json(session_path)
         stable_digest = "sha256:" + hashlib.sha256(b"e2e:stable:digest").hexdigest()
         doc["SESSION_STATE"]["phase"] = "6-PostFlight"
-        doc["SESSION_STATE"]["Next"] = "6"
+        doc["SESSION_STATE"]["next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
         doc["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
@@ -1013,7 +1014,7 @@ class TestE2EPhase6ReviewLoop:
 
         doc = _read_json(session_path)
         doc["SESSION_STATE"]["phase"] = "6-PostFlight"
-        doc["SESSION_STATE"]["Next"] = "6"
+        doc["SESSION_STATE"]["next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
         doc["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
@@ -1069,7 +1070,7 @@ class TestE2EPhase6ReviewLoop:
         doc = _read_json(session_path)
         stable_digest = "sha256:" + hashlib.sha256(b"e2e:review:complete").hexdigest()
         doc["SESSION_STATE"]["phase"] = "6-PostFlight"
-        doc["SESSION_STATE"]["Next"] = "6"
+        doc["SESSION_STATE"]["next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
         doc["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
@@ -1136,7 +1137,7 @@ class TestE2EPhase6ReviewLoop:
         doc = _read_json(session_path)
         stable_digest = "sha256:" + hashlib.sha256(b"e2e:preserve:digest").hexdigest()
         doc["SESSION_STATE"]["phase"] = "6-PostFlight"
-        doc["SESSION_STATE"]["Next"] = "6"
+        doc["SESSION_STATE"]["next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
         doc["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
@@ -1265,7 +1266,7 @@ class TestE2EComprehensiveChain:
         assert rc_cont1 == 0, f"/continue (Phase 5 routing) failed"
 
         state = _read_state(session_path)
-        phase_after_p5 = str(state.get("Phase") or "")
+        phase_after_p5 = str(state.get("phase") or state.get("Phase") or "")
         assert phase_after_p5.startswith("6"), (
             f"After Phase 5 routing, must be in Phase 6, got Phase={phase_after_p5}"
         )
@@ -1608,8 +1609,9 @@ class TestE2EReviewDecisionSemantics:
         assert state.get("active_gate") == "Rework Clarification Gate", (
             f"changes_requested must set active_gate=Rework Clarification Gate, got {state.get('active_gate')}"
         )
-        assert state.get("Phase") == "6-PostFlight", (
-            f"changes_requested must set Phase=6-PostFlight, got {state.get('Phase')}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val == "6-PostFlight", (
+            f"changes_requested must set Phase=6-PostFlight, got {phase_val}"
         )
         assert state.get("implementation_review_complete") is False, (
             "changes_requested must reset implementation_review_complete for re-review"
@@ -1630,8 +1632,9 @@ class TestE2EReviewDecisionSemantics:
         assert state.get("active_gate") == "Ticket Input Gate", (
             f"reject must route to Ticket Input Gate, got {state.get('active_gate')}"
         )
-        assert state.get("Phase") in ("4", "4-TicketIntake"), (
-            f"reject must return to Phase 4, got Phase={state.get('Phase')}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val in ("4", "4-TicketIntake"), (
+            f"reject must return to Phase 4, got Phase={phase_val}"
         )
 
     def test_review_decision_blocks_at_wrong_gate(self, tmp_path, monkeypatch, capsys):
@@ -2212,5 +2215,3 @@ class TestE2EPhase6GovernanceFailClosed:
         assert result.get("verdict") == "changes_requested", (
             f"Decision-rule-violating response must have verdict=changes_requested, got {result.get('verdict')}"
         )
-
-

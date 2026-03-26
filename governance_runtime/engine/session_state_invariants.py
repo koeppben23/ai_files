@@ -86,7 +86,7 @@ def validate_ticket_intake_ready_invariant(state: Mapping[str, object]) -> tuple
     """ticket_intake_ready is authoritative and must match readiness preconditions."""
     ticket_ready = state.get("ticket_intake_ready")
     phase_ready = state.get("phase_ready")
-    phase_value = state.get("Phase") or state.get("phase") or ""
+    phase_value = state.get("phase") or state.get("Phase") or ""
     token = normalize_phase_token(str(phase_value))
     persistence_committed = _read_bool(state, "PersistenceCommitted", "persistence_committed")
     workspace_ready = _read_bool(state, "WorkspaceReadyGateCommitted", "workspace_ready_gate_committed")
@@ -415,7 +415,7 @@ def validate_gate_artifacts_integrity(state: Mapping[str, object]) -> tuple[str,
 
 
 def _is_fresh_phase4_start_context(state: Mapping[str, object]) -> bool:
-    phase = str(state.get("Phase") or state.get("phase") or "").strip()
+    phase = str(state.get("phase") or state.get("Phase") or "").strip()
     if phase != "4":
         return False
 

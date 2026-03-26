@@ -290,8 +290,9 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     assert ss.get("ticket_intake_ready") is True
     phase_ready = ss.get("phase_ready")
     assert phase_ready is None or int(phase_ready) >= 4
-    assert ss.get("Phase") != "1.2-ActivationIntent"
-    assert ss.get("Phase") == "4"
+    phase_val = ss.get("phase") or ss.get("Phase") or ""
+    assert phase_val != "1.2-ActivationIntent"
+    assert phase_val == "4"
     assert ss.get("LoadedRulebooks", {}).get("core")
     assert ss.get("RulebookLoadEvidence", {}).get("core")
     assert ss.get("RepoDiscovery", {}).get("Completed") is True

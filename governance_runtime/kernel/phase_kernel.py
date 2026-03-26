@@ -75,7 +75,7 @@ def _extract_fingerprint(state: Mapping[str, object]) -> str:
 
 
 def _extract_phase(state: Mapping[str, object]) -> str:
-    for key in ("Phase", "phase"):
+    for key in ("phase", "Phase"):
         value = state.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()

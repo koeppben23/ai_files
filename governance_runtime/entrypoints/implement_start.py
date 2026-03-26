@@ -434,7 +434,7 @@ def _run_llm_edit_step(
         "task": task_text,
         "approved_plan": plan_text,
         "required_hotspots": required_hotspots,
-        "phase": str(state.get("Phase") or state.get("phase") or ""),
+        "phase": str(state.get("phase") or state.get("Phase") or ""),
         "active_gate": str(state.get("active_gate") or ""),
         "next_gate_condition": str(state.get("next_gate_condition") or ""),
         "forbidden_paths": [".governance/"],
@@ -626,7 +626,7 @@ def start_implementation(
             message=f"{enforcement.reason}: {';'.join(enforcement.details)}",
         )
 
-    phase_text = str(state.get("Phase") or state.get("phase") or "").strip()
+    phase_text = str(state.get("phase") or state.get("Phase") or "").strip()
     if not phase_text.startswith("6"):
         return _payload(
             "error",

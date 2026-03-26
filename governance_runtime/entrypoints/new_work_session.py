@@ -287,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
                 repo_fingerprint=repo_fingerprint,
                 session_state_path=str(session_path),
                 run_id=run_id,
-                phase=str(state.get("Phase") or state.get("phase") or ""),
+                phase=str(state.get("phase") or state.get("Phase") or ""),
                 next_token=str(state.get("Next") or ""),
                 active_gate=str(state.get("active_gate") or ""),
             )

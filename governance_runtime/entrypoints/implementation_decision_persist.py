@@ -207,7 +207,7 @@ def apply_implementation_decision(
             message=f"{enforcement.reason}: {';'.join(enforcement.details)}",
         )
 
-    phase_text = str(state.get("Phase") or state.get("phase") or "").strip()
+    phase_text = str(state.get("phase") or state.get("Phase") or "").strip()
     if not phase_text.startswith("6"):
         return _payload(
             "error",
@@ -306,7 +306,7 @@ def apply_implementation_decision(
         "ok",
         decision=normalized,
         event_id=event_id,
-        next_phase=str(state.get("Phase") or state.get("phase") or ""),
+        next_phase=str(state.get("phase") or state.get("Phase") or ""),
         next_gate=str(state.get("active_gate") or ""),
         implementation_status=str(state.get("implementation_status") or ""),
         next_action=next_action,

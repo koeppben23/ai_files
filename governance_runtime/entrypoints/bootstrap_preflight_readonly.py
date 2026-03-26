@@ -914,7 +914,7 @@ def _apply_ticket_intake_readiness(document: Mapping[str, object], *, phase_toke
     state = _root_state(updated)
     ready = _ticket_intake_ready(state, phase_token)
     state["ticket_intake_ready"] = ready
-    phase_ready = _phase_ready_value(state.get("Phase") or phase_token)
+    phase_ready = _phase_ready_value(state.get("phase") or state.get("Phase") or phase_token)
     if phase_ready is not None:
         state["phase_ready"] = phase_ready
     updated["SESSION_STATE"] = state
@@ -1367,13 +1367,13 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
         preflight = {}
     preflight.setdefault("BuildToolchain", _preflight_build_toolchain_snapshot())
     state["Preflight"] = preflight
-    current_phase = str(state.get("Phase") or "")
-    requested_token = normalize_phase_token(current_phase) or "1.2"
+    current_phase = str(state.get("phase") or state.get("Phase") or "")
+    requested_token = normalize_phase_token(current_phase) or "1.1"
     max_hops = 8
     hops = 0
     last_result: dict[str, object] = {
         "phase": current_phase,
-        "next_token": str(state.get("Next") or ""),
+        "next_token": str(state.get("next") or state.get("Next") or ""),
         "status": "OK",
         "active_gate": str(state.get("active_gate") or ""),
         "next_gate_condition": str(state.get("next_gate_condition") or ""),
@@ -1444,7 +1444,7 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
     document = _apply_ticket_intake_readiness(document, phase_token=resolved_token)
     final_state = _root_state(document)
     final_state["phase_transition_evidence"] = False
-    final_phase = str(final_state.get("Phase") or final_state.get("phase") or "").strip()
+    final_phase = str(final_state.get("phase") or final_state.get("Phase") or "").strip()
     has_ticket = bool(str(final_state.get("Ticket") or "").strip())
     has_task = bool(str(final_state.get("Task") or "").strip())
     has_ticket_digest = bool(str(final_state.get("TicketRecordDigest") or "").strip())

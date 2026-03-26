@@ -54,7 +54,8 @@ class TestE2EFixtureCleanliness:
         """Session state at workspace root must have Phase 5 fields and all persistence flags."""
         config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
         state = _read_state(session_path)
-        assert state.get("Phase") == "5-ArchitectureReview"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val == "5-ArchitectureReview"
         assert state.get("PersistenceCommitted") is True
         assert state.get("WorkspaceReadyGateCommitted") is True
         assert state.get("WorkspaceArtifactsCommitted") is True
@@ -380,7 +381,8 @@ class TestE2ENoDriftGuards:
         assert state.get("RepoFingerprint") == repo_fp, (
             "RepoFingerprint must be set to the workspace fingerprint"
         )
-        assert state.get("Phase"), "Phase must be set in session state"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val, "phase must be set in session state"
         assert state.get("session_run_id"), "session_run_id must be set"
 
 

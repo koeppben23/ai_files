@@ -30,7 +30,13 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     commands_home.mkdir(parents=True, exist_ok=True)
     spec_home.mkdir(parents=True, exist_ok=True)
 
-    (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
+    # Copy required governance specs used by runtime routing and validation.
+    src_spec_dir = REPO_ROOT / "governance_spec"
+    if src_spec_dir.exists():
+        for src in src_spec_dir.glob("*.yaml"):
+            (spec_home / src.name).write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    if not (spec_home / "phase_api.yaml").exists():
+        (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
     # Migrate legacy rule/master content into the new SSOT-backed command home for tests
     try:
         master_src = get_master_path()
@@ -208,7 +214,8 @@ def test_phase4_intake_happy_consumes_rework_clarification_state(tmp_path: Path,
     assert rc == 0
 
     updated = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
-    assert updated["Phase"] == "5-ArchitectureReview"
+    phase_val = updated.get("phase") or updated.get("Phase") or ""
+    assert phase_val == "5-ArchitectureReview"
     assert updated["active_gate"] == "Plan Record Preparation Gate"
     assert updated.get("phase6_state") is None
     assert updated.get("UserReviewDecision") is None

@@ -140,7 +140,7 @@ class TestCanonicalizeLegacyP5xSurface:
         canonicalize_legacy_p5x_surface(state_doc=state_doc)
         state = state_doc["SESSION_STATE"]
         assert state["phase"] == "5.6-RollbackSafety"
-        assert state["Next"] == "5.6"
+        assert state["next"] == "5.6"
 
     def test_no_canonicalization_when_no_match(self):
         """No changes when no target gate matches."""
