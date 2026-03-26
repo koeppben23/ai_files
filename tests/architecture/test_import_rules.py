@@ -26,6 +26,7 @@ _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance_runtime/entrypoints/phase5_plan_record_persist.py",
     "governance_runtime/install/install.py",
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py",
+    "governance_runtime/layer_adapter.py",
 }
 
 _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
