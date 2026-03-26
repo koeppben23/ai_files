@@ -95,7 +95,7 @@ HOOK_STATUS_FAILED = "failed"
 DEFAULT_ACTIVE_PROFILE_ID = "fallback-minimum"
 DEFAULT_ADDON_KEY = "riskTiering"
 DEFAULT_ADDON_RULEBOOK = "addons/riskTiering.addon.yml"
-_BUSINESS_RULES_RESOLVED_OUTCOMES = {"extracted", "gap-detected", "unresolved"}
+_BUSINESS_RULES_RESOLVED_OUTCOMES = {"extracted", "gap-detected", "not-applicable", "unresolved"}
 SUPPORTED_PROFILE_IDS = {
     "backend-python",
     "backend-java",

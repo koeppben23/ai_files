@@ -557,8 +557,16 @@ def evaluate_p54_business_rules_gate(
                 code_candidate_count=max(code_candidate_count, 0),
                 code_surface_count=max(code_surface_count, 0),
                 missing_code_surfaces=missing_code_surfaces,
-                has_code_coverage_gap=has_code_coverage_gap,
-                has_code_doc_conflict=has_code_doc_conflict,
+            )
+
+        if outcome == "not-applicable":
+            return P54GateEvaluation(
+                status="not-applicable",
+                reason_code=REASON_CODE_NONE,
+                phase_1_5_executed=True,
+                total_business_rules=0,
+                covered_business_rules=0,
+                uncovered_rules=(),
             )
 
     # Legacy/fallback behavior for rule-list based states.

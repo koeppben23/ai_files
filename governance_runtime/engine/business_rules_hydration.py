@@ -9,7 +9,7 @@ from typing import Any, Mapping, MutableMapping
 from governance_runtime.engine.business_rules_validation import validate_inventory_markdown
 from governance_runtime.infrastructure.session_pointer import is_session_pointer_document
 
-_CANONICAL_OUTCOMES = {"extracted", "gap-detected", "unresolved"}
+_CANONICAL_OUTCOMES = {"extracted", "gap-detected", "not-applicable", "unresolved"}
 _LEGACY_OUTCOMES = {"not-applicable", "deferred", "skipped"}
 _ACCEPTED_OUTCOMES = _CANONICAL_OUTCOMES | _LEGACY_OUTCOMES
 POINTER_AS_SESSION_STATE_ERROR = "SESSION_STATE_POINTER_PASSED_AS_SESSION_STATE"
@@ -481,11 +481,21 @@ def canonicalize_business_rules_outcome(
     extracted_allowed: bool,
     final_report_available: bool,
     br_signal: bool,
+    all_surfaces_filtered_non_business: bool = False,
 ) -> str:
-    """Resolve canonical business-rules outcome to exactly three states."""
+    """Resolve canonical business-rules outcome to four states.
+
+    States:
+    - extracted: Business rules were found and extracted
+    - gap-detected: Business rules should exist but are missing
+    - not-applicable: Repo type doesn't have relevant business rules (e.g. infrastructure tools)
+    - unresolved: No determination could be made
+    """
 
     if extracted_allowed:
         return "extracted"
+    if all_surfaces_filtered_non_business:
+        return "not-applicable"
     if final_report_available:
         return "gap-detected"
     if br_signal:
@@ -627,11 +637,20 @@ def build_business_rules_state_snapshot(
             "extracted_count": valid_rule_count,
         },
     )
+    missing_surface_reasons = report_map.get("missing_surface_reasons")
+    all_surfaces_filtered_non_business = False
+    if isinstance(missing_surface_reasons, Mapping) and missing_surface_reasons:
+        all_surfaces_filtered_non_business = all(
+            str(reason).startswith("filtered_non_business")
+            for reason in missing_surface_reasons.values()
+        )
+
     outcome = canonicalize_business_rules_outcome(
         declared_outcome=declared_outcome,
         extracted_allowed=extracted_allowed,
         final_report_available=report_finalized,
         br_signal=br_signal,
+        all_surfaces_filtered_non_business=all_surfaces_filtered_non_business,
     )
 
     inventory_file_status = str(persistence_result.get("inventory_file_status") or "unknown").strip() or "unknown"
