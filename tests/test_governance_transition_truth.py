@@ -1090,3 +1090,255 @@ class TestE2EPersistedStateContract:
         next_action = payload.get("next_action", "")
         assert len(next_action) > 0, "next_action must be non-empty"
 
+
+@pytest.mark.e2e_governance
+class TestE2ENextActionPhaseGateMatrix:
+    """Complete phase/gate matrix for canonical next-action derivation."""
+
+    @pytest.mark.parametrize(
+        "snapshot,expected_command,expected_kind,expected_reason",
+        [
+            (
+                {
+                    "status": "OK",
+                    "phase": "4",
+                    "active_gate": "Ticket Input Gate",
+                    "next_gate_condition": "Provide ticket/task details.",
+                },
+                "/ticket",
+                "normal",
+                "phase4-ticket-input",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "5-ArchitectureReview",
+                    "active_gate": "Plan Record Preparation Gate",
+                    "plan_record_versions": 0,
+                    "next_gate_condition": "Plan record v1 missing.",
+                },
+                "/plan",
+                "normal",
+                "plan-record-missing",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "5-ArchitectureReview",
+                    "active_gate": "Architecture Review Gate",
+                    "plan_record_versions": 1,
+                    "next_gate_condition": "Phase 5 progress.",
+                },
+                "/continue",
+                "normal",
+                "phase5-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Rework Clarification Gate",
+                    "rework_clarification_input": "",
+                    "next_gate_condition": "Clarify requested changes.",
+                },
+                "chat",
+                "blocked",
+                "rework-clarification-required",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Rework Clarification Gate",
+                    "rework_clarification_input": "Scope aendern: neue Anforderung fuer Ticket aufnehmen.",
+                    "next_gate_condition": "Clarify requested changes.",
+                },
+                "/ticket",
+                "normal",
+                "rework-scope-change",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Rework Clarification Gate",
+                    "rework_clarification_input": "Bitte die Architektur und den Plan anpassen.",
+                    "next_gate_condition": "Clarify requested changes.",
+                },
+                "/plan",
+                "normal",
+                "rework-plan-change",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Rework Clarification Gate",
+                    "rework_clarification_input": "Bitte klarstellen, warum die Entscheidung so getroffen wurde.",
+                    "next_gate_condition": "Clarify requested changes.",
+                },
+                "/continue",
+                "normal",
+                "phase6-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Workflow Complete",
+                    "next_gate_condition": "Workflow approved.",
+                },
+                "/implement",
+                "terminal",
+                "workflow-approved",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Rework Clarification Gate",
+                    "implementation_rework_clarification_input": "Acknowledged and updated.",
+                },
+                "/implement",
+                "normal",
+                "impl-rework-clarified",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Started",
+                },
+                "execute",
+                "implementation",
+                "implementation-running",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Execution In Progress",
+                },
+                "/continue",
+                "normal",
+                "implementation-loop-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Self Review",
+                },
+                "/continue",
+                "normal",
+                "implementation-loop-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Revision",
+                },
+                "/continue",
+                "normal",
+                "implementation-loop-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Verification",
+                },
+                "/continue",
+                "normal",
+                "implementation-loop-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Review Complete",
+                },
+                "/continue",
+                "normal",
+                "implementation-loop-progress",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Blocked",
+                },
+                "/implement",
+                "blocked",
+                "implementation-blocked",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Implementation Presentation Gate",
+                },
+                "/implementation-decision",
+                "normal",
+                "implementation-decision-available",
+            ),
+            (
+                {
+                    "status": "OK",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Evidence Presentation Gate",
+                },
+                "/review-decision",
+                "normal",
+                "awaiting-final-decision",
+            ),
+            (
+                {
+                    "status": "error",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Evidence Presentation Gate",
+                },
+                "/continue",
+                "recovery",
+                "error-status",
+            ),
+            (
+                {
+                    "status": "blocked",
+                    "phase": "6-PostFlight",
+                    "active_gate": "Evidence Presentation Gate",
+                },
+                "/continue",
+                "blocked",
+                "blocked-status",
+            ),
+        ],
+    )
+    def test_phase_gate_matrix_resolves_expected_next_action(
+        self,
+        snapshot,
+        expected_command,
+        expected_kind,
+        expected_reason,
+    ):
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        action = resolve_next_action(snapshot)
+        assert action.command == expected_command
+        assert action.kind == expected_kind
+        assert action.reason == expected_reason
+
+    def test_phase4_next_action_label_includes_review_read_only_alternative(self):
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        snapshot = {
+            "status": "OK",
+            "phase": "4",
+            "active_gate": "Ticket Input Gate",
+            "next_gate_condition": "Provide ticket/task details.",
+        }
+        action = resolve_next_action(snapshot)
+        assert action.command == "/ticket"
+        assert "/review" in action.label
+        assert "read-only" in action.label.lower()

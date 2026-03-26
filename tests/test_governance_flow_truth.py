@@ -1954,6 +1954,45 @@ class TestE2EContinueRail:
 
 
 @pytest.mark.e2e_governance
+class TestE2EReviewReadOnlyRail:
+    """Flow-truth tests for `/review` read-only behavior."""
+
+    def test_review_pr_read_only_does_not_mutate_session_state(self, tmp_path, monkeypatch):
+        from governance_runtime.entrypoints import review_pr
+
+        config_root, commands_home, session_path, _, _ = _write_e2e_fixture(tmp_path)
+        _set_env(monkeypatch, config_root, commands_home)
+
+        before = _read_json(session_path)
+
+        monkeypatch.setattr(
+            review_pr,
+            "analyze_pr",
+            lambda repo_root, remote, base_branch, head_ref: review_pr.ReviewResult(
+                status="ok",
+                mode="remote",
+                base_sha="a" * 40,
+                head_sha="b" * 40,
+                merge_base_sha="c" * 40,
+                files_changed=3,
+                reason_code="none",
+                message="review comparison prepared",
+            ),
+        )
+
+        rc = review_pr.main([
+            "--head-ref",
+            "refs/heads/feat/x",
+            "--repo-root",
+            str(tmp_path),
+        ])
+        assert rc == 0
+
+        after = _read_json(session_path)
+        assert after == before, "`/review` must be read-only and must not mutate SESSION_STATE"
+
+
+@pytest.mark.e2e_governance
 class TestE2EBusinessRulesApplicabilityTruth:
     """Flow-truth coverage for P5.4 business-rules applicability combinations."""
 
