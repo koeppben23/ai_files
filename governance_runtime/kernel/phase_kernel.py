@@ -1305,12 +1305,14 @@ def _select_transition_topology_authoritative(
 
 
 def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -> tuple[bool, dict[str, str]]:
+    # Boot log: boot.log.jsonl (bootstrap lifecycle events)
     # Canonical audit log: events.jsonl
     # Operational mirror/debug: flow.log.jsonl
     workspace_written = False
     workspace_path = log_paths.get("workspace_events")
     workspace_flow = log_paths.get("workspace_flow")
-    if workspace_path is None:
+    workspace_boot = log_paths.get("workspace_boot")
+    if workspace_path is None and workspace_boot is None:
         return True, {
             "phase_flow": str(workspace_flow or ""),
             "workspace_events": "",
@@ -1319,6 +1321,8 @@ def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -
         workspace_written = _append_event(workspace_path, event)
         if workspace_flow is not None:
             _append_event(workspace_flow, event)
+    if workspace_boot is not None:
+        _append_event(workspace_boot, event)
 
     if workspace_written:
         phase_flow_path = workspace_flow if workspace_flow is not None else workspace_path
