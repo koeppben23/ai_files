@@ -164,7 +164,8 @@ def sync_conditional_p5_gate_states(
         session_state=state,
         phase_1_5_executed=gate_evaluators.phase_1_5_executed(state),
     )
-    if str(gates.get("P5.4-BusinessRules", "")).strip().lower() == "pending":
+    current_p54 = str(gates.get("P5.4-BusinessRules", "")).strip().lower()
+    if current_p54 in {"pending", "gap-detected"}:
         if p54_eval.status in {
             "compliant",
             "compliant-with-exceptions",

@@ -611,6 +611,18 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
                     row["observed_at"] = _now_iso()
                     append_jsonl(events_path, row)
 
+    _pre_gate_evaluators = GateEvaluators(
+        evaluate_p53=evaluate_p53_test_quality_gate,
+        evaluate_p54=evaluate_p54_business_rules_gate,
+        evaluate_p55=evaluate_p55_technical_debt_gate,
+        evaluate_p56=evaluate_p56_rollback_safety_gate,
+        phase_1_5_executed=_phase_1_5_executed,
+    )
+    _sync_conditional_p5_gate_states(
+        state_doc=state_doc,
+        gate_evaluators=_pre_gate_evaluators,
+    )
+
     result = execute(
         current_token=requested_phase,
         session_state_doc=state_doc,

@@ -49,6 +49,16 @@ P6Status = Literal["pending", "ready-for-pr", "fix-required"]
 P6ComplianceStatus = Literal["compliant", "drift-detected", "major-deviation", "no-plan"]
 
 
+def _as_string_list(value: object) -> tuple[str, ...]:
+    if isinstance(value, list):
+        return tuple(str(item).strip() for item in value if str(item).strip())
+    if isinstance(value, tuple):
+        return tuple(str(item).strip() for item in value if str(item).strip())
+    if isinstance(value, str) and value.strip():
+        return tuple(part.strip() for part in value.split(",") if part.strip())
+    return ()
+
+
 # ---------------------------------------------------------------------------
 # Deterministic gate → reason code mapping (SSOT)
 # ---------------------------------------------------------------------------
@@ -409,6 +419,37 @@ def evaluate_p54_business_rules_gate(
         elif isinstance(reason_codes_value, str) and reason_codes_value.strip():
             quality_reason_codes = tuple(x.strip() for x in reason_codes_value.split(",") if x.strip())
 
+        code_extraction_report = business_rules.get("CodeExtractionReport")
+        code_extraction_map = code_extraction_report if isinstance(code_extraction_report, Mapping) else {}
+        missing_surface_reasons = _as_string_list(
+            business_rules.get("MissingSurfaceReasons")
+            or quality_report_map.get("missing_surface_reasons")
+            or code_extraction_map.get("missing_surface_reasons")
+        )
+        quality_insufficiency_reasons = _as_string_list(
+            business_rules.get("QualityInsufficiencyReasons")
+            or quality_report_map.get("quality_insufficiency_reasons")
+            or code_extraction_map.get("quality_insufficiency_reasons")
+        )
+        all_missing_surfaces_non_business = bool(missing_surface_reasons) and all(
+            "filtered_non_business" in reason for reason in missing_surface_reasons
+        )
+        quality_reason_code_set = {item for item in quality_reason_codes if item}
+        quality_insufficiency_set = {item for item in quality_insufficiency_reasons if item}
+        non_business_not_applicable = (
+            all_missing_surfaces_non_business
+            and "BUSINESS_RULES_CODE_COVERAGE_INSUFFICIENT" in quality_reason_code_set
+            and "BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT" in quality_reason_code_set
+            and "non_business_surface_spike" in quality_insufficiency_set
+            and "insufficient_executable_business_rules" in quality_insufficiency_set
+            and not has_invalid_rules
+            and not has_render_mismatch
+            and not has_source_violation
+            and not has_missing_required
+            and not has_segmentation_failure
+            and has_code_extraction
+        )
+
         # Backward-compat path: legacy snapshots may not have ValidationReport.
         if not quality_report_map:
             report_is_compliant = False
@@ -427,6 +468,32 @@ def evaluate_p54_business_rules_gate(
             code_surface_count = 0
             missing_code_surfaces = ()
             quality_reason_codes = ("BUSINESS_RULES_CODE_EXTRACTION_NOT_RUN",)
+
+        if non_business_not_applicable:
+            return P54GateEvaluation(
+                status="not-applicable",
+                reason_code=REASON_CODE_NONE,
+                phase_1_5_executed=True,
+                total_business_rules=0,
+                covered_business_rules=0,
+                uncovered_rules=(),
+                validation_report_is_compliant=True,
+                has_invalid_rules=False,
+                has_render_mismatch=False,
+                has_source_violation=False,
+                has_missing_required_rules=False,
+                has_segmentation_failure=False,
+                invalid_rule_count=0,
+                dropped_candidate_count=max(dropped_candidate_count, 0),
+                quality_reason_codes=quality_reason_codes,
+                has_code_extraction=has_code_extraction,
+                code_extraction_sufficient=True,
+                code_candidate_count=max(code_candidate_count, 0),
+                code_surface_count=max(code_surface_count, 0),
+                missing_code_surfaces=missing_code_surfaces,
+                has_code_coverage_gap=False,
+                has_code_doc_conflict=False,
+            )
 
         if outcome == "extracted":
             if (

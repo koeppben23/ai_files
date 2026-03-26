@@ -1172,6 +1172,48 @@ class TestConditionalP5GateSync:
         _sync_conditional_p5_gate_states(state_doc=state_doc)
         assert state_doc["SESSION_STATE"]["Gates"]["P5.4-BusinessRules"] == "gap-detected"
 
+    def test_happy_sync_allows_gap_detected_to_promote_to_not_applicable(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "BusinessRules": {
+                "Outcome": "gap-detected",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": False,
+                "ExtractedCount": 0,
+                "ValidationReasonCodes": [
+                    "BUSINESS_RULES_CODE_COVERAGE_INSUFFICIENT",
+                    "BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT",
+                ],
+                "QualityInsufficiencyReasons": [
+                    "non_business_surface_spike",
+                    "insufficient_executable_business_rules",
+                ],
+                "CodeExtractionReport": {
+                    "missing_surface_reasons": [
+                        "validator: filtered_non_business",
+                        "permissions: filtered_non_business",
+                        "workflow: filtered_non_business",
+                    ],
+                },
+                "ValidationReport": {
+                    "is_compliant": False,
+                    "has_invalid_rules": False,
+                    "has_render_mismatch": False,
+                    "has_source_violation": False,
+                    "has_missing_required_rules": False,
+                    "has_segmentation_failure": False,
+                    "has_code_extraction": True,
+                    "code_extraction_sufficient": False,
+                    "has_code_coverage_gap": True,
+                    "has_code_doc_conflict": False,
+                },
+            },
+            "Gates": {
+                "P5.4-BusinessRules": "gap-detected",
+            },
+        }}
+        _sync_conditional_p5_gate_states(state_doc=state_doc)
+        assert state_doc["SESSION_STATE"]["Gates"]["P5.4-BusinessRules"] == "not-applicable"
+
     def test_regression_sync_promotes_p53_pending_to_not_applicable(self) -> None:
         """Fix regression: P5.3 pending must sync to not-applicable when evaluator returns terminal status."""
         state_doc = {"SESSION_STATE": {
@@ -1641,6 +1683,53 @@ class TestP54BusinessRulesGateWiring:
             phase_1_5_executed=False,
         )
         assert result.status == "pending"
+
+    def test_happy_non_business_filtered_repo_maps_to_not_applicable(self) -> None:
+        state = {
+            "BusinessRules": {
+                "Outcome": "gap-detected",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": False,
+                "ExtractedCount": 0,
+                "ValidationReasonCodes": [
+                    "BUSINESS_RULES_CODE_COVERAGE_INSUFFICIENT",
+                    "BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT",
+                ],
+                "QualityInsufficiencyReasons": [
+                    "non_business_surface_spike",
+                    "insufficient_executable_business_rules",
+                ],
+                "CodeExtractionReport": {
+                    "missing_surface_reasons": [
+                        "validator: filtered_non_business",
+                        "permissions: filtered_non_business",
+                        "workflow: filtered_non_business",
+                    ],
+                    "quality_insufficiency_reasons": [
+                        "non_business_surface_spike",
+                        "insufficient_executable_business_rules",
+                    ],
+                },
+                "ValidationReport": {
+                    "is_compliant": False,
+                    "has_invalid_rules": False,
+                    "has_render_mismatch": False,
+                    "has_source_violation": False,
+                    "has_missing_required_rules": False,
+                    "has_segmentation_failure": False,
+                    "has_code_extraction": True,
+                    "code_extraction_sufficient": False,
+                    "has_code_coverage_gap": True,
+                    "has_code_doc_conflict": False,
+                },
+            }
+        }
+        result = evaluate_p54_business_rules_gate(
+            session_state=state,
+            phase_1_5_executed=True,
+        )
+        assert result.status == "not-applicable"
+        assert result.reason_code == "none"
 
     def test_bad_extracted_without_inventory_is_gap_detected(self) -> None:
         state = {
