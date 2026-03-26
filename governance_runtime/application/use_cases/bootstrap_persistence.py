@@ -475,10 +475,9 @@ def _merge_final_session_state(
 
     fallback_session = fallback_state.get("SESSION_STATE")
     if isinstance(fallback_session, dict):
-        session["Phase"] = fallback_session.get("Phase")
         session["phase"] = fallback_session.get("Phase")
+        session["next"] = fallback_session.get("Next")
         session["Mode"] = fallback_session.get("Mode")
-        session["Next"] = fallback_session.get("Next")
         session.setdefault("OutputMode", fallback_session.get("OutputMode"))
 
     session["RepoFingerprint"] = repo_fingerprint

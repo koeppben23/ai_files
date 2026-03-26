@@ -351,6 +351,7 @@ def hydrate_code_extraction_report_for_session_state(
     report_map: Mapping[str, Any],
     counters: CodeExtractionCounters,
     report_sha: str,
+    include_discovery_outcomes: bool = False,
 ) -> dict[str, Any]:
     valid_rule_ratio = _parse_float(report_map.get("valid_rule_ratio"), default=0.0)
     if valid_rule_ratio <= 0.0 and counters.candidate_count > 0:
@@ -371,6 +372,14 @@ def hydrate_code_extraction_report_for_session_state(
         and counters.accepted_business_enforcement_count > 0
         and not discovery_outcomes
     )
+
+    # Create summary instead of full outcomes to reduce SESSION_STATE size
+    # Full outcomes can be retrieved from .governance/business_rules/code_extraction_report.json
+    discovery_outcomes_summary: dict[str, Any] = {
+        "count": len(discovery_outcomes) if discovery_outcomes else counters.raw_candidate_count,
+        "truncated": outcomes_missing_with_signal,
+        "samples": discovery_outcomes[:5] if discovery_outcomes and include_discovery_outcomes else [],
+    } if not include_discovery_outcomes else {"count": len(discovery_outcomes), "full": discovery_outcomes}
 
     return {
         "scanned_file_count": max(
@@ -404,9 +413,9 @@ def hydrate_code_extraction_report_for_session_state(
         ),
         "template_overfit_count": max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0),
         "scanned_surfaces": list(report_map.get("scanned_surfaces") or []),
-        # Keep full discovery outcomes materialized for replay/diagnostics.
-        # Counters remain the SSOT for aggregation decisions.
-        "discovery_outcomes": discovery_outcomes,
+        # Summary instead of full outcomes to reduce SESSION_STATE size
+        # Full outcomes available in .governance/business_rules/code_extraction_report.json
+        "discovery_outcomes": discovery_outcomes_summary,
         "discovery_outcomes_count": len(discovery_outcomes) if discovery_outcomes else counters.raw_candidate_count,
         "discovery_outcomes_truncated": outcomes_missing_with_signal,
         "report_sha": report_sha,
