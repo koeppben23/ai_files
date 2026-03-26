@@ -541,8 +541,9 @@ class TestE2EStateTransitionInvariants:
         assert rc == 0, "/ticket must succeed"
 
         state = _read_state(session_path)
-        assert str(state.get("Phase", "")).startswith("5"), (
-            f"Phase after /ticket must advance to Phase 5, got Phase={state.get('Phase')!r}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert str(phase_val).startswith("5"), (
+            f"Phase after /ticket must advance to Phase 5, got Phase={phase_val!r}"
         )
         assert state.get("Ticket"), "Ticket must be set after /ticket"
         assert state.get("Task"), "Task must be set after /ticket"
@@ -584,8 +585,9 @@ class TestE2EStateTransitionInvariants:
         assert rc == 0, "/review-decision reject must succeed"
 
         state = _read_state(session_path)
-        assert str(state.get("Phase", "")).startswith("4"), (
-            f"reject must return to Phase 4, got Phase={state.get('Phase')!r}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert str(phase_val).startswith("4"), (
+            f"reject must return to Phase 4, got Phase={phase_val!r}"
         )
         assert "ticket input gate" in str(state.get("active_gate", "")).lower(), (
             f"reject must set active_gate to Ticket Input Gate, got {state.get('active_gate')!r}"
@@ -635,8 +637,9 @@ class TestE2EStateTransitionInvariants:
         assert rc_cont == 0, "/continue must succeed even without architecture approval"
 
         state = _read_state(session_path)
-        assert not str(state.get("Phase", "")).startswith("6"), (
-            f"Phase must NOT advance to 6 without P5-Architecture=approved, got Phase={state.get('Phase')!r}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert not str(phase_val).startswith("6"), (
+            f"Phase must NOT advance to 6 without P5-Architecture=approved, got Phase={phase_val!r}"
         )
 
     def test_workflow_complete_gate_only_in_phase6(self, tmp_path, monkeypatch):
@@ -656,8 +659,9 @@ class TestE2EStateTransitionInvariants:
         assert "workflow complete" in str(state.get("active_gate", "")).lower(), (
             f"approve must set active_gate to Workflow Complete, got {state.get('active_gate')!r}"
         )
-        assert str(state.get("Phase", "")).startswith("6"), (
-            f"Workflow Complete must be in Phase 6, got Phase={state.get('Phase')!r}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert str(phase_val).startswith("6"), (
+            f"Workflow Complete must be in Phase 6, got Phase={phase_val!r}"
         )
 
     def test_phase6_changes_requested_routes_to_rework_gate(self, tmp_path, monkeypatch, capsys):
@@ -955,8 +959,9 @@ class TestE2EPersistedStateContract:
         assert rc == 0, f"/ticket must succeed, got rc={rc}"
 
         state = _read_state(session_path)
-        assert state.get("Phase") in ("5", "5-ArchitectureReview"), (
-            f"/ticket must advance to Phase 5 (kernel routes to Architecture Review), got Phase={state.get('Phase')}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val in ("5", "5-ArchitectureReview"), (
+            f"/ticket must advance to Phase 5 (kernel routes to Architecture Review), got Phase={phase_val}"
         )
         assert state.get("active_gate") == "Plan Record Preparation Gate", (
             f"/ticket must set active_gate=Plan Record Preparation Gate, got {state.get('active_gate')}"
@@ -983,8 +988,9 @@ class TestE2EPersistedStateContract:
         assert state.get("active_gate") == "Architecture Review Gate", (
             f"/plan must keep active_gate=Architecture Review Gate, got {state.get('active_gate')}"
         )
-        assert state.get("Phase") in ("5", "5-ArchitectureReview"), (
-            f"/plan must keep Phase at 5, got {state.get('Phase')}"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val in ("5", "5-ArchitectureReview"), (
+            f"/plan must keep Phase at 5, got {phase_val}"
         )
         assert "PlanRecordVersions" in state or "PlanRecordDigest" in state, (
             "/plan must persist plan record fields"
@@ -1026,7 +1032,7 @@ class TestE2EPersistedStateContract:
 
         state = _read_state(session_path)
         gate = state.get("active_gate", "")
-        phase = state.get("Phase", "")
+        phase = state.get("phase") or state.get("Phase") or ""
         condition = state.get("next_gate_condition", "")
 
         assert gate == "Plan Record Preparation Gate", (
@@ -1044,7 +1050,7 @@ class TestE2EPersistedStateContract:
 
         state_before = _read_state(session_path)
         gate_before = state_before.get("active_gate", "")
-        phase_before = state_before.get("Phase", "")
+        phase_before = state_before.get("phase") or state_before.get("Phase") or ""
 
         monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
         monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
@@ -1058,7 +1064,8 @@ class TestE2EPersistedStateContract:
         assert state.get("active_gate") == gate_before, (
             f"blocked /plan must not change active_gate, was {gate_before!r}"
         )
-        assert state.get("Phase") == phase_before, (
+        phase_after = state.get("phase") or state.get("Phase") or ""
+        assert phase_after == phase_before, (
             f"blocked /plan must not change Phase, was {phase_before!r}"
         )
 

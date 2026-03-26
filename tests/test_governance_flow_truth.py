@@ -49,7 +49,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -83,7 +83,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -109,7 +109,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -136,7 +136,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -166,7 +166,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -183,7 +183,7 @@ class TestE2ETicketRail:
         _set_env(monkeypatch, config_root, commands_home)
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -323,8 +323,9 @@ class TestE2ESessionReader:
         rc = module.main(["--commands-home", str(commands_home)])
 
         state = _read_state(session_path)
-        assert state.get("Phase") is not None
-        assert state.get("Phase") == "5-ArchitectureReview"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val is not None
+        assert phase_val == "5-ArchitectureReview"
         assert rc in (0, 1)
 
 
@@ -389,8 +390,10 @@ class TestE2EReviewDecision:
         state = _read_state(result["session_path"])
         assert state.get("active_gate") == "Rework Clarification Gate"
         assert state.get("workflow_complete") in (None, False)
-        assert state.get("Phase") == "6-PostFlight"
-        assert state.get("Next") == "6"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        next_val = state.get("next") or state.get("Next") or ""
+        assert phase_val == "6-PostFlight"
+        assert next_val == "6"
         assert state.get("phase6_state") == "6.rework"
 
     def test_changes_requested_next_action_ux(self, tmp_path, monkeypatch, capsys):
@@ -407,7 +410,8 @@ class TestE2EReviewDecision:
         assert result["rc"] == 0, f"Expected rc=0, got {result['rc']}: {result['payload']}"
 
         state = _read_state(result["session_path"])
-        assert state.get("Phase") == "4"
+        phase_val = state.get("phase") or state.get("Phase") or ""
+        assert phase_val == "4"
         assert state.get("active_gate") == "Ticket Input Gate"
         assert "ticket" in state.get("next_gate_condition", "").lower()
 
@@ -696,7 +700,7 @@ class TestE2EReworkRouting:
 
         doc = _read_json(session_path)
         doc["SESSION_STATE"]["active_gate"] = "Rework Clarification Gate"
-        doc["SESSION_STATE"]["Phase"] = "6-PostFlight"
+        doc["SESSION_STATE"]["phase"] = "6-PostFlight"
         doc["SESSION_STATE"]["TicketRecordDigest"] = "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
         doc["SESSION_STATE"]["TaskRecordDigest"] = "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
         session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
@@ -748,7 +752,7 @@ class TestE2EReworkRouting:
         assert state.get("active_gate") == "Rework Clarification Gate"
         assert state.get("phase6_state") == "6.rework"
 
-        state["Phase"] = "6-PostFlight"
+        state["phase"] = "6-PostFlight"
         state["active_gate"] = "Rework Clarification Gate"
         state["Next"] = "6"
         state["PersistenceCommitted"] = True
@@ -800,7 +804,7 @@ class TestE2EReworkRouting:
         state = _read_state(session_path)
         assert state.get("active_gate") == "Rework Clarification Gate"
 
-        state["Phase"] = "6-PostFlight"
+        state["phase"] = "6-PostFlight"
         state["Next"] = "6"
         state["PersistenceCommitted"] = True
         state["WorkspaceReadyGateCommitted"] = True
@@ -847,7 +851,7 @@ class TestE2EReworkRouting:
         state = _read_state(session_path)
         assert state.get("active_gate") == "Rework Clarification Gate"
 
-        state["Phase"] = "6-PostFlight"
+        state["phase"] = "6-PostFlight"
         state["Next"] = "6"
         state["PersistenceCommitted"] = True
         state["WorkspaceReadyGateCommitted"] = True
@@ -899,7 +903,7 @@ class TestE2EReworkRouting:
         assert state.get("active_gate") == "Rework Clarification Gate"
         assert state.get("phase6_state") == "6.rework"
 
-        state["Phase"] = "6-PostFlight"
+        state["phase"] = "6-PostFlight"
         state["Next"] = "6"
         state["PersistenceCommitted"] = True
         state["WorkspaceReadyGateCommitted"] = True
@@ -946,7 +950,7 @@ class TestE2EPhase6ReviewLoop:
 
         doc = _read_json(session_path)
         stable_digest = "sha256:" + hashlib.sha256(b"e2e:stable:digest").hexdigest()
-        doc["SESSION_STATE"]["Phase"] = "6-PostFlight"
+        doc["SESSION_STATE"]["phase"] = "6-PostFlight"
         doc["SESSION_STATE"]["Next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
@@ -1008,7 +1012,7 @@ class TestE2EPhase6ReviewLoop:
         _write_phase6_session(session_path, workspace, repo_fp)
 
         doc = _read_json(session_path)
-        doc["SESSION_STATE"]["Phase"] = "6-PostFlight"
+        doc["SESSION_STATE"]["phase"] = "6-PostFlight"
         doc["SESSION_STATE"]["Next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
@@ -1064,7 +1068,7 @@ class TestE2EPhase6ReviewLoop:
 
         doc = _read_json(session_path)
         stable_digest = "sha256:" + hashlib.sha256(b"e2e:review:complete").hexdigest()
-        doc["SESSION_STATE"]["Phase"] = "6-PostFlight"
+        doc["SESSION_STATE"]["phase"] = "6-PostFlight"
         doc["SESSION_STATE"]["Next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
@@ -1131,7 +1135,7 @@ class TestE2EPhase6ReviewLoop:
 
         doc = _read_json(session_path)
         stable_digest = "sha256:" + hashlib.sha256(b"e2e:preserve:digest").hexdigest()
-        doc["SESSION_STATE"]["Phase"] = "6-PostFlight"
+        doc["SESSION_STATE"]["phase"] = "6-PostFlight"
         doc["SESSION_STATE"]["Next"] = "6"
         doc["SESSION_STATE"]["active_gate"] = "Implementation Internal Review"
         doc["SESSION_STATE"]["PersistenceCommitted"] = True
@@ -1207,7 +1211,7 @@ class TestE2EComprehensiveChain:
         monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"cat {mock_plan_file}")
 
         state = _read_state(session_path)
-        state["Phase"] = "4"
+        state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state.pop("Ticket", None)
         state.pop("Task", None)
@@ -1637,7 +1641,7 @@ class TestE2EReviewDecisionSemantics:
 
         doc = _read_json(session_path)
         doc["SESSION_STATE"]["active_gate"] = "Plan Record Preparation Gate"
-        doc["SESSION_STATE"]["Phase"] = "5-ArchitectureReview"
+        doc["SESSION_STATE"]["phase"] = "5-ArchitectureReview"
         session_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
 
         module = _load_review_decision()
