@@ -2426,7 +2426,7 @@ def main() -> int:
 
     phase_value = ""
     if isinstance(session, dict):
-        raw_phase = session.get("Phase") or session.get("phase")
+        raw_phase = session.get("phase") or session.get("Phase")
         if isinstance(raw_phase, str):
             phase_value = raw_phase
     phase_token = normalize_phase_token(phase_value)

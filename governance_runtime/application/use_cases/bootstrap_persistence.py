@@ -475,8 +475,8 @@ def _merge_final_session_state(
 
     fallback_session = fallback_state.get("SESSION_STATE")
     if isinstance(fallback_session, dict):
-        session["phase"] = fallback_session.get("Phase")
-        session["next"] = fallback_session.get("Next")
+        session["phase"] = fallback_session.get("phase") or fallback_session.get("Phase")
+        session["next"] = fallback_session.get("next") or fallback_session.get("Next")
         session["Mode"] = fallback_session.get("Mode")
         session.setdefault("OutputMode", fallback_session.get("OutputMode"))
 

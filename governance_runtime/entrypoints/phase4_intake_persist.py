@@ -16,6 +16,7 @@ if __package__ in {None, ""}:
 from governance_runtime.application.use_cases.phase_router import route_phase
 from governance_runtime.application.use_cases.rework_clarification import consume_rework_clarification_state
 from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
+from governance_runtime.application.services.state_accessor import get_phase
 from governance_runtime.domain.phase_state_machine import normalize_phase_token
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.session_pointer import (
@@ -123,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(state, dict):
             raise RuntimeError("SESSION_STATE root missing")
 
-        phase_before = str(state.get("Phase") or "")
+        phase_before = get_phase(state)
 
         # When /ticket is executed from Phase-6 rework clarification,
         # consume clarification state and force deterministic Phase-4 re-entry
@@ -151,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
             }
 
         routed = route_phase(
-            requested_phase=normalize_phase_token(str(state.get("phase") or state.get("Phase") or "4")) or "4",
+            requested_phase=normalize_phase_token(get_phase(state) or "4") or "4",
             requested_active_gate=str(state.get("active_gate") or "Ticket Input Gate"),
             requested_next_gate_condition=str(state.get("next_gate_condition") or "Persist ticket intake evidence"),
             session_state_document=document,

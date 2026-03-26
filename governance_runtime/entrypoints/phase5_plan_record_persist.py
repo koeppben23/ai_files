@@ -18,6 +18,7 @@ if __package__ in {None, ""}:
 from governance_runtime.application.use_cases.phase_router import route_phase
 from governance_runtime.application.use_cases.rework_clarification import consume_rework_clarification_state
 from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
+from governance_runtime.application.services.state_accessor import get_phase
 from governance_runtime.application.services.phase5_presentation_contract import (
     TITLE as PHASE5_PRESENTATION_TITLE,
     build_presentation_contract,
@@ -1354,7 +1355,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Standard Phase 5 flow ──
     try:
-        phase_before = str(state.get("phase") or state.get("Phase") or "")
+        phase_before = get_phase(state)
 
         # /plan may be the directed exit rail from Phase-6 rework clarification.
         # Consume clarification state first, then force deterministic Phase-5
@@ -1366,11 +1367,11 @@ def main(argv: list[str] | None = None) -> int:
             state["next_gate_condition"] = "Persist plan record evidence"
 
         mode = str(state.get("Mode") or "IN_PROGRESS")
-        phase_for_write = str(state.get("phase") or state.get("Phase") or phase_before or "5")
+        phase_for_write = str(get_phase(state) or phase_before or "5")
         session_run_id = str(state.get("session_run_id") or state.get("SessionRunId") or "")
         plan_digest = _digest(plan_text)
 
-        token_before = _phase_token(str(state.get("phase") or state.get("Phase") or phase_before))
+        token_before = _phase_token(str(get_phase(state) or phase_before))
         if token_before != "5":
             payload = _payload(
                 "blocked",
@@ -1467,7 +1468,7 @@ def main(argv: list[str] | None = None) -> int:
         write_result = repo.append_version(
                 {
                     "timestamp": _now_iso(),
-                    "phase": str(state.get("phase") or state.get("Phase") or "5-ArchitectureReview"),
+                    "phase": str(get_phase(state) or "5-ArchitectureReview"),
                     "session_run_id": session_run_id,
                     "trigger": "phase5-plan-record-rail",
                     "plan_record_text": plan_text,
@@ -1492,7 +1493,7 @@ def main(argv: list[str] | None = None) -> int:
             revised_write = repo.append_version(
                 {
                     "timestamp": _now_iso(),
-                    "phase": str(state.get("phase") or state.get("Phase") or "5-ArchitectureReview"),
+                    "phase": str(get_phase(state) or "5-ArchitectureReview"),
                     "session_run_id": session_run_id,
                     "trigger": "phase5-self-review-loop",
                     "plan_record_text": final_plan_text,
@@ -1572,7 +1573,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         routed = route_phase(
-            requested_phase=normalize_phase_token(str(state.get("phase") or state.get("Phase") or "5")) or "5",
+            requested_phase=normalize_phase_token(str(get_phase(state) or "5")) or "5",
             requested_active_gate=str(state.get("active_gate") or "Plan Record Preparation Gate"),
             requested_next_gate_condition=str(state.get("next_gate_condition") or "Persist plan record evidence"),
             session_state_document=document,

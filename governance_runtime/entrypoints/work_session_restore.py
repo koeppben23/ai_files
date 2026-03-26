@@ -22,6 +22,7 @@ from governance_runtime.infrastructure.session_pointer import (
 )
 from governance_runtime.infrastructure.workspace_paths import run_dir
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
+from governance_runtime.application.services.state_accessor import get_next, get_phase
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
@@ -149,9 +150,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     state_view = _extract_state_view(archived_doc)
-    phase = str(state_view.get("Phase") or state_view.get("phase") or "")
+    phase = get_phase(state_view)
     active_gate = str(state_view.get("active_gate") or "")
-    next_token = str(state_view.get("Next") or state_view.get("next") or "")
+    next_token = get_next(state_view)
     effective_mode, resolved_mode, verify_policy_version = _extract_mode_fields(state_view)
     archived_digest = canonical_json_hash(archived_doc)
 

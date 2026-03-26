@@ -497,7 +497,7 @@ def apply_review_decision(
         "ok",
         decision=normalized,
         event_id=event_id,
-        next_phase=str(state.get("phase") or state.get("Phase") or ""),
+        next_phase=get_phase(state),
         next_gate=str(state.get("active_gate") or ""),
         governance_status=str(state.get("governance_status") or ""),
         implementation_status=str(state.get("implementation_status") or ""),

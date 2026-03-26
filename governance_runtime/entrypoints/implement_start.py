@@ -25,7 +25,7 @@ from typing import Mapping
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
-from governance_runtime.application.services.state_accessor import get_active_gate
+from governance_runtime.application.services.state_accessor import get_active_gate, get_phase
 from governance_runtime.contracts.enforcement import require_complete_contracts
 from governance_runtime.engine.implementation_validation import (
     CheckResult,
@@ -434,7 +434,7 @@ def _run_llm_edit_step(
         "task": task_text,
         "approved_plan": plan_text,
         "required_hotspots": required_hotspots,
-        "phase": str(state.get("phase") or state.get("Phase") or ""),
+        "phase": get_phase(state),
         "active_gate": str(state.get("active_gate") or ""),
         "next_gate_condition": str(state.get("next_gate_condition") or ""),
         "forbidden_paths": [".governance/"],
@@ -626,7 +626,7 @@ def start_implementation(
             message=f"{enforcement.reason}: {';'.join(enforcement.details)}",
         )
 
-    phase_text = str(state.get("phase") or state.get("Phase") or "").strip()
+    phase_text = get_phase(state).strip()
     if not phase_text.startswith("6"):
         return _payload(
             "error",
@@ -734,7 +734,6 @@ def start_implementation(
         state["implementation_validation_report_path"] = str(validation_report_path)
         state["implementation_llm_response_valid"] = response_valid
         state["implementation_llm_validation_violations"] = validation_violations
-        state["Next"] = "6"
         state["next"] = "6"
         state["active_gate"] = "Implementation Blocked"
         state["next_gate_condition"] = (
@@ -822,7 +821,6 @@ def start_implementation(
     state["implementation_execution_status"] = "review_complete" if report.is_compliant else "blocked"
     state["implementation_status"] = "ready_for_review" if report.is_compliant else "blocked"
     state["implementation_reason_codes"] = list(report.reason_codes)
-    state["Next"] = "6"
     state["next"] = "6"
 
     if report.is_compliant:
