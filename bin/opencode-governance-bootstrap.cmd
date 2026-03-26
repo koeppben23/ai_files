@@ -18,9 +18,9 @@ set "OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%"
 set "OPENCODE_LOCAL_ROOT=%OPENCODE_LOCAL_ROOT%"
 if not defined OPENCODE_LOCAL_ROOT (
     if defined USERPROFILE (
-        set "OPENCODE_LOCAL_ROOT=%USERPROFILE%\.local\opencode"
+        set "OPENCODE_LOCAL_ROOT=%USERPROFILE%\.local\share\opencode"
     ) else (
-        set "OPENCODE_LOCAL_ROOT=%HOMEDRIVE%%HOMEPATH%\.local\opencode"
+        set "OPENCODE_LOCAL_ROOT=%HOMEDRIVE%%HOMEPATH%\.local\share\opencode"
     )
 )
 set "PYTHONPATH=%OPENCODE_LOCAL_ROOT%;%COMMANDS_HOME%;!PYTHONPATH!"

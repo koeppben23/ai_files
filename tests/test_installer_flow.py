@@ -1289,7 +1289,7 @@ class TestRepoLauncherContractDrift:
         assert "PYTHON_BINDING" in content
         assert "FATAL: No valid Python interpreter found" in content
         assert "OPENCODE_PYTHON" in content
-        assert "OPENCODE_LOCAL_ROOT=\"${OPENCODE_LOCAL_ROOT:-\"${HOME}/.local/opencode\"}\"" in content
+        assert "OPENCODE_LOCAL_ROOT=\"${OPENCODE_LOCAL_ROOT:-\"${HOME}/.local/share/opencode\"}\"" in content
         assert "${OPENCODE_CONFIG_ROOT}" not in content.split("OPENCODE_LOCAL_ROOT", 1)[1].split("\n", 1)[0]
 
     def test_happy_repo_windows_wrapper_uses_binding_cascade(self) -> None:
@@ -1297,7 +1297,7 @@ class TestRepoLauncherContractDrift:
         assert "PYTHON_BINDING" in content
         assert "FATAL: No valid Python interpreter found" in content
         assert "OPENCODE_PYTHON" in content
-        assert "%USERPROFILE%\\.local\\opencode" in content
+        assert "%USERPROFILE%\\.local\\share\\opencode" in content
         assert "set \"OPENCODE_LOCAL_ROOT=%OPENCODE_CONFIG_ROOT%\"" not in content
 
     def test_corner_repo_wrappers_support_canonical_subcommands(self) -> None:

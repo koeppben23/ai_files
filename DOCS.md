@@ -108,7 +108,7 @@ cd customer-install-bundle-v1
 ### Canonical Operator Path Truth
 
 - **Install root (config):** `~/.config/opencode`
-- **Install root (local payload):** `~/.local/opencode`
+- **Install root (local payload):** `~/.local/share/opencode`
 - **Canonical bin directory:** `~/.config/opencode/bin`
 - **Canonical bootstrap entrypoint:** `opencode-governance-bootstrap init --profile <solo|team|regulated> --repo-root <repo-root>`
 - Commands/plugins/workspaces live under config root; runtime/content/spec live under local root.
@@ -242,7 +242,7 @@ opencode-governance-bootstrap init --profile team --repo-root /path/to/repo --co
 
 - **Config root (default):** `~/.config/opencode`
   - `commands/`, `plugins/`, `workspaces/`, `bin/`
-- **Local root (default):** `~/.local/opencode`
+- **Local root (default):** `~/.local/share/opencode`
   - `governance_runtime/`, `governance_content/`, `governance_spec/`, `governance/`, `VERSION`
 - **Workspace logs:** `~/.config/opencode/workspaces/<repo_fingerprint>/logs/`
 - **Global logs:** `~/.config/opencode/workspaces/_global/logs/`

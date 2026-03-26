@@ -325,9 +325,17 @@ def get_config_root() -> Path:
     - Canonical path on all OS: <user-home>/.config/opencode
     - Override with OPENCODE_CONFIG_ROOT environment variable.
     """
-    env_config = os.environ.get("OPENCODE_CONFIG_ROOT")
-    if env_config:
-        return Path(env_config).resolve()
+    env_config_file = os.environ.get("OPENCODE_CONFIG")
+    if env_config_file:
+        return Path(env_config_file).expanduser().resolve().parent
+
+    env_config_dir = os.environ.get("OPENCODE_CONFIG_DIR")
+    if env_config_dir:
+        return Path(env_config_dir).expanduser().resolve()
+
+    env_config_root = os.environ.get("OPENCODE_CONFIG_ROOT")
+    if env_config_root:
+        return Path(env_config_root).expanduser().resolve()
 
     system = platform.system()
 
@@ -348,36 +356,22 @@ def get_config_root() -> Path:
 def get_local_root() -> Path:
     """Determine local payload root for runtime/content/spec payloads.
 
-    Default: <user-home>/.local/opencode
+    Default: <user-home>/.local/share/opencode
     Override: OPENCODE_LOCAL_ROOT
     """
     env_local = os.environ.get("OPENCODE_LOCAL_ROOT")
     if env_local:
-        return Path(env_local).resolve()
-    return (Path.home().resolve() / ".local" / "opencode").resolve()
-
-
-def get_desktop_app_config_root() -> Path:
-    """Return known OpenCode Desktop app config root on macOS."""
-    return (
-        Path.home().resolve()
-        / "Library"
-        / "Application Support"
-        / "ai.opencode.desktop"
-        / "opencode"
-    ).resolve()
+        return Path(env_local).expanduser().resolve()
+    return (Path.home().resolve() / ".local" / "share" / "opencode").resolve()
 
 
 def resolve_known_config_roots(primary_root: Path | None = None) -> list[Path]:
-    """Resolve known config roots that may be used by different OpenCode builds."""
+    """Resolve official config roots (single-root by design)."""
     roots: list[Path] = []
     if primary_root is not None:
         roots.append(primary_root.resolve())
     else:
         roots.append(get_config_root())
-
-    if platform.system() == "Darwin":
-        roots.append(get_desktop_app_config_root())
 
     deduped: list[Path] = []
     seen: set[str] = set()
@@ -3295,14 +3289,6 @@ def show_doctor(_source_dir: Path, config_root_arg: Path | None) -> int:
         f"\"{py}\" install.py --force --config-root \"{_path_for_json(config_root)}\" "
         f"--local-root \"{_path_for_json(local_root)}\""
     )
-    desktop_root = get_desktop_app_config_root()
-    if desktop_root != config_root:
-        print(
-            "  - "
-            f"\"{py}\" install.py --force --config-root \"{_path_for_json(desktop_root)}\" "
-            f"--local-root \"{_path_for_json(local_root)}\""
-        )
-
     print("\n" + "=" * 60)
     return 0 if not issues else 1
 
@@ -3679,7 +3665,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--local-root",
         type=Path,
         default=None,
-        help="Override local payload root (default: ~/.local/opencode).",
+        help="Override local payload root (default: ~/.local/share/opencode).",
     )
     p.add_argument("--dry-run", action="store_true", help="Show what would happen without writing anything.")
     p.add_argument("--force", action="store_true", help="Overwrite without prompting / uninstall without prompt.")
@@ -3707,16 +3693,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--doctor", action="store_true", help="Diagnose root drift and print concrete recovery commands.")
     p.add_argument("--health", action="store_true", help="Run read-only health probes and show compact status, then exit.")
     p.add_argument("--smoketest", action="store_true", help="Run installation smoketest (checks launcher, paths.json, installed runtime execution).")
-    p.add_argument(
-        "--sync-known-roots",
-        action="store_true",
-        help="Install to all known config roots for this platform (prevents Desktop/canonical root drift).",
-    )
-    p.add_argument(
-        "--legacy-command-files-compat",
-        action="store_true",
-        help="Also write opencode.json command_files for older Desktop compatibility.",
-    )
     return p.parse_args(argv)
 
 
@@ -3761,10 +3737,6 @@ def main(argv: list[str]) -> int:
 
     config_root = args.config_root if args.config_root is not None else get_config_root()
     local_root = args.local_root if args.local_root is not None else get_local_root()
-    target_roots = [config_root]
-    if args.sync_known_roots:
-        target_roots = resolve_known_config_roots(config_root)
-
     plan = build_plan(
         args.source_dir,
         config_root,
@@ -3802,40 +3774,12 @@ def main(argv: list[str]) -> int:
             return 0
 
     backup_enabled = not args.no_backup
-    if len(target_roots) == 1:
-        return install(
-            plan,
-            dry_run=args.dry_run,
-            force=args.force,
-            backup_enabled=backup_enabled,
-            include_legacy_command_files=args.legacy_command_files_compat,
-        )
-
-    print("\nSync known roots mode enabled:")
-    for root in target_roots:
-        print(f"  - {root}")
-
-    overall_rc = 0
-    for idx, root in enumerate(target_roots, 1):
-        plan_for_root = build_plan(
-            args.source_dir,
-            root,
-            local_root,
-            skip_paths_file=args.skip_paths_file,
-            deterministic_paths_file=args.deterministic_paths_file,
-        )
-        print(f"\n[{idx}/{len(target_roots)}] Installing to {root} ...")
-        rc = install(
-            plan_for_root,
-            dry_run=args.dry_run,
-            force=args.force,
-            backup_enabled=backup_enabled,
-            include_legacy_command_files=args.legacy_command_files_compat,
-        )
-        if rc != 0:
-            overall_rc = rc
-            break
-    return overall_rc
+    return install(
+        plan,
+        dry_run=args.dry_run,
+        force=args.force,
+        backup_enabled=backup_enabled,
+    )
 
 
 if __name__ == "__main__":
