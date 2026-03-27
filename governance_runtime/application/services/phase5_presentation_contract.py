@@ -82,10 +82,10 @@ def _keyword_signal(text: str, *, max_terms: int = 6) -> str:
 def _execution_slice_signals(target_flow: str) -> list[str]:
     parts = [part.strip() for part in re.split(r"\n+|\d+[.)]\s+", target_flow) if part.strip()]
     if not parts:
-        return ["Execution flow is present; key slice signals are unavailable."]
+        return ["Define the concrete implementation steps before approval."]
     slices: list[str] = []
     for idx, part in enumerate(parts[:MAX_EXECUTION_SLICES], 1):
-        slices.append(_clamp(f"Slice {idx} signal: {_keyword_signal(part)}.", limit=180))
+        slices.append(_clamp(f"Step {idx}: {part}", limit=180))
     return slices
 
 
@@ -215,20 +215,23 @@ def build_presentation_contract(plan: Mapping[str, object], *, re_review: bool =
     )
 
     executive_summary = [
-        _clamp(f"Objective signal: {_keyword_signal(objective)}.", limit=180),
-        _clamp(f"Target-state signal: {_keyword_signal(target_state)}.", limit=180),
-        _clamp(f"Go/No-Go signal: {_keyword_signal(go_no_go)}.", limit=180),
+        _clamp(objective or "Define a concrete objective before approval.", limit=180),
+        _clamp(target_state or "Define an explicit target state before approval.", limit=180),
+        _clamp(go_no_go or "Define explicit go/no-go criteria before approval.", limit=180),
     ]
     execution_slices = _execution_slice_signals(target_flow)
     risk_items = _normalize_risks_with_mitigation(risks)
     open_items = _split_compact_items(open_questions, max_items=MAX_RISKS)
 
     if not execution_slices:
-        execution_slices = ["Execution flow is present; key slice signals are unavailable."]
+        execution_slices = ["Define concrete execution slices before approval."]
     if not risk_items:
         risk_items = ["No explicit risks provided; confirm before approval."]
     if not open_items:
-        open_items = ["No open decisions."]
+        open_items = [
+            "Confirm final scope boundaries for this approval.",
+            "Confirm release-gate pass criteria before rollout.",
+        ]
 
     delta = "Initial plan presentation." if not re_review else "Updated since last review iteration."
 
@@ -243,17 +246,17 @@ def build_presentation_contract(plan: Mapping[str, object], *, re_review: bool =
         "executive_summary": executive_summary,
         "delta_since_last_review": _clamp(delta, limit=120),
         "scope": _clamp(
-            f"Scope signal: {_keyword_signal(target_state)}."
+            f"Deliver the defined target state: {target_state}"
             if target_state
-            else "Scope must be confirmed before approval.",
+            else "The implementation scope is not explicit enough for approval.",
             limit=400,
         ),
         "execution_slices": execution_slices,
         "risks_and_mitigations": risk_items,
         "release_gates": _clamp(
-            f"Release-gate signal: {_keyword_signal(go_no_go)}."
+            f"Approval gate: {go_no_go}"
             if go_no_go
-            else "Release gates must be confirmed before approval.",
+            else "Approval requires explicit release-gate criteria.",
             limit=400,
         ),
         "open_decisions": open_items,
