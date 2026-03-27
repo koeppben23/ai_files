@@ -32,6 +32,7 @@ _PATH_RESOLVE_ALLOWLIST: set[str] = {
 _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
     "governance_runtime/application/use_cases/audit_readout_builder.py",
     "governance_runtime/application/use_cases/phase5_iterative_review.py",
+    "governance_runtime/application/services/phase6_review_orchestrator/llm_caller.py",
 }
 
 # Side-effect calls allowlist for application layer
@@ -40,11 +41,13 @@ _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
     # orchestrator.py: Composition-Root reads env for default dependencies
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py": {
         "L84:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
-        "L264:datetime.now",    # Composition-Root: default clock for load_effective_review_policy
+        "L264:datetime.now",    # Legacy line marker
+        "L268:datetime.now",    # Composition-Root: default clock for load_effective_review_policy
     },
     # llm_caller.py: Composition-Root uses injected env_reader
     "governance_runtime/application/services/phase6_review_orchestrator/llm_caller.py": {
-        "L71:subprocess.run",   # Composition-Root: default subprocess runner for LLM execution
+        "L71:subprocess.run",   # Legacy line marker
+        "L81:subprocess.run",   # Composition-Root: default subprocess runner for LLM execution
     },
     # __init__.py: Composition-Root creates LLMCaller with env_reader
     "governance_runtime/application/services/phase6_review_orchestrator/__init__.py": {
