@@ -110,24 +110,26 @@ def _render_presented_review_content(snapshot: Snapshot) -> list[str]:
     gate = str(snapshot.get("active_gate") or "").strip().lower()
     lines: list[str] = ["Presented review content"]
     if gate == "evidence presentation gate":
-        lines.append("- 📋 PHASE 5 · PLAN FOR APPROVAL")
-        lines.append("- PLAN (not implemented)")
-        lines.append("- Decision required: choose approve, changes_requested, or reject.")
-        lines.append(f"- Review object: {snapshot.get('review_package_review_object') or 'none'}")
-        lines.append(f"- Ticket: {snapshot.get('review_package_ticket') or 'none'}")
-        lines.append("- Approved plan for review:")
+        lines.append("📋 PHASE 5 · PLAN FOR APPROVAL")
+        lines.append("PLAN (not implemented)")
+        lines.append("Decision required: choose approve, changes_requested, or reject.")
+        lines.append(f"Review object: {snapshot.get('review_package_review_object') or 'none'}")
+        lines.append(f"Ticket: {snapshot.get('review_package_ticket') or 'none'}")
+        lines.append("Approved plan for review:")
         plan_body = str(snapshot.get("review_package_plan_body") or "none")
         if plan_body.strip() and plan_body.strip().lower() != "none":
+            lines.append("")
             for raw in plan_body.splitlines():
                 text = raw.rstrip()
-                lines.append(f"  {text}" if text else "  ")
+                lines.append(text)
+            lines.append("")
         else:
-            lines.append("  none")
-        lines.append(f"- Evidence summary: {snapshot.get('review_package_evidence_summary') or 'none'}")
-        lines.append("- Next actions:")
-        lines.append("  - /review-decision approve")
-        lines.append("  - /review-decision changes_requested")
-        lines.append("  - /review-decision reject")
+            lines.append("none")
+        lines.append(f"Evidence summary: {snapshot.get('review_package_evidence_summary') or 'none'}")
+        lines.append("Next actions:")
+        lines.append("- /review-decision approve")
+        lines.append("- /review-decision changes_requested")
+        lines.append("- /review-decision reject")
         return lines
 
     if gate == "implementation presentation gate":

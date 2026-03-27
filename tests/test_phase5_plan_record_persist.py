@@ -928,12 +928,17 @@ class TestPlanGeneration:
         assert "PHASE 5 · PLAN FOR APPROVAL" in plan_text
         assert "PLAN (not implemented)" in plan_text
         assert "## Executive Summary" in plan_text
+        assert "## Recommendation" in plan_text
+        assert "Recommendation: " in plan_text
+        assert "## Delivery Scope (Checklist)" in plan_text
+        assert "## Acceptance Criteria (Measurable)" in plan_text
         assert "## What Changed Since Last Review" in plan_text
         assert "## Scope" in plan_text
         assert "## Execution Slices" in plan_text
-        assert "## Risks & Mitigations" in plan_text
+        assert "## Risks & Mitigations (Plain Language)" in plan_text
         assert "## Release Gates" in plan_text
         assert "## Open Decisions" in plan_text
+        assert "## Next Steps if Changes Requested" in plan_text
         assert "## Next Actions" in plan_text
         assert "## Technical Appendix" in plan_text
         assert "### Target-State" in plan_text
@@ -944,6 +949,7 @@ class TestPlanGeneration:
         # Decision-brief blocks must appear before technical appendix.
         assert plan_text.index("## Executive Summary") < plan_text.index("## Technical Appendix")
         assert plan_text.index("## Next Actions") < plan_text.index("## Technical Appendix")
+        assert plan_text.index("## Recommendation") < plan_text.index("## Technical Appendix")
 
     def test_blocks_when_llm_plan_text_is_non_english(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         module = _load_module()
