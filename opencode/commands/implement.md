@@ -7,7 +7,7 @@
 `/implement` starts execution of the approved implementation plan after approved Phase 6 governance review.
 The command is mutating and must execute implementation work, not only preparation.
 
-Binding mode is authoritative and mode-scoped:
+Binding mode is authoritative per `governance-config.json` and mode-scoped:
 - `pipeline_mode=false` (default): use the active OpenCode chat binding.
 - `pipeline_mode=true`: require explicit environment binding and fail closed if missing.
 
@@ -29,6 +29,7 @@ Binding mode is authoritative and mode-scoped:
 - In direct mode (`pipeline_mode=false`), both environment bindings are ignored.
 - In pipeline mode (`pipeline_mode=true`), both bindings are required for governance flows; missing/empty binding is fail-closed.
 - No mixing: direct mode does not consume env bindings; pipeline mode does not fall back to active chat binding.
+- In user terms: the default executor is the active OpenCode Desktop LLM binding, pipeline mode provides an optional override, and if there is neither override nor active Desktop LLM binding, execution fails closed.
 - For production reproducibility, prefer explicit stable binding references over drifting aliases.
 
 ## Developer mandate
@@ -56,7 +57,7 @@ If no snapshot is available, proceed using only the context visible in the curre
 - Valid only after final review decision `approve` (Workflow Complete).
 - `/implement` is an execution action + validator; it must not locally edit domain/source files.
 - Local writes are restricted to runtime diagnostics/state (for example `.runtime_state/implementation/*`, session state, and audit events).
-- Domain/source edits must come exclusively from the resolved authorized execution binding.
+- Domain/source edits come exclusively from the resolved authorized execution binding.
 - Validation uses execution-attributed change evidence (pre/post delta plus hotspot file hash changes) to avoid counting unrelated pre-existing dirty files as implementation output.
 - Direct mode uses active chat binding and ignores `AI_GOVERNANCE_EXECUTION_BINDING`.
 - Pipeline mode requires `AI_GOVERNANCE_EXECUTION_BINDING` for execution and `AI_GOVERNANCE_REVIEW_BINDING` for governance review flows; missing required binding fails closed with `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED`.
@@ -69,9 +70,6 @@ If no snapshot is available, proceed using only the context visible in the curre
 - if validation fails, render concise evidence and one recovery action
 
 ---
-
 **Free-text guard:**
 Free text like "go", "start implementing", "weiter", or similar natural-language prompts is **not** a rail command. It does not persist implementation execution state. Only the explicit `/implement` rail invocation is permitted to write implementation execution evidence.
-
-Copyright © 2026 Benjamin Fuchs.
-All rights reserved. See LICENSE.
+Copyright © 2026 Benjamin Fuchs. All rights reserved. See LICENSE.

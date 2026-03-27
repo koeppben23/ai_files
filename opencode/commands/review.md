@@ -8,7 +8,7 @@
 
 `/review` is a read-only rail entrypoint for PR, file, or directory review. It does not perform implementation changes and does not reroute phase state. The review gate authority remains in the kernel (phase_api.yaml), not in the rail itself.
 
-Binding mode is authoritative and mode-scoped:
+Binding mode is authoritative per `governance-config.json` and mode-scoped:
 - `pipeline_mode=false` (default): use the active OpenCode chat binding.
 - `pipeline_mode=true`: require explicit review binding via `AI_GOVERNANCE_REVIEW_BINDING` and fail closed if missing/empty.
 

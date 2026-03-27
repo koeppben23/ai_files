@@ -44,7 +44,7 @@ $env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --plan-per
 
 ## Binding contract
 
-Binding mode is authoritative and mode-scoped:
+Binding mode is authoritative per `governance-config.json` and mode-scoped:
 
 - `pipeline_mode=false` (default): planning and internal self-review use the active OpenCode chat binding.
 - `pipeline_mode=true`: planning uses `AI_GOVERNANCE_EXECUTION_BINDING`; internal self-review uses `AI_GOVERNANCE_REVIEW_BINDING`.

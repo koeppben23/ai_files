@@ -112,6 +112,32 @@ def _write_workspace_state(ws_state: Path, state: dict) -> None:
     ws_state.write_text(json.dumps(doc), encoding="utf-8")
 
 
+def _set_pipeline_mode_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+    workspace_dir: Path,
+    *,
+    execution_cmd: str = "mock-executor",
+    review_cmd: str = "mock-executor",
+) -> None:
+    (workspace_dir / "governance-config.json").write_text(
+        json.dumps(
+            {
+                "pipeline_mode": True,
+                "review": {
+                    "phase5_max_review_iterations": 3,
+                    "phase6_max_review_iterations": 3,
+                },
+            },
+            ensure_ascii=True,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AI_GOVERNANCE_EXECUTION_BINDING", execution_cmd)
+    monkeypatch.setenv("AI_GOVERNANCE_REVIEW_BINDING", review_cmd)
+
+
 def _mock_readonly_unavailable():
     """Patch evaluate_readonly to raise, triggering graceful degradation.
 
@@ -1493,7 +1519,7 @@ class TestMain:
         def mock_subprocess_run(*args, **kwargs):
             return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
 
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        _set_pipeline_mode_bindings(monkeypatch, ws_state.parent)
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
             m.setattr(
@@ -1610,7 +1636,7 @@ class TestMain:
         def mock_subprocess_run(*args, **kwargs):
             return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
 
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        _set_pipeline_mode_bindings(monkeypatch, ws_state.parent)
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
             m.setattr(
@@ -1732,7 +1758,7 @@ class TestMain:
         def mock_subprocess_run(*args, **kwargs):
             return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
 
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        _set_pipeline_mode_bindings(monkeypatch, ws_state.parent)
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
             m.setattr(
@@ -3942,7 +3968,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
         def mock_subprocess_run(*args, **kwargs):
             return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
 
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        _set_pipeline_mode_bindings(monkeypatch, ws_state.parent)
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
             m.setattr(
@@ -4055,7 +4081,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
         def mock_subprocess_run(*args, **kwargs):
             return type("MockResult", (), {"stdout": cr_response, "stderr": "", "returncode": 0})()
 
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        _set_pipeline_mode_bindings(monkeypatch, ws_state.parent)
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
             from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver
@@ -4157,7 +4183,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
         def mock_subprocess_run(*args, **kwargs):
             return type("MockResult", (), {"stdout": approve_response, "stderr": "", "returncode": 0})()
 
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "mock-executor")
+        _set_pipeline_mode_bindings(monkeypatch, ws_state.parent)
         with monkeypatch.context() as m:
             m.setattr(subprocess, "run", mock_subprocess_run)
             from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver, _set_response_validator

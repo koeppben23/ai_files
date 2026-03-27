@@ -31,6 +31,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -70,16 +71,39 @@ def _call_llm_review_with_response(content: str, stdout: str, stderr: str = "", 
     spec.loader.exec_module(module)
 
     import os
-    old_val = os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD")
-    os.environ["OPENCODE_IMPLEMENT_LLM_CMD"] = "mock-executor"
+    old_exec = os.environ.get("AI_GOVERNANCE_EXECUTION_BINDING")
+    old_review = os.environ.get("AI_GOVERNANCE_REVIEW_BINDING")
     try:
-        with patch.object(subprocess, "run", side_effect=_make_mock_run(stdout, stderr, returncode)):
-            return module._call_llm_review(content, "mock mandate")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace_dir = Path(tmpdir)
+            (workspace_dir / "governance-config.json").write_text(
+                json.dumps(
+                    {
+                        "pipeline_mode": True,
+                        "review": {
+                            "phase5_max_review_iterations": 3,
+                            "phase6_max_review_iterations": 3,
+                        },
+                    },
+                    ensure_ascii=True,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            os.environ["AI_GOVERNANCE_EXECUTION_BINDING"] = "mock-executor"
+            os.environ["AI_GOVERNANCE_REVIEW_BINDING"] = "mock-executor"
+            with patch.object(subprocess, "run", side_effect=_make_mock_run(stdout, stderr, returncode)):
+                return module._call_llm_review(content, "mock mandate", workspace_dir=workspace_dir)
     finally:
-        if old_val is None:
-            os.environ.pop("OPENCODE_IMPLEMENT_LLM_CMD", None)
+        if old_exec is None:
+            os.environ.pop("AI_GOVERNANCE_EXECUTION_BINDING", None)
         else:
-            os.environ["OPENCODE_IMPLEMENT_LLM_CMD"] = old_val
+            os.environ["AI_GOVERNANCE_EXECUTION_BINDING"] = old_exec
+        if old_review is None:
+            os.environ.pop("AI_GOVERNANCE_REVIEW_BINDING", None)
+        else:
+            os.environ["AI_GOVERNANCE_REVIEW_BINDING"] = old_review
 
 
 class TestReviewIntegrationChainE2E:
