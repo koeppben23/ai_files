@@ -44,6 +44,9 @@ class ReviewIteration:
     llm_verdict: str  # "approve", "changes_requested", "unknown"
     llm_findings: list[str] = field(default_factory=list)
     llm_response_raw: str | None = None
+    llm_pipeline_mode: bool | None = None
+    llm_binding_role: str = "review"
+    llm_binding_source: str = ""
 
     @property
     def is_complete(self) -> bool:
@@ -105,12 +108,18 @@ class ReviewLoopResult:
                 "validation_valid": it.llm_valid,
                 "verdict": it.llm_verdict,
                 "findings": it.llm_findings,
+                "pipeline_mode": it.llm_pipeline_mode,
+                "binding_role": it.llm_binding_role,
+                "binding_source": it.llm_binding_source,
             }
         if self.iterations:
             last = self.iterations[-1]
             review_block["llm_review_valid"] = last.llm_valid
             review_block["llm_review_verdict"] = last.llm_verdict
             review_block["llm_review_findings"] = last.llm_findings
+            review_block["llm_review_pipeline_mode"] = last.llm_pipeline_mode
+            review_block["llm_review_binding_role"] = last.llm_binding_role
+            review_block["llm_review_binding_source"] = last.llm_binding_source
 
         return {
             "ImplementationReview": review_block,
@@ -148,6 +157,9 @@ class ReviewLoopResult:
                 "llm_review_invoked": it.llm_invoked,
                 "llm_review_valid": it.llm_valid,
                 "llm_review_verdict": it.llm_verdict,
+                "llm_review_pipeline_mode": it.llm_pipeline_mode,
+                "llm_review_binding_role": it.llm_binding_role,
+                "llm_review_binding_source": it.llm_binding_source,
             })
         return events
 

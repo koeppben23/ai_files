@@ -367,6 +367,9 @@ def run_review_loop(
             llm_verdict=llm_result.verdict if llm_result else "unknown",
             llm_findings=llm_result.findings if llm_result else [],
             llm_response_raw=llm_response.stdout[:1000] if llm_response else None,
+            llm_pipeline_mode=llm_response.pipeline_mode if llm_response else None,
+            llm_binding_role=llm_response.binding_role if llm_response else "review",
+            llm_binding_source=llm_response.binding_source if llm_response else "",
         )
         iterations.append(it)
 

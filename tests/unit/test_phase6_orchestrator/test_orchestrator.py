@@ -105,6 +105,9 @@ class TestRunReviewLoop:
             stderr="",
             return_code=0,
             error=None,
+            pipeline_mode=True,
+            binding_role="review",
+            binding_source="env:AI_GOVERNANCE_REVIEW_BINDING",
         )
 
         response_validator = MagicMock(spec=ResponseValidator)
@@ -270,6 +273,11 @@ class TestRunReviewLoop:
         assert "phase6_review_iterations" in updates
         assert "implementation_review_complete" in updates
         assert updates["implementation_review_complete"] is True
+        assert updates["ImplementationReview"]["llm_review_binding_role"] == "review"
+        assert (
+            updates["ImplementationReview"]["llm_review_binding_source"]
+            == "env:AI_GOVERNANCE_REVIEW_BINDING"
+        )
 
     def test_to_audit_events_returns_iterations(self, mock_dependencies):
         """to_audit_events returns audit events for each iteration."""

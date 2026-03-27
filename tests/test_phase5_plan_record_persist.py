@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -196,6 +197,9 @@ def test_phase5_plan_persist_good_chat_text_persists_and_routes(tmp_path: Path, 
     assert state["phase5_self_review_iterations"] >= 1
     assert state["phase5_state"] == "phase5_completed"
     assert state["phase5_blocker_code"] == "none"
+    assert state["phase5_review_pipeline_mode"] is False
+    assert state["phase5_review_binding_role"] == "review"
+    assert state["phase5_review_binding_source"] == "active_chat_binding"
     assert state["requirement_contracts_present"] is True
     assert int(state["requirement_contracts_count"]) >= 1
     assert str(state["requirement_contracts_digest"]).startswith("sha256:")
@@ -205,6 +209,84 @@ def test_phase5_plan_persist_good_chat_text_persists_and_routes(tmp_path: Path, 
     assert plan_record["status"] == "active"
     assert len(plan_record["versions"]) >= 1
     assert plan_record["versions"][0]["trigger"] == "phase5-plan-record-rail"
+
+
+@pytest.mark.governance
+def test_phase5_plan_persist_pipeline_mode_records_execution_and_review_binding_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    module = _load_module()
+    config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+    _write_workspace_governance_config(session_path.parent, pipeline_mode=True)
+
+    session_payload = json.loads(session_path.read_text(encoding="utf-8"))
+    session_state = session_payload.get("SESSION_STATE", {})
+    session_state["Ticket"] = "AUTH-123"
+    session_state["Task"] = "Implement login endpoint"
+    session_path.write_text(
+        json.dumps(session_payload, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    generated_plan = json.dumps(
+        {
+            "objective": "Add authentication endpoint with JWT support",
+            "target_state": "New /auth/login endpoint accepts credentials and returns JWT token",
+            "target_flow": "1. Add auth route. 2. Validate credentials. 3. Generate JWT. 4. Return token.",
+            "state_machine": "unauthenticated -> authenticated (on valid login)",
+            "blocker_taxonomy": "Credential store must be available; JWT secret must be configured",
+            "audit": "Login events logged with timestamp and user id",
+            "go_no_go": "JWT library available; credential store reachable; tests pass",
+            "test_strategy": "Unit tests for token generation; integration test for login flow",
+            "reason_code": "PLAN-AUTH-001",
+        },
+        ensure_ascii=True,
+    )
+    review_result = json.dumps({"verdict": "approve", "findings": []}, ensure_ascii=True)
+    execution_binding_cmd = "EXEC_BINDING_CMD"
+    review_binding_cmd = "REVIEW_BINDING_CMD"
+    _set_pipeline_bindings(
+        monkeypatch,
+        execution=execution_binding_cmd,
+        review=review_binding_cmd,
+    )
+
+    def _fake_subprocess_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        token = str(cmd)
+        if execution_binding_cmd in token:
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=generated_plan, stderr="")
+        if review_binding_cmd in token:
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=review_result, stderr="")
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _fake_subprocess_run)
+
+    rc = module.main(["--quiet"])
+    assert rc == 0
+
+    payload = json.loads(session_path.read_text(encoding="utf-8"))
+    state = payload["SESSION_STATE"]
+    assert state["phase5_plan_execution_pipeline_mode"] is True
+    assert state["phase5_plan_execution_binding_role"] == "execution"
+    assert state["phase5_plan_execution_binding_source"] == "env:AI_GOVERNANCE_EXECUTION_BINDING"
+    assert state["phase5_review_pipeline_mode"] is True
+    assert state["phase5_review_binding_role"] == "review"
+    assert state["phase5_review_binding_source"] == "env:AI_GOVERNANCE_REVIEW_BINDING"
+
+    events = [
+        json.loads(line)
+        for line in (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    persisted = [row for row in events if row.get("event") == "phase5-plan-record-persisted"]
+    assert persisted
+    assert persisted[-1]["plan_execution_pipeline_mode"] is True
+    assert persisted[-1]["plan_execution_binding_source"] == "env:AI_GOVERNANCE_EXECUTION_BINDING"
+    assert persisted[-1]["review_pipeline_mode"] is True
+    assert persisted[-1]["review_binding_source"] == "env:AI_GOVERNANCE_REVIEW_BINDING"
 
 
 @pytest.mark.governance

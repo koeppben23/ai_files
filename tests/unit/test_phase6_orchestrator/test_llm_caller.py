@@ -83,6 +83,9 @@ class TestLLMCaller:
         assert result.invoked is True
         assert result.return_code == 0
         assert '"verdict":"approve"' in result.stdout
+        assert result.pipeline_mode is False
+        assert result.binding_role == "review"
+        assert result.binding_source == "active_chat_binding"
 
     def test_pipeline_mode_uses_review_binding(self, tmp_path: Path):
         """Pipeline mode uses AI_GOVERNANCE_REVIEW_BINDING command."""
@@ -110,6 +113,9 @@ class TestLLMCaller:
         assert caller.is_configured is True
         assert result.invoked is True
         assert result.return_code == 0
+        assert result.pipeline_mode is True
+        assert result.binding_role == "review"
+        assert result.binding_source == "env:AI_GOVERNANCE_REVIEW_BINDING"
         assert observed
         assert "review-binding-invoked" in observed[0]
         assert "execution-binding-should-not-be-used" not in observed[0]
@@ -134,6 +140,8 @@ class TestLLMCaller:
         )
         assert result.invoked is False
         assert "AI_GOVERNANCE_REVIEW_BINDING" in str(result.error)
+        assert result.binding_role == "review"
+        assert result.binding_source == ""
 
     def test_build_context(self, caller_with_executor):
         """build_context creates proper context dict."""

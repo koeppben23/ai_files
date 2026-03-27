@@ -40,6 +40,9 @@ class LLMResponse:
     stderr: str
     return_code: int
     error: str | None = None
+    pipeline_mode: bool | None = None
+    binding_role: str = "review"
+    binding_source: str = ""
 
     @property
     def has_output(self) -> bool:
@@ -100,10 +103,10 @@ class LLMCaller:
         """Set workspace root used for mode-aware binding resolution."""
         self._workspace_root = workspace_root
 
-    def _resolve_review_binding(self) -> tuple[bool, str]:
+    def _resolve_review_binding(self) -> tuple[bool, str, str]:
         """Resolve the active review binding for current workspace mode."""
         if self._executor_cmd:
-            return True, self._executor_cmd
+            return True, self._executor_cmd, "override:executor_cmd"
 
         resolution = resolve_governance_binding(
             role="review",
@@ -111,7 +114,11 @@ class LLMCaller:
             env_reader=self._env_reader,
             has_active_chat_binding=self._has_active_desktop_llm_binding(),
         )
-        return resolution.pipeline_mode, str(resolution.binding_value or "").strip()
+        return (
+            resolution.pipeline_mode,
+            str(resolution.binding_value or "").strip(),
+            str(resolution.source or "").strip(),
+        )
 
     def _has_active_desktop_llm_binding(self) -> bool:
         if str(self._env_reader("OPENCODE") or "").strip() == "1":
@@ -130,7 +137,7 @@ class LLMCaller:
     def is_configured(self) -> bool:
         """Check if an LLM executor is configured."""
         try:
-            _pipeline_mode, binding_value = self._resolve_review_binding()
+            _pipeline_mode, binding_value, _binding_source = self._resolve_review_binding()
             return bool(binding_value)
         except GovernanceBindingResolutionError:
             return False
@@ -210,7 +217,7 @@ class LLMCaller:
             LLMResponse with the raw output.
         """
         try:
-            pipeline_mode, binding_value = self._resolve_review_binding()
+            pipeline_mode, binding_value, binding_source = self._resolve_review_binding()
         except GovernanceBindingResolutionError as exc:
             return LLMResponse(
                 invoked=False,
@@ -218,6 +225,9 @@ class LLMCaller:
                 stderr="",
                 return_code=0,
                 error=str(exc),
+                pipeline_mode=None,
+                binding_role="review",
+                binding_source="",
             )
 
         if not pipeline_mode:
@@ -226,6 +236,9 @@ class LLMCaller:
                 stdout='{"verdict":"approve","findings":[]}',
                 stderr="",
                 return_code=0,
+                pipeline_mode=False,
+                binding_role="review",
+                binding_source=binding_source,
             )
 
         if context_writer is None:
@@ -248,6 +261,9 @@ class LLMCaller:
                 stdout=result.stdout or "",
                 stderr=result.stderr or "",
                 return_code=result.returncode,
+                pipeline_mode=True,
+                binding_role="review",
+                binding_source=binding_source,
             )
         except Exception as exc:
             return LLMResponse(
@@ -256,4 +272,7 @@ class LLMCaller:
                 stderr=str(exc),
                 return_code=-1,
                 error=f"LLM executor failed: {exc}",
+                pipeline_mode=True,
+                binding_role="review",
+                binding_source=binding_source,
             )

@@ -62,6 +62,9 @@ class TestReviewLoopResult:
                     llm_invoked=True,
                     llm_valid=False,
                     llm_verdict="changes_requested",
+                    llm_pipeline_mode=True,
+                    llm_binding_role="review",
+                    llm_binding_source="env:AI_GOVERNANCE_REVIEW_BINDING",
                 ),
                 ReviewIteration(
                     iteration=2,
@@ -72,6 +75,9 @@ class TestReviewLoopResult:
                     llm_invoked=True,
                     llm_valid=True,
                     llm_verdict="approve",
+                    llm_pipeline_mode=True,
+                    llm_binding_role="review",
+                    llm_binding_source="env:AI_GOVERNANCE_REVIEW_BINDING",
                 ),
             ),
             final_iteration=2,
@@ -119,6 +125,12 @@ class TestReviewLoopResult:
         assert updates["phase6_state"] == "6.complete"
         assert "ImplementationReview" in updates
         assert updates["ImplementationReview"]["iteration"] == 2
+        assert updates["ImplementationReview"]["llm_review_binding_role"] == "review"
+        assert updates["ImplementationReview"]["llm_review_pipeline_mode"] is True
+        assert (
+            updates["ImplementationReview"]["llm_review_binding_source"]
+            == "env:AI_GOVERNANCE_REVIEW_BINDING"
+        )
 
     def test_to_state_updates_for_blocked(self, blocked_result):
         """to_state_updates returns blocker info for blocked review."""
@@ -134,6 +146,9 @@ class TestReviewLoopResult:
         assert events[0]["iteration"] == 1
         assert events[1]["iteration"] == 2
         assert events[1]["outcome"] == "completed"
+        assert events[1]["llm_review_binding_role"] == "review"
+        assert events[1]["llm_review_pipeline_mode"] is True
+        assert events[1]["llm_review_binding_source"] == "env:AI_GOVERNANCE_REVIEW_BINDING"
 
 
 class TestReviewResult:
