@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 import re
+from typing import Mapping
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,17 @@ class CompiledRequirements:
 class _Segment:
     kind: str
     text: str
+
+
+@dataclass(frozen=True)
+class _MachineRequirement:
+    title: str
+    required_behavior: str
+    forbidden_behavior: str
+    kind: str
+    code_hotspots: tuple[str, ...]
+    verification_methods: tuple[str, ...]
+    acceptance_tests: tuple[str, ...]
 
 
 def _slug(text: str) -> str:
@@ -179,12 +191,53 @@ def _segment_notes(segments: list[_Segment]) -> tuple[str, ...]:
     return tuple(notes)
 
 
+def _normalize_machine_requirements(
+    machine_requirements: list[Mapping[str, object]] | None,
+) -> tuple[_MachineRequirement, ...]:
+    if not machine_requirements:
+        return ()
+    out: list[_MachineRequirement] = []
+    for item in machine_requirements:
+        title = str(item.get("title") or "").strip()
+        required_behavior = str(item.get("required_behavior") or "").strip()
+        forbidden_behavior = str(item.get("forbidden_behavior") or "").strip()
+        if not title or not required_behavior or not forbidden_behavior:
+            continue
+        kind = str(item.get("kind") or "required_behavior").strip() or "required_behavior"
+        hotspots_raw = item.get("code_hotspots")
+        hotspots: list[str] = []
+        if isinstance(hotspots_raw, list):
+            hotspots = [str(x).strip() for x in hotspots_raw if str(x).strip()]
+        methods_raw = item.get("verification_methods")
+        methods: list[str] = []
+        if isinstance(methods_raw, list):
+            methods = [str(x).strip() for x in methods_raw if str(x).strip()]
+        tests_raw = item.get("acceptance_tests")
+        acceptance_tests: list[str] = []
+        if isinstance(tests_raw, list):
+            acceptance_tests = [str(x).strip() for x in tests_raw if str(x).strip()]
+        out.append(
+            _MachineRequirement(
+                title=title,
+                required_behavior=required_behavior,
+                forbidden_behavior=forbidden_behavior,
+                kind=kind,
+                code_hotspots=tuple(hotspots),
+                verification_methods=tuple(methods),
+                acceptance_tests=tuple(acceptance_tests),
+            )
+        )
+    return tuple(out)
+
+
 def compile_plan_to_requirements(
     *,
     plan_text: str,
     scope_prefix: str = "PLAN",
     ticket_text: str = "",
     task_text: str = "",
+    machine_requirements: list[Mapping[str, object]] | None = None,
+    strict_source: str | None = None,
 ) -> CompiledRequirements:
     """Compile plan bullet points into deterministic requirement skeletons.
 
@@ -192,15 +245,32 @@ def compile_plan_to_requirements(
     in the plan body produces one atomic contract candidate.
     """
 
+    normalized_machine = _normalize_machine_requirements(machine_requirements)
+
     segments: list[_Segment] = []
-    for source in (ticket_text, task_text, plan_text):
-        for segment in _segment_plan_text(source):
-            if _is_governance_meta_segment(segment.text):
-                continue
-            segments.append(segment)
-    if not segments:
-        # fail open to preserve backward compatibility for legacy plans
-        segments = _segment_plan_text(plan_text)
+    source_mode = "legacy_text"
+    if normalized_machine:
+        source_mode = "machine_requirements"
+        for req in normalized_machine:
+            segments.append(_Segment(kind=req.kind, text=req.title))
+    else:
+        if strict_source == "machine_requirements":
+            return CompiledRequirements(
+                requirements=(),
+                negative_contracts=(),
+                verification_seed=(),
+                completion_seed=(),
+                notes=("source=machine_requirements", "machine_requirements=0", "strict_source_missing"),
+            )
+        for source in (ticket_text, task_text, plan_text):
+            for segment in _segment_plan_text(source):
+                if _is_governance_meta_segment(segment.text):
+                    continue
+                segments.append(segment)
+        if not segments:
+            # fail open to preserve backward compatibility for legacy plans
+            segments = _segment_plan_text(plan_text)
+
     if not segments:
         return CompiledRequirements(
             requirements=(),
@@ -220,9 +290,25 @@ def compile_plan_to_requirements(
         req_id = f"R-{scope_prefix}-{idx:03d}-{digest}".upper()
         slug = _slug(title)
         owner_fragment = _owner_test_path_fragment(slug=slug, digest=digest)
-        required_behavior, forbidden_behavior = _build_requirement_texts(segment)
-        methods = _infer_methods(title, required_behavior, forbidden_behavior, segment.kind)
-        acceptance_test = f"tests/test_contract_{owner_fragment}.py::test_{owner_fragment}"
+        machine_req = normalized_machine[idx - 1] if idx - 1 < len(normalized_machine) else None
+        if machine_req is not None:
+            required_behavior = machine_req.required_behavior
+            forbidden_behavior = machine_req.forbidden_behavior
+            methods = list(machine_req.verification_methods) or _infer_methods(
+                title,
+                required_behavior,
+                forbidden_behavior,
+                machine_req.kind,
+            )
+            hotspots = list(machine_req.code_hotspots) or _infer_hotspots(title)
+            acceptance_tests = list(machine_req.acceptance_tests) or [
+                f"tests/test_contract_{owner_fragment}.py::test_{owner_fragment}"
+            ]
+        else:
+            required_behavior, forbidden_behavior = _build_requirement_texts(segment)
+            methods = _infer_methods(title, required_behavior, forbidden_behavior, segment.kind)
+            hotspots = _infer_hotspots(title)
+            acceptance_tests = [f"tests/test_contract_{owner_fragment}.py::test_{owner_fragment}"]
         out.append(
             {
                 "id": req_id,
@@ -234,9 +320,9 @@ def compile_plan_to_requirements(
                 "forbidden_behavior": [forbidden_behavior],
                 "user_visible_expectation": [f"User can observe outcome for: {title}"],
                 "state_expectation": [f"state evidence recorded for: {title}"],
-                "code_hotspots": _infer_hotspots(title),
+                "code_hotspots": hotspots,
                 "verification_methods": methods,
-                "acceptance_tests": [acceptance_test],
+                "acceptance_tests": acceptance_tests,
                 "done_rule": {
                     "require_all_verifications_pass": True,
                     "fail_closed_on_missing_evidence": True,
@@ -250,7 +336,7 @@ def compile_plan_to_requirements(
                 "requirement_id": req_id,
                 "forbidden_state": forbidden_behavior,
                 "verification_methods": methods,
-                "acceptance_tests": [acceptance_test],
+                "acceptance_tests": acceptance_tests,
                 "blocking": True,
             }
         )
@@ -277,5 +363,9 @@ def compile_plan_to_requirements(
         negative_contracts=tuple(negative),
         verification_seed=tuple(verification_seed),
         completion_seed=tuple(completion_seed),
-        notes=_segment_notes(segments),
+        notes=(
+            f"source={source_mode}",
+            f"machine_requirements={len(normalized_machine)}",
+            *_segment_notes(segments),
+        ),
     )

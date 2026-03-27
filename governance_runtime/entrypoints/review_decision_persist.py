@@ -152,6 +152,39 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     return out
 
 
+def _blocked_payload(
+    *,
+    events_path: Path | None,
+    phase: str,
+    decision: str,
+    reason_code: str,
+    message: str,
+    gate: str = "",
+) -> dict[str, object]:
+    event_id = uuid.uuid4().hex
+    if events_path is not None:
+        _append_event(
+            events_path,
+            {
+                "schema": "opencode.review-decision.v1",
+                "ts_utc": _now_iso(),
+                "event_id": event_id,
+                "event": "REVIEW_DECISION_BLOCKED",
+                "decision": decision.strip().lower(),
+                "phase": phase,
+                "active_gate": gate,
+                "reason_code": reason_code,
+                "message": message,
+            },
+        )
+    return _payload(
+        "error",
+        reason_code=reason_code,
+        message=message,
+        event_id=event_id,
+    )
+
+
 def _is_evidence_presentation_gate(state: Mapping[str, object]) -> bool:
     """Return True when Phase-6 Evidence Presentation Gate is active."""
     return get_active_gate(state).strip().lower() == "evidence presentation gate"
@@ -322,14 +355,24 @@ def apply_review_decision(
             )
 
     if normalized not in VALID_DECISIONS:
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase="",
+            gate="",
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=f"Invalid decision '{decision}'. Must be one of: {', '.join(sorted(VALID_DECISIONS))}",
         )
 
     if not session_path.exists():
-        return _payload("error", message="session state file not found")
+        return _blocked_payload(
+            events_path=events_path,
+            phase="",
+            gate="",
+            decision=decision,
+            reason_code=BLOCKED_REVIEW_DECISION_INVALID,
+            message="session state file not found",
+        )
 
     state_doc = _load_json(session_path)
     state_obj = state_doc.get("SESSION_STATE")
@@ -340,8 +383,11 @@ def apply_review_decision(
         required_ids=("R-REVIEW-DECISION-001",),
     )
     if not enforcement.ok:
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase=get_phase(state),
+            gate=get_active_gate(state),
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=f"{enforcement.reason}: {';'.join(enforcement.details)}",
         )
@@ -349,15 +395,21 @@ def apply_review_decision(
     # Validate we are in Phase 6
     phase_text = get_phase(state)
     if not phase_text.startswith("6"):
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase=phase_text,
+            gate=get_active_gate(state),
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=f"Review decision only allowed in Phase 6. Current phase: {phase_text}",
         )
 
     if not _is_evidence_presentation_gate(state):
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase=phase_text,
+            gate=get_active_gate(state),
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=(
                 "Review decision requires Phase 6 Evidence Presentation Gate. "
@@ -368,8 +420,11 @@ def apply_review_decision(
 
     package_ready, package_reason = _review_package_ready(state)
     if not package_ready:
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase=phase_text,
+            gate=get_active_gate(state),
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=(
                 "Review decision is not yet allowed: review package is incomplete "
@@ -470,8 +525,11 @@ def apply_review_decision(
     payload_validation = validate_review_payload(review_payload)
     if not payload_validation.valid:
         error_messages = [e.message for e in payload_validation.errors]
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase=phase_text,
+            gate=get_active_gate(state),
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=f"Review payload validation failed: {'; '.join(error_messages)}",
         )

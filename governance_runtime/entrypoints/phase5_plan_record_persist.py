@@ -22,6 +22,7 @@ from governance_runtime.application.services.state_accessor import get_phase
 from governance_runtime.application.services.phase5_presentation_contract import (
     TITLE as PHASE5_PRESENTATION_TITLE,
     build_presentation_contract,
+    build_machine_requirements,
     english_violations,
 )
 from governance_runtime.contracts.compiler import compile_plan_to_requirements
@@ -787,6 +788,107 @@ def _structured_plan_to_markdown(plan: dict[str, object]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _extract_markdown_section(plan_text: str, heading: str) -> str:
+    lines = [line.rstrip("\n") for line in str(plan_text or "").splitlines()]
+    marker = f"## {heading}".lower()
+    start = -1
+    for idx, line in enumerate(lines):
+        if line.strip().lower() == marker:
+            start = idx + 1
+            break
+    if start == -1:
+        return ""
+    collected: list[str] = []
+    for line in lines[start:]:
+        if line.startswith("## "):
+            break
+        collected.append(line)
+    return "\n".join(collected).strip()
+
+
+def _parse_bullets(text: str) -> list[str]:
+    out: list[str] = []
+    for raw in str(text or "").splitlines():
+        line = raw.strip()
+        if not line.startswith("-"):
+            continue
+        token = line.lstrip("-").strip()
+        if token.startswith("[ ]"):
+            token = token[3:].strip()
+        if token:
+            out.append(token)
+    return out
+
+
+def _machine_requirements_from_markdown(plan_text: str) -> list[dict[str, object]]:
+    """Extract compilable machine requirements from allowlisted markdown sections only."""
+    objective_text = ""
+    for raw in str(plan_text or "").splitlines():
+        line = raw.strip()
+        if line.lower().startswith("### plan objective"):
+            objective_text = ""
+            continue
+        if objective_text == "" and line and not line.startswith("#") and "plan for ticket/task:" in line.lower():
+            objective_text = line
+            break
+
+    payload: dict[str, object] = {
+        "objective": objective_text,
+        "target_flow": _extract_markdown_section(plan_text, "Execution Slices"),
+        "go_no_go": _extract_markdown_section(plan_text, "Release Gates"),
+        "test_strategy": _extract_markdown_section(plan_text, "Test Strategy"),
+        "delivery_scope": _parse_bullets(_extract_markdown_section(plan_text, "Delivery Scope (Checklist)")),
+    }
+    requirements = build_machine_requirements(payload)
+    if requirements:
+        return requirements
+
+    fallback_lines: list[str] = []
+    for raw in str(plan_text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            continue
+        line = re.sub(r"^[-*]\s+", "", line)
+        line = re.sub(r"^\d+[.)]\s+", "", line)
+        line = re.sub(r"\s+", " ", line).strip()
+        if not line:
+            continue
+        fallback_lines.append(line)
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in fallback_lines:
+        token = item.lower()
+        if token in seen:
+            continue
+        seen.add(token)
+        deduped.append(item)
+
+    out: list[dict[str, object]] = []
+    hotspots = [
+        "governance_runtime/entrypoints/session_reader.py",
+        "governance_runtime/entrypoints/implement_start.py",
+    ]
+    for item in deduped[:16]:
+        out.append(
+            {
+                "title": item,
+                "kind": "required_behavior",
+                "required_behavior": f"Implement: {item}",
+                "forbidden_behavior": f"forbid state: {item} not satisfied",
+                "code_hotspots": hotspots,
+                "verification_methods": [
+                    "behavioral_verification",
+                    "live_flow_verification",
+                    "static_verification",
+                ],
+            }
+        )
+    return out
+
+
 def _call_llm_review(
     content: str,
     mandate: str,
@@ -1038,10 +1140,14 @@ def _persist_compiled_contracts(
     verification_seed: list[dict[str, object]],
     completion_seed: list[dict[str, object]],
     generated_at: str,
+    source_authority: str,
+    compiler_notes: list[str],
 ) -> tuple[str, int]:
     payload = {
         "schema": "governance-compiled-requirements.v1",
         "generated_at": generated_at,
+        "source_authority": source_authority,
+        "compiler_notes": compiler_notes,
         "requirements": compiled,
         "negative_contracts": negative_contracts,
         "verification_seed": verification_seed,
@@ -1402,6 +1508,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, ensure_ascii=True))
         return 2
 
+    structured_plan: dict[str, object] | None = None
+
     # ── Auto-generate plan if none provided ──
     if not plan_text:
         ticket_text = str(state.get("Ticket") or "").strip()
@@ -1516,6 +1624,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
         plan_text = _canonicalize_text(str(gen_result.get("plan_text") or ""))
+        candidate_structured = gen_result.get("structured_plan")
+        if isinstance(candidate_structured, Mapping):
+            structured_plan = dict(candidate_structured)
         if not plan_text:
             payload = _payload(
                 "blocked",
@@ -1596,12 +1707,28 @@ def main(argv: list[str] | None = None) -> int:
         final_plan_text = str(review_result.get("final_plan_text") or plan_text)
         review_digest = _digest(final_plan_text)
 
+        machine_requirements: list[dict[str, object]] = []
+        if isinstance(structured_plan, Mapping):
+            machine_requirements = build_machine_requirements(structured_plan)
+        if not machine_requirements:
+            machine_requirements = _machine_requirements_from_markdown(final_plan_text)
+
         compiled = compile_plan_to_requirements(
             plan_text=final_plan_text,
             scope_prefix="PLAN",
-            ticket_text=str(state.get("Ticket") or ""),
-            task_text=str(state.get("Task") or ""),
+            machine_requirements=machine_requirements,
+            strict_source="machine_requirements",
         )
+        if not compiled.requirements:
+            payload = _payload(
+                "blocked",
+                reason_code="REQUIREMENT_SOURCE_INVALID",
+                reason="compiled-requirements-source-invalid",
+                observed=list(compiled.notes),
+                recovery_action="Provide structured machine requirements and rerun /plan.",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
         compiled_requirements = [dict(item) for item in compiled.requirements]
         negative_contracts = [dict(item) for item in compiled.negative_contracts]
         verification_seed = [dict(item) for item in compiled.verification_seed]
@@ -1624,6 +1751,8 @@ def main(argv: list[str] | None = None) -> int:
             verification_seed=verification_seed,
             completion_seed=completion_seed,
             generated_at=_now_iso(),
+            source_authority="machine_requirements",
+            compiler_notes=list(compiled.notes),
         )
 
         workspace_home = session_path.parent
@@ -1657,6 +1786,7 @@ def main(argv: list[str] | None = None) -> int:
                     "trigger": "phase5-plan-record-rail",
                     "plan_record_text": plan_text,
                     "plan_record_digest": f"sha256:{plan_digest}",
+                    "machine_requirements": machine_requirements,
                 },
                 phase=phase_for_write,
                 mode=mode,
@@ -1682,6 +1812,7 @@ def main(argv: list[str] | None = None) -> int:
                     "trigger": "phase5-self-review-loop",
                     "plan_record_text": final_plan_text,
                     "plan_record_digest": f"sha256:{review_digest}",
+                    "machine_requirements": machine_requirements,
                     "review": {
                         "iterations": _as_int(review_result.get("iterations"), 0),
                         "max_iterations": _as_int(review_result.get("max_iterations"), max_iterations),
@@ -1723,6 +1854,9 @@ def main(argv: list[str] | None = None) -> int:
         state["requirement_contracts_count"] = contracts_count
         state["requirement_contracts_digest"] = f"sha256:{contracts_digest}"
         state["requirement_contracts_source"] = str(_contracts_path(session_path))
+        state["requirement_contracts_source_authority"] = "machine_requirements"
+        state["machine_requirements_count"] = len(machine_requirements)
+        state["requirement_compiler_notes"] = list(compiled.notes)
         state["Phase5Review"] = {
             "iteration": _as_int(review_result.get("iterations"), 0),
             "max_iterations": _as_int(review_result.get("max_iterations"), max_iterations),
@@ -1816,6 +1950,9 @@ def main(argv: list[str] | None = None) -> int:
                 "phase5_revision_delta": str(review_result.get("revision_delta") or "changed"),
                 "requirement_contracts_count": contracts_count,
                 "requirement_contracts_digest": f"sha256:{contracts_digest}",
+                "requirement_contracts_source_authority": "machine_requirements",
+                "machine_requirements_count": len(machine_requirements),
+                "requirement_compiler_notes": list(compiled.notes),
                 "plan_execution_pipeline_mode": state.get("phase5_plan_execution_pipeline_mode"),
                 "plan_execution_binding_source": state.get("phase5_plan_execution_binding_source", ""),
                 "review_pipeline_mode": state.get("phase5_review_pipeline_mode"),

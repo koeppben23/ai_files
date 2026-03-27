@@ -452,7 +452,8 @@ def test_happy_override_executor_precedence_over_desktop_default(
     )
 
     assert observed
-    assert "python3 -c" in observed[0]
+    assert any("python3 -c" in cmd for cmd in observed)
+    assert any("override" in cmd for cmd in observed)
     assert result["executor_invoked"] is True
     assert result["exit_code"] == 0
 
