@@ -138,7 +138,7 @@ def _materialize_text_file(output_dir: Path, prefix: str, content: str) -> tuple
             reason_code=GOVERNANCE_CONTEXT_MATERIALIZATION_FAILED,
         )
 
-    written_digest = _sha256_digest(file_path.read_text())
+    written_digest = _sha256_digest(file_path.read_text(encoding="utf-8"))
     if written_digest != digest:
         raise GovernanceContextMaterializationError(
             reason=f"Digest mismatch after writing {prefix} file",
