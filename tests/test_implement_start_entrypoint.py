@@ -658,6 +658,51 @@ def test_happy_bridge_command_includes_model_and_context_placeholder(
     assert "{context_file}" in cmd
 
 
+def test_bridge_mode_unsets_opencode_server_session_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("OPENCODE_CLIENT", "desktop")
+    monkeypatch.setenv("OPENCODE_PID", "123")
+    monkeypatch.setenv("OPENCODE_SERVER_USERNAME", "opencode")
+    monkeypatch.setenv("OPENCODE_SERVER_PASSWORD", "secret")
+    monkeypatch.setattr(
+        entrypoint,
+        "_resolve_desktop_executor_bridge_cmd",
+        lambda **_kwargs: "python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\"",
+    )
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: [])
+
+    captured_env: dict[str, str] = {}
+
+    def _fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        env = kwargs.get("env") or {}
+        captured_env.update({str(k): str(v) for k, v in env.items()})
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout='{"result":"ok"}\n', stderr="")
+
+    monkeypatch.setattr(entrypoint.subprocess, "run", _fake_run)
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=[],
+        pipeline_mode=False,
+        execution_binding="",
+    )
+
+    assert result["executor_invoked"] is True
+    assert "OPENCODE" not in captured_env
+    assert "OPENCODE_CLIENT" not in captured_env
+    assert "OPENCODE_PID" not in captured_env
+    assert "OPENCODE_SERVER_USERNAME" not in captured_env
+    assert "OPENCODE_SERVER_PASSWORD" not in captured_env
+
+
 def test_happy_changed_files_use_executor_delta_not_preexisting_noise(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
