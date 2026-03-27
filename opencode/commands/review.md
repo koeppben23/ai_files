@@ -8,6 +8,10 @@
 
 `/review` is a read-only rail entrypoint for PR, file, or directory review. It does not perform implementation changes and does not reroute phase state. The review gate authority remains in the kernel (phase_api.yaml), not in the rail itself.
 
+Binding mode is authoritative and mode-scoped:
+- `pipeline_mode=false` (default): use the active OpenCode chat binding.
+- `pipeline_mode=true`: require explicit review binding via `AI_GOVERNANCE_REVIEW_BINDING` and fail closed if missing/empty.
+
 ## Syntax
 
 `/review <target>` where `<target>` is a PR URL (`https://github.com/owner/repo/pull/123`), GitLab MR, Bitbucket PR, file path (`src/main.py`), or directory path (`src/`).
@@ -21,6 +25,14 @@ When governance execution is available, first read the materialized Session/Gate
 3. Return structured findings: verdict (approve or changes_requested), findings table, paste-ready PR comments.
 
 Do not infer or mutate any session state.
+
+## Binding contract
+
+- Review role binding variable: `AI_GOVERNANCE_REVIEW_BINDING`.
+- Execution role binding variable (for planning/implementation flows): `AI_GOVERNANCE_EXECUTION_BINDING`.
+- In direct mode (`pipeline_mode=false`), env bindings are ignored.
+- In pipeline mode (`pipeline_mode=true`), review must use `AI_GOVERNANCE_REVIEW_BINDING`; no fallback to active chat binding.
+- No mixing: direct mode does not consume env bindings; pipeline mode does not use active chat binding as substitute.
 
 ## Review mandate
 

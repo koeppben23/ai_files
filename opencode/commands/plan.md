@@ -7,7 +7,7 @@
 `/plan` is the productive planning rail. It generates a plan from the persisted ticket/task, runs self-review, and persists the result.
 The command is mutating — it writes evidence and reroutes kernel state.
 
-**Auto-generation (default):** When no `--plan-text` or `--plan-file` is provided, `/plan` reads the ticket and task from session state and generates a structured plan via the configured Desktop LLM. The generated plan is reviewed (max 3 self-review iterations) and only persisted when valid.
+**Auto-generation (default):** When no `--plan-text` or `--plan-file` is provided, `/plan` reads the ticket and task from session state and generates a structured plan via mode-aware governance binding. The generated plan is reviewed (max 3 self-review iterations) and only persisted when valid.
 
 **Explicit input:** You may also provide plan text directly via `--plan-text` or `--plan-file`. In this case only the LLM generation step is skipped; the mandatory self-review loop still uses the resolved LLM executor.
 
@@ -42,9 +42,18 @@ PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --plan-persist --plan-tex
 $env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --plan-persist --plan-text "<plan text>" --quiet
 ```
 
-## Plan LLM executor
+## Binding contract
 
-Default executor is the active OpenCode Desktop LLM binding. Resolution uses direct model env tokens first, then the active OpenCode session model from local session storage (`opencode.db`) via the workspace guard/session pointer. Optional overrides: `OPENCODE_PLAN_LLM_CMD` (plan-specific) and fallback `OPENCODE_IMPLEMENT_LLM_CMD`.
+Binding mode is authoritative and mode-scoped:
+
+- `pipeline_mode=false` (default): planning and internal self-review use the active OpenCode chat binding.
+- `pipeline_mode=true`: planning uses `AI_GOVERNANCE_EXECUTION_BINDING`; internal self-review uses `AI_GOVERNANCE_REVIEW_BINDING`.
+
+Rules:
+
+- In direct mode, env bindings are ignored.
+- In pipeline mode, missing/empty required binding is fail-closed.
+- No mixing: pipeline mode does not fall back to active chat binding.
 
 ## If execution is unavailable
 

@@ -5,16 +5,30 @@
 ## Purpose
 
 `/implement` starts execution of the approved implementation plan after approved Phase 6 governance review.
-The command is mutating. It orchestrates the resolved implementation executor (default: active OpenCode Desktop LLM binding; optional explicit override) and writes governance diagnostics/state.
+The command is mutating and must execute implementation work, not only preparation.
 
-`/implement` follows a controller/executor split (default executor: active OpenCode Desktop LLM binding):
+Binding mode is authoritative and mode-scoped:
+- `pipeline_mode=false` (default): use the active OpenCode chat binding.
+- `pipeline_mode=true`: require explicit environment binding and fail closed if missing.
+
+`/implement` executes the approved plan with mode-aware binding resolution:
 - load approved plan, hotspots, constraints, and required checks
 - write executor input context (`.runtime_state/implementation/llm_edit_context.json`)
-- resolve executor in priority order: explicit override first, otherwise active OpenCode Desktop LLM binding
+- resolve execution binding by mode:
+  - direct mode: active OpenCode chat binding
+  - pipeline mode: `AI_GOVERNANCE_EXECUTION_BINDING` (required)
 - invoke the resolved implementation executor (the only actor allowed to change domain files)
 - run internal implementation self-review (validation-only; no local domain edits)
 - collect git diff evidence and validate plan-coverage plus targeted checks
 - persist validation/audit evidence and fail closed when requirements are not met
+
+## Binding contract
+
+- `AI_GOVERNANCE_EXECUTION_BINDING` is the execution/planning role binding.
+- `AI_GOVERNANCE_REVIEW_BINDING` is the review role binding (internal review and Phase-4 review).
+- In direct mode (`pipeline_mode=false`), both environment bindings are ignored.
+- In pipeline mode (`pipeline_mode=true`), both bindings are required for governance flows; missing/empty binding is fail-closed.
+- No mixing: direct mode does not consume env bindings; pipeline mode does not fall back to active chat binding.
 
 ## Developer mandate
 
@@ -42,10 +56,9 @@ If no snapshot is available, proceed using only the context visible in the curre
 - `/implement` is a controller + validator; it must not locally edit domain/source files.
 - Local writes are restricted to runtime diagnostics/state (for example `.runtime_state/implementation/*`, session state, and audit events).
 - Domain/source edits must come exclusively from the resolved authorized executor.
-- Validation uses executor-attributed change evidence (pre/post delta plus hotspot file hash changes) to avoid counting unrelated pre-existing dirty files as implementation output.
-- A separate executor configuration is optional override only; default executor is the active OpenCode Desktop LLM binding.
-- `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED` applies when neither override nor active Desktop LLM binding is available.
-- In shell/bootstrap subprocess mode, governance first attempts a callable Desktop bridge via `opencode-cli run` using the active session model binding. If no callable bridge binary is available, fail closed with `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED` and set `OPENCODE_IMPLEMENT_LLM_CMD`.
+- Validation uses execution-attributed change evidence (pre/post delta plus hotspot file hash changes) to avoid counting unrelated pre-existing dirty files as implementation output.
+- Direct mode uses active chat binding and ignores `AI_GOVERNANCE_EXECUTION_BINDING`.
+- Pipeline mode requires `AI_GOVERNANCE_EXECUTION_BINDING`; missing binding fails closed with `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED`.
 - Ends in `Implementation Review Complete` (ready to continue) or `Implementation Blocked`.
 
 ## Response shape
