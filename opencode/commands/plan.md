@@ -9,7 +9,7 @@ The command is mutating — it writes evidence and reroutes kernel state.
 
 **Auto-generation (default):** When no `--plan-text` or `--plan-file` is provided, `/plan` reads the ticket and task from session state and generates a structured plan via mode-aware governance binding. The generated plan is reviewed (max 3 self-review iterations) and only persisted when valid.
 
-**Explicit input:** You may also provide plan text directly via `--plan-text` or `--plan-file`. In this case only the LLM generation step is skipped; the mandatory self-review loop still uses the resolved LLM executor.
+**Explicit input:** You may also provide plan text directly via `--plan-text` or `--plan-file`. In this case only the generation step is skipped; the mandatory self-review loop still uses the resolved governance review binding.
 
 Deterministic plan flow:
 1. read Ticket/Task from session state
@@ -54,6 +54,7 @@ Rules:
 - In direct mode, env bindings are ignored.
 - In pipeline mode, missing/empty required binding is fail-closed.
 - No mixing: pipeline mode does not fall back to active chat binding.
+- For production reproducibility, prefer explicit stable binding references over drifting aliases.
 
 ## If execution is unavailable
 

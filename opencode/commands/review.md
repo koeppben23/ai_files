@@ -31,8 +31,9 @@ Do not infer or mutate any session state.
 - Review role binding variable: `AI_GOVERNANCE_REVIEW_BINDING`.
 - Execution role binding variable (for planning/implementation flows): `AI_GOVERNANCE_EXECUTION_BINDING`.
 - In direct mode (`pipeline_mode=false`), env bindings are ignored.
-- In pipeline mode (`pipeline_mode=true`), review must use `AI_GOVERNANCE_REVIEW_BINDING`; no fallback to active chat binding.
+- In pipeline mode (`pipeline_mode=true`), review must use `AI_GOVERNANCE_REVIEW_BINDING` as the authoritative review role binding; no fallback to active chat binding.
 - No mixing: direct mode does not consume env bindings; pipeline mode does not use active chat binding as substitute.
+- For production reproducibility, prefer explicit stable binding references over drifting aliases.
 
 ## Review mandate
 

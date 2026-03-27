@@ -13,11 +13,11 @@ Binding mode is authoritative and mode-scoped:
 
 `/implement` executes the approved plan with mode-aware binding resolution:
 - load approved plan, hotspots, constraints, and required checks
-- write executor input context (`.runtime_state/implementation/llm_edit_context.json`)
+- write execution input context (`.runtime_state/implementation/llm_edit_context.json`)
 - resolve execution binding by mode:
   - direct mode: active OpenCode chat binding
   - pipeline mode: `AI_GOVERNANCE_EXECUTION_BINDING` (required)
-- invoke the resolved implementation executor (the only actor allowed to change domain files)
+- invoke the resolved execution binding (the only actor allowed to change domain files)
 - run internal implementation self-review (validation-only; no local domain edits)
 - collect git diff evidence and validate plan-coverage plus targeted checks
 - persist validation/audit evidence and fail closed when requirements are not met
@@ -29,6 +29,7 @@ Binding mode is authoritative and mode-scoped:
 - In direct mode (`pipeline_mode=false`), both environment bindings are ignored.
 - In pipeline mode (`pipeline_mode=true`), both bindings are required for governance flows; missing/empty binding is fail-closed.
 - No mixing: direct mode does not consume env bindings; pipeline mode does not fall back to active chat binding.
+- For production reproducibility, prefer explicit stable binding references over drifting aliases.
 
 ## Developer mandate
 
@@ -53,12 +54,12 @@ If no snapshot is available, proceed using only the context visible in the curre
 ## Interpretation scope
 
 - Valid only after final review decision `approve` (Workflow Complete).
-- `/implement` is a controller + validator; it must not locally edit domain/source files.
+- `/implement` is an execution action + validator; it must not locally edit domain/source files.
 - Local writes are restricted to runtime diagnostics/state (for example `.runtime_state/implementation/*`, session state, and audit events).
-- Domain/source edits must come exclusively from the resolved authorized executor.
+- Domain/source edits must come exclusively from the resolved authorized execution binding.
 - Validation uses execution-attributed change evidence (pre/post delta plus hotspot file hash changes) to avoid counting unrelated pre-existing dirty files as implementation output.
 - Direct mode uses active chat binding and ignores `AI_GOVERNANCE_EXECUTION_BINDING`.
-- Pipeline mode requires `AI_GOVERNANCE_EXECUTION_BINDING`; missing binding fails closed with `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED`.
+- Pipeline mode requires `AI_GOVERNANCE_EXECUTION_BINDING` for execution and `AI_GOVERNANCE_REVIEW_BINDING` for governance review flows; missing required binding fails closed with `IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED`.
 - Ends in `Implementation Review Complete` (ready to continue) or `Implementation Blocked`.
 
 ## Response shape
