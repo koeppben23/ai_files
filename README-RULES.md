@@ -20,6 +20,7 @@ It does not define runtime behavior.
 
 - Product and install surface: `README.md`
 - OpenCode lifecycle and rails: `README-OPENCODE.md`
+- Binding evidence naming guide: `governance_runtime/docs/BINDING_EVIDENCE_NAMING.md`
 - Quickstart flow: `QUICKSTART.md`
 - Install path bindings: `governance_content/docs/install-layout.md`
 

@@ -5,6 +5,7 @@
 - Canonical docs and operator rails under `governance_content/`
 - Canonical policy/spec artifacts under `governance_spec/`
 - OpenCode launcher and command surfaces for governed session execution
+- Mode-aware governance binding contracts for planning, implementation, and review
 
 ## Quick Install
 
@@ -35,6 +36,8 @@ cd customer-install-bundle-v1
 ## Next Steps
 
 **Full documentation:** [DOCS.md](DOCS.md)
+
+For operator lifecycle and mode-aware rail behavior, see `README-OPENCODE.md`.
 
 ## Repository Layout
 
