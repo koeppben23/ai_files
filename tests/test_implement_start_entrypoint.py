@@ -782,6 +782,43 @@ def test_bridge_mode_unsets_opencode_server_session_env(
     assert "OPENCODE_SERVER_PASSWORD" not in captured_env
 
 
+def test_bridge_command_reads_materialized_context_files(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    config_root = tmp_path / ".governance"
+    config_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: [])
+    monkeypatch.setattr(entrypoint, "_capture_repo_change_baseline", lambda _repo: {"baseline": "ok"})
+
+    execution_cmd = (
+        "python3 -c \"import hashlib,json,sys; "
+        "ctx=json.load(open(sys.argv[1], encoding='utf-8')); "
+        "mandate_path=ctx.get('authoring_mandate_file',''); "
+        "expected=ctx.get('authoring_mandate_sha256',''); "
+        "content=open(mandate_path, encoding='utf-8').read(); "
+        "actual=hashlib.sha256(content.encode('utf-8')).hexdigest(); "
+        "assert actual==expected; "
+        "print('{\\\"result\\\":\\\"ok\\\"}')\" {context_file}"
+    )
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=[],
+        pipeline_mode=True,
+        execution_binding=execution_cmd,
+        config_root=config_root,
+    )
+
+    assert result["executor_invoked"] is True
+    assert result["exit_code"] == 0
+
+
 def test_happy_changed_files_use_executor_delta_not_preexisting_noise(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

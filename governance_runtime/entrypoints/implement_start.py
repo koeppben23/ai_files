@@ -46,6 +46,11 @@ from governance_runtime.engine.implementation_validation import (
 from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.governance_context_materializer import (
+    GovernanceContextMaterializationError,
+    materialize_governance_artifacts,
+    validate_materialized_artifacts,
+)
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.opencode_model_binding import (
@@ -58,6 +63,7 @@ from governance_runtime.infrastructure.governance_binding_resolver import (
 )
 from governance_runtime.infrastructure.governance_config_loader import get_pipeline_mode
 from governance_runtime.infrastructure.plan_record_state import resolve_plan_record_signal
+from governance_runtime.infrastructure.workspace_paths import governance_runtime_state_dir
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.application.services.state_normalizer import normalize_to_canonical
@@ -603,6 +609,7 @@ def _run_llm_edit_step(
     plan_text: str,
     required_hotspots: list[str],
     commands_home: Path | None = None,
+    config_root: Path | None = None,
     pipeline_mode: bool = False,
     execution_binding: str = "",
 ) -> dict[str, object]:
@@ -613,6 +620,10 @@ def _run_llm_edit_step(
     context_file = implementation_dir / "llm_edit_context.json"
     stdout_file = implementation_dir / "executor_stdout.log"
     stderr_file = implementation_dir / "executor_stderr.log"
+
+    governance_root = config_root if config_root is not None else (Path.home() / ".governance")
+    runtime_state_dir = governance_runtime_state_dir(governance_root)
+    runtime_state_dir.mkdir(parents=True, exist_ok=True)
 
     mandate_text = ""
     schema = _load_mandates_schema()
@@ -648,6 +659,23 @@ def _run_llm_edit_step(
             "invoke_backend_available": has_executor,
         }
 
+    try:
+        materialization = materialize_governance_artifacts(
+            output_dir=runtime_state_dir,
+            config_root=governance_root,
+            plan_mandate=mandate_text if mandate_text else None,
+            effective_policy=effective_policy_text if effective_policy_text else None,
+        )
+    except GovernanceContextMaterializationError as e:
+        return {
+            "blocked": True,
+            "reason": f"governance-context-materialization-failed: {e.reason}",
+            "reason_code": e.reason_code,
+            "recovery_action": "Failed to materialize governance artifacts.",
+            "binding_resolved": has_executor,
+            "invoke_backend_available": has_executor,
+        }
+
     developer_schema_text = _get_developer_output_schema_text()
     structured_output_instruction = ""
     if developer_schema_text:
@@ -674,23 +702,30 @@ def _run_llm_edit_step(
             "targeted_checks_required": True,
         },
     }
-    if mandate_text:
-        context["authoring_mandate"] = mandate_text
-    if effective_policy_text:
-        context["effective_authoring_policy"] = effective_policy_text
+    if materialization.plan_mandate_file:
+        context["authoring_mandate_file"] = str(materialization.plan_mandate_file)
+        context["authoring_mandate_sha256"] = materialization.plan_mandate_sha256
+        context["authoring_mandate_label"] = materialization.plan_mandate_label
+    if materialization.effective_policy_file:
+        context["effective_policy_file"] = str(materialization.effective_policy_file)
+        context["effective_policy_sha256"] = materialization.effective_policy_sha256
+        context["effective_policy_label"] = materialization.effective_policy_label
+    if materialization.has_materialized():
         context["effective_policy_loaded"] = True
     elif effective_policy_error:
         context["effective_policy_error"] = effective_policy_error
 
-    if mandate_text or effective_policy_text:
+    if materialization.has_materialized():
         instruction_parts = []
-        if mandate_text:
+        if materialization.plan_mandate_file:
             instruction_parts.append(
-                "Apply the authoring mandate below to implement approved plan steps."
+                f"Load the authoring mandate from file: {materialization.plan_mandate_file} "
+                f"(SHA256: {materialization.plan_mandate_sha256})"
             )
-        if effective_policy_text:
+        if materialization.effective_policy_file:
             instruction_parts.append(
-                "Apply the effective authoring policy below for active profile and addons."
+                f"Load the effective policy from file: {materialization.effective_policy_file} "
+                f"(SHA256: {materialization.effective_policy_sha256})"
             )
         instruction_parts.append(
             "Build only what can be justified by the plan, contracts, and repository evidence."
@@ -704,7 +739,21 @@ def _run_llm_edit_step(
             "Do not limit changes to .governance artifacts."
             + structured_output_instruction
         )
+    if materialization.has_materialized():
+        context["context_materialization_complete"] = True
     _write_text_atomic(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
+
+    try:
+        validate_materialized_artifacts(materialization)
+    except GovernanceContextMaterializationError as e:
+        return {
+            "blocked": True,
+            "reason": f"governance-context-validation-failed: {e.reason}",
+            "reason_code": e.reason_code,
+            "recovery_action": "Materialized artifacts failed validation.",
+            "binding_resolved": has_executor,
+            "invoke_backend_available": has_executor,
+        }
 
     repo_baseline = _capture_repo_change_baseline(repo_root)
     before_changed = set(_parse_changed_files_from_git_status(repo_root))
@@ -1108,6 +1157,7 @@ def start_implementation(
         plan_text=plan_text,
         required_hotspots=required_hotspots,
         commands_home=commands_home,
+        config_root=evidence.config_root,
         pipeline_mode=pipeline_mode,
         execution_binding=execution_binding,
     )
