@@ -204,6 +204,7 @@ def test_corner_governance_only_changes_block(monkeypatch: pytest.MonkeyPatch, t
     _write_plan(tmp_path / "plan-record.json")
     _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
     _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
     monkeypatch.setattr(
         entrypoint,
@@ -234,6 +235,7 @@ def test_edge_missing_checks_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     _write_plan(tmp_path / "plan-record.json")
     _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
     _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
     monkeypatch.setattr(entrypoint, "_run_targeted_checks", lambda _root, _reqs: ((), False))
 
@@ -252,6 +254,7 @@ def test_edge_failing_checks_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     _write_plan(tmp_path / "plan-record.json")
     _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
     _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
     monkeypatch.setattr(
         entrypoint,
@@ -634,7 +637,7 @@ def test_happy_changed_files_use_executor_delta_not_preexisting_noise(
     tmp_path: Path,
 ) -> None:
     repo_root = tmp_path
-    monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\"")
+    execution_cmd = "python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\""
 
     states = iter([
         ["docs/already_dirty.md"],
@@ -649,6 +652,8 @@ def test_happy_changed_files_use_executor_delta_not_preexisting_noise(
         task_text="task",
         plan_text="plan",
         required_hotspots=["src/service.py"],
+        pipeline_mode=True,
+        execution_binding=execution_cmd,
     )
 
     assert result["executor_invoked"] is True
@@ -774,6 +779,7 @@ class TestImplementFlowTruthMatrix:
         _write_plan(tmp_path / "plan-record.json")
         _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
         _wire_active_paths(monkeypatch, session_path, events_path)
+        _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
         monkeypatch.setattr(
             entrypoint,
@@ -803,6 +809,7 @@ class TestImplementFlowTruthMatrix:
         _write_plan(tmp_path / "plan-record.json")
         _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
         _wire_active_paths(monkeypatch, session_path, events_path)
+        _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
         monkeypatch.setattr(
             entrypoint,
@@ -847,6 +854,7 @@ class TestImplementFlowTruthMatrix:
         _write_plan(tmp_path / "plan-record.json")
         _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
         _wire_active_paths(monkeypatch, session_path, events_path)
+        _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
         monkeypatch.setattr(
             entrypoint,
@@ -880,6 +888,7 @@ def test_edge_main_surfaces_non_executor_precheck_reason(
     _write_plan(tmp_path / "plan-record.json")
     _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
     _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
     monkeypatch.setattr(
         entrypoint,
