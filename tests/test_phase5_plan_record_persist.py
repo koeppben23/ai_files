@@ -11,6 +11,11 @@ import pytest
 from .util import REPO_ROOT, get_phase_api_path, get_master_path, get_rules_path
 
 
+@pytest.fixture(autouse=True)
+def _enable_legacy_markdown_requirements_for_legacy_plan_inputs(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GOVERNANCE_ALLOW_LEGACY_MARKDOWN_REQUIREMENTS", "1")
+
+
 def _load_module():
     script = REPO_ROOT / "governance_runtime" / "entrypoints" / "phase5_plan_record_persist.py"
     spec = importlib.util.spec_from_file_location("phase5_plan_record_persist", script)
@@ -204,7 +209,10 @@ def test_phase5_plan_persist_good_chat_text_persists_and_routes(tmp_path: Path, 
     assert int(state["requirement_contracts_count"]) >= 1
     assert str(state["requirement_contracts_digest"]).startswith("sha256:")
     assert Path(str(state["requirement_contracts_source"])).exists()
-    assert state["requirement_contracts_source_authority"] == "machine_requirements"
+    assert state["requirement_contracts_source_authority"] in {
+        "machine_requirements",
+        "legacy_markdown_requirements",
+    }
     assert int(state["machine_requirements_count"]) >= 1
     assert isinstance(state["requirement_compiler_notes"], list)
 
@@ -213,6 +221,27 @@ def test_phase5_plan_persist_good_chat_text_persists_and_routes(tmp_path: Path, 
     assert len(plan_record["versions"]) >= 1
     assert plan_record["versions"][0]["trigger"] == "phase5-plan-record-rail"
     assert isinstance(plan_record["versions"][0].get("machine_requirements"), list)
+
+
+@pytest.mark.governance
+def test_phase5_plan_persist_fail_closed_without_structured_requirements_by_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+):
+    module = _load_module()
+    config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+    monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5-codex")
+    monkeypatch.delenv("GOVERNANCE_ALLOW_LEGACY_MARKDOWN_REQUIREMENTS", raising=False)
+
+    rc = module.main(["--plan-text", "Plain legacy markdown input", "--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "blocked"
+    assert out["reason_code"] == "REQUIREMENT_SOURCE_INVALID"
 
 
 @pytest.mark.governance
