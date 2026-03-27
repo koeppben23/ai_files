@@ -12,7 +12,6 @@ The caller does NOT validate the response - that's the ResponseValidator's job.
 
 from __future__ import annotations
 
-import os
 import shlex
 import shutil
 from dataclasses import dataclass
@@ -66,6 +65,7 @@ class LLMCaller:
         executor_cmd: str | None = None,
         env_reader: Callable[[str], str | None] | None = None,
         subprocess_runner: Callable[[str], SubprocessResult] | None = None,
+        bridge_env_factory: Callable[[], dict[str, str] | None] | None = None,
         workspace_root: Path | None = None,
     ) -> None:
         """Initialize the LLM caller.
@@ -100,6 +100,7 @@ class LLMCaller:
         else:
             self._env_reader = lambda key: None
 
+        self._bridge_env_factory = bridge_env_factory
         self._workspace_root = workspace_root
         self._executor_cmd = str(executor_cmd or "").strip()
 
@@ -130,17 +131,10 @@ class LLMCaller:
         except TypeError:
             return self._subprocess_runner(cmd)
 
-    def _build_bridge_env(self) -> dict[str, str]:
-        env = dict(os.environ)
-        for key in (
-            "OPENCODE",
-            "OPENCODE_CLIENT",
-            "OPENCODE_PID",
-            "OPENCODE_SERVER_USERNAME",
-            "OPENCODE_SERVER_PASSWORD",
-        ):
-            env.pop(key, None)
-        return env
+    def _build_bridge_env(self) -> dict[str, str] | None:
+        if self._bridge_env_factory is None:
+            return None
+        return self._bridge_env_factory()
 
     def _resolve_desktop_bridge_cmd(self) -> str:
         if self._workspace_root is None:
@@ -160,7 +154,7 @@ class LLMCaller:
         cli_bin = ""
         for token in candidate_paths:
             path = Path(token)
-            if path.exists() and os.access(str(path), os.X_OK):
+            if path.exists() and path.is_file() and (path.stat().st_mode & 0o111):
                 cli_bin = str(path)
                 break
         if not cli_bin:

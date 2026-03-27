@@ -9,6 +9,7 @@ import pytest
 from governance_runtime.contracts.enforcement import FAIL_CLOSED_MISSING_CONTRACT, EnforcementResult
 from governance_runtime.entrypoints import implement_start as entrypoint
 from governance_runtime.engine.implementation_validation import (
+    RC_CHECK_SELECTOR_INVALID,
     RC_GOVERNANCE_ONLY_CHANGES,
     RC_NO_REPO_CHANGES,
     RC_TARGETED_CHECKS_FAILED,
@@ -16,6 +17,7 @@ from governance_runtime.engine.implementation_validation import (
 )
 
 _ORIGINAL_RUN_LLM_EDIT_STEP = entrypoint._run_llm_edit_step
+_ORIGINAL_RUN_TARGETED_CHECKS = entrypoint._run_targeted_checks
 
 
 @pytest.fixture(autouse=True)
@@ -278,6 +280,83 @@ def test_edge_failing_checks_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     assert rc == 2
     assert out["status"] == "blocked"
     assert RC_TARGETED_CHECKS_FAILED in out["reason_codes"]
+
+
+def test_happy_targeted_checks_fallback_runs_when_selectors_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir(parents=True, exist_ok=True)
+    (tests_dir / "test_service.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+    observed: list[list[str]] = []
+
+    def _fake_run(command, **_kwargs):  # type: ignore[no-untyped-def]
+        observed.append([str(token) for token in command])
+        return subprocess.CompletedProcess(args=command, returncode=0, stdout="1 passed\n", stderr="")
+
+    monkeypatch.setattr(entrypoint.subprocess, "run", _fake_run)
+
+    checks, declared = _ORIGINAL_RUN_TARGETED_CHECKS(
+        tmp_path,
+        [
+            {
+                "acceptance_tests": [
+                    "tests/test_contract_missing_owner.py::test_missing_owner",
+                ],
+                "code_hotspots": ["src/service.py"],
+            }
+        ],
+    )
+
+    assert declared is True
+    assert observed
+    assert observed[-1][:4] == ["python3", "-m", "pytest", "-q"]
+    assert observed[-1][-1] == "tests/test_service.py"
+    assert checks
+    assert checks[0].name == "tests/test_service.py"
+    assert checks[0].passed is True
+
+
+def test_happy_targeted_checks_ignore_invalid_selector_when_valid_exists(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir(parents=True, exist_ok=True)
+    valid_file = tests_dir / "test_service.py"
+    valid_file.write_text("def test_happy():\n    assert True\n", encoding="utf-8")
+    valid_selector = "tests/test_service.py::test_happy"
+
+    observed: list[list[str]] = []
+
+    def _fake_run(command, **_kwargs):  # type: ignore[no-untyped-def]
+        observed.append([str(token) for token in command])
+        return subprocess.CompletedProcess(args=command, returncode=0, stdout="1 passed\n", stderr="")
+
+    monkeypatch.setattr(entrypoint.subprocess, "run", _fake_run)
+
+    checks, declared = _ORIGINAL_RUN_TARGETED_CHECKS(
+        tmp_path,
+        [
+            {
+                "acceptance_tests": [
+                    "tests/test_contract_missing_owner.py::test_missing_owner",
+                    valid_selector,
+                ],
+                "code_hotspots": ["src/service.py"],
+            }
+        ],
+    )
+
+    assert declared is True
+    assert observed
+    assert observed[-1][:4] == ["python3", "-m", "pytest", "-q"]
+    assert valid_selector in observed[-1]
+    assert "tests/test_contract_missing_owner.py::test_missing_owner" not in observed[-1]
+    assert [item.name for item in checks] == [valid_selector]
+    assert checks[0].passed is True
 
 
 def test_bad_phase_guard(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
@@ -979,6 +1058,57 @@ def test_edge_main_surfaces_non_executor_precheck_reason(
     assert out["reason_code"] == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
 
 
+def test_happy_implementation_context_uses_canonical_task_and_plan_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    payload = {
+        "schema": "opencode-session-state.v1",
+        "SESSION_STATE": {
+            "phase": "6-PostFlight",
+            "active_gate": "Workflow Complete",
+            "workflow_complete": True,
+            "WorkflowComplete": True,
+            "UserReviewDecision": {"decision": "approve"},
+            "requirement_contracts_present": True,
+            "requirement_contracts_count": 1,
+            "Ticket": "Ticket from legacy key",
+            "task": "Task from canonical alias",
+            "plan_record_versions": 1,
+            "plan_record_status": "active",
+            "phase5_plan_record_digest": "Approved plan fallback from state digest",
+        },
+    }
+    session_path.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
+
+    captured: dict[str, object] = {}
+
+    def _capture_context(**kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        return {
+            "blocked": True,
+            "reason_code": "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE",
+            "reason": "effective-policy-unavailable",
+        }
+
+    monkeypatch.setattr(entrypoint, "_run_llm_edit_step", _capture_context)
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "blocked"
+    assert captured["ticket_text"] == "Ticket from legacy key"
+    assert captured["task_text"] == "Task from canonical alias"
+    assert captured["plan_text"] == "Approved plan fallback from state digest"
+
+
 def test_bad_precheck_event_persists_binding_evidence(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1062,6 +1192,71 @@ def test_bad_pipeline_missing_binding_emits_resolution_vs_invoke_false_false(
     assert out["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
     assert out["binding_resolved"] is False
     assert out["invoke_backend_available"] is False
+
+
+def test_edge_direct_mode_bridge_run_surfaces_selector_invalid_reason_codes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+
+    payload = {
+        "schema": "governance-compiled-requirements.v1",
+        "requirements": [
+            {
+                "id": "PLAN-STEP-001",
+                "title": "Update service behavior",
+                "code_hotspots": ["src/service.py"],
+                "acceptance_tests": ["tests/test_service.py::test_missing"],
+            }
+        ],
+    }
+    contracts = tmp_path / ".governance" / "contracts" / "compiled_requirements.json"
+    contracts.parent.mkdir(parents=True, exist_ok=True)
+    contracts.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+
+    src_dir = tmp_path / "src"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    (src_dir / "service.py").write_text("def run():\n    return 0\n", encoding="utf-8")
+
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir(parents=True, exist_ok=True)
+    (tests_dir / "test_service.py").write_text("def test_existing():\n    assert True\n", encoding="utf-8")
+
+    _wire_active_paths(monkeypatch, session_path, events_path)
+
+    monkeypatch.setattr(entrypoint, "_run_llm_edit_step", _ORIGINAL_RUN_LLM_EDIT_STEP)
+    monkeypatch.setattr(entrypoint, "_run_targeted_checks", _ORIGINAL_RUN_TARGETED_CHECKS)
+    monkeypatch.setattr(entrypoint, "_load_effective_authoring_policy_text", lambda *args, **_kwargs: ("", ""))
+    monkeypatch.setattr(
+        entrypoint,
+        "_resolve_desktop_executor_bridge_cmd",
+        lambda **_kwargs: (
+            "python3 -c \"from pathlib import Path; "
+            "Path('src/service.py').write_text('def run():\\n    return 1\\n', encoding='utf-8'); "
+            "print('{\\\"objective\\\":\\\"ok\\\"}')\""
+        ),
+    )
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: [])
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("OPENCODE_CLIENT", "desktop")
+    monkeypatch.setenv("OPENCODE_PID", "4242")
+    monkeypatch.setenv("OPENCODE_SERVER_USERNAME", "opencode")
+    monkeypatch.setenv("OPENCODE_SERVER_PASSWORD", "secret")
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "blocked"
+    assert out["reason_code"] == RC_CHECK_SELECTOR_INVALID
+    assert out["reason_codes"] == [RC_CHECK_SELECTOR_INVALID, RC_TARGETED_CHECKS_FAILED]
+    assert out["active_gate"] == "Implementation Blocked"
+    assert out["next_gate_condition"].startswith("Implementation validation failed.")
 
 
 def test_workspace_authority_prefers_active_session_workspace_for_binding_resolution(

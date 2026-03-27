@@ -64,7 +64,23 @@ def _get_llm_caller():
     global _llm_caller_instance
     if _llm_caller_instance is None:
         import os
-        _llm_caller_instance = LLMCaller(env_reader=lambda key: os.environ.get(key))
+
+        def _bridge_env_factory() -> dict[str, str]:
+            env = dict(os.environ)
+            for key in (
+                "OPENCODE",
+                "OPENCODE_CLIENT",
+                "OPENCODE_PID",
+                "OPENCODE_SERVER_USERNAME",
+                "OPENCODE_SERVER_PASSWORD",
+            ):
+                env.pop(key, None)
+            return env
+
+        _llm_caller_instance = LLMCaller(
+            env_reader=lambda key: os.environ.get(key),
+            bridge_env_factory=_bridge_env_factory,
+        )
     return _llm_caller_instance
 
 
