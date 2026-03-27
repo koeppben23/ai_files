@@ -13,6 +13,8 @@ from governance_runtime.infrastructure.rendering.snapshot_renderer import (
     _render_current_state,
     _render_execution_progress,
     _render_presented_review_content,
+    _render_phase5_decision_brief_from_plan_body,
+    _sanitize_phase5_decision_brief,
     _section,
     format_snapshot,
     format_guided_snapshot,
@@ -180,14 +182,16 @@ class TestFormatGuidedSnapshot:
             "active_gate": "Evidence Presentation Gate",
             "review_package_review_object": "Test Review",
             "review_package_ticket": "TICKET-1",
-            "review_package_plan_body": "Plan body text",
+            "review_package_plan_body": "# PHASE 5 · PLAN FOR APPROVAL\nPlan body text",
             "review_package_evidence_summary": "All evidence present",
         })
         output = format_guided_snapshot(snapshot, "Next action: run /review-decision.")
-        assert "Presented review content" in output
-        assert "PHASE 5 · PLAN FOR APPROVAL" in output
-        assert "/review-decision approve" in output
-        assert "Test Review" in output
+        assert "Presented review content" not in output
+        assert "Current state" not in output
+        assert "# PHASE 5 · PLAN FOR APPROVAL" in output
+        assert "Plan body text" in output
+        assert "Evidence:" not in output
+        assert "Next action:" not in output
 
     def test_includes_execution_progress(self):
         snapshot = _to_snapshot({
@@ -199,6 +203,68 @@ class TestFormatGuidedSnapshot:
         output = format_guided_snapshot(snapshot, "Next action: run /continue.")
         assert "Execution progress" in output
         assert "iteration=1/3" in output
+
+    def test_verbose_governance_frame_keeps_wrapper_sections(self):
+        snapshot = _to_snapshot({
+            "phase": "6-PostFlight",
+            "active_gate": "Evidence Presentation Gate",
+            "next_gate_condition": "Implementation review loop complete.",
+            "review_package_plan_body": "# PHASE 5 · PLAN FOR APPROVAL\nPlan body text",
+        })
+        output = format_guided_snapshot(
+            snapshot,
+            "Next action: run /review-decision.",
+            verbose_governance_frame=True,
+        )
+        assert "Current state" in output
+        assert "Presented review content" in output
+        assert "Next action: run /review-decision." in output
+
+
+class TestDecisionBriefSanitizer:
+    def test_rewrites_signal_diagnostics_and_python_lists(self):
+        body = (
+            "## Executive Summary\n"
+            "- Objective signal: foo, bar.\n"
+            "- Target-state signal: no clear signal captured.\n"
+            "- Go/No-Go signal: no clear signal captured.\n\n"
+            "## Risks & Mitigations\n"
+            "- ['Risk A', 'Risk B']\n\n"
+            "## Technical Appendix\n\n"
+            "### Plan Objective\n"
+            "Deliver pipeline mode e2e coverage.\n"
+        )
+        out = _sanitize_phase5_decision_brief(body)
+        assert "Objective signal:" not in out
+        assert "Target-state signal:" not in out
+        assert "Go/No-Go signal:" not in out
+        assert "- Objective: Deliver pipeline mode e2e coverage." in out
+        assert "- Risk A" in out
+        assert "- Risk B" in out
+
+
+def test_decision_brief_renderer_uses_template(monkeypatch: pytest.MonkeyPatch) -> None:
+    body = (
+        "# PHASE 5 · PLAN FOR APPROVAL\n"
+        "PLAN (not implemented)\n\n"
+        "## Decision Required\n"
+        "Decision required: choose approve, changes_requested, or reject.\n\n"
+        "## Executive Summary\n"
+        "- Summary line\n\n"
+        "## Scope\n"
+        "Scope line\n\n"
+        "## Release Gates\n"
+        "Gate line\n\n"
+        "## Next Actions\n"
+        "- /review-decision approve\n"
+    )
+    monkeypatch.setattr(
+        "governance_runtime.infrastructure.rendering.snapshot_renderer._load_phase5_decision_brief_template",
+        lambda: "# CUSTOM\n{title}\n{decision_required}\n",
+    )
+    rendered = _render_phase5_decision_brief_from_plan_body(body)
+    assert rendered.startswith("# CUSTOM")
+    assert "PHASE 5 · PLAN FOR APPROVAL" in rendered
 
 
 class TestRenderBlocker:
