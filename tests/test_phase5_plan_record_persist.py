@@ -1120,6 +1120,12 @@ class TestPlanGeneration:
         monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
         monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
         monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5-codex")
+        valid = self._valid_plan_response().replace("'", "'\\''")
+        monkeypatch.setattr(
+            module,
+            "_resolve_desktop_bridge_cmd",
+            lambda **_kwargs: f"echo '{valid}'",
+        )
 
         result = module._call_llm_generate_plan(
             ticket_text="Add auth",
