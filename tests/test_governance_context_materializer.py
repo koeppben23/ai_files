@@ -71,6 +71,11 @@ class TestMaterializeGovernanceArtifacts:
         result = _materialize(governance_root)
         assert result.has_materialized() is False
 
+    def test_materialize_crlf_content_uses_normalized_digest(self, governance_root: tuple[Path, Path]):
+        result = _materialize(governance_root, plan_mandate="line1\r\nline2\r\n")
+        assert result.plan_mandate_file is not None
+        assert result.plan_mandate_sha256 == _sha256_digest("line1\nline2\n")
+
 
 class TestMaterializeBadCases:
     def test_materialize_nonexistent_output_dir(self):
