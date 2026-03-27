@@ -220,6 +220,9 @@ def run_review_loop(
         llm_caller = deps.llm_caller
         response_validator = deps.response_validator
 
+    if hasattr(llm_caller, "set_workspace_root"):
+        llm_caller.set_workspace_root(config.session_path.parent)
+
     # Get initial state values using canonical fields
     review_block = canonical.get("implementation_review") or {}
 

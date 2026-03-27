@@ -49,6 +49,10 @@ from governance_runtime.infrastructure.opencode_model_binding import (
     has_active_desktop_llm_binding as _has_desktop_llm_binding,
     resolve_active_opencode_model,
 )
+from governance_runtime.infrastructure.governance_binding_resolver import (
+    resolve_governance_binding,
+)
+from governance_runtime.infrastructure.governance_config_loader import get_pipeline_mode
 from governance_runtime.infrastructure.plan_record_state import resolve_plan_record_signal
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
@@ -451,8 +455,10 @@ def _run_llm_edit_step(
     plan_text: str,
     required_hotspots: list[str],
     commands_home: Path | None = None,
+    pipeline_mode: bool = False,
+    execution_binding: str = "",
 ) -> dict[str, object]:
-    executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
+    executor_cmd = execution_binding if pipeline_mode else ""
     implementation_dir = repo_root / ".governance" / "implementation"
     implementation_dir.mkdir(parents=True, exist_ok=True)
     context_file = implementation_dir / "llm_edit_context.json"
@@ -470,9 +476,10 @@ def _run_llm_edit_step(
             state=state,
             commands_home=commands_home,
         )
-    # Determine if we have an LLM executor
-    executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
-    has_executor = bool(executor_cmd) or _has_active_desktop_llm_binding()
+    # Determine if we have an execution binding for active mode.
+    # Direct mode: active chat binding is authoritative.
+    # Pipeline mode: explicit execution binding is authoritative.
+    has_executor = bool(executor_cmd) if pipeline_mode else _has_active_desktop_llm_binding()
     if has_executor and effective_policy_error:
         return {
             "blocked": True,
@@ -544,7 +551,7 @@ def _run_llm_edit_step(
 
     bridge_mode = False
     if not executor_cmd:
-        if _has_active_desktop_llm_binding():
+        if _has_active_desktop_llm_binding() and not pipeline_mode:
             bridge_cmd = _resolve_desktop_executor_bridge_cmd(repo_root=repo_root)
             if bridge_cmd:
                 executor_cmd = bridge_cmd
@@ -554,8 +561,7 @@ def _run_llm_edit_step(
                 _write_text_atomic(
                     stderr_file,
                     (
-                        "Desktop LLM binding detected, but no callable executor command is available "
-                        "in this process. Set OPENCODE_IMPLEMENT_LLM_CMD.\n"
+                        "Direct mode requires active chat binding and callable desktop bridge.\n"
                     ),
                 )
                 return {
@@ -563,8 +569,7 @@ def _run_llm_edit_step(
                     "exit_code": 2,
                     "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
                     "message": (
-                        "Desktop LLM binding detected but no callable executor bridge is available in this shell process. "
-                        "Set OPENCODE_IMPLEMENT_LLM_CMD to an executable command."
+                        "Direct mode chat binding detected but no callable desktop bridge is available in this shell process."
                     ),
                     "stdout_path": str(stdout_file),
                     "stderr_path": str(stderr_file),
@@ -578,7 +583,7 @@ def _run_llm_edit_step(
                 "executor_invoked": False,
                 "exit_code": 2,
                 "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
-                "message": "No implementation executor binding available. Set OPENCODE_IMPLEMENT_LLM_CMD or run with an active OpenCode Desktop LLM binding.",
+                "message": "No implementation execution binding available for active mode.",
                 "stdout_path": str(stdout_file),
                 "stderr_path": str(stderr_file),
                 "changed_files": [],
@@ -782,6 +787,40 @@ def start_implementation(
     evidence = getattr(resolver, "resolve")(mode="user")
     commands_home = evidence.commands_home
 
+    # Resolve mode-scoped execution binding.
+    workspace_dir = session_path.parent
+    pipeline_mode = False
+    execution_binding = ""
+    try:
+        resolved_session_path, _, _, resolved_workspace_dir = resolve_active_session_paths()
+        if resolved_session_path == session_path:
+            workspace_dir = resolved_workspace_dir
+    except Exception:
+        pass
+
+    pipeline_mode = get_pipeline_mode(workspace_dir)
+    if pipeline_mode:
+        try:
+            binding = resolve_governance_binding(
+                role="execution",
+                workspace_root=workspace_dir,
+                env_reader=lambda key: os.environ.get(key),
+                has_active_chat_binding=_has_active_desktop_llm_binding(),
+            )
+            execution_binding = str(binding.binding_value or "").strip()
+        except RuntimeError as exc:
+            return _payload(
+                "blocked",
+                reason_code=RC_EXECUTOR_NOT_CONFIGURED,
+                message=str(exc),
+                phase="6-PostFlight",
+                next="6",
+                active_gate="Implementation Blocked",
+                next_gate_condition="Implementation binding resolution failed for active mode.",
+                reason_codes=[RC_EXECUTOR_NOT_CONFIGURED],
+                next_action="Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
+            )
+
     llm_result = _run_llm_edit_step(
         repo_root=repo_root,
         state=state,
@@ -790,6 +829,8 @@ def start_implementation(
         plan_text=plan_text,
         required_hotspots=required_hotspots,
         commands_home=commands_home,
+        pipeline_mode=pipeline_mode,
+        execution_binding=execution_binding,
     )
 
     if bool(llm_result.get("blocked")):
@@ -807,7 +848,7 @@ def start_implementation(
         if reason_code == RC_EXECUTOR_NOT_CONFIGURED:
             state["next_gate_condition"] = (
                 "Implementation executor unavailable in current process. "
-                "Set OPENCODE_IMPLEMENT_LLM_CMD to a callable command and rerun /implement."
+                "Provide required governance bindings for active mode and rerun /implement."
             )
         else:
             state["next_gate_condition"] = (
@@ -850,7 +891,7 @@ def start_implementation(
             reason_code=reason_code,
             reason_codes=[reason_code],
             next_action=(
-                "Set OPENCODE_IMPLEMENT_LLM_CMD to a callable executor bridge and rerun /implement."
+                "Provide required governance bindings for active mode and rerun /implement."
                 if reason_code == RC_EXECUTOR_NOT_CONFIGURED
                 else "Resolve the precheck blocker and rerun /implement."
             ),

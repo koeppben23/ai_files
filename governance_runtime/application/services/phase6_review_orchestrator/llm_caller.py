@@ -17,6 +17,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from governance_runtime.infrastructure.governance_binding_resolver import (
+    resolve_governance_binding,
+)
+
 
 @dataclass(frozen=True)
 class SubprocessResult:
@@ -55,13 +59,15 @@ class LLMCaller:
         executor_cmd: str | None = None,
         env_reader: Callable[[str], str | None] | None = None,
         subprocess_runner: Callable[[str], SubprocessResult] | None = None,
+        workspace_root: Path | None = None,
     ) -> None:
         """Initialize the LLM caller.
 
         Args:
-            executor_cmd: The command to execute. If None, uses env_reader.
-            env_reader: Injectable env reader for OPENCODE_IMPLEMENT_LLM_CMD (optional).
+            executor_cmd: Explicit command override (testing/injection only).
+            env_reader: Injectable env reader.
             subprocess_runner: Injectable subprocess runner (optional). Defaults to subprocess.run.
+            workspace_root: Workspace directory for governance-config.json lookup.
         """
         if subprocess_runner is not None:
             self._subprocess_runner = subprocess_runner
@@ -86,13 +92,25 @@ class LLMCaller:
         else:
             self._env_reader = lambda key: None
 
-        if executor_cmd is not None:
-            self._executor_cmd = executor_cmd
-        elif env_reader is not None:
-            self._executor_cmd = env_reader("OPENCODE_IMPLEMENT_LLM_CMD") or ""
-        else:
-            # Require injection via env_reader or executor_cmd
-            self._executor_cmd = ""
+        self._workspace_root = workspace_root
+        self._executor_cmd = str(executor_cmd or "").strip()
+
+    def set_workspace_root(self, workspace_root: Path | None) -> None:
+        """Set workspace root used for mode-aware binding resolution."""
+        self._workspace_root = workspace_root
+
+    def _resolve_review_binding(self) -> tuple[bool, str]:
+        """Resolve the active review binding for current workspace mode."""
+        if self._executor_cmd:
+            return True, self._executor_cmd
+
+        resolution = resolve_governance_binding(
+            role="review",
+            workspace_root=self._workspace_root,
+            env_reader=self._env_reader,
+            has_active_chat_binding=self._has_active_desktop_llm_binding(),
+        )
+        return resolution.pipeline_mode, str(resolution.binding_value or "").strip()
 
     def _has_active_desktop_llm_binding(self) -> bool:
         if str(self._env_reader("OPENCODE") or "").strip() == "1":
@@ -110,7 +128,11 @@ class LLMCaller:
     @property
     def is_configured(self) -> bool:
         """Check if an LLM executor is configured."""
-        return bool(self._executor_cmd.strip()) or self._has_active_desktop_llm_binding()
+        try:
+            _pipeline_mode, binding_value = self._resolve_review_binding()
+            return bool(binding_value)
+        except RuntimeError:
+            return False
 
     def build_context(
         self,
@@ -186,16 +208,18 @@ class LLMCaller:
         Returns:
             LLMResponse with the raw output.
         """
-        if not self.is_configured:
+        try:
+            pipeline_mode, binding_value = self._resolve_review_binding()
+        except RuntimeError as exc:
             return LLMResponse(
                 invoked=False,
                 stdout="",
                 stderr="",
                 return_code=0,
-                error="No LLM executor configured (OPENCODE_IMPLEMENT_LLM_CMD not set)",
+                error=str(exc),
             )
 
-        if not self._executor_cmd.strip() and self._has_active_desktop_llm_binding():
+        if not pipeline_mode:
             return LLMResponse(
                 invoked=True,
                 stdout='{"verdict":"approve","findings":[]}',
@@ -211,7 +235,7 @@ class LLMCaller:
         context_writer(context_file, context)
 
         # Build the command
-        final_cmd = self._executor_cmd
+        final_cmd = binding_value
         if "{context_file}" in final_cmd:
             final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
 

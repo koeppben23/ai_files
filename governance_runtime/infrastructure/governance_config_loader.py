@@ -397,7 +397,10 @@ def _validate_governance_config_schema(config: dict[str, object]) -> list[str]:
     else:
         errors.extend(_validate_review_section(config["review"]))
 
-    unknown_keys = set(config.keys()) - {"$schema", "review"}
+    if "pipeline_mode" in config and not isinstance(config["pipeline_mode"], bool):
+        errors.append("pipeline_mode must be a boolean")
+
+    unknown_keys = set(config.keys()) - {"$schema", "review", "pipeline_mode"}
     if unknown_keys:
         errors.append(f"unknown top-level keys: {', '.join(sorted(unknown_keys))}")
 
@@ -456,6 +459,18 @@ def get_review_iterations(
     )
 
 
+def get_pipeline_mode(workspace_root: Path | None = None) -> bool:
+    """Get pipeline mode from governance config.
+
+    Returns False by default (direct mode) when config is missing.
+    """
+    if workspace_root is None:
+        return False
+
+    config = load_governance_config(workspace_root)
+    return bool(config.get("pipeline_mode", False))
+
+
 __all__ = [
     "schemas_dir",
     "config_dir",
@@ -474,5 +489,6 @@ __all__ = [
     "load_governance_config",
     "validate_governance_config",
     "get_review_iterations",
+    "get_pipeline_mode",
     "clear_caches",
 ]

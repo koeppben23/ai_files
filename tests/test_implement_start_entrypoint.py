@@ -371,7 +371,6 @@ def test_happy_override_executor_precedence_over_desktop_default(
 ) -> None:
     repo_root = tmp_path
     monkeypatch.setenv("OPENCODE", "1")
-    monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "python3 -c \"print('override')\"")
     monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: ["src/service.py"])
 
     observed: list[str] = []
@@ -389,6 +388,8 @@ def test_happy_override_executor_precedence_over_desktop_default(
         task_text="task",
         plan_text="plan",
         required_hotspots=["src/service.py"],
+        pipeline_mode=True,
+        execution_binding="python3 -c \"print('override')\"",
     )
 
     assert observed
@@ -567,9 +568,10 @@ def test_happy_hotspot_hash_delta_detects_real_change_on_preexisting_dirty_file(
     target = src / "service.py"
     target.write_text("before\n", encoding="utf-8")
 
-    monkeypatch.setenv(
-        "OPENCODE_IMPLEMENT_LLM_CMD",
-        "python3 -c \"from pathlib import Path; Path('src/service.py').write_text('after\\n', encoding='utf-8'); print('{\\\"result\\\":\\\"ok\\\"}')\"",
+    execution_cmd = (
+        "python3 -c \"from pathlib import Path; "
+        "Path('src/service.py').write_text('after\\n', encoding='utf-8'); "
+        "print('{\\\"result\\\":\\\"ok\\\"}')\""
     )
     monkeypatch.setattr(
         entrypoint,
@@ -584,6 +586,8 @@ def test_happy_hotspot_hash_delta_detects_real_change_on_preexisting_dirty_file(
         task_text="task",
         plan_text="plan",
         required_hotspots=["src/service.py"],
+        pipeline_mode=True,
+        execution_binding=execution_cmd,
     )
 
     assert result["executor_invoked"] is True
