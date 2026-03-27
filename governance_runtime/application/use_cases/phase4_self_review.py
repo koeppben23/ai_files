@@ -11,6 +11,7 @@ Contract:
 - MD lists required evidence artifacts; schemas validated by embedded registry
 - Policy-bound config: pack-locked, changes audited
 - Complexity classification from deterministic signals, NOT LLM estimation
+- No external LLM executor invocation and no governance binding resolution.
 """
 
 from __future__ import annotations

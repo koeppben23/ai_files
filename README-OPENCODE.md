@@ -25,7 +25,10 @@ Primary operator bootstrap path is `opencode-governance-bootstrap init ...`.
    Example: `/review-decision approve`.
 7. `changes_requested` enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
 8. `reject` routes back to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
-9. After `approve`, run `/implement` to start authorized implementation execution (default executor: active OpenCode Desktop LLM; explicit override executor is optional).
+9. After `approve`, run `/implement` to start authorized implementation execution.
+   - Direct mode (`pipeline_mode=false`, default): uses the active OpenCode Desktop LLM binding and ignores governance env bindings.
+   - Pipeline mode (`pipeline_mode=true`): requires `AI_GOVERNANCE_EXECUTION_BINDING` for execution/planning and `AI_GOVERNANCE_REVIEW_BINDING` for review flows; missing/empty binding fails closed.
+   - No mixing: direct mode does not consume env bindings; pipeline mode does not fall back to active chat binding.
 10. Use `/audit-readout` for a read-only audit snapshot.
 
 Runtime persistence is repo-scoped under `${WORKSPACES_HOME}/<repo_fingerprint>/...` with global pointer `${SESSION_STATE_POINTER_FILE}`.

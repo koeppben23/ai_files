@@ -1,15 +1,12 @@
 """Default governance configuration values.
 
-This module provides the default values for governance configuration.
-These defaults match the current hardcoded behavior to ensure
-backward compatibility when governance-config.json is introduced.
+This module provides default values for governance configuration and
+preserves backward compatibility when governance-config.json is missing.
 
-V1 only includes review iteration knobs:
-- phase5_max_review_iterations: 3
-- phase6_max_review_iterations: 3
-
-Other governance settings (pipeline, regulated) are controlled elsewhere
-and are not part of V1 governance-config.json.
+Current defaults include:
+- pipeline_mode: false (direct mode default)
+- review.phase5_max_review_iterations: 3
+- review.phase6_max_review_iterations: 3
 """
 
 from __future__ import annotations
@@ -38,6 +35,7 @@ def get_default_review_config() -> dict:
 
 def get_default_governance_config() -> dict:
     return {
+        "pipeline_mode": False,
         "review": get_default_review_config(),
     }
 

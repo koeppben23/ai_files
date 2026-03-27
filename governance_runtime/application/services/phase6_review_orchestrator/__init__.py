@@ -43,6 +43,7 @@ from governance_runtime.application.services.phase6_review_orchestrator.orchestr
 
 # Legacy compatibility exports
 BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE = "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+BLOCKED_MANDATE_SCHEMA_UNAVAILABLE = "MANDATE-SCHEMA-UNAVAILABLE"
 
 # Module-level instances for dependency injection and mocking
 _policy_resolver_instance = None

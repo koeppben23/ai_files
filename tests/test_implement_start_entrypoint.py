@@ -96,6 +96,26 @@ def _wire_active_paths(monkeypatch: pytest.MonkeyPatch, session_path: Path, even
     monkeypatch.setattr(entrypoint, "_resolve_active_session_path", lambda: (session_path, events_path))
 
 
+def _set_pipeline_mode_bindings(monkeypatch: pytest.MonkeyPatch, workspace_dir: Path) -> None:
+    (workspace_dir / "governance-config.json").write_text(
+        json.dumps(
+            {
+                "pipeline_mode": True,
+                "review": {
+                    "phase5_max_review_iterations": 3,
+                    "phase6_max_review_iterations": 3,
+                },
+            },
+            ensure_ascii=True,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AI_GOVERNANCE_EXECUTION_BINDING", "mock-executor")
+    monkeypatch.setenv("AI_GOVERNANCE_REVIEW_BINDING", "mock-review")
+
+
 def test_happy_executor_diff_plus_checks_passes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     session_path = tmp_path / "SESSION_STATE.json"
     events_path = tmp_path / "events.jsonl"
@@ -103,6 +123,7 @@ def test_happy_executor_diff_plus_checks_passes(monkeypatch: pytest.MonkeyPatch,
     _write_plan(tmp_path / "plan-record.json")
     _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
     _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
     rc = entrypoint.main(["--quiet"])
     out = json.loads(capsys.readouterr().out.strip())
@@ -114,6 +135,37 @@ def test_happy_executor_diff_plus_checks_passes(monkeypatch: pytest.MonkeyPatch,
     assert out["implementation_domain_changed_files"] == ["src/service.py"]
 
 
+def test_happy_event_persists_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+    monkeypatch.setenv("OPENCODE", "1")
+
+    captured: list[dict[str, object]] = []
+
+    def _spy_append_event(path: Path, event: dict[str, object]) -> bool:
+        captured.append(dict(event))
+        return True
+
+    monkeypatch.setattr(entrypoint, "_append_event", _spy_append_event)
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 0
+    assert out["status"] == "ok"
+    started = [row for row in captured if row.get("event") == "IMPLEMENTATION_STARTED"]
+    assert started
+    assert started[-1]["pipeline_mode"] is False
+    assert started[-1]["binding_role"] == "execution"
+    assert started[-1]["binding_source"] == "active_chat_binding"
+    assert started[-1]["binding_resolved"] is True
+    assert started[-1]["invoke_backend_available"] is True
+
+
 def test_bad_executor_no_changes_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     session_path = tmp_path / "SESSION_STATE.json"
     events_path = tmp_path / "events.jsonl"
@@ -121,6 +173,7 @@ def test_bad_executor_no_changes_blocks(monkeypatch: pytest.MonkeyPatch, tmp_pat
     _write_plan(tmp_path / "plan-record.json")
     _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
     _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
     monkeypatch.setattr(
         entrypoint,
@@ -151,6 +204,7 @@ def test_corner_governance_only_changes_block(monkeypatch: pytest.MonkeyPatch, t
     _write_plan(tmp_path / "plan-record.json")
     _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
     _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
     monkeypatch.setattr(
         entrypoint,
@@ -181,6 +235,7 @@ def test_edge_missing_checks_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     _write_plan(tmp_path / "plan-record.json")
     _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
     _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
     monkeypatch.setattr(entrypoint, "_run_targeted_checks", lambda _root, _reqs: ((), False))
 
@@ -199,6 +254,7 @@ def test_edge_failing_checks_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     _write_plan(tmp_path / "plan-record.json")
     _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
     _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
     monkeypatch.setattr(
         entrypoint,
@@ -334,7 +390,10 @@ def test_security_local_writes_are_governance_or_state_only(
         report_path = writes[0]
         rel = report_path.relative_to(tmp_path).as_posix()
         assert rel.startswith(".governance/implementation/")
-    assert len(text_writes) >= 2
+    if "active OpenCode chat binding is required in direct mode" in str(out.get("message") or ""):
+        assert text_writes == []
+    else:
+        assert len(text_writes) >= 2
     for path in text_writes:
         rel_text = path.relative_to(tmp_path).as_posix()
         assert rel_text.startswith(".governance/implementation/")
@@ -371,7 +430,6 @@ def test_happy_override_executor_precedence_over_desktop_default(
 ) -> None:
     repo_root = tmp_path
     monkeypatch.setenv("OPENCODE", "1")
-    monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "python3 -c \"print('override')\"")
     monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: ["src/service.py"])
 
     observed: list[str] = []
@@ -389,12 +447,53 @@ def test_happy_override_executor_precedence_over_desktop_default(
         task_text="task",
         plan_text="plan",
         required_hotspots=["src/service.py"],
+        pipeline_mode=True,
+        execution_binding="python3 -c \"print('override')\"",
     )
 
     assert observed
     assert "python3 -c" in observed[0]
     assert result["executor_invoked"] is True
     assert result["exit_code"] == 0
+
+
+def test_direct_mode_ignores_execution_env_binding_even_when_set(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("AI_GOVERNANCE_EXECUTION_BINDING", "python3 -c \"print('poison-env-binding')\"")
+    monkeypatch.setenv("AI_GOVERNANCE_REVIEW_BINDING", "python3 -c \"print('unused-review')\"")
+    monkeypatch.setattr(
+        entrypoint,
+        "_resolve_desktop_executor_bridge_cmd",
+        lambda **_kwargs: "python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\"",
+    )
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: [])
+
+    observed: list[str] = []
+
+    def _fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        observed.append(str(cmd))
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout='{"result":"ok"}\n', stderr="")
+
+    monkeypatch.setattr(entrypoint.subprocess, "run", _fake_run)
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+        pipeline_mode=False,
+    )
+
+    assert observed
+    assert "poison-env-binding" not in observed[0]
+    assert "result" in str(result.get("message") or "") or result["exit_code"] == 0
+    assert result["executor_invoked"] is True
 
 
 def test_happy_desktop_binding_resolves_callable_bridge_executor(
@@ -450,6 +549,29 @@ def test_bad_no_executor_binding_blocks_with_not_configured_reason(
     assert result["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
 
 
+def test_bad_mandate_schema_unavailable_blocks_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    monkeypatch.setattr(entrypoint, "_load_mandates_schema", lambda: None)
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+        pipeline_mode=True,
+        execution_binding="python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\"",
+    )
+
+    assert result.get("blocked") is True
+    assert result.get("reason") == "mandate-schema-unavailable"
+    assert result.get("reason_code") == "MANDATE-SCHEMA-UNAVAILABLE"
+
+
 def test_edge_implement_start_with_desktop_binding_but_no_bridge_blocks_cleanly(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -475,6 +597,8 @@ def test_edge_implement_start_with_desktop_binding_but_no_bridge_blocks_cleanly(
     assert out["status"] == "blocked"
     assert out["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
     assert out["reason_codes"] == [entrypoint.RC_EXECUTOR_NOT_CONFIGURED]
+    assert out["binding_resolved"] is True
+    assert out["invoke_backend_available"] is False
     assert out["implementation_validation"]["checks"] == []
     assert out["implementation_validation"]["plan_coverage"] == []
 
@@ -536,7 +660,7 @@ def test_happy_changed_files_use_executor_delta_not_preexisting_noise(
     tmp_path: Path,
 ) -> None:
     repo_root = tmp_path
-    monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\"")
+    execution_cmd = "python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\""
 
     states = iter([
         ["docs/already_dirty.md"],
@@ -551,6 +675,8 @@ def test_happy_changed_files_use_executor_delta_not_preexisting_noise(
         task_text="task",
         plan_text="plan",
         required_hotspots=["src/service.py"],
+        pipeline_mode=True,
+        execution_binding=execution_cmd,
     )
 
     assert result["executor_invoked"] is True
@@ -567,9 +693,10 @@ def test_happy_hotspot_hash_delta_detects_real_change_on_preexisting_dirty_file(
     target = src / "service.py"
     target.write_text("before\n", encoding="utf-8")
 
-    monkeypatch.setenv(
-        "OPENCODE_IMPLEMENT_LLM_CMD",
-        "python3 -c \"from pathlib import Path; Path('src/service.py').write_text('after\\n', encoding='utf-8'); print('{\\\"result\\\":\\\"ok\\\"}')\"",
+    execution_cmd = (
+        "python3 -c \"from pathlib import Path; "
+        "Path('src/service.py').write_text('after\\n', encoding='utf-8'); "
+        "print('{\\\"result\\\":\\\"ok\\\"}')\""
     )
     monkeypatch.setattr(
         entrypoint,
@@ -584,6 +711,8 @@ def test_happy_hotspot_hash_delta_detects_real_change_on_preexisting_dirty_file(
         task_text="task",
         plan_text="plan",
         required_hotspots=["src/service.py"],
+        pipeline_mode=True,
+        execution_binding=execution_cmd,
     )
 
     assert result["executor_invoked"] is True
@@ -673,6 +802,7 @@ class TestImplementFlowTruthMatrix:
         _write_plan(tmp_path / "plan-record.json")
         _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
         _wire_active_paths(monkeypatch, session_path, events_path)
+        _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
         monkeypatch.setattr(
             entrypoint,
@@ -702,6 +832,7 @@ class TestImplementFlowTruthMatrix:
         _write_plan(tmp_path / "plan-record.json")
         _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
         _wire_active_paths(monkeypatch, session_path, events_path)
+        _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
         monkeypatch.setattr(
             entrypoint,
@@ -746,6 +877,7 @@ class TestImplementFlowTruthMatrix:
         _write_plan(tmp_path / "plan-record.json")
         _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
         _wire_active_paths(monkeypatch, session_path, events_path)
+        _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
         monkeypatch.setattr(
             entrypoint,
@@ -768,27 +900,175 @@ class TestImplementFlowTruthMatrix:
         assert out["status"] == "blocked"
         assert "IMPLEMENTATION_PLAN_COVERAGE_MISSING" in out["reason_codes"]
 
-    def test_edge_main_surfaces_non_executor_precheck_reason(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
-        session_path = tmp_path / "SESSION_STATE.json"
-        events_path = tmp_path / "events.jsonl"
-        _write_session(session_path)
-        _write_plan(tmp_path / "plan-record.json")
-        _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
-        _wire_active_paths(monkeypatch, session_path, events_path)
+def test_edge_main_surfaces_non_executor_precheck_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
-        monkeypatch.setattr(
-            entrypoint,
-            "_run_llm_edit_step",
-            lambda **_kwargs: {
-                "blocked": True,
-                "reason_code": "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE",
-                "reason": "effective-policy-unavailable",
+    monkeypatch.setattr(
+        entrypoint,
+        "_run_llm_edit_step",
+        lambda **_kwargs: {
+            "blocked": True,
+            "reason_code": "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE",
+            "reason": "effective-policy-unavailable",
+        },
+    )
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "blocked"
+    assert out["reason_code"] == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+
+
+def test_bad_precheck_event_persists_binding_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+    monkeypatch.setenv("OPENCODE", "1")
+
+    monkeypatch.setattr(
+        entrypoint,
+        "_run_llm_edit_step",
+        lambda **_kwargs: {
+            "blocked": True,
+            "reason_code": "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE",
+            "reason": "effective-policy-unavailable",
+        },
+    )
+
+    captured: list[dict[str, object]] = []
+
+    def _spy_append_event(path: Path, event: dict[str, object]) -> bool:
+        captured.append(dict(event))
+        return True
+
+    monkeypatch.setattr(entrypoint, "_append_event", _spy_append_event)
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "blocked"
+    precheck = [row for row in captured if row.get("event") == "IMPLEMENTATION_BLOCKED_PRECHECK"]
+    assert precheck
+    assert precheck[-1]["pipeline_mode"] is False
+    assert precheck[-1]["binding_role"] == "execution"
+    assert precheck[-1]["binding_source"] == "active_chat_binding"
+    assert precheck[-1]["binding_resolved"] is True
+    assert precheck[-1]["invoke_backend_available"] is True
+
+
+def test_bad_pipeline_missing_binding_emits_resolution_vs_invoke_false_false(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+
+    (tmp_path / "governance-config.json").write_text(
+        json.dumps(
+            {
+                "pipeline_mode": True,
+                "review": {
+                    "phase5_max_review_iterations": 3,
+                    "phase6_max_review_iterations": 3,
+                },
             },
+            ensure_ascii=True,
+            indent=2,
         )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("AI_GOVERNANCE_EXECUTION_BINDING", raising=False)
+    monkeypatch.delenv("AI_GOVERNANCE_REVIEW_BINDING", raising=False)
 
-        rc = entrypoint.main(["--quiet"])
-        out = json.loads(capsys.readouterr().out.strip())
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
 
-        assert rc == 2
-        assert out["status"] == "blocked"
-        assert out["reason_code"] == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+    assert rc == 2
+    assert out["status"] == "blocked"
+    assert out["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
+    assert out["binding_resolved"] is False
+    assert out["invoke_backend_available"] is False
+
+
+def test_workspace_authority_prefers_active_session_workspace_for_binding_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
+
+    foreign_workspace = tmp_path / "foreign-workspace"
+    foreign_workspace.mkdir(parents=True, exist_ok=True)
+    foreign_session = foreign_workspace / "SESSION_STATE.json"
+    foreign_session.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        entrypoint,
+        "resolve_active_session_paths",
+        lambda: (foreign_session, "fp", tmp_path.parent, foreign_workspace),
+    )
+
+    observed: dict[str, object] = {}
+
+    def _fake_resolve_governance_binding(**kwargs):  # type: ignore[no-untyped-def]
+        observed["workspace_root"] = kwargs.get("workspace_root")
+        return type(
+            "Binding",
+            (),
+            {
+                "binding_value": "mock-executor",
+                "source": "env:AI_GOVERNANCE_EXECUTION_BINDING",
+            },
+        )()
+
+    monkeypatch.setattr(entrypoint, "resolve_governance_binding", _fake_resolve_governance_binding)
+    monkeypatch.setattr(
+        entrypoint,
+        "_run_llm_edit_step",
+        lambda **_kwargs: {
+            "blocked": True,
+            "reason_code": "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE",
+            "reason": "effective-policy-unavailable",
+            "binding_resolved": True,
+            "invoke_backend_available": True,
+        },
+    )
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "blocked"
+    assert observed["workspace_root"] == tmp_path

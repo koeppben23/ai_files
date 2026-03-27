@@ -62,6 +62,8 @@ from governance_runtime.application.services.state_normalizer import normalize_t
 from governance_runtime.application.services.plan_reader import read_plan_body
 from governance_runtime.shared.hash_utils import sha256_text as _sha256_text
 
+BLOCKED_MANDATE_SCHEMA_UNAVAILABLE = "MANDATE-SCHEMA-UNAVAILABLE"
+
 
 @dataclass
 class ReviewDependencies:
@@ -112,6 +114,7 @@ class ReviewLoopConfig:
 
     commands_home: Path
     session_path: Path
+    workspace_root: Path | None = None
     max_iterations: int = 3
     min_iterations: int = 1
     force_stable_digest: bool = False
@@ -220,6 +223,9 @@ def run_review_loop(
         llm_caller = deps.llm_caller
         response_validator = deps.response_validator
 
+    if hasattr(llm_caller, "set_workspace_root"):
+        llm_caller.set_workspace_root(config.workspace_root)
+
     # Get initial state values using canonical fields
     review_block = canonical.get("implementation_review") or {}
 
@@ -252,10 +258,28 @@ def run_review_loop(
     # Load policy and mandate
     mandate_text = ""
     effective_review_policy = ""
+    mandate_schema = None
     if llm_caller.is_configured:
         mandate_schema = policy_resolver.load_mandate_schema()
-        if mandate_schema:
-            mandate_text = mandate_schema.mandate_text
+        if not mandate_schema:
+            return ReviewResult(
+                loop_result=ReviewLoopResult(
+                    iterations=(),
+                    final_iteration=iteration,
+                    max_iterations=config.max_iterations,
+                    min_iterations=config.min_iterations,
+                    prev_digest=prev_digest,
+                    curr_digest=curr_digest,
+                    revision_delta="changed",
+                    completion_status=CompletionStatus.PHASE6_IN_PROGRESS,
+                    implementation_review_complete=False,
+                    blocked=True,
+                    block_reason="review-mandate-unavailable",
+                    block_reason_code=BLOCKED_MANDATE_SCHEMA_UNAVAILABLE,
+                    recovery_action="Provide governance_mandates.v1.schema.json at the canonical runtime location.",
+                )
+            )
+        mandate_text = mandate_schema.mandate_text
 
         _clock = clock
         _schema_resolver = schema_path_resolver
@@ -298,7 +322,6 @@ def run_review_loop(
     impl_summary = _build_implementation_summary(state)
 
     # Get review output schema
-    mandate_schema = policy_resolver.load_mandate_schema()
     output_schema_text = mandate_schema.review_output_schema_text if mandate_schema else ""
 
     # Run the loop
@@ -363,6 +386,9 @@ def run_review_loop(
             llm_verdict=llm_result.verdict if llm_result else "unknown",
             llm_findings=llm_result.findings if llm_result else [],
             llm_response_raw=llm_response.stdout[:1000] if llm_response else None,
+            llm_pipeline_mode=llm_response.pipeline_mode if llm_response else None,
+            llm_binding_role=llm_response.binding_role if llm_response else "review",
+            llm_binding_source=llm_response.binding_source if llm_response else "",
         )
         iterations.append(it)
 

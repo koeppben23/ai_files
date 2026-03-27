@@ -15,6 +15,20 @@ from governance_runtime.application.services.phase6_review_orchestrator.llm_call
 )
 
 
+def _write_governance_config(workspace_dir: Path, *, pipeline_mode: bool) -> None:
+    payload = {
+        "pipeline_mode": pipeline_mode,
+        "review": {
+            "phase5_max_review_iterations": 3,
+            "phase6_max_review_iterations": 3,
+        },
+    }
+    (workspace_dir / "governance-config.json").write_text(
+        json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 class TestLLMCaller:
     """Tests for LLMCaller class."""
 
@@ -51,7 +65,7 @@ class TestLLMCaller:
             context_file=Path("/tmp/context.json"),
         )
         assert result.invoked is False
-        assert "No LLM executor configured" in result.error
+        assert "active OpenCode chat binding is required in direct mode" in str(result.error)
 
     def test_desktop_binding_used_when_no_explicit_executor(self):
         """Active OpenCode desktop binding acts as default LLM executor."""
@@ -69,6 +83,65 @@ class TestLLMCaller:
         assert result.invoked is True
         assert result.return_code == 0
         assert '"verdict":"approve"' in result.stdout
+        assert result.pipeline_mode is False
+        assert result.binding_role == "review"
+        assert result.binding_source == "active_chat_binding"
+
+    def test_pipeline_mode_uses_review_binding(self, tmp_path: Path):
+        """Pipeline mode uses AI_GOVERNANCE_REVIEW_BINDING command."""
+        _write_governance_config(tmp_path, pipeline_mode=True)
+        observed: list[str] = []
+        env = {
+            "AI_GOVERNANCE_EXECUTION_BINDING": "python3 -c \"print('execution-binding-should-not-be-used')\"",
+            "AI_GOVERNANCE_REVIEW_BINDING": "python3 -c \"print('review-binding-invoked')\"",
+        }
+        caller = LLMCaller(
+            env_reader=lambda key: env.get(key),
+            subprocess_runner=lambda cmd: (
+                observed.append(cmd),
+                SubprocessResult(stdout='{"verdict":"approve","findings":[]}', stderr="", returncode=0),
+            )[1],
+            workspace_root=tmp_path,
+        )
+
+        result = caller.invoke(
+            context={"test": "data"},
+            context_file=tmp_path / "ctx.json",
+            context_writer=lambda _p, _d: None,
+        )
+
+        assert caller.is_configured is True
+        assert result.invoked is True
+        assert result.return_code == 0
+        assert result.pipeline_mode is True
+        assert result.binding_role == "review"
+        assert result.binding_source == "env:AI_GOVERNANCE_REVIEW_BINDING"
+        assert observed
+        assert "review-binding-invoked" in observed[0]
+        assert "execution-binding-should-not-be-used" not in observed[0]
+
+    def test_pipeline_mode_missing_review_binding_not_configured(self, tmp_path: Path):
+        """Pipeline mode fails closed when review binding is missing."""
+        _write_governance_config(tmp_path, pipeline_mode=True)
+        env = {
+            "AI_GOVERNANCE_EXECUTION_BINDING": "python3 -c \"print('ok')\"",
+        }
+        caller = LLMCaller(
+            env_reader=lambda key: env.get(key),
+            subprocess_runner=lambda cmd: SubprocessResult(stdout="", stderr="", returncode=0),
+            workspace_root=tmp_path,
+        )
+
+        assert caller.is_configured is False
+        result = caller.invoke(
+            context={"test": "data"},
+            context_file=tmp_path / "ctx.json",
+            context_writer=lambda _p, _d: None,
+        )
+        assert result.invoked is False
+        assert "AI_GOVERNANCE_REVIEW_BINDING" in str(result.error)
+        assert result.binding_role == "review"
+        assert result.binding_source == ""
 
     def test_build_context(self, caller_with_executor):
         """build_context creates proper context dict."""

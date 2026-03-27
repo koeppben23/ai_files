@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -150,6 +151,30 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     return config_root, commands_home, session_path, repo_fp
 
 
+def _write_workspace_governance_config(workspace_dir: Path, *, pipeline_mode: bool) -> None:
+    payload = {
+        "pipeline_mode": pipeline_mode,
+        "review": {
+            "phase5_max_review_iterations": 3,
+            "phase6_max_review_iterations": 3,
+        },
+    }
+    (workspace_dir / "governance-config.json").write_text(
+        json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _set_pipeline_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    execution: str,
+    review: str,
+) -> None:
+    monkeypatch.setenv("AI_GOVERNANCE_EXECUTION_BINDING", execution)
+    monkeypatch.setenv("AI_GOVERNANCE_REVIEW_BINDING", review)
+
+
 @pytest.mark.governance
 def test_phase5_plan_persist_good_chat_text_persists_and_routes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     module = _load_module()
@@ -172,6 +197,9 @@ def test_phase5_plan_persist_good_chat_text_persists_and_routes(tmp_path: Path, 
     assert state["phase5_self_review_iterations"] >= 1
     assert state["phase5_state"] == "phase5_completed"
     assert state["phase5_blocker_code"] == "none"
+    assert state["phase5_review_pipeline_mode"] is False
+    assert state["phase5_review_binding_role"] == "review"
+    assert state["phase5_review_binding_source"] == "active_chat_binding"
     assert state["requirement_contracts_present"] is True
     assert int(state["requirement_contracts_count"]) >= 1
     assert str(state["requirement_contracts_digest"]).startswith("sha256:")
@@ -181,6 +209,84 @@ def test_phase5_plan_persist_good_chat_text_persists_and_routes(tmp_path: Path, 
     assert plan_record["status"] == "active"
     assert len(plan_record["versions"]) >= 1
     assert plan_record["versions"][0]["trigger"] == "phase5-plan-record-rail"
+
+
+@pytest.mark.governance
+def test_phase5_plan_persist_pipeline_mode_records_execution_and_review_binding_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    module = _load_module()
+    config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+    _write_workspace_governance_config(session_path.parent, pipeline_mode=True)
+
+    session_payload = json.loads(session_path.read_text(encoding="utf-8"))
+    session_state = session_payload.get("SESSION_STATE", {})
+    session_state["Ticket"] = "AUTH-123"
+    session_state["Task"] = "Implement login endpoint"
+    session_path.write_text(
+        json.dumps(session_payload, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    generated_plan = json.dumps(
+        {
+            "objective": "Add authentication endpoint with JWT support",
+            "target_state": "New /auth/login endpoint accepts credentials and returns JWT token",
+            "target_flow": "1. Add auth route. 2. Validate credentials. 3. Generate JWT. 4. Return token.",
+            "state_machine": "unauthenticated -> authenticated (on valid login)",
+            "blocker_taxonomy": "Credential store must be available; JWT secret must be configured",
+            "audit": "Login events logged with timestamp and user id",
+            "go_no_go": "JWT library available; credential store reachable; tests pass",
+            "test_strategy": "Unit tests for token generation; integration test for login flow",
+            "reason_code": "PLAN-AUTH-001",
+        },
+        ensure_ascii=True,
+    )
+    review_result = json.dumps({"verdict": "approve", "findings": []}, ensure_ascii=True)
+    execution_binding_cmd = "EXEC_BINDING_CMD"
+    review_binding_cmd = "REVIEW_BINDING_CMD"
+    _set_pipeline_bindings(
+        monkeypatch,
+        execution=execution_binding_cmd,
+        review=review_binding_cmd,
+    )
+
+    def _fake_subprocess_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        token = str(cmd)
+        if execution_binding_cmd in token:
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=generated_plan, stderr="")
+        if review_binding_cmd in token:
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=review_result, stderr="")
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _fake_subprocess_run)
+
+    rc = module.main(["--quiet"])
+    assert rc == 0
+
+    payload = json.loads(session_path.read_text(encoding="utf-8"))
+    state = payload["SESSION_STATE"]
+    assert state["phase5_plan_execution_pipeline_mode"] is True
+    assert state["phase5_plan_execution_binding_role"] == "execution"
+    assert state["phase5_plan_execution_binding_source"] == "env:AI_GOVERNANCE_EXECUTION_BINDING"
+    assert state["phase5_review_pipeline_mode"] is True
+    assert state["phase5_review_binding_role"] == "review"
+    assert state["phase5_review_binding_source"] == "env:AI_GOVERNANCE_REVIEW_BINDING"
+
+    events = [
+        json.loads(line)
+        for line in (session_path.parent / "logs" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    persisted = [row for row in events if row.get("event") == "phase5-plan-record-persisted"]
+    assert persisted
+    assert persisted[-1]["plan_execution_pipeline_mode"] is True
+    assert persisted[-1]["plan_execution_binding_source"] == "env:AI_GOVERNANCE_EXECUTION_BINDING"
+    assert persisted[-1]["review_pipeline_mode"] is True
+    assert persisted[-1]["review_binding_source"] == "env:AI_GOVERNANCE_REVIEW_BINDING"
 
 
 @pytest.mark.governance
@@ -626,53 +732,76 @@ class TestCallLLMReviewMandateSchemaFailClosed:
 
     def test_blocks_on_missing_schema(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         module = _load_module()
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+        _write_workspace_governance_config(tmp_path, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution="python3 -c \"print('{}')\"",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
 
         def _raise_missing():
             raise module.MandateSchemaMissingError("schema file not found")
 
         monkeypatch.setattr(module, "_load_mandates_schema", _raise_missing)
-        result = module._call_llm_review("plan text", "mandate text")
+        result = module._call_llm_review("plan text", "mandate text", workspace_dir=tmp_path)
         assert result["llm_invoked"] is False
         assert result["verdict"] == "changes_requested"
         assert result["reason_code"] == "MANDATE-SCHEMA-MISSING"
         assert any("mandate-schema-missing" in f for f in result["findings"])
 
-    def test_blocks_on_invalid_json(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_blocks_on_invalid_json(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         module = _load_module()
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+        workspace_dir = tmp_path
+        _write_workspace_governance_config(workspace_dir, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution="python3 -c \"print('{}')\"",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
 
         def _raise_invalid_json():
             raise module.MandateSchemaInvalidJsonError("bad json at line 5")
 
         monkeypatch.setattr(module, "_load_mandates_schema", _raise_invalid_json)
-        result = module._call_llm_review("plan text", "mandate text")
+        result = module._call_llm_review("plan text", "mandate text", workspace_dir=workspace_dir)
         assert result["llm_invoked"] is False
         assert result["verdict"] == "changes_requested"
         assert result["reason_code"] == "MANDATE-SCHEMA-INVALID-JSON"
 
-    def test_blocks_on_invalid_structure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_blocks_on_invalid_structure(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         module = _load_module()
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+        workspace_dir = tmp_path
+        _write_workspace_governance_config(workspace_dir, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution="python3 -c \"print('{}')\"",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
 
         def _raise_invalid_structure():
             raise module.MandateSchemaInvalidStructureError("missing review_mandate")
 
         monkeypatch.setattr(module, "_load_mandates_schema", _raise_invalid_structure)
-        result = module._call_llm_review("plan text", "mandate text")
+        result = module._call_llm_review("plan text", "mandate text", workspace_dir=workspace_dir)
         assert result["llm_invoked"] is False
         assert result["verdict"] == "changes_requested"
         assert result["reason_code"] == "MANDATE-SCHEMA-INVALID-STRUCTURE"
 
-    def test_blocks_on_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_blocks_on_unavailable(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         module = _load_module()
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "echo 'irrelevant'")
+        workspace_dir = tmp_path
+        _write_workspace_governance_config(workspace_dir, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution="python3 -c \"print('{}')\"",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
 
         def _raise_unavailable():
             raise module.MandateSchemaUnavailableError("IO error reading schema")
 
         monkeypatch.setattr(module, "_load_mandates_schema", _raise_unavailable)
-        result = module._call_llm_review("plan text", "mandate text")
+        result = module._call_llm_review("plan text", "mandate text", workspace_dir=workspace_dir)
         assert result["llm_invoked"] is False
         assert result["verdict"] == "changes_requested"
         assert result["reason_code"] == "MANDATE-SCHEMA-UNAVAILABLE"
@@ -701,13 +830,15 @@ class TestPlanGeneration:
         config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
         monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
-        monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
-        monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
+        monkeypatch.delenv("AI_GOVERNANCE_EXECUTION_BINDING", raising=False)
+        monkeypatch.delenv("AI_GOVERNANCE_REVIEW_BINDING", raising=False)
+        _write_workspace_governance_config(session_path.parent, pipeline_mode=True)
 
         result = module._call_llm_generate_plan(
             ticket_text="Add auth",
             task_text="Implement login",
             plan_mandate="Plan mandate text",
+            workspace_dir=session_path.parent,
         )
         assert result["blocked"] is True
         assert result["reason_code"] == "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE"
@@ -716,12 +847,18 @@ class TestPlanGeneration:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
         module = _load_module()
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo ''")
+        _write_workspace_governance_config(tmp_path, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution="echo ''",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
 
         result = module._call_llm_generate_plan(
             ticket_text="Add auth",
             task_text="Implement login",
             plan_mandate="Plan mandate text",
+            workspace_dir=tmp_path,
         )
         assert result["blocked"] is True
         assert "empty" in result["reason"].lower() or result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
@@ -730,12 +867,18 @@ class TestPlanGeneration:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
         module = _load_module()
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "echo 'not json at all'")
+        _write_workspace_governance_config(tmp_path, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution="echo 'not json at all'",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
 
         result = module._call_llm_generate_plan(
             ticket_text="Add auth",
             task_text="Implement login",
             plan_mandate="Plan mandate text",
+            workspace_dir=tmp_path,
         )
         assert result["blocked"] is True
         assert "not-json" in result["reason"] or result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
@@ -746,26 +889,38 @@ class TestPlanGeneration:
         module = _load_module()
         # Response with only objective — missing all other required fields
         invalid = json.dumps({"objective": "Something"})
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{invalid}'")
+        _write_workspace_governance_config(tmp_path, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution=f"echo '{invalid}'",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
 
         result = module._call_llm_generate_plan(
             ticket_text="Add auth",
             task_text="Implement login",
             plan_mandate="Plan mandate text",
+            workspace_dir=tmp_path,
         )
         assert result["blocked"] is True
         assert result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
 
-    def test_valid_plan_response_accepted(self, monkeypatch: pytest.MonkeyPatch):
+    def test_valid_plan_response_accepted(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         module = _load_module()
         valid = self._valid_plan_response()
         escaped = valid.replace("'", "'\\''")
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{escaped}'")
+        _write_workspace_governance_config(tmp_path, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution=f"echo '{escaped}'",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
 
         result = module._call_llm_generate_plan(
             ticket_text="Add auth endpoint",
             task_text="Implement JWT login",
             plan_mandate="Plan mandate text",
+            workspace_dir=tmp_path,
         )
         assert result["blocked"] is False
         assert "plan_text" in result
@@ -790,7 +945,7 @@ class TestPlanGeneration:
         assert plan_text.index("## Executive Summary") < plan_text.index("## Technical Appendix")
         assert plan_text.index("## Next Actions") < plan_text.index("## Technical Appendix")
 
-    def test_blocks_when_llm_plan_text_is_non_english(self, monkeypatch: pytest.MonkeyPatch):
+    def test_blocks_when_llm_plan_text_is_non_english(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         module = _load_module()
         non_english = json.dumps(
             {
@@ -806,12 +961,18 @@ class TestPlanGeneration:
             }
         )
         escaped = non_english.replace("'", "'\\''")
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{escaped}'")
+        _write_workspace_governance_config(tmp_path, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution=f"echo '{escaped}'",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
 
         result = module._call_llm_generate_plan(
             ticket_text="Implement auth endpoint",
             task_text="Add JWT login",
             plan_mandate="Plan mandate text",
+            workspace_dir=tmp_path,
         )
         assert result["blocked"] is True
         assert result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
@@ -833,16 +994,22 @@ class TestPlanGeneration:
         ]
         assert "## What Changed Since Last Review\nUpdated since last review iteration." in str(parsed["plan_text"])
 
-    def test_plan_text_next_actions_block_contains_only_review_decision_commands(self, monkeypatch: pytest.MonkeyPatch):
+    def test_plan_text_next_actions_block_contains_only_review_decision_commands(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         module = _load_module()
         valid = self._valid_plan_response()
         escaped = valid.replace("'", "'\\''")
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"echo '{escaped}'")
+        _write_workspace_governance_config(tmp_path, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution=f"echo '{escaped}'",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
 
         result = module._call_llm_generate_plan(
             ticket_text="Add auth endpoint",
             task_text="Implement JWT login",
             plan_mandate="Plan mandate text",
+            workspace_dir=tmp_path,
         )
         assert result["blocked"] is False
         plan_text = str(result["plan_text"])
@@ -923,17 +1090,43 @@ class TestPlanGeneration:
         assert result["blocked"] is False
         assert "plan_text" in result
 
-    def test_resolve_plan_executor_prefers_plan_cmd(self, monkeypatch: pytest.MonkeyPatch):
+    def test_resolve_plan_execution_binding_uses_execution_env_in_pipeline_mode(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ):
         module = _load_module()
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "plan-llm-cmd")
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "implement-llm-cmd")
-        assert module._resolve_plan_executor() == "plan-llm-cmd"
+        _write_workspace_governance_config(tmp_path, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution="plan-execution-cmd",
+            review="plan-review-cmd",
+        )
+        pipeline_mode, binding, source = module._resolve_plan_execution_binding(
+            workspace_dir=tmp_path
+        )
+        assert pipeline_mode is True
+        assert binding == "plan-execution-cmd"
+        assert source == "env:AI_GOVERNANCE_EXECUTION_BINDING"
 
-    def test_resolve_plan_executor_falls_back_to_implement_cmd(self, monkeypatch: pytest.MonkeyPatch):
+    def test_resolve_plan_review_binding_uses_review_env_in_pipeline_mode(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ):
         module = _load_module()
-        monkeypatch.delenv("OPENCODE_PLAN_LLM_CMD", raising=False)
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "implement-llm-cmd")
-        assert module._resolve_plan_executor() == "implement-llm-cmd"
+        _write_workspace_governance_config(tmp_path, pipeline_mode=True)
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution="plan-execution-cmd",
+            review="plan-review-cmd",
+        )
+        pipeline_mode, binding, source = module._resolve_plan_review_binding(
+            workspace_dir=tmp_path
+        )
+        assert pipeline_mode is True
+        assert binding == "plan-review-cmd"
+        assert source == "env:AI_GOVERNANCE_REVIEW_BINDING"
 
     def test_parse_blocks_when_plan_output_schema_missing(self, monkeypatch: pytest.MonkeyPatch):
         module = _load_module()

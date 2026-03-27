@@ -49,6 +49,11 @@ from governance_runtime.infrastructure.opencode_model_binding import (
     has_active_desktop_llm_binding as _has_desktop_llm_binding,
     resolve_active_opencode_model,
 )
+from governance_runtime.infrastructure.governance_binding_resolver import (
+    GovernanceBindingResolutionError,
+    resolve_governance_binding,
+)
+from governance_runtime.infrastructure.governance_config_loader import get_pipeline_mode
 from governance_runtime.infrastructure.plan_record_state import resolve_plan_record_signal
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
@@ -62,6 +67,7 @@ def _resolve_active_session_path() -> tuple[Path, Path]:
 
 BLOCKED_IMPLEMENT_START_INVALID = "BLOCKED-UNSPECIFIED"
 BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE = "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+BLOCKED_MANDATE_SCHEMA_UNAVAILABLE = "MANDATE-SCHEMA-UNAVAILABLE"
 
 _SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 
@@ -451,8 +457,11 @@ def _run_llm_edit_step(
     plan_text: str,
     required_hotspots: list[str],
     commands_home: Path | None = None,
+    pipeline_mode: bool = False,
+    execution_binding: str = "",
 ) -> dict[str, object]:
-    executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
+    executor_cmd = execution_binding if pipeline_mode else ""
+    has_executor = bool(executor_cmd) if pipeline_mode else _has_active_desktop_llm_binding()
     implementation_dir = repo_root / ".governance" / "implementation"
     implementation_dir.mkdir(parents=True, exist_ok=True)
     context_file = implementation_dir / "llm_edit_context.json"
@@ -463,6 +472,16 @@ def _run_llm_edit_step(
     schema = _load_mandates_schema()
     if schema:
         mandate_text = _build_authoring_mandate_text(schema)
+    else:
+        return {
+            "blocked": True,
+            "reason": "mandate-schema-unavailable",
+            "reason_code": BLOCKED_MANDATE_SCHEMA_UNAVAILABLE,
+            "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
+            "binding_resolved": has_executor,
+            "invoke_backend_available": has_executor,
+            "message": "Required mandate schema governance_mandates.v1.schema.json is unavailable.",
+        }
 
     effective_policy_text, effective_policy_error = "", ""
     if commands_home is not None:
@@ -470,15 +489,17 @@ def _run_llm_edit_step(
             state=state,
             commands_home=commands_home,
         )
-    # Determine if we have an LLM executor
-    executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
-    has_executor = bool(executor_cmd) or _has_active_desktop_llm_binding()
+    # Determine if we have an execution binding for active mode.
+    # Direct mode: active chat binding is authoritative.
+    # Pipeline mode: explicit execution binding is authoritative.
     if has_executor and effective_policy_error:
         return {
             "blocked": True,
             "reason": "effective-policy-unavailable",
             "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
             "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
+            "binding_resolved": has_executor,
+            "invoke_backend_available": has_executor,
         }
 
     developer_schema_text = _get_developer_output_schema_text()
@@ -544,7 +565,7 @@ def _run_llm_edit_step(
 
     bridge_mode = False
     if not executor_cmd:
-        if _has_active_desktop_llm_binding():
+        if _has_active_desktop_llm_binding() and not pipeline_mode:
             bridge_cmd = _resolve_desktop_executor_bridge_cmd(repo_root=repo_root)
             if bridge_cmd:
                 executor_cmd = bridge_cmd
@@ -554,17 +575,17 @@ def _run_llm_edit_step(
                 _write_text_atomic(
                     stderr_file,
                     (
-                        "Desktop LLM binding detected, but no callable executor command is available "
-                        "in this process. Set OPENCODE_IMPLEMENT_LLM_CMD.\n"
+                        "Direct mode requires active chat binding and callable desktop bridge.\n"
                     ),
                 )
                 return {
                     "executor_invoked": False,
                     "exit_code": 2,
                     "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
+                    "binding_resolved": True,
+                    "invoke_backend_available": False,
                     "message": (
-                        "Desktop LLM binding detected but no callable executor bridge is available in this shell process. "
-                        "Set OPENCODE_IMPLEMENT_LLM_CMD to an executable command."
+                        "Direct mode binding resolved to active chat binding, but no callable desktop bridge is available in this shell process."
                     ),
                     "stdout_path": str(stdout_file),
                     "stderr_path": str(stderr_file),
@@ -578,10 +599,13 @@ def _run_llm_edit_step(
                 "executor_invoked": False,
                 "exit_code": 2,
                 "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
-                "message": "No implementation executor binding available. Set OPENCODE_IMPLEMENT_LLM_CMD or run with an active OpenCode Desktop LLM binding.",
+                "binding_resolved": False,
+                "invoke_backend_available": False,
+                "message": "No implementation execution binding available for active mode.",
                 "stdout_path": str(stdout_file),
                 "stderr_path": str(stderr_file),
                 "changed_files": [],
+                "blocked": True,
             }
 
     final_cmd = executor_cmd
@@ -641,6 +665,8 @@ def _run_llm_edit_step(
         "response_valid": response_valid,
         "validation_violations": validation_violations,
         "bridge_mode": bridge_mode,
+        "binding_resolved": True,
+        "invoke_backend_available": True,
     }
 
 
@@ -782,6 +808,79 @@ def start_implementation(
     evidence = getattr(resolver, "resolve")(mode="user")
     commands_home = evidence.commands_home
 
+    # Resolve mode-scoped execution binding.
+    workspace_dir = session_path.parent
+    pipeline_mode = False
+    execution_binding = ""
+    execution_binding_source = ""
+    try:
+        resolved_session_path, _, _, resolved_workspace_dir = resolve_active_session_paths()
+        if resolved_session_path == session_path:
+            workspace_dir = resolved_workspace_dir
+    except Exception:
+        pass
+
+    pipeline_mode = get_pipeline_mode(workspace_dir)
+    try:
+        binding = resolve_governance_binding(
+            role="execution",
+            workspace_root=workspace_dir,
+            env_reader=lambda key: os.environ.get(key),
+            has_active_chat_binding=_has_active_desktop_llm_binding(),
+        )
+        execution_binding = str(binding.binding_value or "").strip()
+        execution_binding_source = str(binding.source or "").strip()
+    except GovernanceBindingResolutionError as exc:
+        reason_code = RC_EXECUTOR_NOT_CONFIGURED
+        message = str(exc)
+        state["implementation_authorized"] = True
+        state["implementation_started"] = True
+        state["implementation_started_at"] = ts
+        state["implementation_started_by"] = actor.strip() or "operator"
+        state["implementation_execution_started"] = False
+        state["implementation_pipeline_mode"] = pipeline_mode
+        state["implementation_binding_role"] = "execution"
+        state["implementation_binding_resolved"] = False
+        state["implementation_invoke_backend_available"] = False
+        state["next"] = "6"
+        state["active_gate"] = "Implementation Blocked"
+        state["next_gate_condition"] = "Implementation binding resolution failed for active mode."
+        _write_json_atomic(session_path, state_doc)
+        if events_path is not None:
+            _append_event(
+                events_path,
+                {
+                    "schema": "opencode.implementation-started.v2",
+                    "ts_utc": ts,
+                    "event_id": event_id,
+                    "event": "IMPLEMENTATION_BLOCKED_PRECHECK",
+                    "phase": phase_text,
+                    "reason_code": reason_code,
+                    "message": message,
+                    "pipeline_mode": pipeline_mode,
+                    "binding_role": "execution",
+                    "binding_source": execution_binding_source,
+                    "binding_resolved": False,
+                    "invoke_backend_available": False,
+                },
+            )
+        return _payload(
+            "blocked",
+            reason_code=reason_code,
+            message=message,
+            phase="6-PostFlight",
+            next="6",
+            active_gate="Implementation Blocked",
+            next_gate_condition=state["next_gate_condition"],
+            reason_codes=[reason_code],
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=execution_binding_source,
+            binding_resolved=False,
+            invoke_backend_available=False,
+            next_action="Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
+        )
+
     llm_result = _run_llm_edit_step(
         repo_root=repo_root,
         state=state,
@@ -790,11 +889,15 @@ def start_implementation(
         plan_text=plan_text,
         required_hotspots=required_hotspots,
         commands_home=commands_home,
+        pipeline_mode=pipeline_mode,
+        execution_binding=execution_binding,
     )
 
     if bool(llm_result.get("blocked")):
         reason_code = str(llm_result.get("reason_code") or "IMPLEMENTATION_LLM_PRECHECK_BLOCKED").strip()
         message = str(llm_result.get("message") or llm_result.get("reason") or "LLM precheck blocked").strip()
+        binding_resolved = bool(llm_result.get("binding_resolved", True))
+        invoke_backend_available = bool(llm_result.get("invoke_backend_available", True))
         if not message:
             message = "LLM precheck blocked"
         state["implementation_authorized"] = True
@@ -802,12 +905,18 @@ def start_implementation(
         state["implementation_started_at"] = ts
         state["implementation_started_by"] = actor.strip() or "operator"
         state["implementation_execution_started"] = False
+        state["implementation_pipeline_mode"] = pipeline_mode
+        state["implementation_binding_role"] = "execution"
+        state["implementation_binding_resolved"] = binding_resolved
+        state["implementation_invoke_backend_available"] = invoke_backend_available
+        if execution_binding_source:
+            state["implementation_binding_source"] = execution_binding_source
         state["next"] = "6"
         state["active_gate"] = "Implementation Blocked"
         if reason_code == RC_EXECUTOR_NOT_CONFIGURED:
             state["next_gate_condition"] = (
                 "Implementation executor unavailable in current process. "
-                "Set OPENCODE_IMPLEMENT_LLM_CMD to a callable command and rerun /implement."
+                "Provide required governance bindings for active mode and rerun /implement."
             )
         else:
             state["next_gate_condition"] = (
@@ -825,6 +934,11 @@ def start_implementation(
                     "phase": phase_text,
                     "reason_code": reason_code,
                     "message": message,
+                    "pipeline_mode": pipeline_mode,
+                    "binding_role": "execution",
+                    "binding_source": execution_binding_source,
+                    "binding_resolved": binding_resolved,
+                    "invoke_backend_available": invoke_backend_available,
                 },
             )
         return _payload(
@@ -849,8 +963,13 @@ def start_implementation(
             },
             reason_code=reason_code,
             reason_codes=[reason_code],
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=execution_binding_source,
+            binding_resolved=binding_resolved,
+            invoke_backend_available=invoke_backend_available,
             next_action=(
-                "Set OPENCODE_IMPLEMENT_LLM_CMD to a callable executor bridge and rerun /implement."
+                "Provide required governance bindings for active mode and rerun /implement."
                 if reason_code == RC_EXECUTOR_NOT_CONFIGURED
                 else "Resolve the precheck blocker and rerun /implement."
             ),
@@ -891,6 +1010,10 @@ def start_implementation(
         state["implementation_validation_report_path"] = str(validation_report_path)
         state["implementation_llm_response_valid"] = response_valid
         state["implementation_llm_validation_violations"] = validation_violations
+        state["implementation_binding_resolved"] = bool(llm_result.get("binding_resolved", True))
+        state["implementation_invoke_backend_available"] = bool(
+            llm_result.get("invoke_backend_available", True)
+        )
         state["next"] = "6"
         state["active_gate"] = "Implementation Blocked"
         state["next_gate_condition"] = (
@@ -906,6 +1029,11 @@ def start_implementation(
             "phase": phase_text,
             "actor": actor.strip() or "operator",
             "validation_violations": validation_violations,
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "execution",
+            "binding_source": execution_binding_source,
+            "binding_resolved": bool(llm_result.get("binding_resolved", True)),
+            "invoke_backend_available": bool(llm_result.get("invoke_backend_available", True)),
         }
         if events_path is not None:
             _append_event(events_path, audit_event)
@@ -921,6 +1049,11 @@ def start_implementation(
             implementation_llm_validation_violations=validation_violations,
             reason_code="LLM_RESPONSE_VALIDATION_FAILED",
             reason_codes=validation_violations,
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=execution_binding_source,
+            binding_resolved=bool(llm_result.get("binding_resolved", True)),
+            invoke_backend_available=bool(llm_result.get("invoke_backend_available", True)),
         )
 
     changed_files_raw = llm_result.get("changed_files")
@@ -978,6 +1111,14 @@ def start_implementation(
     state["implementation_execution_status"] = "review_complete" if report.is_compliant else "blocked"
     state["implementation_status"] = "ready_for_review" if report.is_compliant else "blocked"
     state["implementation_reason_codes"] = list(report.reason_codes)
+    state["implementation_pipeline_mode"] = pipeline_mode
+    state["implementation_binding_role"] = "execution"
+    state["implementation_binding_resolved"] = bool(llm_result.get("binding_resolved", True))
+    state["implementation_invoke_backend_available"] = bool(
+        llm_result.get("invoke_backend_available", True)
+    )
+    if execution_binding_source:
+        state["implementation_binding_source"] = execution_binding_source
     state["next"] = "6"
 
     if report.is_compliant:
@@ -1003,6 +1144,11 @@ def start_implementation(
         "plan_record_versions": signal.versions,
         "actor": state["implementation_started_by"],
         "validation": to_report_payload(report),
+        "pipeline_mode": pipeline_mode,
+        "binding_role": "execution",
+        "binding_source": execution_binding_source,
+        "binding_resolved": bool(llm_result.get("binding_resolved", True)),
+        "invoke_backend_available": bool(llm_result.get("invoke_backend_available", True)),
     }
     if events_path is not None:
         _append_event(events_path, audit_event)
@@ -1020,6 +1166,11 @@ def start_implementation(
         implementation_domain_changed_files=list(report.domain_changed_files),
         implementation_checks_executed=[item.name for item in report.checks],
         implementation_checks_ok=bool(report.checks) and all(item.passed for item in report.checks),
+        pipeline_mode=pipeline_mode,
+        binding_role="execution",
+        binding_source=execution_binding_source,
+        binding_resolved=bool(llm_result.get("binding_resolved", True)),
+        invoke_backend_available=bool(llm_result.get("invoke_backend_available", True)),
         next_action=(
             "run /continue."
             if report.is_compliant
