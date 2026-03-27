@@ -123,12 +123,15 @@ def _materialize_text_file(output_dir: Path, prefix: str, content: str) -> tuple
             reason_code=GOVERNANCE_CONTEXT_MATERIALIZATION_FAILED,
         )
 
-    digest = _sha256_digest(content)
+    # Keep digest calculation aligned with fs_atomic.atomic_write_text(), which
+    # canonicalizes CRLF to LF by default.
+    normalized_content = content.replace("\r\n", "\n")
+    digest = _sha256_digest(normalized_content)
     filename = f"{prefix}_{digest[:16]}.txt"
     file_path = output_dir / filename
 
     try:
-        atomic_write_text(file_path, content)
+        atomic_write_text(file_path, normalized_content)
     except OSError as e:
         raise GovernanceContextMaterializationError(
             reason=f"Failed to write {prefix} file: {e}",
