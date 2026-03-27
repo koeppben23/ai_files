@@ -7,6 +7,8 @@ import hashlib
 import json
 import os
 import re
+import shlex
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +34,7 @@ from governance_runtime.domain.phase_state_machine import normalize_phase_token
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.opencode_model_binding import (
     has_active_desktop_llm_binding as _has_desktop_llm_binding,
+    resolve_active_opencode_model,
 )
 from governance_runtime.infrastructure.governance_binding_resolver import (
     GovernanceBindingResolutionError,
@@ -60,6 +63,65 @@ class MandateSchemaInvalidStructureError(Exception):
 class MandateSchemaUnavailableError(Exception):
     pass
 _PHASE5_REVIEW_MIN_ITERATIONS = 1
+
+
+def _build_bridge_env() -> dict[str, str]:
+    env = dict(os.environ)
+    for key in (
+        "OPENCODE",
+        "OPENCODE_CLIENT",
+        "OPENCODE_PID",
+        "OPENCODE_SERVER_USERNAME",
+        "OPENCODE_SERVER_PASSWORD",
+    ):
+        env.pop(key, None)
+    return env
+
+
+def _resolve_desktop_bridge_cmd(*, repo_root: Path, message: str) -> str:
+    candidate_env = str(os.environ.get("OPENCODE_CLI_BIN") or "").strip()
+    candidate_paths: list[str] = []
+    if candidate_env:
+        candidate_paths.append(candidate_env)
+    candidate_paths.append("/Applications/OpenCode.app/Contents/MacOS/opencode-cli")
+    which_opencode = shutil.which("opencode")
+    if which_opencode:
+        candidate_paths.append(which_opencode)
+    which_opencode_cli = shutil.which("opencode-cli")
+    if which_opencode_cli:
+        candidate_paths.append(which_opencode_cli)
+
+    cli_bin = ""
+    for token in candidate_paths:
+        path = Path(token)
+        if path.exists() and os.access(str(path), os.X_OK):
+            cli_bin = str(path)
+            break
+    if not cli_bin:
+        return ""
+
+    model_info = resolve_active_opencode_model()
+    model_token = ""
+    if isinstance(model_info, dict):
+        provider = str(model_info.get("provider") or "").strip()
+        model_id = str(model_info.get("model_id") or "").strip()
+        if provider and model_id:
+            model_token = f"{provider}/{model_id}"
+
+    cmd_parts = [
+        shlex.quote(cli_bin),
+        "run",
+        "--agent",
+        "build",
+        "--dir",
+        shlex.quote(str(repo_root)),
+        "--file",
+        "{context_file}",
+    ]
+    if model_token:
+        cmd_parts.extend(["--model", shlex.quote(model_token)])
+    cmd_parts.append(shlex.quote(message))
+    return " ".join(cmd_parts)
 
 
 def _get_phase5_max_review_iterations(workspace_root: Path | None = None) -> int:
@@ -463,52 +525,27 @@ def _call_llm_generate_plan(
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
-    if not pipeline_mode and _has_active_desktop_llm_binding():
-        fallback_structured = {
-            "language": "en",
-            "objective": f"Plan for ticket/task: {(ticket_text or task_text)[:140]}",
-            "scope": "Analyze the repository and produce actionable findings with priority and owners.",
-            "constraints": [
-                "Use canonical paths and naming.",
-                "Do not introduce destructive changes.",
-                "Preserve governance invariants and fail-closed semantics.",
-            ],
-            "deliverables": [
-                "List of detected legacy paths and naming aliases.",
-                "Validated remediations with tests.",
-                "Verification output and follow-up actions.",
-            ],
-            "steps": [
-                "Collect canonical and legacy path usages across runtime, entrypoints, and install flow.",
-                "Classify findings into defects, intentional compatibility bridges, and cleanup candidates.",
-                "Implement safe fixes and validate with targeted + full test runs.",
-            ],
-            "risks": [
-                "Breaking backward compatibility for existing workspaces.",
-                "Inconsistent state transitions if aliases are removed too early.",
-            ],
-        }
-        fallback_structured["presentation_contract"] = build_presentation_contract(
-            fallback_structured,
-            re_review=re_review,
+    bridge_mode = False
+    if not executor_cmd and not pipeline_mode and _has_active_desktop_llm_binding():
+        bridge_cmd = _resolve_desktop_bridge_cmd(
+            repo_root=Path.cwd(),
+            message="Read the attached planning context JSON and produce only valid JSON conforming to the provided output schema.",
         )
-        plan_text = _structured_plan_to_markdown(fallback_structured)
-        atomic_write_text(
-            stdout_file,
-            json.dumps(fallback_structured, ensure_ascii=True, indent=2) + "\n",
-        )
-        atomic_write_text(
-            stderr_file,
-            "Using active OpenCode Desktop chat binding as default planning binding.\n",
-        )
-        return {
-            "blocked": False,
-            "plan_text": plan_text,
-            "structured_plan": fallback_structured,
-            "pipeline_mode": pipeline_mode,
-            "binding_role": "execution",
-            "binding_source": binding_source,
-        }
+        if bridge_cmd:
+            executor_cmd = bridge_cmd
+            bridge_mode = True
+        else:
+            return {
+                "blocked": True,
+                "reason": "plan-llm-executor-unavailable",
+                "reason_code": "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE",
+                "recovery_action": "Direct mode requires active chat binding and callable desktop bridge.",
+                "pipeline_mode": pipeline_mode,
+                "binding_role": "execution",
+                "binding_source": binding_source,
+                "binding_resolved": True,
+                "invoke_backend_available": False,
+            }
 
     final_cmd = executor_cmd
     if "{context_file}" in final_cmd:
@@ -522,6 +559,7 @@ def _call_llm_generate_plan(
             text=True,
             check=False,
             timeout=120,
+            env=_build_bridge_env() if bridge_mode else None,
         )
         atomic_write_text(stdout_file, str(result.stdout or ""))
         atomic_write_text(stderr_file, str(result.stderr or ""))
@@ -913,19 +951,29 @@ def _call_llm_review(
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
-    if not pipeline_mode and _has_active_desktop_llm_binding():
-        atomic_write_text(stdout_file, "Using active OpenCode Desktop chat binding as review binding.\n")
-        atomic_write_text(stderr_file, "")
-        return {
-            "llm_invoked": True,
-            "verdict": "changes_requested",
-            "findings": [],
-            "raw_response": "{\"verdict\": \"changes_requested\", \"findings\": []}",
-            "validation_valid": True,
-            "pipeline_mode": pipeline_mode,
-            "binding_role": "review",
-            "binding_source": binding_source,
-        }
+    bridge_mode = False
+    if not executor_cmd and not pipeline_mode and _has_active_desktop_llm_binding():
+        bridge_cmd = _resolve_desktop_bridge_cmd(
+            repo_root=Path.cwd(),
+            message="Read the attached review context JSON and produce only valid JSON conforming to the provided output schema.",
+        )
+        if bridge_cmd:
+            executor_cmd = bridge_cmd
+            bridge_mode = True
+        else:
+            return {
+                "llm_invoked": False,
+                "verdict": "changes_requested",
+                "findings": [
+                    "Direct mode review binding resolved to active chat binding, but no callable desktop bridge is available."
+                ],
+                "reason_code": "BLOCKED-REVIEW-EXECUTOR-UNAVAILABLE",
+                "pipeline_mode": pipeline_mode,
+                "binding_role": "review",
+                "binding_source": binding_source,
+                "binding_resolved": True,
+                "invoke_backend_available": False,
+            }
 
     final_cmd = executor_cmd
     if "{context_file}" in final_cmd:
@@ -939,6 +987,7 @@ def _call_llm_review(
             text=True,
             check=False,
             timeout=120,
+            env=_build_bridge_env() if bridge_mode else None,
         )
         atomic_write_text(stdout_file, str(result.stdout or ""))
         atomic_write_text(stderr_file, str(result.stderr or ""))

@@ -69,17 +69,21 @@ class TestLLMCaller:
 
     def test_desktop_binding_used_when_no_explicit_executor(self):
         """Active OpenCode desktop binding acts as default LLM executor."""
+        workspace_root = Path("/tmp")
         caller = LLMCaller(
             executor_cmd="",
             env_reader=lambda key: "openai/gpt-5-codex" if key == "OPENCODE_MODEL" else None,
-            subprocess_runner=lambda cmd: SubprocessResult(stdout="", stderr="", returncode=0),
+            subprocess_runner=lambda cmd: SubprocessResult(stdout='{"verdict":"approve","findings":[]}', stderr="", returncode=0),
+            workspace_root=workspace_root,
         )
+        with patch.object(caller, "_resolve_desktop_bridge_cmd", return_value="python3 -c \"print('{\\\"verdict\\\":\\\"approve\\\",\\\"findings\\\":[]}')\""):
+            assert caller.is_configured is True
+            result = caller.invoke(
+                context={"test": "data"},
+                context_file=Path("/tmp/context.json"),
+                context_writer=lambda _p, _d: None,
+            )
         assert caller.is_configured is True
-        result = caller.invoke(
-            context={"test": "data"},
-            context_file=Path("/tmp/context.json"),
-            context_writer=lambda _p, _d: None,
-        )
         assert result.invoked is True
         assert result.return_code == 0
         assert '"verdict":"approve"' in result.stdout
