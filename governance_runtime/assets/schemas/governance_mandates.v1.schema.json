@@ -230,6 +230,28 @@
             "title": {"type": "string", "minLength": 10, "maxLength": 80},
             "plan_status_badge": {"type": "string", "minLength": 5, "maxLength": 60},
             "decision_required": {"type": "string", "minLength": 10, "maxLength": 180},
+            "recommendation": {
+              "type": "string",
+              "enum": ["approve", "changes_requested", "reject"]
+            },
+            "recommendation_reasons": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 3,
+              "items": {"type": "string", "minLength": 3, "maxLength": 180}
+            },
+            "delivery_scope": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 7,
+              "items": {"type": "string", "minLength": 3, "maxLength": 120}
+            },
+            "acceptance_criteria": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 7,
+              "items": {"type": "string", "minLength": 3, "maxLength": 220}
+            },
             "executive_summary": {
               "type": "array",
               "minItems": 1,
@@ -256,6 +278,12 @@
               "minItems": 1,
               "maxItems": 5,
               "items": {"type": "string", "minLength": 3, "maxLength": 180}
+            },
+            "changes_requested_actions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 5,
+              "items": {"type": "string", "minLength": 5, "maxLength": 220}
             },
             "next_actions": {
               "type": "array",

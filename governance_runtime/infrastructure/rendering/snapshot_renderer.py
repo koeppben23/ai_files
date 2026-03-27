@@ -13,6 +13,8 @@ return formatted strings without modifying the input.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Any
 
 from governance_runtime.application.dto.session_state_types import Snapshot
@@ -23,6 +25,9 @@ from governance_runtime.infrastructure.text_utils import safe_str as _safe_str
 
 # Schema constant
 SNAPSHOT_SCHEMA = "governance-session-snapshot.v1"
+PHASE5_DECISION_BRIEF_TEMPLATE_PATH = (
+    Path(__file__).resolve().parents[2] / "assets" / "presentation" / "phase5_decision_brief.md"
+)
 
 # Gate purpose mappings
 _GATE_PURPOSES: dict[str, str] = {
@@ -110,24 +115,19 @@ def _render_presented_review_content(snapshot: Snapshot) -> list[str]:
     gate = str(snapshot.get("active_gate") or "").strip().lower()
     lines: list[str] = ["Presented review content"]
     if gate == "evidence presentation gate":
-        lines.append("- 📋 PHASE 5 · PLAN FOR APPROVAL")
-        lines.append("- PLAN (not implemented)")
-        lines.append("- Decision required: choose approve, changes_requested, or reject.")
-        lines.append(f"- Review object: {snapshot.get('review_package_review_object') or 'none'}")
-        lines.append(f"- Ticket: {snapshot.get('review_package_ticket') or 'none'}")
-        lines.append("- Approved plan for review:")
         plan_body = str(snapshot.get("review_package_plan_body") or "none")
         if plan_body.strip() and plan_body.strip().lower() != "none":
+            lines.append("Phase 5 decision brief")
+            lines.append("")
             for raw in plan_body.splitlines():
                 text = raw.rstrip()
-                lines.append(f"  {text}" if text else "  ")
+                lines.append(text)
+            lines.append("")
         else:
-            lines.append("  none")
-        lines.append(f"- Evidence summary: {snapshot.get('review_package_evidence_summary') or 'none'}")
-        lines.append("- Next actions:")
-        lines.append("  - /review-decision approve")
-        lines.append("  - /review-decision changes_requested")
-        lines.append("  - /review-decision reject")
+            lines.append("Plan brief is unavailable.")
+        evidence_summary = str(snapshot.get("review_package_evidence_summary") or "").strip()
+        if evidence_summary:
+            lines.append(f"Evidence: {evidence_summary}")
         return lines
 
     if gate == "implementation presentation gate":
@@ -146,6 +146,186 @@ def _render_presented_review_content(snapshot: Snapshot) -> list[str]:
 
     lines.append("- No review presentation content is active in this gate.")
     return lines
+
+
+def _split_python_list_literal(text: str) -> list[str]:
+    compact = text.strip()
+    if not compact.startswith("[") or not compact.endswith("]"):
+        return []
+    inner = compact[1:-1].strip()
+    if not inner:
+        return []
+    parts = [part.strip().strip("'\"") for part in inner.split(",")]
+    return [part for part in parts if part]
+
+
+def _extract_plan_objective(plan_body: str) -> str:
+    lines = [line.rstrip() for line in plan_body.splitlines()]
+    for idx, line in enumerate(lines):
+        if line.strip().lower() == "### plan objective" and idx + 1 < len(lines):
+            objective = lines[idx + 1].strip()
+            if objective:
+                return objective
+    return ""
+
+
+def _sanitize_phase5_decision_brief(plan_body: str) -> str:
+    lines = [line.rstrip() for line in plan_body.splitlines()]
+    objective = _extract_plan_objective(plan_body)
+    out: list[str] = []
+    for raw in lines:
+        stripped = raw.strip()
+        lower = stripped.lower()
+
+        if lower.startswith("- objective signal:"):
+            if objective:
+                out.append(f"- Objective: {objective}")
+            else:
+                out.append("- Objective: Define a concrete delivery objective before approval.")
+            continue
+        if lower.startswith("- target-state signal:"):
+            out.append("- Target state: Define the expected end state and approval boundary.")
+            continue
+        if lower.startswith("- go/no-go signal:"):
+            out.append("- Go/No-Go: Define explicit release gate criteria before approval.")
+            continue
+
+        risk_bullet_match = re.match(r"^-\s*(\[.*\])\s*$", stripped)
+        if risk_bullet_match:
+            items = _split_python_list_literal(risk_bullet_match.group(1))
+            if items:
+                for item in items:
+                    out.append(f"- {item}")
+                continue
+
+        out.append(raw)
+    return "\n".join(out).rstrip()
+
+
+def _load_phase5_decision_brief_template() -> str:
+    try:
+        template = PHASE5_DECISION_BRIEF_TEMPLATE_PATH.read_text(encoding="utf-8")
+        if template.strip():
+            return template
+    except Exception:
+        pass
+    return (
+        "# {title}\n"
+        "{plan_status_badge}\n\n"
+        "## Decision Required\n"
+        "{decision_required}\n\n"
+        "## Recommendation\n"
+        "Recommendation: {recommendation}\n"
+        "{recommendation_reasons}\n\n"
+        "## Executive Summary\n"
+        "{executive_summary}\n\n"
+        "## Scope\n"
+        "{scope}\n\n"
+        "## Risks & Mitigations (Plain Language)\n"
+        "{risks_and_mitigations}\n\n"
+        "## Release Gates\n"
+        "{release_gates}\n\n"
+        "## Next Actions\n"
+        "{next_actions}\n\n"
+        "## Technical Appendix\n"
+        "{technical_appendix}\n"
+    )
+
+
+def _extract_markdown_section(plan_body: str, heading: str) -> str:
+    lines = [line.rstrip("\n") for line in plan_body.splitlines()]
+    marker = f"## {heading}".lower()
+    start = -1
+    for idx, line in enumerate(lines):
+        if line.strip().lower() == marker:
+            start = idx + 1
+            break
+    if start == -1:
+        return ""
+    collected: list[str] = []
+    for line in lines[start:]:
+        if line.startswith("## "):
+            break
+        collected.append(line)
+    return "\n".join(collected).strip()
+
+
+def _first_non_empty_line_after_title(plan_body: str) -> str:
+    lines = [line.strip() for line in plan_body.splitlines()]
+    seen_title = False
+    for line in lines:
+        if not line:
+            continue
+        if not seen_title and line.startswith("# "):
+            seen_title = True
+            continue
+        if seen_title:
+            return line
+    return ""
+
+
+def _render_phase5_decision_brief_from_plan_body(plan_body: str) -> str:
+    sanitized = _sanitize_phase5_decision_brief(plan_body)
+    title = "PHASE 5 · PLAN FOR APPROVAL"
+    for line in sanitized.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            title = stripped[2:].strip() or title
+            break
+
+    plan_status_badge = _first_non_empty_line_after_title(sanitized) or "PLAN (not implemented)"
+    decision_required = _extract_markdown_section(sanitized, "Decision Required") or (
+        "Decision required: choose approve, changes_requested, or reject."
+    )
+
+    recommendation_block = _extract_markdown_section(sanitized, "Recommendation")
+    recommendation = "changes_requested"
+    recommendation_reasons = "- Recommendation rationale is not explicitly provided."
+    if recommendation_block:
+        rec_lines = [line.strip() for line in recommendation_block.splitlines() if line.strip()]
+        for line in rec_lines:
+            if line.lower().startswith("recommendation:"):
+                recommendation = line.split(":", 1)[1].strip() or recommendation
+        rec_bullets = [line for line in rec_lines if line.startswith("-")]
+        if rec_bullets:
+            recommendation_reasons = "\n".join(rec_bullets[:3])
+
+    executive_summary = _extract_markdown_section(sanitized, "Executive Summary")
+    if not executive_summary:
+        executive_summary = "- Executive summary is unavailable in this plan record."
+
+    scope = _extract_markdown_section(sanitized, "Scope") or "Scope is not explicit enough for approval."
+    risks_and_mitigations = (
+        _extract_markdown_section(sanitized, "Risks & Mitigations (Plain Language)")
+        or _extract_markdown_section(sanitized, "Risks & Mitigations")
+        or "- No explicit risks provided."
+    )
+    release_gates = _extract_markdown_section(sanitized, "Release Gates") or (
+        "Approval requires explicit release-gate criteria."
+    )
+    next_actions = _extract_markdown_section(sanitized, "Next Actions") or (
+        "- /review-decision approve\n- /review-decision changes_requested\n- /review-decision reject"
+    )
+    technical_appendix = _extract_markdown_section(sanitized, "Technical Appendix") or "none"
+
+    template = _load_phase5_decision_brief_template()
+    try:
+        rendered = template.format(
+            title=title,
+            plan_status_badge=plan_status_badge,
+            decision_required=decision_required,
+            recommendation=recommendation,
+            recommendation_reasons=recommendation_reasons,
+            executive_summary=executive_summary,
+            scope=scope,
+            risks_and_mitigations=risks_and_mitigations,
+            release_gates=release_gates,
+            next_actions=next_actions,
+            technical_appendix=technical_appendix,
+        )
+        return rendered.rstrip()
+    except Exception:
+        return sanitized
 
 
 def _render_execution_progress(snapshot: Snapshot) -> list[str]:
@@ -254,17 +434,25 @@ def format_snapshot(snapshot: Snapshot) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_guided_sections(snapshot: Snapshot, action_line: str) -> list[str]:
+def render_guided_sections(snapshot: Snapshot, action_line: str, *, verbose_governance_frame: bool = False) -> list[str]:
     """Render the guided output sections based on snapshot state.
 
     Returns list of lines for the main body sections (not including action line).
     """
+    gate = str(snapshot.get("active_gate") or "").strip().lower()
+    if gate == "evidence presentation gate" and not _has_blocker(snapshot) and not verbose_governance_frame:
+        plan_body = str(snapshot.get("review_package_plan_body") or "").strip()
+        if plan_body and plan_body.lower() != "none":
+            rendered = _render_phase5_decision_brief_from_plan_body(plan_body)
+            if rendered:
+                return [line.rstrip() for line in rendered.splitlines()]
+        return ["Plan brief is unavailable."]
+
     lines: list[str] = []
     lines.extend(_render_current_state(snapshot))
     _section(lines, "What this means now")
     lines.append(f"- {str(snapshot.get('next_gate_condition') or 'none')}")
 
-    gate = str(snapshot.get("active_gate") or "").strip().lower()
     if _has_blocker(snapshot):
         _section(lines, "Blocker")
         lines.extend(_render_blocker(snapshot)[1:])
@@ -278,7 +466,12 @@ def render_guided_sections(snapshot: Snapshot, action_line: str) -> list[str]:
     return lines
 
 
-def format_guided_snapshot(snapshot: Snapshot, action_line: str | None = None) -> str:
+def format_guided_snapshot(
+    snapshot: Snapshot,
+    action_line: str | None = None,
+    *,
+    verbose_governance_frame: bool = False,
+) -> str:
     """Format guided operator-facing output with sections.
 
     Args:
@@ -288,7 +481,9 @@ def format_guided_snapshot(snapshot: Snapshot, action_line: str | None = None) -
     """
     if action_line is None:
         action_line = "Next action: consult next-step."
-    lines = render_guided_sections(snapshot, action_line)
-    lines.append("")
-    lines.append(action_line)
+    lines = render_guided_sections(snapshot, action_line, verbose_governance_frame=verbose_governance_frame)
+    gate = str(snapshot.get("active_gate") or "").strip().lower()
+    if not (gate == "evidence presentation gate" and not _has_blocker(snapshot) and not verbose_governance_frame):
+        lines.append("")
+        lines.append(action_line)
     return "\n".join(lines).rstrip() + "\n"

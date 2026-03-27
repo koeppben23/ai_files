@@ -50,7 +50,7 @@ def test_build_presentation_contract_uses_plan_signals_not_static_placeholders()
     summary = " ".join(contract["executive_summary"])
     slices = " ".join(contract["execution_slices"])
     assert "authentication" in summary or "endpoint" in summary
-    assert "Slice 1 signal:" in slices
+    assert "Step 1:" in slices
     assert "validate" in slices or "token" in slices
 
 

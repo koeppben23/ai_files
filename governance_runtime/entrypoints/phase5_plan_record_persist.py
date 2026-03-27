@@ -686,6 +686,18 @@ def _structured_plan_to_markdown(plan: dict[str, object]) -> str:
             lines.append(f"- {item}")
         lines.append("")
 
+    def _add_recommendation_section(value: object, reasons: object) -> None:
+        choice = str(value or "").strip()
+        if not choice:
+            return
+        lines.append("## Recommendation")
+        lines.append(f"Recommendation: {choice}")
+        if isinstance(reasons, list):
+            compact_reasons = [str(item).strip() for item in reasons if str(item).strip()]
+            for item in compact_reasons[:3]:
+                lines.append(f"- {item}")
+        lines.append("")
+
     presentation = plan.get("presentation_contract")
     if isinstance(presentation, Mapping):
         title = str(presentation.get("title") or PHASE5_PRESENTATION_TITLE).strip()
@@ -695,13 +707,23 @@ def _structured_plan_to_markdown(plan: dict[str, object]) -> str:
         lines.append(badge)
         lines.append("")
         _add_text_section("Decision Required", decision)
+        _add_recommendation_section(
+            presentation.get("recommendation"),
+            presentation.get("recommendation_reasons"),
+        )
+        _add_list_section("Delivery Scope (Checklist)", presentation.get("delivery_scope"))
+        _add_list_section("Acceptance Criteria (Measurable)", presentation.get("acceptance_criteria"))
         _add_list_section("Executive Summary", presentation.get("executive_summary"))
         _add_text_section("What Changed Since Last Review", presentation.get("delta_since_last_review"))
         _add_text_section("Scope", presentation.get("scope"))
         _add_list_section("Execution Slices", presentation.get("execution_slices"))
-        _add_list_section("Risks & Mitigations", presentation.get("risks_and_mitigations"))
+        _add_list_section("Risks & Mitigations (Plain Language)", presentation.get("risks_and_mitigations"))
         _add_text_section("Release Gates", presentation.get("release_gates"))
         _add_list_section("Open Decisions", presentation.get("open_decisions"))
+        _add_list_section(
+            "Next Steps if Changes Requested",
+            presentation.get("changes_requested_actions"),
+        )
         _add_list_section("Next Actions", presentation.get("next_actions"))
 
     # Keep legacy technical fields as appendix for compatibility with

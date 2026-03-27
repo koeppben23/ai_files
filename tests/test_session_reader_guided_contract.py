@@ -21,18 +21,31 @@ def test_guided_happy_evidence_presentation_contains_full_review_blocks() -> Non
     action_line = "Next action: run /review-decision <approve|changes_requested|reject>."
     out = format_guided_snapshot(snapshot, action_line)
 
+    assert "Current state" not in out
+    assert "What this means now" not in out
+    assert "Presented review content" not in out
+    assert "# PHASE 5 · PLAN FOR APPROVAL" in out
+    assert "## Decision Required" in out
+    assert "## Technical Appendix" in out
+    assert "  - /plan" not in out
+    assert "  - /continue" not in out
+    assert "Next action:" not in out
+
+
+def test_guided_happy_evidence_presentation_verbose_mode_shows_governance_frame() -> None:
+    snapshot = {
+        "status": "OK",
+        "phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "next_gate_condition": "Implementation review loop complete.",
+        "review_package_plan_body": "# PHASE 5 · PLAN FOR APPROVAL\nLine 1\nLine 2",
+    }
+    action_line = "Next action: run /review-decision <approve|changes_requested|reject>."
+    out = format_guided_snapshot(snapshot, action_line, verbose_governance_frame=True)
+
     assert "Current state" in out
     assert "What this means now" in out
     assert "Presented review content" in out
-    assert "PHASE 5 · PLAN FOR APPROVAL" in out
-    assert "PLAN (not implemented)" in out
-    assert "Approved plan for review:" in out
-    assert "Line 1" in out and "Line 2" in out
-    assert "/review-decision approve" in out
-    assert "/review-decision changes_requested" in out
-    assert "/review-decision reject" in out
-    assert "  - /plan" not in out
-    assert "  - /continue" not in out
     assert out.strip().endswith(action_line)
 
 
