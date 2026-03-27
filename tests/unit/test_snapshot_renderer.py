@@ -180,14 +180,16 @@ class TestFormatGuidedSnapshot:
             "active_gate": "Evidence Presentation Gate",
             "review_package_review_object": "Test Review",
             "review_package_ticket": "TICKET-1",
-            "review_package_plan_body": "Plan body text",
+            "review_package_plan_body": "# PHASE 5 · PLAN FOR APPROVAL\nPlan body text",
             "review_package_evidence_summary": "All evidence present",
         })
         output = format_guided_snapshot(snapshot, "Next action: run /review-decision.")
-        assert "Presented review content" in output
-        assert "Phase 5 decision brief" in output
+        assert "Presented review content" not in output
+        assert "Current state" not in output
+        assert "# PHASE 5 · PLAN FOR APPROVAL" in output
         assert "Plan body text" in output
-        assert "Evidence: All evidence present" in output
+        assert "Evidence:" not in output
+        assert "Next action:" not in output
 
     def test_includes_execution_progress(self):
         snapshot = _to_snapshot({

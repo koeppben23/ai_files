@@ -97,10 +97,20 @@ def _derive_recommendation(*, objective: str, target_state: str, go_no_go: str) 
         recommendation = "changes_requested"
     else:
         recommendation = "approve"
+    scope_reason = (
+        _clamp(f"Scope is defined as: {target_state}", limit=180)
+        if target_state
+        else "Scope is not explicit enough yet and should be clarified before approval."
+    )
+    gate_reason = (
+        _clamp(f"Release gate proposal: {go_no_go}", limit=180)
+        if go_no_go
+        else "Release-gate criteria are not explicit yet and should be confirmed before approval."
+    )
     reasons = [
-        _clamp(f"Scope signal: {_keyword_signal(target_state or objective)}.", limit=180),
-        _clamp(f"Go/No-Go signal: {_keyword_signal(go_no_go)}.", limit=180),
-        "Evidence package is complete enough for a final decision.",
+        scope_reason,
+        gate_reason,
+        "Decision can proceed once the listed scope and gates are accepted.",
     ]
     return recommendation, reasons
 

@@ -1552,7 +1552,8 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Presented review content" in output
+        assert "Plan brief is unavailable." in output
+        assert "Presented review content" not in output
         assert "continue in chat with the active gate work" not in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
@@ -1669,7 +1670,8 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Presented review content" in output
+        assert "Plan brief is unavailable." in output
+        assert "Presented review content" not in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["phase6_review_iterations"] == 2
@@ -1781,7 +1783,8 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Presented review content" in output
+        assert "Plan brief is unavailable." in output
+        assert "Presented review content" not in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["implementation_review_complete"] is True

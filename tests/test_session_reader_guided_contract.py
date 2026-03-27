@@ -21,14 +21,13 @@ def test_guided_happy_evidence_presentation_contains_full_review_blocks() -> Non
     action_line = "Next action: run /review-decision <approve|changes_requested|reject>."
     out = format_guided_snapshot(snapshot, action_line)
 
-    assert "Current state" in out
-    assert "What this means now" in out
-    assert "Presented review content" in out
-    assert "Phase 5 decision brief" in out
+    assert "Current state" not in out
+    assert "What this means now" not in out
+    assert "Presented review content" not in out
     assert "Line 1" in out and "Line 2" in out
     assert "  - /plan" not in out
     assert "  - /continue" not in out
-    assert out.strip().endswith(action_line)
+    assert "Next action:" not in out
 
 
 def test_guided_bad_blocker_contains_blocker_section_and_single_next_action() -> None:

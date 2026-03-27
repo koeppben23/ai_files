@@ -254,12 +254,18 @@ def render_guided_sections(snapshot: Snapshot, action_line: str) -> list[str]:
 
     Returns list of lines for the main body sections (not including action line).
     """
+    gate = str(snapshot.get("active_gate") or "").strip().lower()
+    if gate == "evidence presentation gate" and not _has_blocker(snapshot):
+        plan_body = str(snapshot.get("review_package_plan_body") or "").strip()
+        if plan_body and plan_body.lower() != "none":
+            return [line.rstrip() for line in plan_body.splitlines()]
+        return ["Plan brief is unavailable."]
+
     lines: list[str] = []
     lines.extend(_render_current_state(snapshot))
     _section(lines, "What this means now")
     lines.append(f"- {str(snapshot.get('next_gate_condition') or 'none')}")
 
-    gate = str(snapshot.get("active_gate") or "").strip().lower()
     if _has_blocker(snapshot):
         _section(lines, "Blocker")
         lines.extend(_render_blocker(snapshot)[1:])
@@ -284,6 +290,8 @@ def format_guided_snapshot(snapshot: Snapshot, action_line: str | None = None) -
     if action_line is None:
         action_line = "Next action: consult next-step."
     lines = render_guided_sections(snapshot, action_line)
-    lines.append("")
-    lines.append(action_line)
+    gate = str(snapshot.get("active_gate") or "").strip().lower()
+    if not (gate == "evidence presentation gate" and not _has_blocker(snapshot)):
+        lines.append("")
+        lines.append(action_line)
     return "\n".join(lines).rstrip() + "\n"
