@@ -31,6 +31,9 @@ from governance_runtime.contracts.enforcement import require_complete_contracts
 from governance_runtime.engine.implementation_validation import (
     CheckResult,
     ExecutorRunResult,
+    RC_CHECK_COLLECTION_FAILED,
+    RC_CHECK_RUNNER_FAILED,
+    RC_CHECK_SELECTOR_INVALID,
     RC_EXECUTOR_FAILED,
     RC_EXECUTOR_NOT_CONFIGURED,
     RC_TARGETED_CHECKS_MISSING,
@@ -305,6 +308,17 @@ def _load_compiled_requirements(session_path: Path, state: Mapping[str, object])
     return out
 
 
+def _load_compiled_requirements_source_authority(session_path: Path, state: Mapping[str, object]) -> str:
+    path = _contracts_path(session_path, state)
+    if not path.exists() or not path.is_file():
+        return ""
+    try:
+        payload = _load_json(path)
+    except Exception:
+        return ""
+    return str(payload.get("source_authority") or "").strip()
+
+
 def _extract_hotspot_files(requirements: list[dict[str, object]]) -> list[str]:
     files: list[str] = []
     seen: set[str] = set()
@@ -371,6 +385,60 @@ def _parse_changed_files_from_git_status(repo_root: Path) -> list[str]:
             continue
         changed_files.append(raw[3:].strip().replace("\\", "/"))
     return sorted(set(changed_files))
+
+
+def _capture_repo_change_baseline(repo_root: Path) -> dict[str, object]:
+    try:
+        probe = subprocess.run(
+            ["git", "-C", str(repo_root), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return {
+            "repo_dirty_before": False,
+            "tracked_changes_before": [],
+            "untracked_before": [],
+        }
+    if probe.returncode != 0:
+        return {
+            "repo_dirty_before": False,
+            "tracked_changes_before": [],
+            "untracked_before": [],
+        }
+    tracked: list[str] = []
+    untracked: list[str] = []
+    for raw in str(probe.stdout or "").splitlines():
+        if len(raw) < 4:
+            continue
+        status = raw[:2]
+        path = raw[3:].strip().replace("\\", "/")
+        if not path:
+            continue
+        if status == "??":
+            untracked.append(path)
+        else:
+            tracked.append(path)
+    tracked = sorted(set(tracked))
+    untracked = sorted(set(untracked))
+    return {
+        "repo_dirty_before": bool(tracked or untracked),
+        "tracked_changes_before": tracked,
+        "untracked_before": untracked,
+    }
+
+
+def _classify_check_failure_kind(exit_code: int | None, output: str) -> str | None:
+    code = int(exit_code or 0)
+    lower = str(output or "").lower()
+    if code == 0:
+        return None
+    if code == 4:
+        if "no tests ran" in lower or "not found" in lower or "collected 0 items" in lower:
+            return "selector_invalid"
+        return "collection_failed"
+    return "runner_failed"
 
 
 def _file_sha256(path: Path) -> str:
@@ -560,6 +628,7 @@ def _run_llm_edit_step(
         )
     _write_text_atomic(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
+    repo_baseline = _capture_repo_change_baseline(repo_root)
     before_changed = set(_parse_changed_files_from_git_status(repo_root))
     before_hotspot_hashes = _capture_hotspot_hashes(repo_root, required_hotspots)
 
@@ -590,6 +659,7 @@ def _run_llm_edit_step(
                     "stdout_path": str(stdout_file),
                     "stderr_path": str(stderr_file),
                     "changed_files": [],
+                    "repo_baseline": repo_baseline,
                     "blocked": True,
                 }
         if not executor_cmd:
@@ -605,6 +675,7 @@ def _run_llm_edit_step(
                 "stdout_path": str(stdout_file),
                 "stderr_path": str(stderr_file),
                 "changed_files": [],
+                "repo_baseline": repo_baseline,
                 "blocked": True,
             }
 
@@ -667,6 +738,7 @@ def _run_llm_edit_step(
         "bridge_mode": bridge_mode,
         "binding_resolved": True,
         "invoke_backend_available": True,
+        "repo_baseline": repo_baseline,
     }
 
 
@@ -692,12 +764,14 @@ def _run_targeted_checks(repo_root: Path, requirements: list[dict[str, object]])
     output_file = repo_root / ".governance" / "implementation" / "targeted_checks.log"
     output = (result.stdout or "") + ("\n" if result.stdout and result.stderr else "") + (result.stderr or "")
     _write_text_atomic(output_file, output)
+    failure_kind = _classify_check_failure_kind(int(result.returncode), output)
     check_results = tuple(
         CheckResult(
             name=test,
             passed=result.returncode == 0,
             exit_code=int(result.returncode),
             output_path=str(output_file),
+            failure_kind=failure_kind,
         )
         for test in tests
     )
@@ -802,6 +876,17 @@ def start_implementation(
     plan_text = _latest_plan_text(plan_record_file)
     repo_root = _repo_root(session_path, state)
     compiled_requirements = _load_compiled_requirements(session_path, state)
+    source_authority = _load_compiled_requirements_source_authority(session_path, state)
+    state["requirement_contracts_source_authority_observed"] = source_authority
+    if source_authority and source_authority != "machine_requirements":
+        return _payload(
+            "error",
+            reason_code="REQUIREMENT_SOURCE_INVALID",
+            message=(
+                "Compiled requirements source authority is invalid for /implement. "
+                f"observed={source_authority}, expected=machine_requirements"
+            ),
+        )
     required_hotspots = _extract_hotspot_files(compiled_requirements)
 
     resolver = BindingEvidenceResolver(env=os.environ)
@@ -968,6 +1053,7 @@ def start_implementation(
             binding_source=execution_binding_source,
             binding_resolved=binding_resolved,
             invoke_backend_available=invoke_backend_available,
+            repo_baseline=llm_result.get("repo_baseline") if isinstance(llm_result, Mapping) else None,
             next_action=(
                 "Provide required governance bindings for active mode and rerun /implement."
                 if reason_code == RC_EXECUTOR_NOT_CONFIGURED
@@ -1054,6 +1140,7 @@ def start_implementation(
             binding_source=execution_binding_source,
             binding_resolved=bool(llm_result.get("binding_resolved", True)),
             invoke_backend_available=bool(llm_result.get("invoke_backend_available", True)),
+            repo_baseline=llm_result.get("repo_baseline") if isinstance(llm_result, Mapping) else None,
         )
 
     changed_files_raw = llm_result.get("changed_files")
@@ -1110,7 +1197,18 @@ def start_implementation(
     state["implementation_llm_step_executed"] = report.executor_invoked
     state["implementation_execution_status"] = "review_complete" if report.is_compliant else "blocked"
     state["implementation_status"] = "ready_for_review" if report.is_compliant else "blocked"
+    state["implementation_primary_reason_code"] = report.primary_reason_code
+    state["implementation_secondary_reason_codes"] = list(report.secondary_reason_codes)
     state["implementation_reason_codes"] = list(report.reason_codes)
+    baseline = llm_result.get("repo_baseline")
+    if isinstance(baseline, Mapping):
+        state["repo_dirty_before"] = bool(baseline.get("repo_dirty_before"))
+        tracked_before = baseline.get("tracked_changes_before")
+        untracked_before = baseline.get("untracked_before")
+        if isinstance(tracked_before, list):
+            state["tracked_changes_before"] = [str(x) for x in tracked_before]
+        if isinstance(untracked_before, list):
+            state["untracked_before"] = [str(x) for x in untracked_before]
     state["implementation_pipeline_mode"] = pipeline_mode
     state["implementation_binding_role"] = "execution"
     state["implementation_binding_resolved"] = bool(llm_result.get("binding_resolved", True))
@@ -1129,6 +1227,7 @@ def start_implementation(
         reason_text = ", ".join(report.reason_codes) if report.reason_codes else RC_TARGETED_CHECKS_MISSING
         state["next_gate_condition"] = (
             "Implementation validation failed. "
+            f"primary_reason={report.primary_reason_code or RC_TARGETED_CHECKS_MISSING}; "
             f"reason_codes={reason_text}. Resolve blockers and rerun /implement."
         )
 
@@ -1144,6 +1243,8 @@ def start_implementation(
         "plan_record_versions": signal.versions,
         "actor": state["implementation_started_by"],
         "validation": to_report_payload(report),
+        "primary_reason_code": report.primary_reason_code,
+        "secondary_reason_codes": list(report.secondary_reason_codes),
         "pipeline_mode": pipeline_mode,
         "binding_role": "execution",
         "binding_source": execution_binding_source,
@@ -1171,6 +1272,7 @@ def start_implementation(
         binding_source=execution_binding_source,
         binding_resolved=bool(llm_result.get("binding_resolved", True)),
         invoke_backend_available=bool(llm_result.get("invoke_backend_available", True)),
+        repo_baseline=llm_result.get("repo_baseline") if isinstance(llm_result, Mapping) else None,
         next_action=(
             "run /continue."
             if report.is_compliant
@@ -1178,13 +1280,11 @@ def start_implementation(
         ),
     )
     if not report.is_compliant:
+        payload["primary_reason_code"] = report.primary_reason_code
+        payload["secondary_reason_codes"] = list(report.secondary_reason_codes)
         payload["reason_codes"] = list(report.reason_codes)
-        if RC_EXECUTOR_NOT_CONFIGURED in report.reason_codes:
-            payload["reason_code"] = RC_EXECUTOR_NOT_CONFIGURED
-        elif RC_EXECUTOR_FAILED in report.reason_codes:
-            payload["reason_code"] = RC_EXECUTOR_FAILED
-        else:
-            payload["reason_code"] = report.reason_codes[0] if report.reason_codes else "IMPLEMENTATION_VALIDATION_FAILED"
+        primary_reason = report.primary_reason_code or "IMPLEMENTATION_VALIDATION_FAILED"
+        payload["reason_code"] = primary_reason
     return payload
 
 

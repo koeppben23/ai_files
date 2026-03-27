@@ -204,11 +204,15 @@ def test_phase5_plan_persist_good_chat_text_persists_and_routes(tmp_path: Path, 
     assert int(state["requirement_contracts_count"]) >= 1
     assert str(state["requirement_contracts_digest"]).startswith("sha256:")
     assert Path(str(state["requirement_contracts_source"])).exists()
+    assert state["requirement_contracts_source_authority"] == "machine_requirements"
+    assert int(state["machine_requirements_count"]) >= 1
+    assert isinstance(state["requirement_compiler_notes"], list)
 
     plan_record = json.loads((session_path.parent / "plan-record.json").read_text(encoding="utf-8"))
     assert plan_record["status"] == "active"
     assert len(plan_record["versions"]) >= 1
     assert plan_record["versions"][0]["trigger"] == "phase5-plan-record-rail"
+    assert isinstance(plan_record["versions"][0].get("machine_requirements"), list)
 
 
 @pytest.mark.governance

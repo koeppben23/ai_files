@@ -277,3 +277,129 @@ def build_presentation_contract(plan: Mapping[str, object], *, re_review: bool =
         "next_actions": list(NEXT_ACTIONS),
         "language": "en",
     }
+
+
+def build_machine_requirements(plan: Mapping[str, object]) -> list[dict[str, object]]:
+    """Build strictly compilable machine requirements from structured plan fields.
+
+    This function is the only authoritative source for compiled requirement
+    contracts in Phase 5. It intentionally excludes presentation-only text.
+    """
+    objective = str(plan.get("objective", "") or "").strip()
+    target_flow = str(plan.get("target_flow", "") or "").strip()
+    go_no_go = str(plan.get("go_no_go", "") or "").strip()
+    test_strategy = str(plan.get("test_strategy", "") or "").strip()
+
+    def _norm_list(value: object) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [str(item).strip() for item in value if str(item).strip()]
+
+    presentation = plan.get("presentation_contract")
+    if isinstance(presentation, Mapping):
+        scope_source = presentation.get("delivery_scope")
+    else:
+        scope_source = plan.get("delivery_scope")
+
+    hotspots = [
+        "governance_runtime/entrypoints/session_reader.py",
+        "governance_runtime/entrypoints/implement_start.py",
+        "governance_runtime/entrypoints/review_decision_persist.py",
+    ]
+
+    requirements: list[dict[str, object]] = []
+
+    if objective:
+        requirements.append(
+            {
+                "title": objective,
+                "kind": "required_behavior",
+                "required_behavior": f"Implement: {objective}",
+                "forbidden_behavior": f"forbid state: {objective} not satisfied",
+                "code_hotspots": hotspots,
+                "verification_methods": [
+                    "behavioral_verification",
+                    "live_flow_verification",
+                    "static_verification",
+                ],
+            }
+        )
+
+    flow_items = _split_compact_items(target_flow, max_items=MAX_EXECUTION_SLICES)
+    for idx, item in enumerate(flow_items, 1):
+        requirements.append(
+            {
+                "title": f"Execution step {idx}: {item}",
+                "kind": "required_behavior",
+                "required_behavior": f"Implement execution step {idx}: {item}",
+                "forbidden_behavior": f"forbid state: execution step {idx} missing ({item})",
+                "code_hotspots": hotspots,
+                "verification_methods": [
+                    "behavioral_verification",
+                    "live_flow_verification",
+                    "static_verification",
+                ],
+            }
+        )
+
+    if go_no_go:
+        requirements.append(
+            {
+                "title": f"Release gate: {go_no_go}",
+                "kind": "state_expectation",
+                "required_behavior": f"Satisfy release gate: {go_no_go}",
+                "forbidden_behavior": f"forbid state: release gate unmet ({go_no_go})",
+                "code_hotspots": hotspots,
+                "verification_methods": [
+                    "behavioral_verification",
+                    "receipts_verification",
+                    "static_verification",
+                ],
+            }
+        )
+
+    for item in _norm_list(scope_source):
+        normalized = item.replace("[ ]", "").strip()
+        if not normalized:
+            continue
+        requirements.append(
+            {
+                "title": normalized,
+                "kind": "required_behavior",
+                "required_behavior": f"Implement scope item: {normalized}",
+                "forbidden_behavior": f"forbid state: scope item missing ({normalized})",
+                "code_hotspots": hotspots,
+                "verification_methods": [
+                    "behavioral_verification",
+                    "live_flow_verification",
+                    "static_verification",
+                ],
+            }
+        )
+
+    if test_strategy:
+        requirements.append(
+            {
+                "title": f"Test strategy: {test_strategy}",
+                "kind": "state_expectation",
+                "required_behavior": f"Apply test strategy: {test_strategy}",
+                "forbidden_behavior": f"forbid state: test strategy not applied ({test_strategy})",
+                "code_hotspots": hotspots,
+                "verification_methods": [
+                    "behavioral_verification",
+                    "live_flow_verification",
+                    "static_verification",
+                ],
+            }
+        )
+
+    deduped: list[dict[str, object]] = []
+    seen_titles: set[str] = set()
+    for req in requirements:
+        title = str(req.get("title") or "").strip().lower()
+        if not title or title in seen_titles:
+            continue
+        seen_titles.add(title)
+        deduped.append(req)
+
+    return deduped
