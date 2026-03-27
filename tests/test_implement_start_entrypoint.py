@@ -141,6 +141,8 @@ def test_happy_event_persists_binding_evidence(monkeypatch: pytest.MonkeyPatch, 
     assert started[-1]["pipeline_mode"] is False
     assert started[-1]["binding_role"] == "execution"
     assert started[-1]["binding_source"] == "active_chat_binding"
+    assert started[-1]["binding_resolved"] is True
+    assert started[-1]["invoke_backend_available"] is True
 
 
 def test_bad_executor_no_changes_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
@@ -547,6 +549,8 @@ def test_edge_implement_start_with_desktop_binding_but_no_bridge_blocks_cleanly(
     assert out["status"] == "blocked"
     assert out["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
     assert out["reason_codes"] == [entrypoint.RC_EXECUTOR_NOT_CONFIGURED]
+    assert out["binding_resolved"] is True
+    assert out["invoke_backend_available"] is False
     assert out["implementation_validation"]["checks"] == []
     assert out["implementation_validation"]["plan_coverage"] == []
 
@@ -914,3 +918,5 @@ def test_bad_precheck_event_persists_binding_evidence(
     assert precheck[-1]["pipeline_mode"] is False
     assert precheck[-1]["binding_role"] == "execution"
     assert precheck[-1]["binding_source"] == "active_chat_binding"
+    assert precheck[-1]["binding_resolved"] is True
+    assert precheck[-1]["invoke_backend_available"] is True

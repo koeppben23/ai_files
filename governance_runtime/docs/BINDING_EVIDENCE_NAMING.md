@@ -7,6 +7,8 @@ This note defines the canonical binding-evidence keys used by runtime outputs.
 - `pipeline_mode`: `true` when `pipeline_mode` is active for the invoking flow, else `false`.
 - `binding_role`: role requested from resolver (`execution` or `review`).
 - `binding_source`: origin of selected binding (`active_chat_binding`, `env:AI_GOVERNANCE_EXECUTION_BINDING`, `env:AI_GOVERNANCE_REVIEW_BINDING`, or explicit override source).
+- `binding_resolved`: `true` when binding selection succeeded for active mode.
+- `invoke_backend_available`: `true` when the selected binding has a callable backend in current runtime process.
 
 ## State surfaces
 
@@ -25,6 +27,8 @@ This note defines the canonical binding-evidence keys used by runtime outputs.
   - `implementation_pipeline_mode`
   - `implementation_binding_role`
   - `implementation_binding_source`
+  - `implementation_binding_resolved`
+  - `implementation_invoke_backend_available`
 
 ## Event surfaces
 
@@ -32,6 +36,8 @@ This note defines the canonical binding-evidence keys used by runtime outputs.
   - `IMPLEMENTATION_STARTED`
   - `IMPLEMENTATION_BLOCKED_PRECHECK`
   - `IMPLEMENTATION_BLOCKED_VALIDATION`
+  - plus `binding_resolved` and `invoke_backend_available` to distinguish
+    selection success from callable backend readiness.
 - Phase 5 persisted event includes:
   - `plan_execution_pipeline_mode`
   - `plan_execution_binding_source`

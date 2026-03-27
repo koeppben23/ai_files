@@ -487,6 +487,8 @@ def _run_llm_edit_step(
             "reason": "effective-policy-unavailable",
             "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
             "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
+            "binding_resolved": has_executor,
+            "invoke_backend_available": has_executor,
         }
 
     developer_schema_text = _get_developer_output_schema_text()
@@ -592,6 +594,7 @@ def _run_llm_edit_step(
                 "stdout_path": str(stdout_file),
                 "stderr_path": str(stderr_file),
                 "changed_files": [],
+                "blocked": True,
             }
 
     final_cmd = executor_cmd
@@ -651,6 +654,8 @@ def _run_llm_edit_step(
         "response_valid": response_valid,
         "validation_violations": validation_violations,
         "bridge_mode": bridge_mode,
+        "binding_resolved": True,
+        "invoke_backend_available": True,
     }
 
 
@@ -824,6 +829,8 @@ def start_implementation(
         state["implementation_execution_started"] = False
         state["implementation_pipeline_mode"] = pipeline_mode
         state["implementation_binding_role"] = "execution"
+        state["implementation_binding_resolved"] = False
+        state["implementation_invoke_backend_available"] = False
         state["next"] = "6"
         state["active_gate"] = "Implementation Blocked"
         state["next_gate_condition"] = "Implementation binding resolution failed for active mode."
@@ -842,6 +849,8 @@ def start_implementation(
                     "pipeline_mode": pipeline_mode,
                     "binding_role": "execution",
                     "binding_source": execution_binding_source,
+                    "binding_resolved": False,
+                    "invoke_backend_available": False,
                 },
             )
         return _payload(
@@ -855,6 +864,9 @@ def start_implementation(
             reason_codes=[reason_code],
             pipeline_mode=pipeline_mode,
             binding_role="execution",
+            binding_source=execution_binding_source,
+            binding_resolved=False,
+            invoke_backend_available=False,
             next_action="Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
         )
 
@@ -873,6 +885,8 @@ def start_implementation(
     if bool(llm_result.get("blocked")):
         reason_code = str(llm_result.get("reason_code") or "IMPLEMENTATION_LLM_PRECHECK_BLOCKED").strip()
         message = str(llm_result.get("message") or llm_result.get("reason") or "LLM precheck blocked").strip()
+        binding_resolved = bool(llm_result.get("binding_resolved", True))
+        invoke_backend_available = bool(llm_result.get("invoke_backend_available", True))
         if not message:
             message = "LLM precheck blocked"
         state["implementation_authorized"] = True
@@ -882,6 +896,8 @@ def start_implementation(
         state["implementation_execution_started"] = False
         state["implementation_pipeline_mode"] = pipeline_mode
         state["implementation_binding_role"] = "execution"
+        state["implementation_binding_resolved"] = binding_resolved
+        state["implementation_invoke_backend_available"] = invoke_backend_available
         if execution_binding_source:
             state["implementation_binding_source"] = execution_binding_source
         state["next"] = "6"
@@ -910,6 +926,8 @@ def start_implementation(
                     "pipeline_mode": pipeline_mode,
                     "binding_role": "execution",
                     "binding_source": execution_binding_source,
+                    "binding_resolved": binding_resolved,
+                    "invoke_backend_available": invoke_backend_available,
                 },
             )
         return _payload(
@@ -937,6 +955,8 @@ def start_implementation(
             pipeline_mode=pipeline_mode,
             binding_role="execution",
             binding_source=execution_binding_source,
+            binding_resolved=binding_resolved,
+            invoke_backend_available=invoke_backend_available,
             next_action=(
                 "Provide required governance bindings for active mode and rerun /implement."
                 if reason_code == RC_EXECUTOR_NOT_CONFIGURED
@@ -979,6 +999,10 @@ def start_implementation(
         state["implementation_validation_report_path"] = str(validation_report_path)
         state["implementation_llm_response_valid"] = response_valid
         state["implementation_llm_validation_violations"] = validation_violations
+        state["implementation_binding_resolved"] = bool(llm_result.get("binding_resolved", True))
+        state["implementation_invoke_backend_available"] = bool(
+            llm_result.get("invoke_backend_available", True)
+        )
         state["next"] = "6"
         state["active_gate"] = "Implementation Blocked"
         state["next_gate_condition"] = (
@@ -997,6 +1021,8 @@ def start_implementation(
             "pipeline_mode": pipeline_mode,
             "binding_role": "execution",
             "binding_source": execution_binding_source,
+            "binding_resolved": bool(llm_result.get("binding_resolved", True)),
+            "invoke_backend_available": bool(llm_result.get("invoke_backend_available", True)),
         }
         if events_path is not None:
             _append_event(events_path, audit_event)
@@ -1012,6 +1038,11 @@ def start_implementation(
             implementation_llm_validation_violations=validation_violations,
             reason_code="LLM_RESPONSE_VALIDATION_FAILED",
             reason_codes=validation_violations,
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=execution_binding_source,
+            binding_resolved=bool(llm_result.get("binding_resolved", True)),
+            invoke_backend_available=bool(llm_result.get("invoke_backend_available", True)),
         )
 
     changed_files_raw = llm_result.get("changed_files")
@@ -1071,6 +1102,10 @@ def start_implementation(
     state["implementation_reason_codes"] = list(report.reason_codes)
     state["implementation_pipeline_mode"] = pipeline_mode
     state["implementation_binding_role"] = "execution"
+    state["implementation_binding_resolved"] = bool(llm_result.get("binding_resolved", True))
+    state["implementation_invoke_backend_available"] = bool(
+        llm_result.get("invoke_backend_available", True)
+    )
     if execution_binding_source:
         state["implementation_binding_source"] = execution_binding_source
     state["next"] = "6"
@@ -1101,6 +1136,8 @@ def start_implementation(
         "pipeline_mode": pipeline_mode,
         "binding_role": "execution",
         "binding_source": execution_binding_source,
+        "binding_resolved": bool(llm_result.get("binding_resolved", True)),
+        "invoke_backend_available": bool(llm_result.get("invoke_backend_available", True)),
     }
     if events_path is not None:
         _append_event(events_path, audit_event)
@@ -1121,6 +1158,8 @@ def start_implementation(
         pipeline_mode=pipeline_mode,
         binding_role="execution",
         binding_source=execution_binding_source,
+        binding_resolved=bool(llm_result.get("binding_resolved", True)),
+        invoke_backend_available=bool(llm_result.get("invoke_backend_available", True)),
         next_action=(
             "run /continue."
             if report.is_compliant
