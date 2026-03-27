@@ -18,6 +18,7 @@ _IO_MODULE_PREFIXES = {
 
 _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance_runtime/infrastructure/binding_evidence_resolver.py",
+    "governance_runtime/infrastructure/governance_context_materializer.py",
     "governance_runtime/infrastructure/run_summary_writer.py",
     "governance_runtime/infrastructure/session_pointer.py",
     "governance_runtime/infrastructure/workspace_resolver.py",
