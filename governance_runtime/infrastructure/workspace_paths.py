@@ -450,3 +450,34 @@ def phase2_artifact_paths(workspaces_home: Path, repo_fingerprint: str) -> dict[
         "repo_map_digest": repo_map_digest_path(workspaces_home, repo_fingerprint),
         "workspace_memory": workspace_memory_path(workspaces_home, repo_fingerprint),
     }
+
+
+def governance_plan_dir(config_root: Path) -> Path:
+    """Return canonical governance plan artifacts directory."""
+    return config_root / "plan"
+
+
+def governance_review_dir(config_root: Path) -> Path:
+    """Return canonical governance review artifacts directory."""
+    return config_root / "review"
+
+
+def governance_runtime_state_dir(config_root: Path) -> Path:
+    """Return canonical governance runtime state directory."""
+    return config_root / "runtime_state"
+
+
+def governance_implementation_dir(config_root: Path) -> Path:
+    """Return canonical governance implementation artifacts directory."""
+    return config_root / "implementation"
+
+
+def governance_allowed_artifact_dirs(config_root: Path) -> tuple[Path, ...]:
+    """Return allowed governance directories for materialized artifacts."""
+    return (
+        config_root,
+        governance_runtime_state_dir(config_root),
+        governance_plan_dir(config_root),
+        governance_review_dir(config_root),
+        governance_implementation_dir(config_root),
+    )

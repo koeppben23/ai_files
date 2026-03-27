@@ -41,7 +41,17 @@ from governance_runtime.infrastructure.governance_binding_resolver import (
     resolve_governance_binding,
 )
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.governance_context_materializer import (
+    GovernanceContextMaterializationError,
+    materialize_governance_artifacts,
+    validate_materialized_artifacts,
+)
 from governance_runtime.infrastructure.plan_record_repository import PlanRecordRepository
+from governance_runtime.infrastructure.workspace_paths import (
+    governance_plan_dir,
+    governance_review_dir,
+    governance_runtime_state_dir,
+)
 from governance_runtime.infrastructure.workspace_paths import plan_record_archive_dir, plan_record_path
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import load_json as _load_json
@@ -466,6 +476,7 @@ def _call_llm_generate_plan(
     effective_authoring_policy: str = "",
     re_review: bool = False,
     workspace_dir: Path | None = None,
+    config_root: Path | None = None,
 ) -> dict[str, object]:
     """Call LLM to generate a plan from ticket/task context.
 
@@ -488,20 +499,48 @@ def _call_llm_generate_plan(
 
     executor_cmd = binding_value if pipeline_mode else ""
 
-    plan_dir = Path.home() / ".governance" / "plan"
+    governance_root = config_root if config_root is not None else (Path.home() / ".governance")
+    plan_dir = governance_plan_dir(governance_root)
     plan_dir.mkdir(parents=True, exist_ok=True)
     context_file = plan_dir / "llm_plan_context.json"
     stdout_file = plan_dir / "llm_plan_stdout.log"
     stderr_file = plan_dir / "llm_plan_stderr.log"
 
+    runtime_state_dir = governance_runtime_state_dir(governance_root)
+    runtime_state_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        materialization = materialize_governance_artifacts(
+            output_dir=runtime_state_dir,
+            config_root=governance_root,
+            plan_mandate=plan_mandate if plan_mandate else None,
+            effective_policy=effective_authoring_policy if effective_authoring_policy else None,
+        )
+    except GovernanceContextMaterializationError as e:
+        return {
+            "blocked": True,
+            "reason": f"governance-context-materialization-failed: {e.reason}",
+            "reason_code": e.reason_code,
+            "recovery_action": "Failed to materialize governance artifacts.",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "execution",
+            "binding_source": binding_source,
+        }
+
     output_schema_text = _get_plan_output_schema_text()
     instruction_parts = [
         "You are a governance planner. Generate a structured plan from the ticket and task below.",
     ]
-    if plan_mandate:
-        instruction_parts.append("Apply the plan mandate below.")
-    if effective_authoring_policy:
-        instruction_parts.append("Apply the effective authoring policy below for active profile and addons.")
+    if materialization.plan_mandate_file:
+        instruction_parts.append(
+            f"Load the plan mandate from file: {materialization.plan_mandate_file} "
+            f"(SHA256: {materialization.plan_mandate_sha256})"
+        )
+    if materialization.effective_policy_file:
+        instruction_parts.append(
+            f"Load the effective policy from file: {materialization.effective_policy_file} "
+            f"(SHA256: {materialization.effective_policy_sha256})"
+        )
     instruction_parts.append(
         "You MUST respond with valid JSON that conforms to the output schema below.\n"
         "All textual output MUST be in English only (language='en').\n"
@@ -514,13 +553,32 @@ def _call_llm_generate_plan(
         "ticket": ticket_text,
         "task": task_text,
     }
-    if plan_mandate:
-        context["plan_mandate"] = plan_mandate
-    if effective_authoring_policy:
-        context["effective_authoring_policy"] = effective_authoring_policy
-        context["effective_policy_loaded"] = True
+    if materialization.plan_mandate_file:
+        context["plan_mandate_file"] = str(materialization.plan_mandate_file)
+        context["plan_mandate_sha256"] = materialization.plan_mandate_sha256
+        context["plan_mandate_label"] = materialization.plan_mandate_label
+    if materialization.effective_policy_file:
+        context["effective_policy_file"] = str(materialization.effective_policy_file)
+        context["effective_policy_sha256"] = materialization.effective_policy_sha256
+        context["effective_policy_label"] = materialization.effective_policy_label
+    context["effective_policy_loaded"] = materialization.has_materialized()
+    if materialization.has_materialized():
+        context["context_materialization_complete"] = True
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
+
+    try:
+        validate_materialized_artifacts(materialization)
+    except GovernanceContextMaterializationError as e:
+        return {
+            "blocked": True,
+            "reason": f"governance-context-validation-failed: {e.reason}",
+            "reason_code": e.reason_code,
+            "recovery_action": "Materialized artifacts failed validation.",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "execution",
+            "binding_source": binding_source,
+        }
 
     bridge_mode = False
     if not executor_cmd and not pipeline_mode and _has_active_desktop_llm_binding():
@@ -900,6 +958,7 @@ def _call_llm_review(
     mandate: str,
     effective_review_policy: str = "",
     workspace_dir: Path | None = None,
+    config_root: Path | None = None,
 ) -> dict[str, object]:
     """Call LLM for review with structured output enforcement."""
     try:
@@ -918,20 +977,49 @@ def _call_llm_review(
 
     executor_cmd = binding_value if pipeline_mode else ""
 
-    review_dir = Path.home() / ".governance" / "review"
+    governance_root = config_root if config_root is not None else (Path.home() / ".governance")
+    review_dir = governance_review_dir(governance_root)
     review_dir.mkdir(parents=True, exist_ok=True)
     context_file = review_dir / "llm_review_context.json"
     stdout_file = review_dir / "llm_review_stdout.log"
     stderr_file = review_dir / "llm_review_stderr.log"
 
+    runtime_state_dir = governance_runtime_state_dir(governance_root)
+    runtime_state_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        materialization = materialize_governance_artifacts(
+            output_dir=runtime_state_dir,
+            config_root=governance_root,
+            review_mandate=mandate if mandate else None,
+            effective_policy=effective_review_policy if effective_review_policy else None,
+        )
+    except GovernanceContextMaterializationError as e:
+        return {
+            "llm_invoked": False,
+            "verdict": "changes_requested",
+            "findings": [f"governance-context-materialization-failed: {e.reason}"],
+            "reason_code": e.reason_code,
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+        }
+
     output_schema_text = _get_review_output_schema_text()
     instruction_parts = []
-    if mandate:
-        instruction_parts.append("Apply the review mandate to review the provided plan.")
-    if effective_review_policy:
-        instruction_parts.append("Apply the effective review policy below for active profile and addons.")
+    if materialization.review_mandate_file:
+        instruction_parts.append(
+            f"Load the review mandate from file: {materialization.review_mandate_file} "
+            f"(SHA256: {materialization.review_mandate_sha256})"
+        )
+    if materialization.effective_policy_file:
+        instruction_parts.append(
+            f"Load the effective policy from file: {materialization.effective_policy_file} "
+            f"(SHA256: {materialization.effective_policy_sha256})"
+        )
     instruction_parts.append(
         "You MUST respond with valid JSON that conforms to the output schema below.\n"
+        "All textual output MUST be in English only (language='en').\n"
         "Do NOT include any text outside the JSON object.\n\n"
         "Output schema:\n" + output_schema_text
     )
@@ -940,13 +1028,32 @@ def _call_llm_review(
         "schema": "opencode.review.llm-context.v3",
         "content_to_review": content,
     }
-    if mandate:
-        context["review_mandate"] = mandate
-    if effective_review_policy:
-        context["effective_review_policy"] = effective_review_policy
-        context["effective_policy_loaded"] = True
+    if materialization.review_mandate_file:
+        context["review_mandate_file"] = str(materialization.review_mandate_file)
+        context["review_mandate_sha256"] = materialization.review_mandate_sha256
+        context["review_mandate_label"] = materialization.review_mandate_label
+    if materialization.effective_policy_file:
+        context["effective_policy_file"] = str(materialization.effective_policy_file)
+        context["effective_policy_sha256"] = materialization.effective_policy_sha256
+        context["effective_policy_label"] = materialization.effective_policy_label
+    context["effective_policy_loaded"] = materialization.has_materialized()
+    if materialization.has_materialized():
+        context["context_materialization_complete"] = True
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
+
+    try:
+        validate_materialized_artifacts(materialization)
+    except GovernanceContextMaterializationError as e:
+        return {
+            "llm_invoked": False,
+            "verdict": "changes_requested",
+            "findings": [f"governance-context-validation-failed: {e.reason}"],
+            "reason_code": e.reason_code,
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+        }
 
     bridge_mode = False
     if not executor_cmd and not pipeline_mode and _has_active_desktop_llm_binding():
@@ -1303,6 +1410,7 @@ def _run_internal_phase5_self_review(
     state: Mapping[str, object] | None = None,
     commands_home: Path | None = None,
     workspace_dir: Path | None = None,
+    config_root: Path | None = None,
     max_iterations: int | None = None,
 ) -> dict[str, object]:
     if max_iterations is None:
@@ -1403,6 +1511,7 @@ def _run_internal_phase5_self_review(
                 mandate_text,
                 effective_review_policy,
                 workspace_dir=workspace_dir,
+                config_root=config_root,
             )
             llm_review_results.append(llm_result)
             if "pipeline_mode" in llm_result:
@@ -1636,6 +1745,7 @@ def main(argv: list[str] | None = None) -> int:
             effective_authoring_policy=effective_policy_text,
             re_review=bool(state.get("plan_record_version") or state.get("PlanRecordVersion")),
             workspace_dir=workspace_dir,
+            config_root=evidence.config_root,
         )
         if gen_result.get("blocked") is True:
             payload = _payload(
@@ -1719,6 +1829,7 @@ def main(argv: list[str] | None = None) -> int:
             state=state,
             commands_home=commands_home,
             workspace_dir=workspace_dir,
+            config_root=evidence.config_root,
             max_iterations=max_iterations,
         )
         if review_result.get("blocked") is True:
