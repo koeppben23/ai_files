@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from governance_runtime.infrastructure.governance_binding_resolver import (
+    GovernanceBindingResolutionError,
     resolve_governance_binding,
 )
 
@@ -131,7 +132,7 @@ class LLMCaller:
         try:
             _pipeline_mode, binding_value = self._resolve_review_binding()
             return bool(binding_value)
-        except RuntimeError:
+        except GovernanceBindingResolutionError:
             return False
 
     def build_context(
@@ -210,7 +211,7 @@ class LLMCaller:
         """
         try:
             pipeline_mode, binding_value = self._resolve_review_binding()
-        except RuntimeError as exc:
+        except GovernanceBindingResolutionError as exc:
             return LLMResponse(
                 invoked=False,
                 stdout="",

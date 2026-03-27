@@ -50,6 +50,7 @@ from governance_runtime.infrastructure.opencode_model_binding import (
     resolve_active_opencode_model,
 )
 from governance_runtime.infrastructure.governance_binding_resolver import (
+    GovernanceBindingResolutionError,
     resolve_governance_binding,
 )
 from governance_runtime.infrastructure.governance_config_loader import get_pipeline_mode
@@ -568,8 +569,10 @@ def _run_llm_edit_step(
                     "executor_invoked": False,
                     "exit_code": 2,
                     "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
+                    "binding_resolved": True,
+                    "invoke_backend_available": False,
                     "message": (
-                        "Direct mode chat binding detected but no callable desktop bridge is available in this shell process."
+                        "Direct mode binding resolved to active chat binding, but no callable desktop bridge is available in this shell process."
                     ),
                     "stdout_path": str(stdout_file),
                     "stderr_path": str(stderr_file),
@@ -583,6 +586,8 @@ def _run_llm_edit_step(
                 "executor_invoked": False,
                 "exit_code": 2,
                 "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
+                "binding_resolved": False,
+                "invoke_backend_available": False,
                 "message": "No implementation execution binding available for active mode.",
                 "stdout_path": str(stdout_file),
                 "stderr_path": str(stderr_file),
@@ -791,6 +796,7 @@ def start_implementation(
     workspace_dir = session_path.parent
     pipeline_mode = False
     execution_binding = ""
+    execution_binding_source = ""
     try:
         resolved_session_path, _, _, resolved_workspace_dir = resolve_active_session_paths()
         if resolved_session_path == session_path:
@@ -799,27 +805,57 @@ def start_implementation(
         pass
 
     pipeline_mode = get_pipeline_mode(workspace_dir)
-    if pipeline_mode:
-        try:
-            binding = resolve_governance_binding(
-                role="execution",
-                workspace_root=workspace_dir,
-                env_reader=lambda key: os.environ.get(key),
-                has_active_chat_binding=_has_active_desktop_llm_binding(),
+    try:
+        binding = resolve_governance_binding(
+            role="execution",
+            workspace_root=workspace_dir,
+            env_reader=lambda key: os.environ.get(key),
+            has_active_chat_binding=_has_active_desktop_llm_binding(),
+        )
+        execution_binding = str(binding.binding_value or "").strip()
+        execution_binding_source = str(binding.source or "").strip()
+    except GovernanceBindingResolutionError as exc:
+        reason_code = RC_EXECUTOR_NOT_CONFIGURED
+        message = str(exc)
+        state["implementation_authorized"] = True
+        state["implementation_started"] = True
+        state["implementation_started_at"] = ts
+        state["implementation_started_by"] = actor.strip() or "operator"
+        state["implementation_execution_started"] = False
+        state["implementation_pipeline_mode"] = pipeline_mode
+        state["implementation_binding_role"] = "execution"
+        state["next"] = "6"
+        state["active_gate"] = "Implementation Blocked"
+        state["next_gate_condition"] = "Implementation binding resolution failed for active mode."
+        _write_json_atomic(session_path, state_doc)
+        if events_path is not None:
+            _append_event(
+                events_path,
+                {
+                    "schema": "opencode.implementation-started.v2",
+                    "ts_utc": ts,
+                    "event_id": event_id,
+                    "event": "IMPLEMENTATION_BLOCKED_PRECHECK",
+                    "phase": phase_text,
+                    "reason_code": reason_code,
+                    "message": message,
+                    "pipeline_mode": pipeline_mode,
+                    "binding_role": "execution",
+                },
             )
-            execution_binding = str(binding.binding_value or "").strip()
-        except RuntimeError as exc:
-            return _payload(
-                "blocked",
-                reason_code=RC_EXECUTOR_NOT_CONFIGURED,
-                message=str(exc),
-                phase="6-PostFlight",
-                next="6",
-                active_gate="Implementation Blocked",
-                next_gate_condition="Implementation binding resolution failed for active mode.",
-                reason_codes=[RC_EXECUTOR_NOT_CONFIGURED],
-                next_action="Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
-            )
+        return _payload(
+            "blocked",
+            reason_code=reason_code,
+            message=message,
+            phase="6-PostFlight",
+            next="6",
+            active_gate="Implementation Blocked",
+            next_gate_condition=state["next_gate_condition"],
+            reason_codes=[reason_code],
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            next_action="Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
+        )
 
     llm_result = _run_llm_edit_step(
         repo_root=repo_root,
@@ -843,6 +879,10 @@ def start_implementation(
         state["implementation_started_at"] = ts
         state["implementation_started_by"] = actor.strip() or "operator"
         state["implementation_execution_started"] = False
+        state["implementation_pipeline_mode"] = pipeline_mode
+        state["implementation_binding_role"] = "execution"
+        if execution_binding_source:
+            state["implementation_binding_source"] = execution_binding_source
         state["next"] = "6"
         state["active_gate"] = "Implementation Blocked"
         if reason_code == RC_EXECUTOR_NOT_CONFIGURED:
@@ -890,6 +930,9 @@ def start_implementation(
             },
             reason_code=reason_code,
             reason_codes=[reason_code],
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=execution_binding_source,
             next_action=(
                 "Provide required governance bindings for active mode and rerun /implement."
                 if reason_code == RC_EXECUTOR_NOT_CONFIGURED
@@ -1019,6 +1062,10 @@ def start_implementation(
     state["implementation_execution_status"] = "review_complete" if report.is_compliant else "blocked"
     state["implementation_status"] = "ready_for_review" if report.is_compliant else "blocked"
     state["implementation_reason_codes"] = list(report.reason_codes)
+    state["implementation_pipeline_mode"] = pipeline_mode
+    state["implementation_binding_role"] = "execution"
+    if execution_binding_source:
+        state["implementation_binding_source"] = execution_binding_source
     state["next"] = "6"
 
     if report.is_compliant:
@@ -1061,6 +1108,9 @@ def start_implementation(
         implementation_domain_changed_files=list(report.domain_changed_files),
         implementation_checks_executed=[item.name for item in report.checks],
         implementation_checks_ok=bool(report.checks) and all(item.passed for item in report.checks),
+        pipeline_mode=pipeline_mode,
+        binding_role="execution",
+        binding_source=execution_binding_source,
         next_action=(
             "run /continue."
             if report.is_compliant

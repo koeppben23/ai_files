@@ -112,6 +112,7 @@ class ReviewLoopConfig:
 
     commands_home: Path
     session_path: Path
+    workspace_root: Path | None = None
     max_iterations: int = 3
     min_iterations: int = 1
     force_stable_digest: bool = False
@@ -221,7 +222,7 @@ def run_review_loop(
         response_validator = deps.response_validator
 
     if hasattr(llm_caller, "set_workspace_root"):
-        llm_caller.set_workspace_root(config.session_path.parent)
+        llm_caller.set_workspace_root(config.workspace_root)
 
     # Get initial state values using canonical fields
     review_block = canonical.get("implementation_review") or {}

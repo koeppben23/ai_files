@@ -207,6 +207,37 @@ class TestRunReviewLoop:
         assert result.loop_result.final_iteration == 2
         assert result.loop_result.completion_status == CompletionStatus.PHASE6_COMPLETED
 
+    def test_uses_configured_workspace_root_for_llm_binding_resolution(self, mock_dependencies):
+        """run_review_loop passes config.workspace_root into LLM caller."""
+        state_doc = {
+            "SESSION_STATE": {
+                "phase": "6-PostFlight",
+                "next": "6",
+                "phase5_plan_record_digest": "sha256:plan-v1",
+                "phase6_force_stable_digest": True,
+            }
+        }
+        workspace_root = Path("/tmp/workspace-canonical")
+        config = ReviewLoopConfig(
+            commands_home=Path("/tmp"),
+            session_path=Path("/tmp/session.json"),
+            workspace_root=workspace_root,
+            max_iterations=1,
+            min_iterations=1,
+            force_stable_digest=True,
+        )
+
+        run_review_loop(
+            state_doc=state_doc,
+            config=config,
+            dependencies=mock_dependencies,
+            json_loader=_mock_json_loader,
+            context_writer=_mock_context_writer,
+            clock=_mock_clock,
+        )
+
+        mock_dependencies.llm_caller.set_workspace_root.assert_called_once_with(workspace_root)
+
     def test_to_state_updates_returns_correct_structure(self, mock_dependencies):
         """to_state_updates returns proper state dict."""
         state_doc = {

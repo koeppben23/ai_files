@@ -33,6 +33,7 @@ from governance_runtime.infrastructure.opencode_model_binding import (
     has_active_desktop_llm_binding as _has_desktop_llm_binding,
 )
 from governance_runtime.infrastructure.governance_binding_resolver import (
+    GovernanceBindingResolutionError,
     resolve_governance_binding,
 )
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
@@ -414,13 +415,16 @@ def _call_llm_generate_plan(
         pipeline_mode, binding_value, _binding_source = _resolve_plan_execution_binding(
             workspace_dir=workspace_dir
         )
-    except RuntimeError as exc:
+    except GovernanceBindingResolutionError as exc:
         return {
             "blocked": True,
             "reason": "plan-executor-unavailable",
             "reason_code": BLOCKED_PLAN_EXECUTOR_UNAVAILABLE,
             "recovery_action": str(exc),
+            "binding_role": "execution",
         }
+
+    binding_source = str(_binding_source or "").strip()
 
     executor_cmd = binding_value if pipeline_mode else ""
 
@@ -500,6 +504,9 @@ def _call_llm_generate_plan(
             "blocked": False,
             "plan_text": plan_text,
             "structured_plan": fallback_structured,
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "execution",
+            "binding_source": binding_source,
         }
 
     final_cmd = executor_cmd
@@ -524,8 +531,15 @@ def _call_llm_generate_plan(
                 "reason": "plan-llm-empty-response",
                 "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
                 "recovery_action": "LLM returned empty response for plan generation.",
+                "pipeline_mode": pipeline_mode,
+                "binding_role": "execution",
+                "binding_source": binding_source,
             }
-        return _parse_plan_generation_response(response_text, re_review=re_review)
+        parsed = _parse_plan_generation_response(response_text, re_review=re_review)
+        parsed["pipeline_mode"] = pipeline_mode
+        parsed["binding_role"] = "execution"
+        parsed["binding_source"] = binding_source
+        return parsed
     except Exception as exc:
         atomic_write_text(stderr_file, str(exc))
         return {
@@ -533,6 +547,9 @@ def _call_llm_generate_plan(
             "reason": f"plan-llm-error: {exc}",
             "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
             "recovery_action": "Check LLM executor configuration and retry /plan.",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "execution",
+            "binding_source": binding_source,
         }
 
 
@@ -759,12 +776,15 @@ def _call_llm_review(
         pipeline_mode, binding_value, _binding_source = _resolve_plan_review_binding(
             workspace_dir=workspace_dir
         )
-    except RuntimeError as exc:
+    except GovernanceBindingResolutionError as exc:
         return {
             "llm_invoked": False,
             "verdict": "changes_requested",
             "findings": [str(exc)],
+            "binding_role": "review",
         }
+
+    binding_source = str(_binding_source or "").strip()
 
     executor_cmd = binding_value if pipeline_mode else ""
 
@@ -807,6 +827,9 @@ def _call_llm_review(
             "findings": [],
             "raw_response": "{\"verdict\": \"changes_requested\", \"findings\": []}",
             "validation_valid": True,
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
         }
 
     final_cmd = executor_cmd
@@ -830,6 +853,9 @@ def _call_llm_review(
                 "llm_invoked": False,
                 "verdict": "changes_requested",
                 "findings": ["LLM executor returned empty response"],
+                "pipeline_mode": pipeline_mode,
+                "binding_role": "review",
+                "binding_source": binding_source,
             }
         # Fail-closed: mandate schema MUST be available for response validation
         try:
@@ -862,10 +888,22 @@ def _call_llm_review(
                 "findings": [f"mandate-schema-unavailable: {exc}"],
                 "reason_code": "MANDATE-SCHEMA-UNAVAILABLE",
             }
-        return _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
+        parsed = _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
+        parsed["pipeline_mode"] = pipeline_mode
+        parsed["binding_role"] = "review"
+        parsed["binding_source"] = binding_source
+        return parsed
     except Exception as exc:
         atomic_write_text(stderr_file, str(exc))
-        return {"llm_invoked": False, "error": str(exc), "verdict": "changes_requested", "findings": [f"LLM review failed: {exc}"]}
+        return {
+            "llm_invoked": False,
+            "error": str(exc),
+            "verdict": "changes_requested",
+            "findings": [f"LLM review failed: {exc}"],
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+        }
 
 
 def _parse_llm_review_response(
@@ -1111,7 +1149,7 @@ def _has_any_llm_executor(*, workspace_dir: Path | None) -> bool:
     try:
         _resolve_plan_review_binding(workspace_dir=workspace_dir)
         return True
-    except RuntimeError:
+    except GovernanceBindingResolutionError:
         return False
 
 
@@ -1183,6 +1221,8 @@ def _run_internal_phase5_self_review(
     findings_summary: list[str] = []
     audit_rows: list[dict[str, object]] = []
     llm_review_results: list[dict[str, object]] = []
+    review_pipeline_mode: bool | None = None
+    review_binding_source = ""
     has_executor = _has_any_llm_executor(workspace_dir=workspace_dir)
     desktop_binding_fallback = _has_active_desktop_llm_binding()
 
@@ -1220,6 +1260,10 @@ def _run_internal_phase5_self_review(
                 workspace_dir=workspace_dir,
             )
             llm_review_results.append(llm_result)
+            if "pipeline_mode" in llm_result:
+                review_pipeline_mode = bool(llm_result.get("pipeline_mode"))
+            if llm_result.get("binding_source"):
+                review_binding_source = str(llm_result.get("binding_source") or "")
             verdict = str(llm_result.get("verdict", "")).strip().lower()
             llm_findings = llm_result.get("findings", [])
             if isinstance(llm_findings, list):
@@ -1288,6 +1332,9 @@ def _run_internal_phase5_self_review(
         "findings_summary": findings_summary,
         "audit_rows": audit_rows,
         "llm_review_results": llm_review_results,
+        "review_pipeline_mode": review_pipeline_mode,
+        "review_binding_role": "review",
+        "review_binding_source": review_binding_source,
     }
 
 
@@ -1439,6 +1486,9 @@ def main(argv: list[str] | None = None) -> int:
                 reason_code=str(gen_result.get("reason_code") or BLOCKED_PLAN_GENERATION_FAILED),
                 reason=str(gen_result.get("reason") or "plan-generation-failed"),
                 recovery_action=str(gen_result.get("recovery_action") or "provide plan text via --plan-text or check LLM executor"),
+                pipeline_mode=gen_result.get("pipeline_mode"),
+                binding_role=gen_result.get("binding_role"),
+                binding_source=gen_result.get("binding_source"),
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
@@ -1453,6 +1503,11 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
+
+        state["phase5_plan_execution_pipeline_mode"] = bool(gen_result.get("pipeline_mode", False))
+        state["phase5_plan_execution_binding_role"] = str(gen_result.get("binding_role") or "execution")
+        if gen_result.get("binding_source"):
+            state["phase5_plan_execution_binding_source"] = str(gen_result.get("binding_source") or "")
 
     # ── Standard Phase 5 flow ──
     try:
@@ -1656,6 +1711,10 @@ def main(argv: list[str] | None = None) -> int:
             "self_review_iterations_met": bool(review_result.get("self_review_iterations_met")),
             "completion_status": str(review_result.get("completion_status") or "phase5-completed"),
         }
+        state["phase5_review_pipeline_mode"] = bool(review_result.get("review_pipeline_mode") is True)
+        state["phase5_review_binding_role"] = str(review_result.get("review_binding_role") or "review")
+        if review_result.get("review_binding_source"):
+            state["phase5_review_binding_source"] = str(review_result.get("review_binding_source") or "")
 
         for row in _as_list(review_result.get("audit_rows")):
             if not isinstance(row, Mapping):
@@ -1735,6 +1794,10 @@ def main(argv: list[str] | None = None) -> int:
                 "phase5_revision_delta": str(review_result.get("revision_delta") or "changed"),
                 "requirement_contracts_count": contracts_count,
                 "requirement_contracts_digest": f"sha256:{contracts_digest}",
+                "plan_execution_pipeline_mode": state.get("phase5_plan_execution_pipeline_mode"),
+                "plan_execution_binding_source": state.get("phase5_plan_execution_binding_source", ""),
+                "review_pipeline_mode": state.get("phase5_review_pipeline_mode"),
+                "review_binding_source": state.get("phase5_review_binding_source", ""),
             },
         )
     except Exception as exc:

@@ -10,6 +10,10 @@ AI_GOVERNANCE_EXECUTION_BINDING = "AI_GOVERNANCE_EXECUTION_BINDING"
 AI_GOVERNANCE_REVIEW_BINDING = "AI_GOVERNANCE_REVIEW_BINDING"
 
 
+class GovernanceBindingResolutionError(RuntimeError):
+    """Raised when governance binding resolution fails for active mode."""
+
+
 @dataclass(frozen=True)
 class BindingResolution:
     role: str
@@ -30,9 +34,13 @@ def _require_pipeline_bindings(*, env_reader: Callable[[str], str | None]) -> tu
     execution = _env_value(AI_GOVERNANCE_EXECUTION_BINDING, env_reader=env_reader)
     review = _env_value(AI_GOVERNANCE_REVIEW_BINDING, env_reader=env_reader)
     if not execution:
-        raise RuntimeError(f"missing required pipeline binding: {AI_GOVERNANCE_EXECUTION_BINDING}")
+        raise GovernanceBindingResolutionError(
+            f"missing required pipeline binding: {AI_GOVERNANCE_EXECUTION_BINDING}"
+        )
     if not review:
-        raise RuntimeError(f"missing required pipeline binding: {AI_GOVERNANCE_REVIEW_BINDING}")
+        raise GovernanceBindingResolutionError(
+            f"missing required pipeline binding: {AI_GOVERNANCE_REVIEW_BINDING}"
+        )
     return execution, review
 
 
@@ -56,12 +64,14 @@ def resolve_governance_binding(
     """
     normalized_role = str(role or "").strip().lower()
     if normalized_role not in {"execution", "review"}:
-        raise RuntimeError(f"invalid governance binding role: {role}")
+        raise GovernanceBindingResolutionError(f"invalid governance binding role: {role}")
 
     is_pipeline = get_pipeline_mode(workspace_root)
     if not is_pipeline:
         if not has_active_chat_binding:
-            raise RuntimeError("active OpenCode chat binding is required in direct mode")
+            raise GovernanceBindingResolutionError(
+                "active OpenCode chat binding is required in direct mode"
+            )
         return BindingResolution(
             role=normalized_role,
             pipeline_mode=False,

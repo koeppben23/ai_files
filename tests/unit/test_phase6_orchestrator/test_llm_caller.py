@@ -87,13 +87,17 @@ class TestLLMCaller:
     def test_pipeline_mode_uses_review_binding(self, tmp_path: Path):
         """Pipeline mode uses AI_GOVERNANCE_REVIEW_BINDING command."""
         _write_governance_config(tmp_path, pipeline_mode=True)
+        observed: list[str] = []
         env = {
-            "AI_GOVERNANCE_EXECUTION_BINDING": "python3 -c \"print('unused')\"",
-            "AI_GOVERNANCE_REVIEW_BINDING": "python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+            "AI_GOVERNANCE_EXECUTION_BINDING": "python3 -c \"print('execution-binding-should-not-be-used')\"",
+            "AI_GOVERNANCE_REVIEW_BINDING": "python3 -c \"print('review-binding-invoked')\"",
         }
         caller = LLMCaller(
             env_reader=lambda key: env.get(key),
-            subprocess_runner=lambda cmd: SubprocessResult(stdout='{"verdict":"approve","findings":[]}', stderr="", returncode=0),
+            subprocess_runner=lambda cmd: (
+                observed.append(cmd),
+                SubprocessResult(stdout='{"verdict":"approve","findings":[]}', stderr="", returncode=0),
+            )[1],
             workspace_root=tmp_path,
         )
 
@@ -106,6 +110,9 @@ class TestLLMCaller:
         assert caller.is_configured is True
         assert result.invoked is True
         assert result.return_code == 0
+        assert observed
+        assert "review-binding-invoked" in observed[0]
+        assert "execution-binding-should-not-be-used" not in observed[0]
 
     def test_pipeline_mode_missing_review_binding_not_configured(self, tmp_path: Path):
         """Pipeline mode fails closed when review binding is missing."""
