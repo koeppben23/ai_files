@@ -446,6 +446,21 @@ def _classify_check_failure_kind(exit_code: int | None, output: str) -> str | No
     return "runner_failed"
 
 
+def _build_executor_env(*, bridge_mode: bool) -> dict[str, str] | None:
+    if not bridge_mode:
+        return None
+    env = dict(os.environ)
+    for key in (
+        "OPENCODE",
+        "OPENCODE_CLIENT",
+        "OPENCODE_PID",
+        "OPENCODE_SERVER_USERNAME",
+        "OPENCODE_SERVER_PASSWORD",
+    ):
+        env.pop(key, None)
+    return env
+
+
 def _file_sha256(path: Path) -> str:
     try:
         data = path.read_bytes()
@@ -694,6 +709,7 @@ def _run_llm_edit_step(
         capture_output=True,
         text=True,
         check=False,
+        env=_build_executor_env(bridge_mode=bridge_mode),
     )
     _write_text_atomic(stdout_file, str(result.stdout or ""))
     _write_text_atomic(stderr_file, str(result.stderr or ""))
