@@ -841,6 +841,7 @@ def start_implementation(
                     "message": message,
                     "pipeline_mode": pipeline_mode,
                     "binding_role": "execution",
+                    "binding_source": execution_binding_source,
                 },
             )
         return _payload(
@@ -906,6 +907,9 @@ def start_implementation(
                     "phase": phase_text,
                     "reason_code": reason_code,
                     "message": message,
+                    "pipeline_mode": pipeline_mode,
+                    "binding_role": "execution",
+                    "binding_source": execution_binding_source,
                 },
             )
         return _payload(
@@ -990,6 +994,9 @@ def start_implementation(
             "phase": phase_text,
             "actor": actor.strip() or "operator",
             "validation_violations": validation_violations,
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "execution",
+            "binding_source": execution_binding_source,
         }
         if events_path is not None:
             _append_event(events_path, audit_event)
@@ -1091,6 +1098,9 @@ def start_implementation(
         "plan_record_versions": signal.versions,
         "actor": state["implementation_started_by"],
         "validation": to_report_payload(report),
+        "pipeline_mode": pipeline_mode,
+        "binding_role": "execution",
+        "binding_source": execution_binding_source,
     }
     if events_path is not None:
         _append_event(events_path, audit_event)

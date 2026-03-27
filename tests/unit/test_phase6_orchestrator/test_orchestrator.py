@@ -273,6 +273,9 @@ class TestRunReviewLoop:
         assert "phase6_review_iterations" in updates
         assert "implementation_review_complete" in updates
         assert updates["implementation_review_complete"] is True
+        assert updates["phase6_review_pipeline_mode"] is True
+        assert updates["phase6_review_binding_role"] == "review"
+        assert updates["phase6_review_binding_source"] == "env:AI_GOVERNANCE_REVIEW_BINDING"
         assert updates["ImplementationReview"]["llm_review_binding_role"] == "review"
         assert (
             updates["ImplementationReview"]["llm_review_binding_source"]

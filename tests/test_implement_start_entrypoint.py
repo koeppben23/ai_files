@@ -114,6 +114,35 @@ def test_happy_executor_diff_plus_checks_passes(monkeypatch: pytest.MonkeyPatch,
     assert out["implementation_domain_changed_files"] == ["src/service.py"]
 
 
+def test_happy_event_persists_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+    monkeypatch.setenv("OPENCODE", "1")
+
+    captured: list[dict[str, object]] = []
+
+    def _spy_append_event(path: Path, event: dict[str, object]) -> bool:
+        captured.append(dict(event))
+        return True
+
+    monkeypatch.setattr(entrypoint, "_append_event", _spy_append_event)
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 0
+    assert out["status"] == "ok"
+    started = [row for row in captured if row.get("event") == "IMPLEMENTATION_STARTED"]
+    assert started
+    assert started[-1]["pipeline_mode"] is False
+    assert started[-1]["binding_role"] == "execution"
+    assert started[-1]["binding_source"] == "active_chat_binding"
+
+
 def test_bad_executor_no_changes_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     session_path = tmp_path / "SESSION_STATE.json"
     events_path = tmp_path / "events.jsonl"
@@ -814,27 +843,74 @@ class TestImplementFlowTruthMatrix:
         assert out["status"] == "blocked"
         assert "IMPLEMENTATION_PLAN_COVERAGE_MISSING" in out["reason_codes"]
 
-    def test_edge_main_surfaces_non_executor_precheck_reason(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
-        session_path = tmp_path / "SESSION_STATE.json"
-        events_path = tmp_path / "events.jsonl"
-        _write_session(session_path)
-        _write_plan(tmp_path / "plan-record.json")
-        _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
-        _wire_active_paths(monkeypatch, session_path, events_path)
+def test_edge_main_surfaces_non_executor_precheck_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
 
-        monkeypatch.setattr(
-            entrypoint,
-            "_run_llm_edit_step",
-            lambda **_kwargs: {
-                "blocked": True,
-                "reason_code": "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE",
-                "reason": "effective-policy-unavailable",
-            },
-        )
+    monkeypatch.setattr(
+        entrypoint,
+        "_run_llm_edit_step",
+        lambda **_kwargs: {
+            "blocked": True,
+            "reason_code": "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE",
+            "reason": "effective-policy-unavailable",
+        },
+    )
 
-        rc = entrypoint.main(["--quiet"])
-        out = json.loads(capsys.readouterr().out.strip())
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
 
-        assert rc == 2
-        assert out["status"] == "blocked"
-        assert out["reason_code"] == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+    assert rc == 2
+    assert out["status"] == "blocked"
+    assert out["reason_code"] == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+
+
+def test_bad_precheck_event_persists_binding_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+    monkeypatch.setenv("OPENCODE", "1")
+
+    monkeypatch.setattr(
+        entrypoint,
+        "_run_llm_edit_step",
+        lambda **_kwargs: {
+            "blocked": True,
+            "reason_code": "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE",
+            "reason": "effective-policy-unavailable",
+        },
+    )
+
+    captured: list[dict[str, object]] = []
+
+    def _spy_append_event(path: Path, event: dict[str, object]) -> bool:
+        captured.append(dict(event))
+        return True
+
+    monkeypatch.setattr(entrypoint, "_append_event", _spy_append_event)
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "blocked"
+    precheck = [row for row in captured if row.get("event") == "IMPLEMENTATION_BLOCKED_PRECHECK"]
+    assert precheck
+    assert precheck[-1]["pipeline_mode"] is False
+    assert precheck[-1]["binding_role"] == "execution"
+    assert precheck[-1]["binding_source"] == "active_chat_binding"

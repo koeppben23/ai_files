@@ -88,6 +88,9 @@ class ReviewLoopResult:
                 "phase6_blocker_code": self.block_reason_code or "unknown",
                 "phase6_blocker_reason": self.block_reason,
                 "phase6_recovery_action": self.recovery_action,
+                "phase6_review_pipeline_mode": None,
+                "phase6_review_binding_role": "review",
+                "phase6_review_binding_source": "",
             }
 
         review_block = {
@@ -121,6 +124,10 @@ class ReviewLoopResult:
             review_block["llm_review_binding_role"] = last.llm_binding_role
             review_block["llm_review_binding_source"] = last.llm_binding_source
 
+        final_pipeline_mode = self.iterations[-1].llm_pipeline_mode if self.iterations else None
+        final_binding_role = self.iterations[-1].llm_binding_role if self.iterations else "review"
+        final_binding_source = self.iterations[-1].llm_binding_source if self.iterations else ""
+
         return {
             "ImplementationReview": review_block,
             "phase6_review_iterations": self.final_iteration,
@@ -132,6 +139,9 @@ class ReviewLoopResult:
             "implementation_review_complete": self.implementation_review_complete,
             "phase6_state": "6.complete" if self.is_complete else "6.execution",
             "phase6_blocker_code": "none",
+            "phase6_review_pipeline_mode": final_pipeline_mode,
+            "phase6_review_binding_role": final_binding_role,
+            "phase6_review_binding_source": final_binding_source,
         }
 
     def to_audit_events(self) -> list[dict[str, Any]]:

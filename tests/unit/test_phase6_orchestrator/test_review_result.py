@@ -123,6 +123,9 @@ class TestReviewLoopResult:
         assert updates["implementation_review_complete"] is True
         assert updates["phase6_review_iterations"] == 2
         assert updates["phase6_state"] == "6.complete"
+        assert updates["phase6_review_pipeline_mode"] is True
+        assert updates["phase6_review_binding_role"] == "review"
+        assert updates["phase6_review_binding_source"] == "env:AI_GOVERNANCE_REVIEW_BINDING"
         assert "ImplementationReview" in updates
         assert updates["ImplementationReview"]["iteration"] == 2
         assert updates["ImplementationReview"]["llm_review_binding_role"] == "review"
@@ -137,6 +140,9 @@ class TestReviewLoopResult:
         updates = blocked_result.to_state_updates()
         assert updates["phase6_blocker_code"] == "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
         assert updates["phase6_blocker_reason"] == "effective-review-policy-unavailable"
+        assert updates["phase6_review_pipeline_mode"] is None
+        assert updates["phase6_review_binding_role"] == "review"
+        assert updates["phase6_review_binding_source"] == ""
 
     def test_to_audit_events(self, complete_result):
         """to_audit_events returns list of audit event dicts."""
