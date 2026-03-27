@@ -96,6 +96,26 @@ def _wire_active_paths(monkeypatch: pytest.MonkeyPatch, session_path: Path, even
     monkeypatch.setattr(entrypoint, "_resolve_active_session_path", lambda: (session_path, events_path))
 
 
+def _set_pipeline_mode_bindings(monkeypatch: pytest.MonkeyPatch, workspace_dir: Path) -> None:
+    (workspace_dir / "governance-config.json").write_text(
+        json.dumps(
+            {
+                "pipeline_mode": True,
+                "review": {
+                    "phase5_max_review_iterations": 3,
+                    "phase6_max_review_iterations": 3,
+                },
+            },
+            ensure_ascii=True,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AI_GOVERNANCE_EXECUTION_BINDING", "mock-executor")
+    monkeypatch.setenv("AI_GOVERNANCE_REVIEW_BINDING", "mock-review")
+
+
 def test_happy_executor_diff_plus_checks_passes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     session_path = tmp_path / "SESSION_STATE.json"
     events_path = tmp_path / "events.jsonl"
@@ -103,6 +123,7 @@ def test_happy_executor_diff_plus_checks_passes(monkeypatch: pytest.MonkeyPatch,
     _write_plan(tmp_path / "plan-record.json")
     _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
     _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
     rc = entrypoint.main(["--quiet"])
     out = json.loads(capsys.readouterr().out.strip())
@@ -152,6 +173,7 @@ def test_bad_executor_no_changes_blocks(monkeypatch: pytest.MonkeyPatch, tmp_pat
     _write_plan(tmp_path / "plan-record.json")
     _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
     _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
 
     monkeypatch.setattr(
         entrypoint,
