@@ -820,29 +820,8 @@ def _parse_bullets(text: str) -> list[str]:
     return out
 
 
-def _machine_requirements_from_markdown(plan_text: str, *, raw_source: str = "") -> list[dict[str, object]]:
+def _machine_requirements_from_markdown(*, raw_source: str = "") -> list[dict[str, object]]:
     """Extract compilable machine requirements from allowlisted markdown sections only."""
-    objective_text = ""
-    for raw in str(plan_text or "").splitlines():
-        line = raw.strip()
-        if line.lower().startswith("### plan objective"):
-            objective_text = ""
-            continue
-        if objective_text == "" and line and not line.startswith("#") and "plan for ticket/task:" in line.lower():
-            objective_text = line
-            break
-
-    payload: dict[str, object] = {
-        "objective": objective_text,
-        "target_flow": _extract_markdown_section(plan_text, "Execution Slices"),
-        "go_no_go": _extract_markdown_section(plan_text, "Release Gates"),
-        "test_strategy": _extract_markdown_section(plan_text, "Test Strategy"),
-        "delivery_scope": _parse_bullets(_extract_markdown_section(plan_text, "Delivery Scope (Checklist)")),
-    }
-    requirements = build_machine_requirements(payload)
-    if requirements:
-        return requirements
-
     source = str(raw_source or "").strip()
     if not source:
         return []
@@ -1713,14 +1692,27 @@ def main(argv: list[str] | None = None) -> int:
         source_authority = "machine_requirements"
         if isinstance(structured_plan, Mapping):
             machine_requirements = build_machine_requirements(structured_plan)
+        if not machine_requirements and _legacy_markdown_requirements_enabled():
+            machine_requirements = _machine_requirements_from_markdown(raw_source=raw_plan_source)
+            if machine_requirements:
+                source_authority = "legacy_markdown_requirements"
+
         if not machine_requirements:
-            if _legacy_markdown_requirements_enabled():
-                machine_requirements = _machine_requirements_from_markdown(
-                    final_plan_text,
-                    raw_source=raw_plan_source,
-                )
-                if machine_requirements:
-                    source_authority = "legacy_markdown_requirements"
+            payload = _payload(
+                "blocked",
+                reason_code="REQUIREMENT_SOURCE_INVALID",
+                reason="machine-requirements-missing",
+                observed=[
+                    "structured_plan_missing_or_invalid",
+                    "legacy_markdown_mode_disabled_or_unusable",
+                ],
+                recovery_action=(
+                    "Provide structured machine requirements via structured plan input, "
+                    "or explicitly enable GOVERNANCE_ALLOW_LEGACY_MARKDOWN_REQUIREMENTS=1 for migration runs."
+                ),
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
 
         compiled = compile_plan_to_requirements(
             plan_text=final_plan_text,
