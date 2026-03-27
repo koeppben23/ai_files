@@ -156,10 +156,13 @@ def _normalize_risks_with_mitigation(risks: str) -> list[str]:
     source = parsed if parsed else _split_compact_items(risks, max_items=MAX_RISKS)
     if not source:
         return ["Risk: No explicit risk provided. Mitigation: capture at least one concrete risk before approval."]
+    prefix = "Risk: "
+    suffix = ". Mitigation: add targeted tests and rollback-safe checks for this risk."
+    content_limit = max(3, 180 - len(prefix) - len(suffix))
     normalized: list[str] = []
     for item in source[:MAX_RISKS]:
-        cleaned = _clamp(item, limit=180)
-        normalized.append(f"Risk: {cleaned}. Mitigation: add targeted tests and rollback-safe checks for this risk.")
+        cleaned = _clamp(item, limit=content_limit)
+        normalized.append(f"{prefix}{cleaned}{suffix}")
     return normalized
 
 

@@ -70,7 +70,21 @@ def test_build_presentation_contract_clamps_lengths_and_limits_lists() -> None:
     assert len(contract["open_decisions"]) <= 5
     assert len(contract["scope"]) <= 400
     assert len(contract["release_gates"]) <= 400
+    assert all(len(item) <= 180 for item in contract["risks_and_mitigations"])
     assert contract["next_actions"] == list(NEXT_ACTIONS)
+
+
+def test_build_presentation_contract_keeps_risk_mitigation_items_schema_safe() -> None:
+    plan = _base_plan()
+    plan["risks"] = (
+        "If command contracts or provenance metadata are not currently exposed, additional instrumentation may be needed, "
+        "increasing scope and delivery risk."
+    )
+
+    contract = build_presentation_contract(plan)
+
+    assert contract["risks_and_mitigations"]
+    assert all(len(item) <= 180 for item in contract["risks_and_mitigations"])
 
 
 def test_build_presentation_contract_performance_is_stable() -> None:
