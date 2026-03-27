@@ -401,6 +401,45 @@ def test_happy_override_executor_precedence_over_desktop_default(
     assert result["exit_code"] == 0
 
 
+def test_direct_mode_ignores_execution_env_binding_even_when_set(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("AI_GOVERNANCE_EXECUTION_BINDING", "python3 -c \"print('poison-env-binding')\"")
+    monkeypatch.setenv("AI_GOVERNANCE_REVIEW_BINDING", "python3 -c \"print('unused-review')\"")
+    monkeypatch.setattr(
+        entrypoint,
+        "_resolve_desktop_executor_bridge_cmd",
+        lambda **_kwargs: "python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\"",
+    )
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo: [])
+
+    observed: list[str] = []
+
+    def _fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        observed.append(str(cmd))
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout='{"result":"ok"}\n', stderr="")
+
+    monkeypatch.setattr(entrypoint.subprocess, "run", _fake_run)
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+        pipeline_mode=False,
+    )
+
+    assert observed
+    assert "poison-env-binding" not in observed[0]
+    assert "result" in str(result.get("message") or "") or result["exit_code"] == 0
+    assert result["executor_invoked"] is True
+
+
 def test_happy_desktop_binding_resolves_callable_bridge_executor(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

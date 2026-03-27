@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from governance_runtime.application.use_cases.phase4_self_review import (
@@ -21,6 +23,16 @@ from governance_runtime.application.use_cases.phase4_self_review import (
     check_pipeline_constraints,
     PIPELINE_BLOCK_REASONS,
 )
+
+
+@pytest.mark.governance
+def test_phase4_self_review_contract_has_no_llm_binding_dependency() -> None:
+    from governance_runtime.application.use_cases import phase4_self_review as module
+
+    src = inspect.getsource(module)
+    assert "AI_GOVERNANCE_EXECUTION_BINDING" not in src
+    assert "AI_GOVERNANCE_REVIEW_BINDING" not in src
+    assert "governance_binding_resolver" not in src
 
 
 @pytest.mark.governance
