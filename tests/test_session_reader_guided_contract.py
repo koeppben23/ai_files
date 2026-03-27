@@ -30,6 +30,23 @@ def test_guided_happy_evidence_presentation_contains_full_review_blocks() -> Non
     assert "Next action:" not in out
 
 
+def test_guided_happy_evidence_presentation_verbose_mode_shows_governance_frame() -> None:
+    snapshot = {
+        "status": "OK",
+        "phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "next_gate_condition": "Implementation review loop complete.",
+        "review_package_plan_body": "# PHASE 5 · PLAN FOR APPROVAL\nLine 1\nLine 2",
+    }
+    action_line = "Next action: run /review-decision <approve|changes_requested|reject>."
+    out = format_guided_snapshot(snapshot, action_line, verbose_governance_frame=True)
+
+    assert "Current state" in out
+    assert "What this means now" in out
+    assert "Presented review content" in out
+    assert out.strip().endswith(action_line)
+
+
 def test_guided_bad_blocker_contains_blocker_section_and_single_next_action() -> None:
     snapshot = {
         "status": "BLOCKED",

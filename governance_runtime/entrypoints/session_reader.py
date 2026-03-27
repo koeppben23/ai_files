@@ -1346,6 +1346,7 @@ def main(argv: list[str] | None = None) -> int:
     debug_mode = False
     diagnose_mode = False
     materialize_mode = False
+    verbose_governance_frame = False
     tail_count = 25
     args = argv if argv is not None else sys.argv[1:]
 
@@ -1374,6 +1375,10 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if arg == "--materialize":
             materialize_mode = True
+            idx += 1
+            continue
+        if arg == "--verbose-governance-frame":
+            verbose_governance_frame = True
             idx += 1
             continue
         if arg == "--tail-count":
@@ -1411,7 +1416,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if not audit_mode and not debug_mode and not diagnose_mode:
         action_line = _resolve_next_action_line(snapshot)
-        rendered = format_guided_snapshot(snapshot, action_line)
+        rendered = format_guided_snapshot(
+            snapshot,
+            action_line,
+            verbose_governance_frame=verbose_governance_frame,
+        )
     else:
         rendered = format_snapshot(snapshot)
         if materialize_mode:

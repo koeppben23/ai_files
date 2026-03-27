@@ -13,6 +13,7 @@ from governance_runtime.infrastructure.rendering.snapshot_renderer import (
     _render_current_state,
     _render_execution_progress,
     _render_presented_review_content,
+    _sanitize_phase5_decision_brief,
     _section,
     format_snapshot,
     format_guided_snapshot,
@@ -201,6 +202,44 @@ class TestFormatGuidedSnapshot:
         output = format_guided_snapshot(snapshot, "Next action: run /continue.")
         assert "Execution progress" in output
         assert "iteration=1/3" in output
+
+    def test_verbose_governance_frame_keeps_wrapper_sections(self):
+        snapshot = _to_snapshot({
+            "phase": "6-PostFlight",
+            "active_gate": "Evidence Presentation Gate",
+            "next_gate_condition": "Implementation review loop complete.",
+            "review_package_plan_body": "# PHASE 5 · PLAN FOR APPROVAL\nPlan body text",
+        })
+        output = format_guided_snapshot(
+            snapshot,
+            "Next action: run /review-decision.",
+            verbose_governance_frame=True,
+        )
+        assert "Current state" in output
+        assert "Presented review content" in output
+        assert "Next action: run /review-decision." in output
+
+
+class TestDecisionBriefSanitizer:
+    def test_rewrites_signal_diagnostics_and_python_lists(self):
+        body = (
+            "## Executive Summary\n"
+            "- Objective signal: foo, bar.\n"
+            "- Target-state signal: no clear signal captured.\n"
+            "- Go/No-Go signal: no clear signal captured.\n\n"
+            "## Risks & Mitigations\n"
+            "- ['Risk A', 'Risk B']\n\n"
+            "## Technical Appendix\n\n"
+            "### Plan Objective\n"
+            "Deliver pipeline mode e2e coverage.\n"
+        )
+        out = _sanitize_phase5_decision_brief(body)
+        assert "Objective signal:" not in out
+        assert "Target-state signal:" not in out
+        assert "Go/No-Go signal:" not in out
+        assert "- Objective: Deliver pipeline mode e2e coverage." in out
+        assert "- Risk A" in out
+        assert "- Risk B" in out
 
 
 class TestRenderBlocker:

@@ -13,6 +13,7 @@ return formatted strings without modifying the input.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from governance_runtime.application.dto.session_state_types import Snapshot
@@ -143,6 +144,60 @@ def _render_presented_review_content(snapshot: Snapshot) -> list[str]:
     return lines
 
 
+def _split_python_list_literal(text: str) -> list[str]:
+    compact = text.strip()
+    if not compact.startswith("[") or not compact.endswith("]"):
+        return []
+    inner = compact[1:-1].strip()
+    if not inner:
+        return []
+    parts = [part.strip().strip("'\"") for part in inner.split(",")]
+    return [part for part in parts if part]
+
+
+def _extract_plan_objective(plan_body: str) -> str:
+    lines = [line.rstrip() for line in plan_body.splitlines()]
+    for idx, line in enumerate(lines):
+        if line.strip().lower() == "### plan objective" and idx + 1 < len(lines):
+            objective = lines[idx + 1].strip()
+            if objective:
+                return objective
+    return ""
+
+
+def _sanitize_phase5_decision_brief(plan_body: str) -> str:
+    lines = [line.rstrip() for line in plan_body.splitlines()]
+    objective = _extract_plan_objective(plan_body)
+    out: list[str] = []
+    for raw in lines:
+        stripped = raw.strip()
+        lower = stripped.lower()
+
+        if lower.startswith("- objective signal:"):
+            if objective:
+                out.append(f"- Objective: {objective}")
+            else:
+                out.append("- Objective: Define a concrete delivery objective before approval.")
+            continue
+        if lower.startswith("- target-state signal:"):
+            out.append("- Target state: Define the expected end state and approval boundary.")
+            continue
+        if lower.startswith("- go/no-go signal:"):
+            out.append("- Go/No-Go: Define explicit release gate criteria before approval.")
+            continue
+
+        risk_bullet_match = re.match(r"^-\s*(\[.*\])\s*$", stripped)
+        if risk_bullet_match:
+            items = _split_python_list_literal(risk_bullet_match.group(1))
+            if items:
+                for item in items:
+                    out.append(f"- {item}")
+                continue
+
+        out.append(raw)
+    return "\n".join(out).rstrip()
+
+
 def _render_execution_progress(snapshot: Snapshot) -> list[str]:
     """Render the execution progress section."""
     lines = ["Execution progress"]
@@ -249,16 +304,18 @@ def format_snapshot(snapshot: Snapshot) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_guided_sections(snapshot: Snapshot, action_line: str) -> list[str]:
+def render_guided_sections(snapshot: Snapshot, action_line: str, *, verbose_governance_frame: bool = False) -> list[str]:
     """Render the guided output sections based on snapshot state.
 
     Returns list of lines for the main body sections (not including action line).
     """
     gate = str(snapshot.get("active_gate") or "").strip().lower()
-    if gate == "evidence presentation gate" and not _has_blocker(snapshot):
+    if gate == "evidence presentation gate" and not _has_blocker(snapshot) and not verbose_governance_frame:
         plan_body = str(snapshot.get("review_package_plan_body") or "").strip()
         if plan_body and plan_body.lower() != "none":
-            return [line.rstrip() for line in plan_body.splitlines()]
+            sanitized = _sanitize_phase5_decision_brief(plan_body)
+            if sanitized:
+                return [line.rstrip() for line in sanitized.splitlines()]
         return ["Plan brief is unavailable."]
 
     lines: list[str] = []
@@ -279,7 +336,12 @@ def render_guided_sections(snapshot: Snapshot, action_line: str) -> list[str]:
     return lines
 
 
-def format_guided_snapshot(snapshot: Snapshot, action_line: str | None = None) -> str:
+def format_guided_snapshot(
+    snapshot: Snapshot,
+    action_line: str | None = None,
+    *,
+    verbose_governance_frame: bool = False,
+) -> str:
     """Format guided operator-facing output with sections.
 
     Args:
@@ -289,9 +351,9 @@ def format_guided_snapshot(snapshot: Snapshot, action_line: str | None = None) -
     """
     if action_line is None:
         action_line = "Next action: consult next-step."
-    lines = render_guided_sections(snapshot, action_line)
+    lines = render_guided_sections(snapshot, action_line, verbose_governance_frame=verbose_governance_frame)
     gate = str(snapshot.get("active_gate") or "").strip().lower()
-    if not (gate == "evidence presentation gate" and not _has_blocker(snapshot)):
+    if not (gate == "evidence presentation gate" and not _has_blocker(snapshot) and not verbose_governance_frame):
         lines.append("")
         lines.append(action_line)
     return "\n".join(lines).rstrip() + "\n"
