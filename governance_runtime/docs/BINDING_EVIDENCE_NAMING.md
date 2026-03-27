@@ -54,3 +54,20 @@ This note defines the canonical binding-evidence keys used by runtime outputs.
 - Pipeline mode requires both `AI_GOVERNANCE_EXECUTION_BINDING` and `AI_GOVERNANCE_REVIEW_BINDING`.
 - Review paths must never emit execution binding source.
 - Execution paths must never emit review binding source.
+
+## Resolution vs invoke readiness
+
+- `binding_resolved=true` means mode-scoped binding selection succeeded.
+- `invoke_backend_available=true` means a callable backend is available in this process for the selected binding.
+- Valid combinations:
+  - `binding_resolved=false`, `invoke_backend_available=false`: no valid binding selected for active mode.
+  - `binding_resolved=true`, `invoke_backend_available=false`: binding selected, but runtime cannot invoke backend (for example desktop bridge unavailable in direct mode).
+  - `binding_resolved=true`, `invoke_backend_available=true`: binding selected and backend callable.
+- Invalid combination:
+  - `binding_resolved=false`, `invoke_backend_available=true` must never be emitted.
+
+## Workspace authority
+
+- Binding resolution and governance-config loading must use the active workspace root derived from the active session pointer (`resolve_active_session_paths`).
+- Entrypoints must not derive binding mode from current working directory.
+- Phase-6 orchestrator must propagate its configured `workspace_root` into LLM binding resolution.

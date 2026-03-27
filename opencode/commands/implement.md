@@ -29,7 +29,7 @@ Binding mode is authoritative per `governance-config.json` and mode-scoped:
 - In direct mode (`pipeline_mode=false`), both environment bindings are ignored.
 - In pipeline mode (`pipeline_mode=true`), both bindings are required for governance flows; missing/empty binding is fail-closed.
 - No mixing: direct mode does not consume env bindings; pipeline mode does not fall back to active chat binding.
-- In user terms: the default executor is the active OpenCode Desktop LLM binding. Pipeline mode is an optional override authority selected via `pipeline_mode=true`; if there is neither override nor active Desktop LLM binding for the active mode, execution fails closed.
+- In user terms: direct mode uses the active OpenCode Desktop LLM binding; pipeline mode is a separate explicit authority mode selected via `pipeline_mode=true`. If the required binding for the active mode is unavailable, execution fails closed.
 - For production reproducibility, prefer explicit stable binding references over drifting aliases.
 
 ## Developer mandate

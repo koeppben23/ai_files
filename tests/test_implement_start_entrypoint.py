@@ -974,3 +974,101 @@ def test_bad_precheck_event_persists_binding_evidence(
     assert precheck[-1]["binding_source"] == "active_chat_binding"
     assert precheck[-1]["binding_resolved"] is True
     assert precheck[-1]["invoke_backend_available"] is True
+
+
+def test_bad_pipeline_missing_binding_emits_resolution_vs_invoke_false_false(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+
+    (tmp_path / "governance-config.json").write_text(
+        json.dumps(
+            {
+                "pipeline_mode": True,
+                "review": {
+                    "phase5_max_review_iterations": 3,
+                    "phase6_max_review_iterations": 3,
+                },
+            },
+            ensure_ascii=True,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("AI_GOVERNANCE_EXECUTION_BINDING", raising=False)
+    monkeypatch.delenv("AI_GOVERNANCE_REVIEW_BINDING", raising=False)
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "blocked"
+    assert out["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
+    assert out["binding_resolved"] is False
+    assert out["invoke_backend_available"] is False
+
+
+def test_workspace_authority_prefers_active_session_workspace_for_binding_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+    _set_pipeline_mode_bindings(monkeypatch, tmp_path)
+
+    foreign_workspace = tmp_path / "foreign-workspace"
+    foreign_workspace.mkdir(parents=True, exist_ok=True)
+    foreign_session = foreign_workspace / "SESSION_STATE.json"
+    foreign_session.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        entrypoint,
+        "resolve_active_session_paths",
+        lambda: (foreign_session, "fp", tmp_path.parent, foreign_workspace),
+    )
+
+    observed: dict[str, object] = {}
+
+    def _fake_resolve_governance_binding(**kwargs):  # type: ignore[no-untyped-def]
+        observed["workspace_root"] = kwargs.get("workspace_root")
+        return type(
+            "Binding",
+            (),
+            {
+                "binding_value": "mock-executor",
+                "source": "env:AI_GOVERNANCE_EXECUTION_BINDING",
+            },
+        )()
+
+    monkeypatch.setattr(entrypoint, "resolve_governance_binding", _fake_resolve_governance_binding)
+    monkeypatch.setattr(
+        entrypoint,
+        "_run_llm_edit_step",
+        lambda **_kwargs: {
+            "blocked": True,
+            "reason_code": "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE",
+            "reason": "effective-policy-unavailable",
+            "binding_resolved": True,
+            "invoke_backend_available": True,
+        },
+    )
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "blocked"
+    assert observed["workspace_root"] == tmp_path
