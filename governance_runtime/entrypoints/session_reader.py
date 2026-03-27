@@ -584,11 +584,21 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     if requested_phase.startswith("6"):
         state_obj = state_doc.get("SESSION_STATE")
         state = state_obj if isinstance(state_obj, dict) else state_doc
+        workspace_dir = _get_workspace_dir(config_root, pointer)
         config = ReviewLoopConfig.from_state(
             state=state,
             session_path=session_path,
             commands_home=commands_home,
         )
+        if workspace_dir is not None:
+            config = ReviewLoopConfig(
+                commands_home=config.commands_home,
+                session_path=config.session_path,
+                workspace_root=workspace_dir,
+                max_iterations=config.max_iterations,
+                min_iterations=config.min_iterations,
+                force_stable_digest=config.force_stable_digest,
+            )
         review_result = run_review_loop(
             state_doc=state_doc,
             config=config,

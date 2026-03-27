@@ -26,12 +26,14 @@ _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance_runtime/entrypoints/phase5_plan_record_persist.py",
     "governance_runtime/install/install.py",
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py",
+    "governance_runtime/application/services/phase6_review_orchestrator/policy_resolver.py",
     "governance_runtime/layer_adapter.py",
 }
 
 _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
     "governance_runtime/application/use_cases/audit_readout_builder.py",
     "governance_runtime/application/use_cases/phase5_iterative_review.py",
+    "governance_runtime/application/services/phase6_review_orchestrator/llm_caller.py",
 }
 
 # Side-effect calls allowlist for application layer
@@ -39,16 +41,21 @@ _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
 _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
     # orchestrator.py: Composition-Root reads env for default dependencies
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py": {
-        "L84:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
-        "L264:datetime.now",    # Composition-Root: default clock for load_effective_review_policy
+        "L86:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
+        "L288:datetime.now",    # Composition-Root: default clock for load_effective_review_policy
     },
     # llm_caller.py: Composition-Root uses injected env_reader
     "governance_runtime/application/services/phase6_review_orchestrator/llm_caller.py": {
-        "L71:subprocess.run",   # Composition-Root: default subprocess runner for LLM execution
+        "L71:subprocess.run",   # Legacy line marker
+        "L81:subprocess.run",   # Composition-Root: default subprocess runner for LLM execution
     },
     # __init__.py: Composition-Root creates LLMCaller with env_reader
     "governance_runtime/application/services/phase6_review_orchestrator/__init__.py": {
-        "L66:os.environ",       # Composition-Root: env_reader for LLMCaller
+        "L67:os.environ",       # Composition-Root: env_reader for LLMCaller
+    },
+    # policy_resolver.py: canonical schema path resolution
+    "governance_runtime/application/services/phase6_review_orchestrator/policy_resolver.py": {
+        "L67:Path.resolve",     # Canonical schema path root
     },
 }
 

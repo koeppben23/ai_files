@@ -64,13 +64,7 @@ class PolicyResolver:
     @staticmethod
     def _default_schema_path() -> Path:
         """Get the default path to the governance mandates schema."""
-        return (
-            Path(__file__).parent.parent.parent.parent
-            / "governance_runtime"
-            / "assets"
-            / "schemas"
-            / "governance_mandates.v1.schema.json"
-        )
+        return Path(__file__).resolve().parents[3] / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 
     def load_mandate_schema(self) -> MandateSchema | None:
         """Load the governance mandates schema.

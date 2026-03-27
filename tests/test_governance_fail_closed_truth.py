@@ -28,6 +28,28 @@ from tests.conftest_governance import (
 )
 
 
+def _set_pipeline_mode_with_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+    workspace: Path,
+    *,
+    execution_cmd: str,
+    review_cmd: str = "echo '{\"verdict\":\"approve\",\"findings\":[]}'",
+) -> None:
+    payload = {
+        "pipeline_mode": True,
+        "review": {
+            "phase5_max_review_iterations": 3,
+            "phase6_max_review_iterations": 3,
+        },
+    }
+    (workspace / "governance-config.json").write_text(
+        json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AI_GOVERNANCE_EXECUTION_BINDING", execution_cmd)
+    monkeypatch.setenv("AI_GOVERNANCE_REVIEW_BINDING", review_cmd)
+
+
 @pytest.mark.e2e_governance
 class TestE2EBadPaths:
     """Bad paths: /plan must block on missing or broken inputs."""
@@ -133,16 +155,18 @@ class TestE2ECornerCases:
     """Corner cases: explicit inputs, executor fallback, edge conditions."""
 
     def test_executor_fallback_to_implement_llm_cmd(self, tmp_path, monkeypatch):
-        """_resolve_plan_executor falls back to OPENCODE_IMPLEMENT_LLM_CMD when OPENCODE_PLAN_LLM_CMD is unset."""
+        """Plan execution binding resolves from AI_GOVERNANCE_EXECUTION_BINDING in pipeline mode."""
         config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
         _set_env(monkeypatch, config_root, commands_home)
 
         module = _load_phase5()
-        monkeypatch.setenv("OPENCODE_IMPLEMENT_LLM_CMD", "fallback-cmd")
-        assert module._resolve_plan_executor() == "fallback-cmd"
-
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", "plan-cmd")
-        assert module._resolve_plan_executor() == "plan-cmd"
+        _set_pipeline_mode_with_bindings(monkeypatch, workspace, execution_cmd="execution-cmd")
+        pipeline_mode, binding_value, source = module._resolve_plan_execution_binding(
+            workspace_dir=workspace
+        )
+        assert pipeline_mode is True
+        assert binding_value == "execution-cmd"
+        assert source == "env:AI_GOVERNANCE_EXECUTION_BINDING"
 
     def test_explicit_plan_text_skips_auto_generation(self, tmp_path, monkeypatch, capsys):
         """--plan-text must skip auto-generate path and not require LLM executor."""

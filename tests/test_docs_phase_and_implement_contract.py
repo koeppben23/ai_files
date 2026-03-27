@@ -54,8 +54,8 @@ def test_router_priority_semantics_documented_in_order() -> None:
     assert "otherwise terminal/config error" in content
 
 
-def test_implement_docs_use_desktop_llm_default_and_override_semantics() -> None:
+def test_implement_docs_use_mode_authority_semantics() -> None:
     content = _read("implement.md")
-    assert "default executor is the active OpenCode Desktop LLM binding" in content
-    assert "optional override" in content
-    assert "neither override nor active Desktop LLM binding" in content
+    assert "direct mode uses the active OpenCode Desktop LLM binding" in content
+    assert "pipeline mode is a separate explicit authority mode" in content
+    assert "required binding for the active mode is unavailable" in content

@@ -32,6 +32,10 @@ from governance_runtime.infrastructure.binding_evidence_resolver import BindingE
 from governance_runtime.infrastructure.opencode_model_binding import (
     has_active_desktop_llm_binding as _has_desktop_llm_binding,
 )
+from governance_runtime.infrastructure.governance_binding_resolver import (
+    GovernanceBindingResolutionError,
+    resolve_governance_binding,
+)
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.plan_record_repository import PlanRecordRepository
 from governance_runtime.infrastructure.workspace_paths import plan_record_archive_dir, plan_record_path
@@ -362,17 +366,32 @@ BLOCKED_PLAN_GENERATION_FAILED = "BLOCKED-PLAN-GENERATION-FAILED"
 BLOCKED_PLAN_EXECUTOR_UNAVAILABLE = "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE"
 
 
-def _resolve_plan_executor() -> str:
-    """Resolve the plan LLM executor command.
+def _resolve_plan_execution_binding(*, workspace_dir: Path | None) -> tuple[bool, str, str]:
+    """Resolve planning execution binding.
 
-    Priority:
-    1. OPENCODE_PLAN_LLM_CMD (plan-specific)
-    2. OPENCODE_IMPLEMENT_LLM_CMD (fallback, for backward compat)
+    Returns (pipeline_mode, binding_value, source).
     """
-    plan_cmd = str(os.environ.get("OPENCODE_PLAN_LLM_CMD") or "").strip()
-    if plan_cmd:
-        return plan_cmd
-    return str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
+    resolution = resolve_governance_binding(
+        role="execution",
+        workspace_root=workspace_dir,
+        env_reader=lambda key: os.environ.get(key),
+        has_active_chat_binding=_has_active_desktop_llm_binding(),
+    )
+    return resolution.pipeline_mode, resolution.binding_value, resolution.source
+
+
+def _resolve_plan_review_binding(*, workspace_dir: Path | None) -> tuple[bool, str, str]:
+    """Resolve planning internal-review binding.
+
+    Returns (pipeline_mode, binding_value, source).
+    """
+    resolution = resolve_governance_binding(
+        role="review",
+        workspace_root=workspace_dir,
+        env_reader=lambda key: os.environ.get(key),
+        has_active_chat_binding=_has_active_desktop_llm_binding(),
+    )
+    return resolution.pipeline_mode, resolution.binding_value, resolution.source
 
 
 def _has_active_desktop_llm_binding() -> bool:
@@ -386,19 +405,28 @@ def _call_llm_generate_plan(
     plan_mandate: str,
     effective_authoring_policy: str = "",
     re_review: bool = False,
+    workspace_dir: Path | None = None,
 ) -> dict[str, object]:
     """Call LLM to generate a plan from ticket/task context.
 
     Fail-closed: returns blocked state on any failure.
     """
-    executor_cmd = _resolve_plan_executor()
-    if not executor_cmd and not _has_active_desktop_llm_binding():
+    try:
+        pipeline_mode, binding_value, _binding_source = _resolve_plan_execution_binding(
+            workspace_dir=workspace_dir
+        )
+    except GovernanceBindingResolutionError as exc:
         return {
             "blocked": True,
             "reason": "plan-executor-unavailable",
             "reason_code": BLOCKED_PLAN_EXECUTOR_UNAVAILABLE,
-            "recovery_action": "Set OPENCODE_PLAN_LLM_CMD or OPENCODE_IMPLEMENT_LLM_CMD, or run with an active OpenCode Desktop LLM binding.",
+            "recovery_action": str(exc),
+            "binding_role": "execution",
         }
+
+    binding_source = str(_binding_source or "").strip()
+
+    executor_cmd = binding_value if pipeline_mode else ""
 
     plan_dir = Path.home() / ".governance" / "plan"
     plan_dir.mkdir(parents=True, exist_ok=True)
@@ -434,7 +462,7 @@ def _call_llm_generate_plan(
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
-    if not executor_cmd and _has_active_desktop_llm_binding():
+    if not pipeline_mode and _has_active_desktop_llm_binding():
         fallback_structured = {
             "language": "en",
             "objective": f"Plan for ticket/task: {(ticket_text or task_text)[:140]}",
@@ -470,12 +498,15 @@ def _call_llm_generate_plan(
         )
         atomic_write_text(
             stderr_file,
-            "Using active OpenCode Desktop LLM binding as default plan executor.\n",
+            "Using active OpenCode Desktop chat binding as default planning binding.\n",
         )
         return {
             "blocked": False,
             "plan_text": plan_text,
             "structured_plan": fallback_structured,
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "execution",
+            "binding_source": binding_source,
         }
 
     final_cmd = executor_cmd
@@ -500,8 +531,15 @@ def _call_llm_generate_plan(
                 "reason": "plan-llm-empty-response",
                 "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
                 "recovery_action": "LLM returned empty response for plan generation.",
+                "pipeline_mode": pipeline_mode,
+                "binding_role": "execution",
+                "binding_source": binding_source,
             }
-        return _parse_plan_generation_response(response_text, re_review=re_review)
+        parsed = _parse_plan_generation_response(response_text, re_review=re_review)
+        parsed["pipeline_mode"] = pipeline_mode
+        parsed["binding_role"] = "execution"
+        parsed["binding_source"] = binding_source
+        return parsed
     except Exception as exc:
         atomic_write_text(stderr_file, str(exc))
         return {
@@ -509,6 +547,9 @@ def _call_llm_generate_plan(
             "reason": f"plan-llm-error: {exc}",
             "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
             "recovery_action": "Check LLM executor configuration and retry /plan.",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "execution",
+            "binding_source": binding_source,
         }
 
 
@@ -728,15 +769,24 @@ def _call_llm_review(
     content: str,
     mandate: str,
     effective_review_policy: str = "",
+    workspace_dir: Path | None = None,
 ) -> dict[str, object]:
     """Call LLM for review with structured output enforcement."""
-    executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
-    if not executor_cmd and not _has_active_desktop_llm_binding():
+    try:
+        pipeline_mode, binding_value, _binding_source = _resolve_plan_review_binding(
+            workspace_dir=workspace_dir
+        )
+    except GovernanceBindingResolutionError as exc:
         return {
             "llm_invoked": False,
             "verdict": "changes_requested",
-            "findings": ["No LLM executor configured (OPENCODE_IMPLEMENT_LLM_CMD not set)"],
+            "findings": [str(exc)],
+            "binding_role": "review",
         }
+
+    binding_source = str(_binding_source or "").strip()
+
+    executor_cmd = binding_value if pipeline_mode else ""
 
     review_dir = Path.home() / ".governance" / "review"
     review_dir.mkdir(parents=True, exist_ok=True)
@@ -768,8 +818,8 @@ def _call_llm_review(
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
-    if not executor_cmd and _has_active_desktop_llm_binding():
-        atomic_write_text(stdout_file, "Using active OpenCode Desktop LLM binding as review executor.\n")
+    if not pipeline_mode and _has_active_desktop_llm_binding():
+        atomic_write_text(stdout_file, "Using active OpenCode Desktop chat binding as review binding.\n")
         atomic_write_text(stderr_file, "")
         return {
             "llm_invoked": True,
@@ -777,6 +827,9 @@ def _call_llm_review(
             "findings": [],
             "raw_response": "{\"verdict\": \"changes_requested\", \"findings\": []}",
             "validation_valid": True,
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
         }
 
     final_cmd = executor_cmd
@@ -800,6 +853,9 @@ def _call_llm_review(
                 "llm_invoked": False,
                 "verdict": "changes_requested",
                 "findings": ["LLM executor returned empty response"],
+                "pipeline_mode": pipeline_mode,
+                "binding_role": "review",
+                "binding_source": binding_source,
             }
         # Fail-closed: mandate schema MUST be available for response validation
         try:
@@ -832,10 +888,22 @@ def _call_llm_review(
                 "findings": [f"mandate-schema-unavailable: {exc}"],
                 "reason_code": "MANDATE-SCHEMA-UNAVAILABLE",
             }
-        return _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
+        parsed = _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
+        parsed["pipeline_mode"] = pipeline_mode
+        parsed["binding_role"] = "review"
+        parsed["binding_source"] = binding_source
+        return parsed
     except Exception as exc:
         atomic_write_text(stderr_file, str(exc))
-        return {"llm_invoked": False, "error": str(exc), "verdict": "changes_requested", "findings": [f"LLM review failed: {exc}"]}
+        return {
+            "llm_invoked": False,
+            "error": str(exc),
+            "verdict": "changes_requested",
+            "findings": [f"LLM review failed: {exc}"],
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+        }
 
 
 def _parse_llm_review_response(
@@ -1076,20 +1144,20 @@ def _revise_plan(plan_text: str, findings: Sequence[str], iteration: int) -> str
     return _canonicalize_text(revised)
 
 
-def _has_any_llm_executor() -> bool:
-    """Check if a review-capable LLM executor is available.
-
-    Preferred: explicit OPENCODE_IMPLEMENT_LLM_CMD.
-    Fallback: active OpenCode Desktop LLM binding.
-    """
-    executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
-    return bool(executor_cmd) or _has_active_desktop_llm_binding()
+def _has_any_llm_executor(*, workspace_dir: Path | None) -> bool:
+    """Check if review-capable binding is available for current mode."""
+    try:
+        _resolve_plan_review_binding(workspace_dir=workspace_dir)
+        return True
+    except GovernanceBindingResolutionError:
+        return False
 
 
 def _run_internal_phase5_self_review(
     plan_text: str,
     state: Mapping[str, object] | None = None,
     commands_home: Path | None = None,
+    workspace_dir: Path | None = None,
     max_iterations: int | None = None,
 ) -> dict[str, object]:
     if max_iterations is None:
@@ -1153,8 +1221,10 @@ def _run_internal_phase5_self_review(
     findings_summary: list[str] = []
     audit_rows: list[dict[str, object]] = []
     llm_review_results: list[dict[str, object]] = []
-    has_executor = _has_any_llm_executor()
-    desktop_binding_fallback = not str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip() and _has_active_desktop_llm_binding()
+    review_pipeline_mode: bool | None = None
+    review_binding_source = ""
+    has_executor = _has_any_llm_executor(workspace_dir=workspace_dir)
+    desktop_binding_fallback = _has_active_desktop_llm_binding()
 
     while iteration < max_iterations:
         iteration += 1
@@ -1183,8 +1253,17 @@ def _run_internal_phase5_self_review(
                     }
 
         if has_executor:
-            llm_result = _call_llm_review(current_text, mandate_text, effective_review_policy)
+            llm_result = _call_llm_review(
+                current_text,
+                mandate_text,
+                effective_review_policy,
+                workspace_dir=workspace_dir,
+            )
             llm_review_results.append(llm_result)
+            if "pipeline_mode" in llm_result:
+                review_pipeline_mode = bool(llm_result.get("pipeline_mode"))
+            if llm_result.get("binding_source"):
+                review_binding_source = str(llm_result.get("binding_source") or "")
             verdict = str(llm_result.get("verdict", "")).strip().lower()
             llm_findings = llm_result.get("findings", [])
             if isinstance(llm_findings, list):
@@ -1253,6 +1332,9 @@ def _run_internal_phase5_self_review(
         "findings_summary": findings_summary,
         "audit_rows": audit_rows,
         "llm_review_results": llm_review_results,
+        "review_pipeline_mode": review_pipeline_mode,
+        "review_binding_role": "review",
+        "review_binding_source": review_binding_source,
     }
 
 
@@ -1396,6 +1478,7 @@ def main(argv: list[str] | None = None) -> int:
             plan_mandate=plan_mandate,
             effective_authoring_policy=effective_policy_text,
             re_review=bool(state.get("plan_record_version") or state.get("PlanRecordVersion")),
+            workspace_dir=workspace_dir,
         )
         if gen_result.get("blocked") is True:
             payload = _payload(
@@ -1403,6 +1486,9 @@ def main(argv: list[str] | None = None) -> int:
                 reason_code=str(gen_result.get("reason_code") or BLOCKED_PLAN_GENERATION_FAILED),
                 reason=str(gen_result.get("reason") or "plan-generation-failed"),
                 recovery_action=str(gen_result.get("recovery_action") or "provide plan text via --plan-text or check LLM executor"),
+                pipeline_mode=gen_result.get("pipeline_mode"),
+                binding_role=gen_result.get("binding_role"),
+                binding_source=gen_result.get("binding_source"),
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
@@ -1417,6 +1503,11 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
+
+        state["phase5_plan_execution_pipeline_mode"] = bool(gen_result.get("pipeline_mode", False))
+        state["phase5_plan_execution_binding_role"] = str(gen_result.get("binding_role") or "execution")
+        if gen_result.get("binding_source"):
+            state["phase5_plan_execution_binding_source"] = str(gen_result.get("binding_source") or "")
 
     # ── Standard Phase 5 flow ──
     try:
@@ -1463,7 +1554,13 @@ def main(argv: list[str] | None = None) -> int:
         commands_home = evidence.commands_home
 
         max_iterations = _get_phase5_max_review_iterations(workspace_dir)
-        review_result = _run_internal_phase5_self_review(plan_text, state=state, commands_home=commands_home, max_iterations=max_iterations)
+        review_result = _run_internal_phase5_self_review(
+            plan_text,
+            state=state,
+            commands_home=commands_home,
+            workspace_dir=workspace_dir,
+            max_iterations=max_iterations,
+        )
         if review_result.get("blocked") is True:
             payload = _payload(
                 "blocked",
@@ -1614,6 +1711,10 @@ def main(argv: list[str] | None = None) -> int:
             "self_review_iterations_met": bool(review_result.get("self_review_iterations_met")),
             "completion_status": str(review_result.get("completion_status") or "phase5-completed"),
         }
+        state["phase5_review_pipeline_mode"] = bool(review_result.get("review_pipeline_mode") is True)
+        state["phase5_review_binding_role"] = str(review_result.get("review_binding_role") or "review")
+        if review_result.get("review_binding_source"):
+            state["phase5_review_binding_source"] = str(review_result.get("review_binding_source") or "")
 
         for row in _as_list(review_result.get("audit_rows")):
             if not isinstance(row, Mapping):
@@ -1693,6 +1794,10 @@ def main(argv: list[str] | None = None) -> int:
                 "phase5_revision_delta": str(review_result.get("revision_delta") or "changed"),
                 "requirement_contracts_count": contracts_count,
                 "requirement_contracts_digest": f"sha256:{contracts_digest}",
+                "plan_execution_pipeline_mode": state.get("phase5_plan_execution_pipeline_mode"),
+                "plan_execution_binding_source": state.get("phase5_plan_execution_binding_source", ""),
+                "review_pipeline_mode": state.get("phase5_review_pipeline_mode"),
+                "review_binding_source": state.get("phase5_review_binding_source", ""),
             },
         )
     except Exception as exc:
