@@ -24,7 +24,9 @@ def test_guided_happy_evidence_presentation_contains_full_review_blocks() -> Non
     assert "Current state" not in out
     assert "What this means now" not in out
     assert "Presented review content" not in out
-    assert "Line 1" in out and "Line 2" in out
+    assert "# PHASE 5 · PLAN FOR APPROVAL" in out
+    assert "## Decision Required" in out
+    assert "## Technical Appendix" in out
     assert "  - /plan" not in out
     assert "  - /continue" not in out
     assert "Next action:" not in out

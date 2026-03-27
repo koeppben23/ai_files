@@ -28,6 +28,7 @@ _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py",
     "governance_runtime/application/services/phase6_review_orchestrator/policy_resolver.py",
     "governance_runtime/layer_adapter.py",
+    "governance_runtime/infrastructure/rendering/snapshot_renderer.py",
 }
 
 _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {

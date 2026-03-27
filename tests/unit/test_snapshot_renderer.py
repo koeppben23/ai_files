@@ -13,6 +13,7 @@ from governance_runtime.infrastructure.rendering.snapshot_renderer import (
     _render_current_state,
     _render_execution_progress,
     _render_presented_review_content,
+    _render_phase5_decision_brief_from_plan_body,
     _sanitize_phase5_decision_brief,
     _section,
     format_snapshot,
@@ -240,6 +241,30 @@ class TestDecisionBriefSanitizer:
         assert "- Objective: Deliver pipeline mode e2e coverage." in out
         assert "- Risk A" in out
         assert "- Risk B" in out
+
+
+def test_decision_brief_renderer_uses_template(monkeypatch: pytest.MonkeyPatch) -> None:
+    body = (
+        "# PHASE 5 · PLAN FOR APPROVAL\n"
+        "PLAN (not implemented)\n\n"
+        "## Decision Required\n"
+        "Decision required: choose approve, changes_requested, or reject.\n\n"
+        "## Executive Summary\n"
+        "- Summary line\n\n"
+        "## Scope\n"
+        "Scope line\n\n"
+        "## Release Gates\n"
+        "Gate line\n\n"
+        "## Next Actions\n"
+        "- /review-decision approve\n"
+    )
+    monkeypatch.setattr(
+        "governance_runtime.infrastructure.rendering.snapshot_renderer._load_phase5_decision_brief_template",
+        lambda: "# CUSTOM\n{title}\n{decision_required}\n",
+    )
+    rendered = _render_phase5_decision_brief_from_plan_body(body)
+    assert rendered.startswith("# CUSTOM")
+    assert "PHASE 5 · PLAN FOR APPROVAL" in rendered
 
 
 class TestRenderBlocker:
