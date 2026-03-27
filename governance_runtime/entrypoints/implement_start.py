@@ -872,6 +872,21 @@ def start_implementation(
 
     event_id = uuid.uuid4().hex
     ts = _now_iso()
+    phase_before = phase_text
+    gate_before = get_active_gate(state)
+    if events_path is not None:
+        _append_event(
+            events_path,
+            {
+                "schema": "opencode.rail-lifecycle.v1",
+                "ts_utc": ts,
+                "event_id": uuid.uuid4().hex,
+                "event": "RAIL_STARTED",
+                "rail": "implement",
+                "phase_before": phase_before,
+                "gate_before": gate_before,
+            },
+        )
     plan_record_file = session_path.parent / "plan-record.json"
     plan_text = _latest_plan_text(plan_record_file)
     repo_root = _repo_root(session_path, state)
@@ -929,6 +944,7 @@ def start_implementation(
         state["implementation_invoke_backend_available"] = False
         state["next"] = "6"
         state["active_gate"] = "Implementation Blocked"
+        state["status"] = "blocked"
         state["next_gate_condition"] = "Implementation binding resolution failed for active mode."
         _write_json_atomic(session_path, state_doc)
         if events_path is not None:
@@ -998,6 +1014,7 @@ def start_implementation(
             state["implementation_binding_source"] = execution_binding_source
         state["next"] = "6"
         state["active_gate"] = "Implementation Blocked"
+        state["status"] = "blocked"
         if reason_code == RC_EXECUTOR_NOT_CONFIGURED:
             state["next_gate_condition"] = (
                 "Implementation executor unavailable in current process. "
@@ -1024,6 +1041,33 @@ def start_implementation(
                     "binding_source": execution_binding_source,
                     "binding_resolved": binding_resolved,
                     "invoke_backend_available": invoke_backend_available,
+                },
+            )
+            _append_event(
+                events_path,
+                {
+                    "schema": "opencode.rail-lifecycle.v1",
+                    "ts_utc": ts,
+                    "event_id": uuid.uuid4().hex,
+                    "event": "RAIL_BLOCKED",
+                    "rail": "implement",
+                    "phase_before": phase_before,
+                    "gate_before": gate_before,
+                    "phase_after": "6-PostFlight",
+                    "gate_after": "Implementation Blocked",
+                    "primary_reason_code": reason_code,
+                    "secondary_reason_codes": [],
+                    "state_delta": {
+                        "status": "blocked",
+                        "active_gate": "Implementation Blocked",
+                    },
+                    "evidence_refs": [
+                        {
+                            "path": str(llm_result.get("stderr_path") or ""),
+                            "evidence_type": "executor_stderr",
+                            "content_role": "diagnostic",
+                        }
+                    ],
                 },
             )
         return _payload(
@@ -1123,6 +1167,33 @@ def start_implementation(
         }
         if events_path is not None:
             _append_event(events_path, audit_event)
+            _append_event(
+                events_path,
+                {
+                    "schema": "opencode.rail-lifecycle.v1",
+                    "ts_utc": ts,
+                    "event_id": uuid.uuid4().hex,
+                    "event": "RAIL_BLOCKED",
+                    "rail": "implement",
+                    "phase_before": phase_before,
+                    "gate_before": gate_before,
+                    "phase_after": "6-PostFlight",
+                    "gate_after": "Implementation Blocked",
+                    "primary_reason_code": "LLM_RESPONSE_VALIDATION_FAILED",
+                    "secondary_reason_codes": list(validation_violations),
+                    "state_delta": {
+                        "status": "blocked",
+                        "active_gate": "Implementation Blocked",
+                    },
+                    "evidence_refs": [
+                        {
+                            "path": str(validation_report_path),
+                            "evidence_type": "implementation_validation_report",
+                            "content_role": "validation",
+                        }
+                    ],
+                },
+            )
         return _payload(
             "blocked",
             phase="6-PostFlight",
@@ -1221,9 +1292,11 @@ def start_implementation(
 
     if report.is_compliant:
         state["active_gate"] = "Implementation Review Complete"
+        state["status"] = "OK"
         state["next_gate_condition"] = "Implementation validation passed. Run /continue."
     else:
         state["active_gate"] = "Implementation Blocked"
+        state["status"] = "blocked"
         reason_text = ", ".join(report.reason_codes) if report.reason_codes else RC_TARGETED_CHECKS_MISSING
         state["next_gate_condition"] = (
             "Implementation validation failed. "
@@ -1253,6 +1326,39 @@ def start_implementation(
     }
     if events_path is not None:
         _append_event(events_path, audit_event)
+        _append_event(
+            events_path,
+            {
+                "schema": "opencode.rail-lifecycle.v1",
+                "ts_utc": ts,
+                "event_id": uuid.uuid4().hex,
+                "event": "RAIL_COMPLETED" if report.is_compliant else "RAIL_BLOCKED",
+                "rail": "implement",
+                "phase_before": phase_before,
+                "gate_before": gate_before,
+                "phase_after": "6-PostFlight",
+                "gate_after": str(state.get("active_gate") or ""),
+                "primary_reason_code": report.primary_reason_code,
+                "secondary_reason_codes": list(report.secondary_reason_codes),
+                "state_delta": {
+                    "status": str(state.get("status") or ""),
+                    "active_gate": str(state.get("active_gate") or ""),
+                    "implementation_status": str(state.get("implementation_status") or ""),
+                },
+                "evidence_refs": [
+                    {
+                        "path": str(report_path),
+                        "evidence_type": "implementation_validation_report",
+                        "content_role": "validation",
+                    },
+                    {
+                        "path": str(state.get("implementation_validation_report_path") or ""),
+                        "evidence_type": "implementation_validation_report",
+                        "content_role": "state_reference",
+                    },
+                ],
+            },
+        )
 
     payload = _payload(
         "ok" if report.is_compliant else "blocked",

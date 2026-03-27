@@ -820,7 +820,7 @@ def _parse_bullets(text: str) -> list[str]:
     return out
 
 
-def _machine_requirements_from_markdown(plan_text: str) -> list[dict[str, object]]:
+def _machine_requirements_from_markdown(plan_text: str, *, raw_source: str = "") -> list[dict[str, object]]:
     """Extract compilable machine requirements from allowlisted markdown sections only."""
     objective_text = ""
     for raw in str(plan_text or "").splitlines():
@@ -843,50 +843,37 @@ def _machine_requirements_from_markdown(plan_text: str) -> list[dict[str, object
     if requirements:
         return requirements
 
-    fallback_lines: list[str] = []
-    for raw in str(plan_text or "").splitlines():
-        line = raw.strip()
+    source = str(raw_source or "").strip()
+    if not source:
+        return []
+    first_line = ""
+    for raw in source.splitlines():
+        line = re.sub(r"\s+", " ", raw.strip())
         if not line:
             continue
         if line.startswith("#"):
             continue
-        line = re.sub(r"^[-*]\s+", "", line)
-        line = re.sub(r"^\d+[.)]\s+", "", line)
-        line = re.sub(r"\s+", " ", line).strip()
-        if not line:
-            continue
-        fallback_lines.append(line)
-
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for item in fallback_lines:
-        token = item.lower()
-        if token in seen:
-            continue
-        seen.add(token)
-        deduped.append(item)
-
-    out: list[dict[str, object]] = []
-    hotspots = [
-        "governance_runtime/entrypoints/session_reader.py",
-        "governance_runtime/entrypoints/implement_start.py",
+        first_line = line
+        break
+    if not first_line:
+        return []
+    return [
+        {
+            "title": first_line,
+            "kind": "required_behavior",
+            "required_behavior": f"Implement: {first_line}",
+            "forbidden_behavior": f"forbid state: {first_line} not satisfied",
+            "code_hotspots": [
+                "governance_runtime/entrypoints/session_reader.py",
+                "governance_runtime/entrypoints/implement_start.py",
+            ],
+            "verification_methods": [
+                "behavioral_verification",
+                "live_flow_verification",
+                "static_verification",
+            ],
+        }
     ]
-    for item in deduped[:16]:
-        out.append(
-            {
-                "title": item,
-                "kind": "required_behavior",
-                "required_behavior": f"Implement: {item}",
-                "forbidden_behavior": f"forbid state: {item} not satisfied",
-                "code_hotspots": hotspots,
-                "verification_methods": [
-                    "behavioral_verification",
-                    "live_flow_verification",
-                    "static_verification",
-                ],
-            }
-        )
-    return out
 
 
 def _call_llm_review(
@@ -1489,6 +1476,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     plan_text = _canonicalize_text(plan_source)
+    raw_plan_source = plan_text
 
     # ── Load session state early (needed for auto-generation) ──
     try:
@@ -1711,7 +1699,10 @@ def main(argv: list[str] | None = None) -> int:
         if isinstance(structured_plan, Mapping):
             machine_requirements = build_machine_requirements(structured_plan)
         if not machine_requirements:
-            machine_requirements = _machine_requirements_from_markdown(final_plan_text)
+            machine_requirements = _machine_requirements_from_markdown(
+                final_plan_text,
+                raw_source=raw_plan_source,
+            )
 
         compiled = compile_plan_to_requirements(
             plan_text=final_plan_text,

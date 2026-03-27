@@ -384,7 +384,8 @@ def test_security_local_writes_are_governance_or_state_only(
     assert rc == 2
     assert out["status"] == "blocked"
     assert json_writes == [session_path]
-    assert event_writes == [events_path]
+    assert event_writes
+    assert all(path == events_path for path in event_writes)
     if writes:
         assert len(writes) == 1
         report_path = writes[0]
