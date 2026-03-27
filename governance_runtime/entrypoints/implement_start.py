@@ -507,7 +507,6 @@ def _resolve_desktop_executor_bridge_cmd(*, repo_root: Path) -> str:
     cmd_parts = [
         shlex.quote(cli_bin),
         "run",
-        "--continue",
         "--agent",
         "build",
         "--dir",

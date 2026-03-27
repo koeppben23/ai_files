@@ -651,7 +651,8 @@ def test_happy_bridge_command_includes_model_and_context_placeholder(
     )
 
     cmd = entrypoint._resolve_desktop_executor_bridge_cmd(repo_root=tmp_path)
-    assert "run --continue" in cmd
+    assert "run --agent build" in cmd
+    assert "--continue" not in cmd
     assert "--model" in cmd
     assert "openai/gpt-5.3-codex" in cmd
     assert "{context_file}" in cmd
