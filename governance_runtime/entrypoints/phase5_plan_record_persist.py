@@ -876,6 +876,11 @@ def _machine_requirements_from_markdown(plan_text: str, *, raw_source: str = "")
     ]
 
 
+def _legacy_markdown_requirements_enabled() -> bool:
+    token = str(os.environ.get("GOVERNANCE_ALLOW_LEGACY_MARKDOWN_REQUIREMENTS") or "").strip().lower()
+    return token in {"1", "true", "yes", "on"}
+
+
 def _call_llm_review(
     content: str,
     mandate: str,
@@ -1498,6 +1503,15 @@ def main(argv: list[str] | None = None) -> int:
 
     structured_plan: dict[str, object] | None = None
 
+    # ── Optional structured explicit input parse (JSON planOutputSchema) ──
+    if plan_text and plan_text.lstrip().startswith("{"):
+        parsed_input = _parse_plan_generation_response(plan_text, re_review=False)
+        if parsed_input.get("blocked") is False:
+            parsed_structured = parsed_input.get("structured_plan")
+            if isinstance(parsed_structured, Mapping):
+                structured_plan = dict(parsed_structured)
+                plan_text = _canonicalize_text(str(parsed_input.get("plan_text") or plan_text))
+
     # ── Auto-generate plan if none provided ──
     if not plan_text:
         ticket_text = str(state.get("Ticket") or "").strip()
@@ -1696,13 +1710,17 @@ def main(argv: list[str] | None = None) -> int:
         review_digest = _digest(final_plan_text)
 
         machine_requirements: list[dict[str, object]] = []
+        source_authority = "machine_requirements"
         if isinstance(structured_plan, Mapping):
             machine_requirements = build_machine_requirements(structured_plan)
         if not machine_requirements:
-            machine_requirements = _machine_requirements_from_markdown(
-                final_plan_text,
-                raw_source=raw_plan_source,
-            )
+            if _legacy_markdown_requirements_enabled():
+                machine_requirements = _machine_requirements_from_markdown(
+                    final_plan_text,
+                    raw_source=raw_plan_source,
+                )
+                if machine_requirements:
+                    source_authority = "legacy_markdown_requirements"
 
         compiled = compile_plan_to_requirements(
             plan_text=final_plan_text,
@@ -1742,7 +1760,7 @@ def main(argv: list[str] | None = None) -> int:
             verification_seed=verification_seed,
             completion_seed=completion_seed,
             generated_at=_now_iso(),
-            source_authority="machine_requirements",
+            source_authority=source_authority,
             compiler_notes=list(compiled.notes),
         )
 
@@ -1778,6 +1796,7 @@ def main(argv: list[str] | None = None) -> int:
                     "plan_record_text": plan_text,
                     "plan_record_digest": f"sha256:{plan_digest}",
                     "machine_requirements": machine_requirements,
+                    "machine_requirements_source_authority": source_authority,
                 },
                 phase=phase_for_write,
                 mode=mode,
@@ -1804,6 +1823,7 @@ def main(argv: list[str] | None = None) -> int:
                     "plan_record_text": final_plan_text,
                     "plan_record_digest": f"sha256:{review_digest}",
                     "machine_requirements": machine_requirements,
+                    "machine_requirements_source_authority": source_authority,
                     "review": {
                         "iterations": _as_int(review_result.get("iterations"), 0),
                         "max_iterations": _as_int(review_result.get("max_iterations"), max_iterations),
@@ -1845,7 +1865,7 @@ def main(argv: list[str] | None = None) -> int:
         state["requirement_contracts_count"] = contracts_count
         state["requirement_contracts_digest"] = f"sha256:{contracts_digest}"
         state["requirement_contracts_source"] = str(_contracts_path(session_path))
-        state["requirement_contracts_source_authority"] = "machine_requirements"
+        state["requirement_contracts_source_authority"] = source_authority
         state["machine_requirements_count"] = len(machine_requirements)
         state["requirement_compiler_notes"] = list(compiled.notes)
         state["Phase5Review"] = {
@@ -1941,7 +1961,7 @@ def main(argv: list[str] | None = None) -> int:
                 "phase5_revision_delta": str(review_result.get("revision_delta") or "changed"),
                 "requirement_contracts_count": contracts_count,
                 "requirement_contracts_digest": f"sha256:{contracts_digest}",
-                "requirement_contracts_source_authority": "machine_requirements",
+                "requirement_contracts_source_authority": source_authority,
                 "machine_requirements_count": len(machine_requirements),
                 "requirement_compiler_notes": list(compiled.notes),
                 "plan_execution_pipeline_mode": state.get("phase5_plan_execution_pipeline_mode"),

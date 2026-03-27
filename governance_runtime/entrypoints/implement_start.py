@@ -319,6 +319,11 @@ def _load_compiled_requirements_source_authority(session_path: Path, state: Mapp
     return str(payload.get("source_authority") or "").strip()
 
 
+def _allow_legacy_requirement_source() -> bool:
+    token = str(os.environ.get("GOVERNANCE_ALLOW_LEGACY_MARKDOWN_REQUIREMENTS") or "").strip().lower()
+    return token in {"1", "true", "yes", "on"}
+
+
 def _extract_hotspot_files(requirements: list[dict[str, object]]) -> list[str]:
     files: list[str] = []
     seen: set[str] = set()
@@ -893,13 +898,16 @@ def start_implementation(
     compiled_requirements = _load_compiled_requirements(session_path, state)
     source_authority = _load_compiled_requirements_source_authority(session_path, state)
     state["requirement_contracts_source_authority_observed"] = source_authority
-    if source_authority and source_authority != "machine_requirements":
+    allowed_sources = {"machine_requirements"}
+    if _allow_legacy_requirement_source():
+        allowed_sources.add("legacy_markdown_requirements")
+    if source_authority and source_authority not in allowed_sources:
         return _payload(
             "error",
             reason_code="REQUIREMENT_SOURCE_INVALID",
             message=(
                 "Compiled requirements source authority is invalid for /implement. "
-                f"observed={source_authority}, expected=machine_requirements"
+                f"observed={source_authority}, expected one of {sorted(allowed_sources)}"
             ),
         )
     required_hotspots = _extract_hotspot_files(compiled_requirements)

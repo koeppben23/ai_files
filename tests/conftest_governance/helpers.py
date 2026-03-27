@@ -169,6 +169,7 @@ def _write_e2e_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str, Path]:
 def _set_env(monkeypatch: pytest.MonkeyPatch, config_root: Path, commands_home: Path) -> None:
     monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
     monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+    monkeypatch.setenv("GOVERNANCE_ALLOW_LEGACY_MARKDOWN_REQUIREMENTS", "1")
 
 
 def _mock_llm_cmd(json_data: str) -> str:
