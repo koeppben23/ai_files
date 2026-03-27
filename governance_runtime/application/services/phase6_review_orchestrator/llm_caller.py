@@ -174,10 +174,7 @@ class LLMCaller:
         cmd_parts = [
             shlex.quote(cli_bin),
             "run",
-            "--agent",
-            "build",
-            "--dir",
-            shlex.quote(str(self._workspace_root)),
+            "--continue",
             "--file",
             "{context_file}",
         ]
