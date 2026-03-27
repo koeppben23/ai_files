@@ -17,7 +17,7 @@ Binding mode is authoritative and mode-scoped:
 - resolve execution binding by mode:
   - direct mode: active OpenCode chat binding
   - pipeline mode: `AI_GOVERNANCE_EXECUTION_BINDING` (required)
-- invoke the resolved execution binding (the only actor allowed to change domain files)
+- invoke implementation through the resolved execution binding (the only actor allowed to change domain files)
 - run internal implementation self-review (validation-only; no local domain edits)
 - collect git diff evidence and validate plan-coverage plus targeted checks
 - persist validation/audit evidence and fail closed when requirements are not met
