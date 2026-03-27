@@ -60,6 +60,7 @@ from governance_runtime.infrastructure.governance_config_loader import get_pipel
 from governance_runtime.infrastructure.plan_record_state import resolve_plan_record_signal
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
+from governance_runtime.application.services.state_normalizer import normalize_to_canonical
 
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
@@ -267,17 +268,35 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     return out
 
 
-def _latest_plan_text(plan_record_file: Path) -> str:
+def _latest_plan_text(plan_record_file: Path, state: Mapping[str, object] | None = None) -> str:
     if not plan_record_file.exists():
-        return ""
-    payload = _load_json(plan_record_file)
-    versions = payload.get("versions")
-    if not isinstance(versions, list) or not versions:
-        return ""
-    latest = versions[-1] if isinstance(versions[-1], dict) else {}
-    if not isinstance(latest, dict):
-        return ""
-    return str(latest.get("plan_record_text") or "").strip()
+        payload = {}
+    else:
+        payload = _load_json(plan_record_file)
+
+    versions = payload.get("versions") if isinstance(payload, Mapping) else None
+    if isinstance(versions, list) and versions:
+        latest = versions[-1] if isinstance(versions[-1], dict) else {}
+        if isinstance(latest, dict):
+            plan_text = str(latest.get("plan_record_text") or "").strip()
+            if plan_text:
+                return plan_text
+
+    canonical_state = normalize_to_canonical(dict(state or {}))
+    review_pkg = canonical_state.get("review_package")
+    if isinstance(review_pkg, Mapping):
+        plan_body = str(review_pkg.get("plan_body") or "").strip()
+        if plan_body:
+            return plan_body
+        approved_plan_summary = str(review_pkg.get("approved_plan_summary") or "").strip()
+        if approved_plan_summary:
+            return approved_plan_summary
+
+    plan_digest = str(canonical_state.get("phase5_plan_record_digest") or "").strip()
+    if plan_digest:
+        return plan_digest
+
+    return ""
 
 
 def _contracts_path(session_path: Path, state: Mapping[str, object]) -> Path:
@@ -444,6 +463,49 @@ def _classify_check_failure_kind(exit_code: int | None, output: str) -> str | No
             return "selector_invalid"
         return "collection_failed"
     return "runner_failed"
+
+
+def _selector_target_exists(repo_root: Path, selector: str) -> bool:
+    token = str(selector or "").strip()
+    if not token:
+        return False
+    if token.startswith("-"):
+        return False
+    target = token.split("::", 1)[0].strip()
+    if not target:
+        return False
+    normalized = target.replace("\\", "/")
+    if normalized.startswith("../"):
+        return False
+    path = repo_root / normalized
+    return path.exists()
+
+
+def _derive_targeted_check_fallbacks(repo_root: Path, requirements: list[dict[str, object]]) -> list[str]:
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for requirement in requirements:
+        hotspots = requirement.get("code_hotspots")
+        if not isinstance(hotspots, list):
+            continue
+        for hotspot in hotspots:
+            rel = str(hotspot or "").strip().replace("\\", "/")
+            if not rel or rel.startswith("../"):
+                continue
+            stem = Path(rel).stem
+            if not stem:
+                continue
+            for candidate in (f"tests/test_{stem}.py", f"tests/{stem}_test.py"):
+                if candidate in seen:
+                    continue
+                if (repo_root / candidate).exists():
+                    seen.add(candidate)
+                    candidates.append(candidate)
+    if candidates:
+        return candidates
+    if (repo_root / "tests").exists():
+        return ["tests"]
+    return []
 
 
 def _build_executor_env(*, bridge_mode: bool) -> dict[str, str] | None:
@@ -779,10 +841,33 @@ def _run_targeted_checks(repo_root: Path, requirements: list[dict[str, object]])
     if not tests:
         return (), False
 
-    command = ["python3", "-m", "pytest", "-q", *tests]
+    valid_tests: list[str] = [token for token in tests if _selector_target_exists(repo_root, token)]
+    executed_tests = valid_tests
+    if not executed_tests:
+        executed_tests = _derive_targeted_check_fallbacks(repo_root, requirements)
+    if not executed_tests:
+        return (), False
+
+    command = ["python3", "-m", "pytest", "-q", *executed_tests]
     result = subprocess.run(command, cwd=str(repo_root), capture_output=True, text=True, check=False)
     output_file = repo_root / ".governance" / "implementation" / "targeted_checks.log"
     output = (result.stdout or "") + ("\n" if result.stdout and result.stderr else "") + (result.stderr or "")
+    if len(valid_tests) != len(tests):
+        ignored = sorted(set(tests) - set(valid_tests))
+        if ignored:
+            output = (
+                "[implement] ignored invalid acceptance test selectors:\n"
+                + "\n".join(ignored)
+                + "\n\n"
+                + output
+            )
+    if executed_tests != valid_tests and executed_tests:
+        output = (
+            "[implement] fallback targeted checks executed:\n"
+            + "\n".join(executed_tests)
+            + "\n\n"
+            + output
+        )
     _write_text_atomic(output_file, output)
     failure_kind = _classify_check_failure_kind(int(result.returncode), output)
     check_results = tuple(
@@ -793,7 +878,7 @@ def _run_targeted_checks(repo_root: Path, requirements: list[dict[str, object]])
             output_path=str(output_file),
             failure_kind=failure_kind,
         )
-        for test in tests
+        for test in executed_tests
     )
     return check_results, True
 
@@ -908,7 +993,20 @@ def start_implementation(
             },
         )
     plan_record_file = session_path.parent / "plan-record.json"
-    plan_text = _latest_plan_text(plan_record_file)
+    plan_text = _latest_plan_text(plan_record_file, state=state)
+    canonical_state = normalize_to_canonical(state)
+    ticket_text = str(
+        canonical_state.get("ticket")
+        or state.get("Ticket")
+        or state.get("ticket")
+        or ""
+    ).strip()
+    task_text = str(
+        canonical_state.get("task")
+        or state.get("Task")
+        or state.get("task")
+        or ""
+    ).strip()
     repo_root = _repo_root(session_path, state)
     compiled_requirements = _load_compiled_requirements(session_path, state)
     source_authority = _load_compiled_requirements_source_authority(session_path, state)
@@ -1008,8 +1106,8 @@ def start_implementation(
     llm_result = _run_llm_edit_step(
         repo_root=repo_root,
         state=state,
-        ticket_text=str(state.get("Ticket") or ""),
-        task_text=str(state.get("Task") or ""),
+        ticket_text=ticket_text,
+        task_text=task_text,
         plan_text=plan_text,
         required_hotspots=required_hotspots,
         commands_home=commands_home,
