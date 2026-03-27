@@ -67,6 +67,7 @@ def _resolve_active_session_path() -> tuple[Path, Path]:
 
 BLOCKED_IMPLEMENT_START_INVALID = "BLOCKED-UNSPECIFIED"
 BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE = "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+BLOCKED_MANDATE_SCHEMA_UNAVAILABLE = "MANDATE-SCHEMA-UNAVAILABLE"
 
 _SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 
@@ -460,6 +461,7 @@ def _run_llm_edit_step(
     execution_binding: str = "",
 ) -> dict[str, object]:
     executor_cmd = execution_binding if pipeline_mode else ""
+    has_executor = bool(executor_cmd) if pipeline_mode else _has_active_desktop_llm_binding()
     implementation_dir = repo_root / ".governance" / "implementation"
     implementation_dir.mkdir(parents=True, exist_ok=True)
     context_file = implementation_dir / "llm_edit_context.json"
@@ -470,6 +472,16 @@ def _run_llm_edit_step(
     schema = _load_mandates_schema()
     if schema:
         mandate_text = _build_authoring_mandate_text(schema)
+    else:
+        return {
+            "blocked": True,
+            "reason": "mandate-schema-unavailable",
+            "reason_code": BLOCKED_MANDATE_SCHEMA_UNAVAILABLE,
+            "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
+            "binding_resolved": has_executor,
+            "invoke_backend_available": has_executor,
+            "message": "Required mandate schema governance_mandates.v1.schema.json is unavailable.",
+        }
 
     effective_policy_text, effective_policy_error = "", ""
     if commands_home is not None:
@@ -480,7 +492,6 @@ def _run_llm_edit_step(
     # Determine if we have an execution binding for active mode.
     # Direct mode: active chat binding is authoritative.
     # Pipeline mode: explicit execution binding is authoritative.
-    has_executor = bool(executor_cmd) if pipeline_mode else _has_active_desktop_llm_binding()
     if has_executor and effective_policy_error:
         return {
             "blocked": True,

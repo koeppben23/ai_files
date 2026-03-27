@@ -18,6 +18,7 @@ from governance_runtime.application.services.phase6_review_orchestrator import (
     ResponseValidator,
     ReviewResult,
     BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+    BLOCKED_MANDATE_SCHEMA_UNAVAILABLE,
 )
 from governance_runtime.application.services.phase6_review_orchestrator.review_result import (
     CompletionStatus,
@@ -82,7 +83,11 @@ class TestRunReviewLoop:
     def mock_dependencies(self):
         """Create mock dependencies for testing."""
         policy_resolver = MagicMock(spec=PolicyResolver)
-        policy_resolver.load_mandate_schema.return_value = None
+        policy_resolver.load_mandate_schema.return_value = MagicMock(
+            raw_schema={"$defs": {"reviewOutputSchema": {"type": "object"}}},
+            review_output_schema_text='{"type":"object"}',
+            mandate_text="Review mandate",
+        )
         policy_resolver.load_effective_review_policy.return_value = MagicMock(
             policy_text="test policy",
             is_available=True,
@@ -176,6 +181,33 @@ class TestRunReviewLoop:
         assert result.is_blocked is True
         assert result.loop_result is not None
         assert result.loop_result.block_reason_code == BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
+
+    def test_blocked_when_mandate_schema_unavailable(self, mock_dependencies):
+        """run_review_loop returns blocked result when mandate schema is unavailable."""
+        mock_dependencies.policy_resolver.load_mandate_schema.return_value = None
+
+        state_doc = {
+            "SESSION_STATE": {
+                "phase": "6-PostFlight",
+                "next": "6",
+                "LoadedRulebooks": {"core": "rules.md"},
+            }
+        }
+        config = ReviewLoopConfig(
+            commands_home=Path("/tmp"),
+            session_path=Path("/tmp/session.json"),
+        )
+
+        result = run_review_loop(
+            state_doc=state_doc,
+            config=config,
+            dependencies=mock_dependencies,
+        )
+
+        assert result.is_blocked is True
+        assert result.loop_result is not None
+        assert result.loop_result.block_reason == "review-mandate-unavailable"
+        assert result.loop_result.block_reason_code == BLOCKED_MANDATE_SCHEMA_UNAVAILABLE
 
     def test_complete_path_with_approve(self, mock_dependencies):
         """run_review_loop completes when LLM approves at max iterations."""

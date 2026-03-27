@@ -2238,6 +2238,7 @@ class TestE2EPhase6GovernanceFailClosed:
             ReviewLoopConfig,
             ReviewResult,
             BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+            MandateSchema,
             _set_policy_resolver,
             _set_llm_caller,
         )
@@ -2262,7 +2263,11 @@ class TestE2EPhase6GovernanceFailClosed:
                 "policy_text": "",
                 "error_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
             })(),
-            "load_mandate_schema": lambda self, **kw: None,
+            "load_mandate_schema": lambda self, **kw: MandateSchema(
+                raw_schema={"$defs": {"reviewOutputSchema": {"type": "object"}}},
+                review_output_schema_text='{"type":"object"}',
+                mandate_text="Review mandate",
+            ),
         })()
         _set_policy_resolver(mock_policy_resolver)
 
@@ -2316,11 +2321,12 @@ class TestE2EPhase6GovernanceFailClosed:
         )
 
     def test_phase6_blocks_when_review_mandate_missing(self, tmp_path, monkeypatch):
-        """Phase-6 internal loop continues when review mandate is unavailable (mandate is optional)."""
+        """Phase-6 internal loop blocks when review mandate schema is unavailable."""
         from governance_runtime.application.services.phase6_review_orchestrator import (
             run_review_loop,
             ReviewLoopConfig,
             ReviewResult,
+            BLOCKED_MANDATE_SCHEMA_UNAVAILABLE,
             _set_policy_resolver,
             _set_llm_caller,
         )
@@ -2375,12 +2381,11 @@ class TestE2EPhase6GovernanceFailClosed:
             "run_review_loop must return ReviewResult"
         )
         assert result.loop_result is not None
-        assert result.loop_result.blocked is False, (
-            f"Phase-6 loop should NOT block when mandate is unavailable (it's optional), got {result.loop_result}"
+        assert result.loop_result.blocked is True, (
+            f"Phase-6 loop must block when mandate is unavailable, got {result.loop_result}"
         )
-        assert result.loop_result.implementation_review_complete is True, (
-            "Phase-6 loop should complete when LLM approves, even without mandate"
-        )
+        assert result.loop_result.block_reason == "review-mandate-unavailable"
+        assert result.loop_result.block_reason_code == BLOCKED_MANDATE_SCHEMA_UNAVAILABLE
 
     def test_phase6_blocks_when_llm_validator_unavailable(self, tmp_path, monkeypatch):
         """Response validation with unavailable validator returns invalid verdict."""

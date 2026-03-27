@@ -138,6 +138,18 @@ def _set_pipeline_mode_bindings(
     monkeypatch.setenv("AI_GOVERNANCE_REVIEW_BINDING", review_cmd)
 
 
+def _mock_phase6_mandate_schema() -> object:
+    return type(
+        "MockMandateSchema",
+        (),
+        {
+            "raw_schema": {"$defs": {"reviewOutputSchema": {"type": "object"}}},
+            "review_output_schema_text": '{"type":"object"}',
+            "mandate_text": "Review mandate",
+        },
+    )()
+
+
 def _mock_readonly_unavailable():
     """Patch evaluate_readonly to raise, triggering graceful degradation.
 
@@ -1534,7 +1546,7 @@ class TestMain:
                     "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
                     "error_code": "",
                 })(),
-                "load_mandate_schema": lambda self, **kw: None,
+                "load_mandate_schema": lambda self, **kw: _mock_phase6_mandate_schema(),
             })()
             _set_policy_resolver(mock_policy_resolver)
             rc = main(["--commands-home", str(commands_home), "--materialize"])
@@ -1651,7 +1663,7 @@ class TestMain:
                     "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
                     "error_code": "",
                 })(),
-                "load_mandate_schema": lambda self, **kw: None,
+                "load_mandate_schema": lambda self, **kw: _mock_phase6_mandate_schema(),
             })()
             _set_policy_resolver(mock_policy_resolver)
             rc = main(["--commands-home", str(commands_home), "--materialize"])
@@ -3983,7 +3995,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
                     "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
                     "error_code": "",
                 })(),
-                "load_mandate_schema": lambda self, **kw: None,
+                "load_mandate_schema": lambda self, **kw: _mock_phase6_mandate_schema(),
             })()
             _set_policy_resolver(mock_policy_resolver)
             rc = main(["--commands-home", str(commands_home), "--materialize"])
@@ -4091,7 +4103,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
                     "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
                     "error_code": "",
                 })(),
-                "load_mandate_schema": lambda self, **kw: None,
+                "load_mandate_schema": lambda self, **kw: _mock_phase6_mandate_schema(),
             })()
             _set_policy_resolver(mock_policy_resolver)
             rc = main(["--commands-home", str(commands_home), "--materialize"])
@@ -4193,7 +4205,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
                     "policy_text": "[EFFECTIVE REVIEW POLICY]\n- baseline",
                     "error_code": "",
                 })(),
-                "load_mandate_schema": lambda self, **kw: None,
+                "load_mandate_schema": lambda self, **kw: _mock_phase6_mandate_schema(),
             })()
             _set_policy_resolver(mock_policy_resolver)
             mock_response_validator = type("MockResponseValidator", (), {
@@ -4256,7 +4268,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
                 "policy_text": "",
                 "error_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
             })(),
-            "load_mandate_schema": lambda self, **kw: None,
+            "load_mandate_schema": lambda self, **kw: _mock_phase6_mandate_schema(),
         })()
 
         from governance_runtime.application.services.phase6_review_orchestrator import _set_policy_resolver, _set_llm_caller

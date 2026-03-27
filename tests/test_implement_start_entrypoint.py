@@ -549,6 +549,29 @@ def test_bad_no_executor_binding_blocks_with_not_configured_reason(
     assert result["reason_code"] == entrypoint.RC_EXECUTOR_NOT_CONFIGURED
 
 
+def test_bad_mandate_schema_unavailable_blocks_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    monkeypatch.setattr(entrypoint, "_load_mandates_schema", lambda: None)
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=repo_root,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete"},
+        ticket_text="t",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+        pipeline_mode=True,
+        execution_binding="python3 -c \"print('{\\\"result\\\":\\\"ok\\\"}')\"",
+    )
+
+    assert result.get("blocked") is True
+    assert result.get("reason") == "mandate-schema-unavailable"
+    assert result.get("reason_code") == "MANDATE-SCHEMA-UNAVAILABLE"
+
+
 def test_edge_implement_start_with_desktop_binding_but_no_bridge_blocks_cleanly(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
