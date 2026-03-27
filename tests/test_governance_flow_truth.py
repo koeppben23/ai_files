@@ -28,6 +28,28 @@ from tests.conftest_governance import (
 )
 
 
+def _set_pipeline_mode_with_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+    workspace: Path,
+    *,
+    execution_cmd: str,
+    review_cmd: str = "echo '{\"verdict\":\"approve\",\"findings\":[]}'",
+) -> None:
+    payload = {
+        "pipeline_mode": True,
+        "review": {
+            "phase5_max_review_iterations": 3,
+            "phase6_max_review_iterations": 3,
+        },
+    }
+    (workspace / "governance-config.json").write_text(
+        json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AI_GOVERNANCE_EXECUTION_BINDING", execution_cmd)
+    monkeypatch.setenv("AI_GOVERNANCE_REVIEW_BINDING", review_cmd)
+
+
 # ── A. /TICKET ─────────────────────────────────────────────────────────────
 
 @pytest.mark.e2e_governance
@@ -1209,7 +1231,11 @@ class TestE2EComprehensiveChain:
         }
         mock_plan_file = tmp_path / "mock_plan_response.json"
         mock_plan_file.write_text(json.dumps(mock_plan_response), encoding="utf-8")
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", f"cat {mock_plan_file}")
+        _set_pipeline_mode_with_bindings(
+            monkeypatch,
+            workspace,
+            execution_cmd=f"cat {mock_plan_file}",
+        )
 
         state = _read_state(session_path)
         state["phase"] = "4"
@@ -1477,7 +1503,11 @@ class TestE2EPlanAutoGeneration:
         config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
         _set_env(monkeypatch, config_root, commands_home)
         json_data = '{"objective":"Implement feature X with high quality","target_state":"Feature X delivered and verified","target_flow":"Step 1: Setup. Step 2: Implement. Step 3: Test.","state_machine":"Draft -> Active -> Complete","blocker_taxonomy":"Dependencies,Complexity","audit":"Test results, coverage report","go_no_go":"All tests pass, no critical bugs","test_strategy":"Unit + integration tests","reason_code":"PLAN-001"}'
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", _mock_llm_cmd(json_data))
+        _set_pipeline_mode_with_bindings(
+            monkeypatch,
+            workspace,
+            execution_cmd=_mock_llm_cmd(json_data),
+        )
 
         module = _load_phase5()
         rc = module.main(["--quiet"])
@@ -1537,7 +1567,11 @@ class TestE2EPlanAutoGeneration:
         config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
         _set_env(monkeypatch, config_root, commands_home)
         json_data = '{"objective":"Implement feature X with high quality","target_state":"Feature X delivered and verified","target_flow":"Step 1: Setup. Step 2: Implement. Step 3: Test.","state_machine":"Draft -> Active -> Complete","blocker_taxonomy":"Dependencies,Complexity","audit":"Test results, coverage report","go_no_go":"All tests pass, no critical bugs","test_strategy":"Unit + integration tests","reason_code":"PLAN-001"}'
-        monkeypatch.setenv("OPENCODE_PLAN_LLM_CMD", _mock_llm_cmd(json_data))
+        _set_pipeline_mode_with_bindings(
+            monkeypatch,
+            workspace,
+            execution_cmd=_mock_llm_cmd(json_data),
+        )
 
         module = _load_phase5()
         capsys.readouterr()
@@ -2323,6 +2357,9 @@ class TestE2EPhase6GovernanceFailClosed:
                 "stdout": '{"verdict":"approve","findings":[]}',
                 "stderr": "",
                 "return_code": 0,
+                "pipeline_mode": False,
+                "binding_role": "review",
+                "binding_source": "active_chat_binding",
             })(),
         })()
         _set_llm_caller(mock_llm_caller)
