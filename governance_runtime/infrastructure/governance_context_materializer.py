@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import hashlib
 
+from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 from governance_runtime.infrastructure.workspace_paths import governance_allowed_artifact_dirs
 
 
@@ -127,7 +128,7 @@ def _materialize_text_file(output_dir: Path, prefix: str, content: str) -> tuple
     file_path = output_dir / filename
 
     try:
-        file_path.write_text(content, encoding="utf-8")
+        atomic_write_text(file_path, content)
     except OSError as e:
         raise GovernanceContextMaterializationError(
             reason=f"Failed to write {prefix} file: {e}",
