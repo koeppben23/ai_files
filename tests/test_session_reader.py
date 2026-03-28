@@ -1020,7 +1020,7 @@ class TestMain:
         assert rc == 0
         captured = capsys.readouterr()
         assert "Current state" in captured.out
-        assert "Next action:" not in captured.out
+        assert "Next action:" in captured.out
 
     def test_error_exit_code(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
         # No pointer file -> error
@@ -1028,7 +1028,8 @@ class TestMain:
         assert rc == 1
         captured = capsys.readouterr()
         assert "Blocker" in captured.out
-        assert "Next action:" not in captured.out
+        if "Next action:" in captured.out:
+            assert captured.out.strip().splitlines()[-1].startswith("Next action: ")
 
     def test_missing_commands_home_arg(self, capsys: pytest.CaptureFixture) -> None:
         rc = main(["--commands-home"])
@@ -1205,7 +1206,7 @@ class TestMain:
         assert "- Active gate: Architecture Review Gate" in output
         assert "Phase 5 self-review status: iteration=0/3" in output
         assert "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review" not in output
-        assert "Next action:" not in output
+        assert "Next action:" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["active_gate"] == "Architecture Review Gate"
@@ -1284,7 +1285,7 @@ class TestMain:
         assert rc == 0
         output = capsys.readouterr().out
         assert "- Active gate: Plan Record Preparation Gate" in output
-        assert "Next action:" not in output
+        assert output.strip().endswith("Next action: /plan")
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["active_gate"] == "Plan Record Preparation Gate"

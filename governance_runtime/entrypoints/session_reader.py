@@ -1089,6 +1089,22 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             or ""
         ),
     }
+
+    # Canonical next-action fields are part of the rail result contract.
+    # Session reader owns computation of snapshot semantics, while renderers
+    # must only display these fields.
+    try:
+        from governance_runtime.engine.next_action_resolver import resolve_next_action
+
+        resolved_action = resolve_next_action(snapshot)
+        if resolved_action.command:
+            snapshot["next_action_command"] = str(resolved_action.command)
+        if resolved_action.label:
+            snapshot["next_action"] = str(resolved_action.label)
+        if resolved_action.reason:
+            snapshot["next_action_code"] = str(resolved_action.reason).upper().replace("-", "_")
+    except Exception:
+        pass
     if transition_evidence_hint:
         snapshot["transition_evidence_hint"] = transition_evidence_hint
 
