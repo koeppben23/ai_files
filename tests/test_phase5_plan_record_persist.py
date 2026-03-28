@@ -914,6 +914,84 @@ class TestCallLLMReviewMandateSchemaFailClosed:
 class TestPlanGeneration:
     """Tests for LLM-based plan generation in /plan."""
 
+
+class TestParseJsonEventsToText:
+    """Tests for _parse_json_events_to_text parsing function.
+
+    OpenCode CLI --format json emits NDJSON event streams.
+    Our runtime contract requires a single JSON payload from the LLM.
+
+    PRIMARY PATH: Direct 'text' event (preferred, expected behavior)
+    FALLBACK PATH: Tool output extraction (degraded, tolerated, NOT official contract)
+    """
+
+    def test_primary_text_event_returns_content(self):
+        """PRIMARY PATH: First 'text' event content is returned."""
+        module = _load_module()
+        ndjson = "\n".join([
+            '{"type":"step_start","timestamp":123}',
+            '{"type":"text","part":{"text":"{\\"objective\\": \\"test\\"}"}}',
+            '{"type":"step_finish","timestamp":124}',
+        ])
+        result = module._parse_json_events_to_text(ndjson)
+        assert result == '{"objective": "test"}'
+
+    def test_fallback_tool_output_returns_combined_json(self):
+        """FALLBACK PATH (degraded): Tool outputs are extracted when no text event exists.
+
+        This is NOT the primary path. It is a tolerated compatibility layer
+        for cases where OPENCODE_CONFIG_CONTENT permission overlay does not
+        deterministically prevent tool usage.
+        """
+        module = _load_module()
+        ndjson = "\n".join([
+            '{"type":"step_start","timestamp":123}',
+            '{"type":"tool_use","part":{"state":{"status":"completed","output":"{\\"objective\\": \\"from_tool\\"}"}}}',
+            '{"type":"step_finish","timestamp":124}',
+        ])
+        result = module._parse_json_events_to_text(ndjson)
+        # Fallback extracts tool output
+        assert '"objective"' in result
+        assert "from_tool" in result
+
+    def test_fallback_ignored_when_text_event_present(self):
+        """PRIMARY PATH wins: When text event exists, tool outputs are ignored."""
+        module = _load_module()
+        ndjson = "\n".join([
+            '{"type":"step_start","timestamp":123}',
+            '{"type":"tool_use","part":{"state":{"status":"completed","output":"tool_result"}}}',
+            '{"type":"text","part":{"text":"{\\"objective\\": \\"from_text\\"}"}}',
+            '{"type":"step_finish","timestamp":124}',
+        ])
+        result = module._parse_json_events_to_text(ndjson)
+        # Primary path wins, tool output ignored
+        assert "from_text" in result
+        assert "tool_result" not in result
+
+    def test_fallback_rejected_for_non_json_output(self):
+        """FALLBACK PATH: Non-JSON tool output is not accepted."""
+        module = _load_module()
+        ndjson = "\n".join([
+            '{"type":"step_start","timestamp":123}',
+            '{"type":"tool_use","part":{"state":{"status":"completed","output":"plain text not json"}}}',
+            '{"type":"step_finish","timestamp":124}',
+        ])
+        result = module._parse_json_events_to_text(ndjson)
+        # Non-JSON tool output should NOT be accepted
+        assert result == ndjson  # Returns original
+
+    def test_empty_response_returns_original(self):
+        """Empty response returns original text."""
+        module = _load_module()
+        assert module._parse_json_events_to_text("") == ""
+        assert module._parse_json_events_to_text("   ") == "   "
+
+    def test_malformed_json_returns_original(self):
+        """Malformed JSON returns original text."""
+        module = _load_module()
+        result = module._parse_json_events_to_text("not valid json at all")
+        assert result == "not valid json at all"
+
     def _valid_plan_response(self) -> str:
         return json.dumps({
             "objective": "Add authentication endpoint with JWT support",
