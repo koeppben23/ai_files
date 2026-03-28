@@ -37,7 +37,7 @@ def _run_subprocess(cmd: str) -> SubprocessResult:
         capture_output=True,
         text=True,
         check=False,
-        timeout=300,
+        timeout=None,
     )
     return SubprocessResult(
         stdout=result.stdout or "",

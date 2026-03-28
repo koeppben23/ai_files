@@ -613,7 +613,7 @@ def _call_llm_generate_plan(
             capture_output=True,
             text=True,
             check=False,
-            timeout=300,
+            timeout=None,
             env=_build_bridge_env() if bridge_mode else None,
         )
         atomic_write_text(stdout_file, str(result.stdout or ""))
@@ -1090,7 +1090,7 @@ def _call_llm_review(
             capture_output=True,
             text=True,
             check=False,
-            timeout=300,
+            timeout=None,
             env=_build_bridge_env() if bridge_mode else None,
         )
         atomic_write_text(stdout_file, str(result.stdout or ""))
