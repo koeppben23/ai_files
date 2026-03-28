@@ -123,6 +123,8 @@ def _resolve_desktop_bridge_cmd(*, repo_root: Path, message: str) -> str:
         shlex.quote(cli_bin),
         "run",
         "--continue",
+        "--format",
+        "json",
         "--file",
         "{context_file}",
     ]
@@ -473,6 +475,43 @@ def _has_active_desktop_llm_binding() -> bool:
     return _has_desktop_llm_binding()
 
 
+def _parse_json_events_to_text(response_text: str) -> str:
+    """Parse OpenCode JSON events and extract assistant text response.
+
+    When --format json is used, opencode run returns NDJSON events.
+    We extract the text from 'text' type events.
+
+    Args:
+        response_text: Raw stdout from opencode run --format json
+
+    Returns:
+        Extracted text content from assistant response, or original text if parsing fails.
+    """
+    if not response_text.strip():
+        return response_text
+
+    try:
+        lines = response_text.strip().split("\n")
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+                event_type = event.get("type")
+                if event_type == "text":
+                    part = event.get("part", {})
+                    text_content = part.get("text", "")
+                    if text_content:
+                        return text_content
+            except json.JSONDecodeError:
+                continue
+    except Exception:
+        pass
+
+    return response_text
+
+
 def _call_llm_generate_plan(
     ticket_text: str,
     task_text: str,
@@ -640,6 +679,7 @@ def _call_llm_generate_plan(
                 "binding_role": "execution",
                 "binding_source": binding_source,
             }
+        response_text = _parse_json_events_to_text(response_text)
         parsed = _parse_plan_generation_response(response_text, re_review=re_review)
         parsed["pipeline_mode"] = pipeline_mode
         parsed["binding_role"] = "execution"
