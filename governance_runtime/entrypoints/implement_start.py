@@ -933,8 +933,14 @@ def _run_llm_edit_step(
     elif response_text and response_text.startswith("{"):
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
         try:
-            from llm_response_validator import validate_developer_response
+            from llm_response_validator import (
+                coerce_output_against_mandates_schema,
+                validate_developer_response,
+            )
             parsed = json.loads(response_text)
+            normalized = coerce_output_against_mandates_schema(parsed, schema, "developerOutputSchema")
+            if isinstance(normalized, dict):
+                parsed = normalized
             validation = validate_developer_response(parsed, mandates_schema=schema)
             if validation.valid:
                 response_valid = True
