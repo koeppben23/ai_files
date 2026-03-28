@@ -611,7 +611,7 @@ def _call_llm_generate_plan(
 
     final_cmd = executor_cmd
     if "{context_file}" in final_cmd:
-        final_cmd = final_cmd.replace("{context_file}", str(context_file))
+        final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
     try:
         import subprocess
         result = subprocess.run(
@@ -1095,7 +1095,7 @@ def _call_llm_review(
 
     final_cmd = executor_cmd
     if "{context_file}" in final_cmd:
-        final_cmd = final_cmd.replace("{context_file}", str(context_file))
+        final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
     try:
         import subprocess
         result = subprocess.run(
