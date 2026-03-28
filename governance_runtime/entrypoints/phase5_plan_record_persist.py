@@ -86,7 +86,46 @@ def _build_bridge_env() -> dict[str, str]:
         "OPENCODE_SERVER_PASSWORD",
     ):
         env.pop(key, None)
+    permission_overlay = {
+        "$schema": "https://opencode.ai/config.json",
+        "permission": {
+            "bash": "deny",
+            "read": "deny",
+            "edit": "deny",
+            "glob": "deny",
+            "grep": "deny",
+            "list": "deny",
+            "task": "deny",
+            "skill": "deny",
+            "webfetch": "deny",
+            "websearch": "deny",
+            "codesearch": "deny",
+            "external_directory": "deny",
+        },
+    }
+    env["OPENCODE_CONFIG_CONTENT"] = json.dumps(permission_overlay, ensure_ascii=True)
     return env
+
+
+def _resolve_active_opencode_session_id() -> str:
+    session_id = str(os.environ.get("OPENCODE_SESSION_ID") or "").strip()
+    if session_id:
+        return session_id
+    model_info = resolve_active_opencode_model()
+    if not isinstance(model_info, dict):
+        return ""
+    return str(model_info.get("session_id") or "").strip()
+
+
+def _bridge_timeout_seconds() -> int:
+    raw = str(os.environ.get("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS") or "").strip()
+    if not raw:
+        return 120
+    try:
+        value = int(raw)
+    except ValueError:
+        return 120
+    return max(30, min(value, 600))
 
 
 def _resolve_desktop_bridge_cmd(*, repo_root: Path, message: str) -> str:
@@ -111,6 +150,10 @@ def _resolve_desktop_bridge_cmd(*, repo_root: Path, message: str) -> str:
     if not cli_bin:
         return ""
 
+    session_id = _resolve_active_opencode_session_id()
+    if not session_id:
+        return ""
+
     model_info = resolve_active_opencode_model()
     model_token = ""
     if isinstance(model_info, dict):
@@ -122,7 +165,8 @@ def _resolve_desktop_bridge_cmd(*, repo_root: Path, message: str) -> str:
     cmd_parts = [
         shlex.quote(cli_bin),
         "run",
-        "--continue",
+        "--session",
+        shlex.quote(session_id),
         "--format",
         "json",
         "--file",
@@ -479,7 +523,7 @@ def _parse_json_events_to_text(response_text: str) -> str:
     """Parse OpenCode JSON events and extract assistant text response.
 
     When --format json is used, opencode run returns NDJSON events.
-    We extract the text from 'text' type events.
+    We only accept 'text' type events as the assistant response payload.
 
     Args:
         response_text: Raw stdout from opencode run --format json
@@ -498,14 +542,14 @@ def _parse_json_events_to_text(response_text: str) -> str:
                 continue
             try:
                 event = json.loads(line)
-                event_type = event.get("type")
-                if event_type == "text":
-                    part = event.get("part", {})
-                    text_content = part.get("text", "")
-                    if text_content:
-                        return text_content
             except json.JSONDecodeError:
                 continue
+            if event.get("type") != "text":
+                continue
+            part = event.get("part", {})
+            text_content = part.get("text", "")
+            if text_content:
+                return text_content
     except Exception:
         pass
 
@@ -579,24 +623,10 @@ def _call_llm_generate_plan(
 
     output_schema_text = _get_plan_output_schema_text()
     instruction_parts = [
-        "You are a governance planner. Generate a structured plan from the ticket and task below.",
+        "NO TOOLS. JSON ONLY. Respond with raw JSON only, no text before or after.",
+        "Fields: objective, target_state, target_flow, state_machine, blocker_taxonomy, audit, go_no_go, test_strategy, reason_code, language, presentation_contract.",
     ]
-    if materialization.plan_mandate_file:
-        instruction_parts.append(
-            f"Load the plan mandate from file: {materialization.plan_mandate_file} "
-            f"(SHA256: {materialization.plan_mandate_sha256})"
-        )
-    if materialization.effective_policy_file:
-        instruction_parts.append(
-            f"Load the effective policy from file: {materialization.effective_policy_file} "
-            f"(SHA256: {materialization.effective_policy_sha256})"
-        )
-    instruction_parts.append(
-        "You MUST respond with valid JSON that conforms to the output schema below.\n"
-        "All textual output MUST be in English only (language='en').\n"
-        "Do NOT include any text outside the JSON object.\n\n"
-        "Output schema:\n" + output_schema_text
-    )
+    instruction_parts.append(f"Schema: {output_schema_text[:800]}")
 
     context = {
         "schema": "opencode.plan.llm-context.v1",
@@ -644,7 +674,7 @@ def _call_llm_generate_plan(
                 "blocked": True,
                 "reason": "plan-llm-executor-unavailable",
                 "reason_code": "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE",
-                "recovery_action": "Direct mode requires active chat binding and callable desktop bridge.",
+                "recovery_action": "Direct mode requires active chat binding, resolvable session id, and callable desktop bridge.",
                 "pipeline_mode": pipeline_mode,
                 "binding_role": "execution",
                 "binding_source": binding_source,
@@ -655,15 +685,15 @@ def _call_llm_generate_plan(
     final_cmd = executor_cmd
     if "{context_file}" in final_cmd:
         final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
+    import subprocess
     try:
-        import subprocess
         result = subprocess.run(
             final_cmd,
             shell=True,
             capture_output=True,
             text=True,
             check=False,
-            timeout=None,
+            timeout=_bridge_timeout_seconds() if bridge_mode else None,
             env=_build_bridge_env() if bridge_mode else None,
         )
         atomic_write_text(stdout_file, str(result.stdout or ""))
@@ -679,12 +709,32 @@ def _call_llm_generate_plan(
                 "binding_role": "execution",
                 "binding_source": binding_source,
             }
+        if bridge_mode and '"type":"tool_use"' in response_text and '"type":"text"' not in response_text:
+            return {
+                "blocked": True,
+                "reason": "plan-llm-tool-use-disallowed",
+                "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+                "recovery_action": "LLM must return JSON directly without tool calls in plan mode.",
+                "pipeline_mode": pipeline_mode,
+                "binding_role": "execution",
+                "binding_source": binding_source,
+            }
         response_text = _parse_json_events_to_text(response_text)
         parsed = _parse_plan_generation_response(response_text, re_review=re_review)
         parsed["pipeline_mode"] = pipeline_mode
         parsed["binding_role"] = "execution"
         parsed["binding_source"] = binding_source
         return parsed
+    except subprocess.TimeoutExpired:
+        return {
+            "blocked": True,
+            "reason": "plan-llm-timeout",
+            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+            "recovery_action": "LLM planning timed out. Retry /plan after confirming active session responsiveness.",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "execution",
+            "binding_source": binding_source,
+        }
     except Exception as exc:
         atomic_write_text(stderr_file, str(exc))
         return {

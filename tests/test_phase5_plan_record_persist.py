@@ -916,6 +916,28 @@ class TestPlanGeneration:
         assert result["blocked"] is True
         assert "not-json" in result["reason"] or result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
 
+    def test_blocks_when_bridge_returns_only_tool_events(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        module = _load_module()
+        _write_workspace_governance_config(tmp_path, pipeline_mode=False)
+        monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5")
+        ndjson = '{"type":"tool_use","part":{"state":{"status":"completed","output":"ok"}}}'
+        monkeypatch.setattr(
+            module,
+            "_resolve_desktop_bridge_cmd",
+            lambda **_kwargs: f"echo '{ndjson}'",
+        )
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth",
+            task_text="Implement login",
+            plan_mandate="Plan mandate text",
+            workspace_dir=tmp_path,
+        )
+        assert result["blocked"] is True
+        assert result["reason"] == "plan-llm-tool-use-disallowed"
+
     def test_blocks_when_llm_returns_invalid_plan(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):

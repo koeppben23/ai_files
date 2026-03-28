@@ -521,7 +521,7 @@ def _parse_json_events_to_text(response_text: str) -> str:
     """Parse OpenCode JSON events and extract assistant text response.
 
     When --format json is used, opencode run returns NDJSON events.
-    We extract the text from 'text' type events.
+    We only accept 'text' type events as the assistant response payload.
 
     Args:
         response_text: Raw stdout from opencode run --format json
@@ -540,14 +540,14 @@ def _parse_json_events_to_text(response_text: str) -> str:
                 continue
             try:
                 event = json.loads(line)
-                event_type = event.get("type")
-                if event_type == "text":
-                    part = event.get("part", {})
-                    text_content = part.get("text", "")
-                    if text_content:
-                        return text_content
             except json.JSONDecodeError:
                 continue
+            if event.get("type") != "text":
+                continue
+            part = event.get("part", {})
+            text_content = part.get("text", "")
+            if text_content:
+                return text_content
     except Exception:
         pass
 
@@ -567,6 +567,27 @@ def _build_executor_env(*, bridge_mode: bool) -> dict[str, str] | None:
     ):
         env.pop(key, None)
     return env
+
+
+def _resolve_active_opencode_session_id() -> str:
+    session_id = str(os.environ.get("OPENCODE_SESSION_ID") or "").strip()
+    if session_id:
+        return session_id
+    model_info = resolve_active_opencode_model()
+    if not isinstance(model_info, dict):
+        return ""
+    return str(model_info.get("session_id") or "").strip()
+
+
+def _bridge_timeout_seconds() -> int:
+    raw = str(os.environ.get("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS") or "").strip()
+    if not raw:
+        return 120
+    try:
+        value = int(raw)
+    except ValueError:
+        return 120
+    return max(30, min(value, 600))
 
 
 def _file_sha256(path: Path) -> str:
@@ -615,6 +636,10 @@ def _resolve_desktop_executor_bridge_cmd(*, repo_root: Path) -> str:
     if not cli_bin:
         return ""
 
+    session_id = _resolve_active_opencode_session_id()
+    if not session_id:
+        return ""
+
     model_info = resolve_active_opencode_model()
     model_token = ""
     if isinstance(model_info, dict):
@@ -630,7 +655,8 @@ def _resolve_desktop_executor_bridge_cmd(*, repo_root: Path) -> str:
     cmd_parts = [
         shlex.quote(cli_bin),
         "run",
-        "--continue",
+        "--session",
+        shlex.quote(session_id),
         "--format",
         "json",
         "--file",
@@ -828,7 +854,7 @@ def _run_llm_edit_step(
                     "binding_resolved": True,
                     "invoke_backend_available": False,
                     "message": (
-                        "Direct mode binding resolved to active chat binding, but no callable desktop bridge is available in this shell process."
+                        "Direct mode binding resolved to active chat binding, but no callable desktop bridge with a resolvable session id is available in this shell process."
                     ),
                     "stdout_path": str(stdout_file),
                     "stderr_path": str(stderr_file),
@@ -857,15 +883,33 @@ def _run_llm_edit_step(
     if "{context_file}" in final_cmd:
         final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
 
-    result = subprocess.run(
-        final_cmd,
-        shell=True,
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-        check=False,
-        env=_build_executor_env(bridge_mode=bridge_mode),
-    )
+    try:
+        result = subprocess.run(
+            final_cmd,
+            shell=True,
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
+            env=_build_executor_env(bridge_mode=bridge_mode),
+            timeout=_bridge_timeout_seconds() if bridge_mode else None,
+        )
+    except subprocess.TimeoutExpired:
+        _write_text_atomic(stdout_file, "")
+        _write_text_atomic(stderr_file, "implementation-llm-timeout\n")
+        return {
+            "executor_invoked": True,
+            "exit_code": 124,
+            "reason_code": RC_EXECUTOR_FAILED,
+            "binding_resolved": True,
+            "invoke_backend_available": True,
+            "message": "Implementation LLM bridge timed out.",
+            "stdout_path": str(stdout_file),
+            "stderr_path": str(stderr_file),
+            "changed_files": [],
+            "repo_baseline": repo_baseline,
+            "blocked": True,
+        }
     _write_text_atomic(stdout_file, str(result.stdout or ""))
     _write_text_atomic(stderr_file, str(result.stderr or ""))
 

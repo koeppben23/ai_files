@@ -198,7 +198,13 @@ class LLMCaller:
         if not cli_bin:
             return ""
 
-        model_info = resolve_active_opencode_model()
+        session_id = str(self._env_reader("OPENCODE_SESSION_ID") or "").strip()
+        model_info = resolve_active_opencode_model(env_reader=self._env_reader)
+        if not session_id and isinstance(model_info, dict):
+            session_id = str(model_info.get("session_id") or "").strip()
+        if not session_id:
+            return ""
+
         model_token = ""
         if isinstance(model_info, dict):
             provider = str(model_info.get("provider") or "").strip()
@@ -212,7 +218,8 @@ class LLMCaller:
         cmd_parts = [
             shlex.quote(cli_bin),
             "run",
-            "--continue",
+            "--session",
+            shlex.quote(session_id),
             "--format",
             "json",
             "--file",
@@ -342,7 +349,7 @@ class LLMCaller:
                     stderr="",
                     return_code=0,
                     error=(
-                        "Direct mode review binding resolved to active chat binding, but no callable desktop bridge is available."
+                        "Direct mode review binding resolved to active chat binding, but no callable desktop bridge with a resolvable session id is available."
                     ),
                     pipeline_mode=False,
                     binding_role="review",
