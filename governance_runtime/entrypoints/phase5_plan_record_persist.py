@@ -484,6 +484,8 @@ def _get_review_output_schema_text() -> str:
 
 BLOCKED_PLAN_GENERATION_FAILED = "BLOCKED-PLAN-GENERATION-FAILED"
 BLOCKED_PLAN_EXECUTOR_UNAVAILABLE = "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE"
+BLOCKED_REVIEW_EXECUTOR_TIMEOUT = "BLOCKED-REVIEW-EXECUTOR-TIMEOUT"
+BLOCKED_REVIEW_TOOL_USE_DISALLOWED = "BLOCKED-REVIEW-TOOL-USE-DISALLOWED"
 
 
 def _resolve_plan_execution_binding(*, workspace_dir: Path | None) -> tuple[bool, str, str]:
@@ -631,8 +633,10 @@ def _call_llm_generate_plan(
     instruction_parts = [
         "NO TOOLS. JSON ONLY. Respond with raw JSON only, no text before or after.",
         "Fields: objective, target_state, target_flow, state_machine, blocker_taxonomy, audit, go_no_go, test_strategy, reason_code, language, presentation_contract.",
+        "Return language='en'. Do not call tools. Do not emit markdown or explanations.",
     ]
-    instruction_parts.append(f"Schema: {output_schema_text[:800]}")
+    if output_schema_text:
+        instruction_parts.append("Schema source: planOutputSchema is authoritative; satisfy required fields and constraints.")
 
     context = {
         "schema": "opencode.plan.llm-context.v1",
@@ -1189,7 +1193,7 @@ def _call_llm_review(
                 "llm_invoked": False,
                 "verdict": "changes_requested",
                 "findings": [
-                    "Direct mode review binding resolved to active chat binding, but no callable desktop bridge is available."
+                    "Direct mode review binding resolved to active chat binding, but no callable desktop bridge with a resolvable session id is available."
                 ],
                 "reason_code": "BLOCKED-REVIEW-EXECUTOR-UNAVAILABLE",
                 "pipeline_mode": pipeline_mode,
@@ -1202,15 +1206,15 @@ def _call_llm_review(
     final_cmd = executor_cmd
     if "{context_file}" in final_cmd:
         final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
+    import subprocess
     try:
-        import subprocess
         result = subprocess.run(
             final_cmd,
             shell=True,
             capture_output=True,
             text=True,
             check=False,
-            timeout=None,
+            timeout=_bridge_timeout_seconds() if bridge_mode else None,
             env=_build_bridge_env() if bridge_mode else None,
         )
         atomic_write_text(stdout_file, str(result.stdout or ""))
@@ -1225,6 +1229,17 @@ def _call_llm_review(
                 "binding_role": "review",
                 "binding_source": binding_source,
             }
+        if bridge_mode and '"type":"tool_use"' in response_text and '"type":"text"' not in response_text:
+            return {
+                "llm_invoked": False,
+                "verdict": "changes_requested",
+                "findings": ["review-llm-tool-use-disallowed"],
+                "reason_code": BLOCKED_REVIEW_TOOL_USE_DISALLOWED,
+                "pipeline_mode": pipeline_mode,
+                "binding_role": "review",
+                "binding_source": binding_source,
+            }
+        response_text = _parse_json_events_to_text(response_text)
         # Fail-closed: mandate schema MUST be available for response validation
         try:
             mandates_schema = _load_mandates_schema()
@@ -1261,6 +1276,16 @@ def _call_llm_review(
         parsed["binding_role"] = "review"
         parsed["binding_source"] = binding_source
         return parsed
+    except subprocess.TimeoutExpired:
+        return {
+            "llm_invoked": False,
+            "verdict": "changes_requested",
+            "findings": ["review-llm-timeout"],
+            "reason_code": BLOCKED_REVIEW_EXECUTOR_TIMEOUT,
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+        }
     except Exception as exc:
         atomic_write_text(stderr_file, str(exc))
         return {
@@ -1638,6 +1663,20 @@ def _run_internal_phase5_self_review(
                 repo_fingerprint=repo_fingerprint,
             )
             llm_review_results.append(llm_result)
+            if llm_result.get("reason_code") in {
+                BLOCKED_REVIEW_EXECUTOR_TIMEOUT,
+                BLOCKED_REVIEW_TOOL_USE_DISALLOWED,
+            }:
+                finding = "review-executor-blocked"
+                raw_findings = llm_result.get("findings")
+                if isinstance(raw_findings, list) and raw_findings:
+                    finding = str(raw_findings[0])
+                return {
+                    "blocked": True,
+                    "reason": finding,
+                    "reason_code": str(llm_result.get("reason_code") or BLOCKED_P5_PLAN_RECORD_PERSIST),
+                    "recovery_action": "Retry /plan after ensuring review returns direct JSON text and session remains responsive.",
+                }
             if "pipeline_mode" in llm_result:
                 review_pipeline_mode = bool(llm_result.get("pipeline_mode"))
             if llm_result.get("binding_source"):

@@ -839,6 +839,77 @@ class TestCallLLMReviewMandateSchemaFailClosed:
         assert result["verdict"] == "changes_requested"
         assert result["reason_code"] == "MANDATE-SCHEMA-UNAVAILABLE"
 
+    def test_happy_bridge_review_parses_ndjson_text_event(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        module = _load_module()
+        _write_workspace_governance_config(tmp_path, pipeline_mode=False)
+        monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5")
+        monkeypatch.setattr(
+            module,
+            "_resolve_desktop_bridge_cmd",
+            lambda **_kwargs: "echo '{\"type\":\"text\",\"part\":{\"text\":\"{\\\"verdict\\\":\\\"approve\\\",\\\"findings\\\":[\\\"ok\\\"]}\"}}'",
+        )
+        monkeypatch.setattr(module, "_load_mandates_schema", lambda: {"$defs": {"reviewOutputSchema": {"type": "object"}}})
+
+        observed: dict[str, object] = {}
+
+        def _fake_parse(response_text: str, mandates_schema=None):
+            observed["response_text"] = response_text
+            return {"llm_invoked": True, "verdict": "approve", "findings": ["ok"]}
+
+        monkeypatch.setattr(module, "_parse_llm_review_response", _fake_parse)
+
+        result = module._call_llm_review("plan text", "mandate text", workspace_dir=tmp_path)
+        assert result["verdict"] == "approve"
+        assert observed["response_text"] == '{"verdict":"approve","findings":["ok"]}'
+
+    def test_bad_bridge_review_blocks_tool_use_only_events(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        module = _load_module()
+        _write_workspace_governance_config(tmp_path, pipeline_mode=False)
+        monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5")
+        ndjson = '{"type":"tool_use","part":{"state":{"status":"completed","output":"oops"}}}'
+        monkeypatch.setattr(module, "_resolve_desktop_bridge_cmd", lambda **_kwargs: f"echo '{ndjson}'")
+
+        result = module._call_llm_review("plan text", "mandate text", workspace_dir=tmp_path)
+        assert result["verdict"] == "changes_requested"
+        assert result["reason_code"] == "BLOCKED-REVIEW-TOOL-USE-DISALLOWED"
+
+    def test_corner_bridge_review_timeout_is_fail_closed(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        module = _load_module()
+        _write_workspace_governance_config(tmp_path, pipeline_mode=False)
+        monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5")
+        monkeypatch.setattr(module, "_bridge_timeout_seconds", lambda: 1)
+        monkeypatch.setattr(module, "_resolve_desktop_bridge_cmd", lambda **_kwargs: "python3 -c \"import time; time.sleep(2)\"")
+
+        result = module._call_llm_review("plan text", "mandate text", workspace_dir=tmp_path)
+        assert result["verdict"] == "changes_requested"
+        assert result["reason_code"] == "BLOCKED-REVIEW-EXECUTOR-TIMEOUT"
+
+    def test_edge_self_review_short_circuits_on_review_transport_block(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        module = _load_module()
+        monkeypatch.setattr(module, "_has_any_llm_executor", lambda **_kwargs: True)
+        monkeypatch.setattr(module, "_build_review_mandate_text", lambda _schema: "mandate")
+        monkeypatch.setattr(module, "_load_mandates_schema", lambda: {"$defs": {"reviewOutputSchema": {"type": "object"}}})
+        monkeypatch.setattr(
+            module,
+            "_call_llm_review",
+            lambda *args, **kwargs: {
+                "llm_invoked": False,
+                "verdict": "changes_requested",
+                "findings": ["review-llm-timeout"],
+                "reason_code": "BLOCKED-REVIEW-EXECUTOR-TIMEOUT",
+            },
+        )
+
+        result = module._run_internal_phase5_self_review(
+            "## Objective\nA valid objective line that is long enough\n\n## Target-State\nA valid target state statement that is long enough\n\n## Target-Flow\n1. one\n2. two\n\n## State-Machine\nA -> B\n\n## Blocker-Taxonomy\n- b\n\n## Audit\n- a\n\n## Go/No-Go\n- g\n\n## Test-Strategy\n- t\n\n### Reason Code\nRC-1\n",
+            state={},
+            commands_home=None,
+            workspace_dir=tmp_path,
+            max_iterations=3,
+        )
+        assert result["blocked"] is True
+        assert result["reason_code"] == "BLOCKED-REVIEW-EXECUTOR-TIMEOUT"
+
 
 class TestPlanGeneration:
     """Tests for LLM-based plan generation in /plan."""
@@ -1242,6 +1313,33 @@ class TestPlanGeneration:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["status"] == "blocked"
         assert payload["reason_code"] == "MANDATE-SCHEMA-MISSING"
+
+    def test_edge_instruction_avoids_embedded_truncated_schema_blob(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        module = _load_module()
+        _write_workspace_governance_config(tmp_path, pipeline_mode=True)
+        valid = self._valid_plan_response().replace("'", "'\\''")
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution=f"echo '{valid}'",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth",
+            task_text="Implement login",
+            plan_mandate="Plan mandate text",
+            workspace_dir=tmp_path,
+        )
+        assert result["blocked"] is False
+
+        contexts = list((tmp_path / "workspaces").rglob("llm_plan_context.json"))
+        assert contexts
+        payload = json.loads(contexts[0].read_text(encoding="utf-8"))
+        instruction = str(payload.get("instruction") or "")
+        assert "Schema source: planOutputSchema is authoritative" in instruction
+        assert '"properties"' not in instruction
 
 
 class TestGetPhase5MaxReviewIterations:
