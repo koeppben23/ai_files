@@ -477,6 +477,8 @@ def _call_llm_generate_plan(
     re_review: bool = False,
     workspace_dir: Path | None = None,
     config_root: Path | None = None,
+    workspaces_home: Path | None = None,
+    repo_fingerprint: str | None = None,
 ) -> dict[str, object]:
     """Call LLM to generate a plan from ticket/task context.
 
@@ -499,14 +501,19 @@ def _call_llm_generate_plan(
 
     executor_cmd = binding_value if pipeline_mode else ""
 
-    governance_root = config_root if config_root is not None else (Path.home() / ".governance")
-    plan_dir = governance_plan_dir(governance_root)
+    if workspaces_home is not None and repo_fingerprint:
+        plan_dir = governance_plan_dir(workspaces_home, repo_fingerprint)
+        runtime_state_dir = governance_runtime_state_dir(workspaces_home, repo_fingerprint)
+        governance_root = workspaces_home
+    else:
+        governance_root = config_root if config_root is not None else (Path.home() / ".governance")
+        plan_dir = governance_plan_dir(governance_root, "")
+        runtime_state_dir = governance_runtime_state_dir(governance_root, "")
     plan_dir.mkdir(parents=True, exist_ok=True)
     context_file = plan_dir / "llm_plan_context.json"
     stdout_file = plan_dir / "llm_plan_stdout.log"
     stderr_file = plan_dir / "llm_plan_stderr.log"
 
-    runtime_state_dir = governance_runtime_state_dir(governance_root)
     runtime_state_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -959,6 +966,8 @@ def _call_llm_review(
     effective_review_policy: str = "",
     workspace_dir: Path | None = None,
     config_root: Path | None = None,
+    workspaces_home: Path | None = None,
+    repo_fingerprint: str | None = None,
 ) -> dict[str, object]:
     """Call LLM for review with structured output enforcement."""
     try:
@@ -977,14 +986,19 @@ def _call_llm_review(
 
     executor_cmd = binding_value if pipeline_mode else ""
 
-    governance_root = config_root if config_root is not None else (Path.home() / ".governance")
-    review_dir = governance_review_dir(governance_root)
+    if workspaces_home is not None and repo_fingerprint:
+        governance_root = workspaces_home
+        review_dir = governance_review_dir(workspaces_home, repo_fingerprint)
+        runtime_state_dir = governance_runtime_state_dir(workspaces_home, repo_fingerprint)
+    else:
+        governance_root = config_root if config_root is not None else (Path.home() / ".governance")
+        review_dir = governance_review_dir(governance_root, "")
+        runtime_state_dir = governance_runtime_state_dir(governance_root, "")
     review_dir.mkdir(parents=True, exist_ok=True)
     context_file = review_dir / "llm_review_context.json"
     stdout_file = review_dir / "llm_review_stdout.log"
     stderr_file = review_dir / "llm_review_stderr.log"
 
-    runtime_state_dir = governance_runtime_state_dir(governance_root)
     runtime_state_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -1411,6 +1425,8 @@ def _run_internal_phase5_self_review(
     commands_home: Path | None = None,
     workspace_dir: Path | None = None,
     config_root: Path | None = None,
+    workspaces_home: Path | None = None,
+    repo_fingerprint: str | None = None,
     max_iterations: int | None = None,
 ) -> dict[str, object]:
     if max_iterations is None:
@@ -1511,7 +1527,8 @@ def _run_internal_phase5_self_review(
                 mandate_text,
                 effective_review_policy,
                 workspace_dir=workspace_dir,
-                config_root=config_root,
+                workspaces_home=workspaces_home,
+                repo_fingerprint=repo_fingerprint,
             )
             llm_review_results.append(llm_result)
             if "pipeline_mode" in llm_result:
@@ -1619,7 +1636,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Load session state early (needed for auto-generation) ──
     try:
-        session_path, repo_fingerprint, _, workspace_dir = resolve_active_session_paths()
+        session_path, repo_fingerprint, workspaces_home, workspace_dir = resolve_active_session_paths()
         document = _load_json(session_path)
         state = document.get("SESSION_STATE")
         if not isinstance(state, dict):
@@ -1746,6 +1763,8 @@ def main(argv: list[str] | None = None) -> int:
             re_review=bool(state.get("plan_record_version") or state.get("PlanRecordVersion")),
             workspace_dir=workspace_dir,
             config_root=evidence.config_root,
+            workspaces_home=workspaces_home,
+            repo_fingerprint=repo_fingerprint,
         )
         if gen_result.get("blocked") is True:
             payload = _payload(
@@ -1830,6 +1849,8 @@ def main(argv: list[str] | None = None) -> int:
             commands_home=commands_home,
             workspace_dir=workspace_dir,
             config_root=evidence.config_root,
+            workspaces_home=workspaces_home,
+            repo_fingerprint=repo_fingerprint,
             max_iterations=max_iterations,
         )
         if review_result.get("blocked") is True:
