@@ -1453,7 +1453,8 @@ class TestParseJsonEventsToText:
         assert contexts
         payload = json.loads(contexts[0].read_text(encoding="utf-8"))
         instruction = str(payload.get("instruction") or "")
-        assert "Schema source: planOutputSchema is authoritative" in instruction
+        assert "CRITICAL field constraints" in instruction
+        assert "go_no_go: string, min 10 chars" in instruction
         assert '"properties"' not in instruction
 
 
