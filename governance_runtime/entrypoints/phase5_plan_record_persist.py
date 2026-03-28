@@ -2337,10 +2337,12 @@ def main(argv: list[str] | None = None) -> int:
         revision_delta=str(review_result.get("revision_delta") or "changed"),
         self_review_iterations_met=bool(review_result.get("self_review_iterations_met")),
     )
-    if args.quiet:
-        print(json.dumps(payload, ensure_ascii=True))
-    else:
-        print(json.dumps(payload, ensure_ascii=True))
+    # Print JSON payload
+    print(json.dumps(payload, ensure_ascii=True))
+    # Print Next action line after JSON only in non-quiet mode for better UX
+    if not args.quiet:
+        next_action_hint = str(payload.get("next_action") or "run /continue.")
+        print(f"Next action: {next_action_hint}")
     return 0
 
 

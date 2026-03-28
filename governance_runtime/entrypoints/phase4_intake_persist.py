@@ -242,10 +242,12 @@ def main(argv: list[str] | None = None) -> int:
         active_gate=routed.active_gate,
         ticket_record_path=str(ticket_record_path),
     )
-    if args.quiet:
-        print(json.dumps(payload, ensure_ascii=True))
-    else:
-        print(json.dumps(payload, ensure_ascii=True))
+    # Print JSON payload
+    print(json.dumps(payload, ensure_ascii=True))
+    # Print Next action line after JSON only in non-quiet mode for better UX
+    if not args.quiet:
+        next_action_hint = str(payload.get("next_action") or "run /continue.")
+        print(f"Next action: {next_action_hint}")
     return 0
 
 
