@@ -588,14 +588,20 @@ def _call_llm_generate_plan(
 
     executor_cmd = binding_value if pipeline_mode else ""
 
-    if workspaces_home is not None and repo_fingerprint:
-        plan_dir = governance_plan_dir(workspaces_home, repo_fingerprint)
-        runtime_state_dir = governance_runtime_state_dir(workspaces_home, repo_fingerprint)
-        governance_root = workspaces_home
-    else:
-        governance_root = config_root if config_root is not None else (Path.home() / ".governance")
-        plan_dir = governance_plan_dir(governance_root, "")
-        runtime_state_dir = governance_runtime_state_dir(governance_root, "")
+    resolved_workspaces_home = workspaces_home
+    resolved_repo_fingerprint = str(repo_fingerprint or "").strip()
+    if resolved_workspaces_home is None or not resolved_repo_fingerprint:
+        scope_root = workspace_dir or config_root or (Path.home() / ".governance")
+        resolved_workspaces_home = scope_root / "workspaces"
+        candidate = str(scope_root.name or "").strip()
+        if re.fullmatch(r"[0-9a-f]{24}", candidate):
+            resolved_repo_fingerprint = candidate
+        else:
+            resolved_repo_fingerprint = hashlib.sha256(str(scope_root).encode("utf-8")).hexdigest()[:24]
+
+    plan_dir = governance_plan_dir(resolved_workspaces_home, resolved_repo_fingerprint)
+    runtime_state_dir = governance_runtime_state_dir(resolved_workspaces_home, resolved_repo_fingerprint)
+    governance_root = resolved_workspaces_home
     plan_dir.mkdir(parents=True, exist_ok=True)
     context_file = plan_dir / "llm_plan_context.json"
     stdout_file = plan_dir / "llm_plan_stdout.log"
@@ -1080,14 +1086,20 @@ def _call_llm_review(
 
     executor_cmd = binding_value if pipeline_mode else ""
 
-    if workspaces_home is not None and repo_fingerprint:
-        governance_root = workspaces_home
-        review_dir = governance_review_dir(workspaces_home, repo_fingerprint)
-        runtime_state_dir = governance_runtime_state_dir(workspaces_home, repo_fingerprint)
-    else:
-        governance_root = config_root if config_root is not None else (Path.home() / ".governance")
-        review_dir = governance_review_dir(governance_root, "")
-        runtime_state_dir = governance_runtime_state_dir(governance_root, "")
+    resolved_workspaces_home = workspaces_home
+    resolved_repo_fingerprint = str(repo_fingerprint or "").strip()
+    if resolved_workspaces_home is None or not resolved_repo_fingerprint:
+        scope_root = workspace_dir or config_root or (Path.home() / ".governance")
+        resolved_workspaces_home = scope_root / "workspaces"
+        candidate = str(scope_root.name or "").strip()
+        if re.fullmatch(r"[0-9a-f]{24}", candidate):
+            resolved_repo_fingerprint = candidate
+        else:
+            resolved_repo_fingerprint = hashlib.sha256(str(scope_root).encode("utf-8")).hexdigest()[:24]
+
+    governance_root = resolved_workspaces_home
+    review_dir = governance_review_dir(resolved_workspaces_home, resolved_repo_fingerprint)
+    runtime_state_dir = governance_runtime_state_dir(resolved_workspaces_home, resolved_repo_fingerprint)
     review_dir.mkdir(parents=True, exist_ok=True)
     context_file = review_dir / "llm_review_context.json"
     stdout_file = review_dir / "llm_review_stdout.log"

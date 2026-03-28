@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -691,11 +692,19 @@ def _run_llm_edit_step(
     stdout_file = implementation_dir / "executor_stdout.log"
     stderr_file = implementation_dir / "executor_stderr.log"
 
-    governance_root = config_root if config_root is not None else (Path.home() / ".governance")
-    if workspaces_home is not None and repo_fingerprint:
-        runtime_state_dir = governance_runtime_state_dir(workspaces_home, repo_fingerprint)
-    else:
-        runtime_state_dir = governance_runtime_state_dir(governance_root, "")
+    resolved_workspaces_home = workspaces_home
+    resolved_repo_fingerprint = str(repo_fingerprint or "").strip()
+    if resolved_workspaces_home is None or not resolved_repo_fingerprint:
+        scope_root = config_root or (repo_root / ".governance")
+        resolved_workspaces_home = scope_root / "workspaces"
+        candidate = str(repo_root.name or "").strip()
+        if re.fullmatch(r"[0-9a-f]{24}", candidate):
+            resolved_repo_fingerprint = candidate
+        else:
+            resolved_repo_fingerprint = hashlib.sha256(str(repo_root).encode("utf-8")).hexdigest()[:24]
+
+    governance_root = resolved_workspaces_home
+    runtime_state_dir = governance_runtime_state_dir(resolved_workspaces_home, resolved_repo_fingerprint)
     runtime_state_dir.mkdir(parents=True, exist_ok=True)
 
     mandate_text = ""
