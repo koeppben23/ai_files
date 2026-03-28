@@ -331,6 +331,7 @@ def _build_plan_mandate_text(schema: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+@lru_cache(maxsize=1)
 def _get_plan_output_schema_text() -> str:
     """Extract planOutputSchema text from mandates schema."""
     try:
@@ -420,6 +421,7 @@ def _load_effective_review_policy_text(
         return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
 
 
+@lru_cache(maxsize=1)
 def _get_review_output_schema_text() -> str:
     """Return the review output schema as a JSON string for LLM context."""
     try:
