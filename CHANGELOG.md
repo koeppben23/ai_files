@@ -5,7 +5,15 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 
 ## [Unreleased]
 
-> **This release contains 414 commits since [1.1.0-RC.2]** (2026-02-09). The following is a thematic summary of major changes; see individual commit history for full detail.
+> **This release contains 271 commits since [1.1.0-RC.2]** (2026-02-09). The following is a thematic summary of major changes; see individual commit history for full detail.
+
+### Governance Runtime — Direct Mode & Performance
+
+- **Direct Mode Session Binding Fixed**: Changed CLI invocation from `--agent build` (starts new session) to `--continue` (uses existing session) in phase5_plan_record_persist.py and implement_start.py. This ensures `/plan` and `/implement` use the same LLM session as the active OpenCode Desktop chat.
+- **Workspace-Scoped Governance Artifacts**: Governance artifacts (mandates, policies) now materialized to workspace-scoped paths (`workspaces/<fingerprint>/runtime_state/`) instead of config_root level. Added `repo_fingerprint` parameter to `governance_*_dir()` functions for backward compatibility.
+- **Context Materialization with SHA256**: Implemented `governance_context_materializer.py` to materialize mandates/policies to files with SHA256 digests for auditability, avoiding ~8000+ char inline context.
+- **Shell Escaping Fixed**: Added `shlex.quote()` when substituting `{context_file}` placeholder in executor commands to prevent shell injection vulnerabilities.
+- **Performance Caching**: Added `@lru_cache(maxsize=1)` to frequently-called schema loading functions (`_load_mandates_schema()`, `_get_*_schema_text()`) eliminating repeated file I/O and JSON parsing.
 
 ### Architecture — Governance Layer Separation
 
