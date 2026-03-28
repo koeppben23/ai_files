@@ -767,7 +767,7 @@ def _parse_plan_generation_response(response_text: str, *, re_review: bool = Fal
     """
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
     try:
-        from llm_response_validator import validate_plan_response
+        from llm_response_validator import coerce_output_against_schema, validate_plan_response
     except Exception as exc:
         return {
             "blocked": True,
@@ -802,23 +802,6 @@ def _parse_plan_generation_response(response_text: str, *, re_review: bool = Fal
             "recovery_action": "LLM did not return valid JSON for plan generation.",
         }
 
-    violations = english_violations(parsed_data)
-    if violations:
-        return {
-            "blocked": True,
-            "reason": f"plan-language-violation: {violations}",
-            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
-            "recovery_action": "Plan output must be English-only across required fields.",
-            "validation_violations": violations,
-        }
-
-    normalized_data = dict(parsed_data)
-    normalized_data["language"] = "en"
-    normalized_data["presentation_contract"] = build_presentation_contract(
-        normalized_data,
-        re_review=re_review,
-    )
-
     # Load planOutputSchema — must be present and non-empty
     try:
         mandates_schema = _load_mandates_schema()
@@ -843,6 +826,32 @@ def _parse_plan_generation_response(response_text: str, *, re_review: bool = Fal
             "reason_code": "MANDATE-SCHEMA-UNAVAILABLE",
             "recovery_action": "Ensure governance_mandates.v1.schema.json is loadable.",
         }
+
+    normalized_payload = coerce_output_against_schema(parsed_data, plan_schema)
+    if not isinstance(normalized_payload, dict):
+        return {
+            "blocked": True,
+            "reason": "plan-response-normalization-failed",
+            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+            "recovery_action": "LLM plan output could not be normalized to object form.",
+        }
+
+    violations = english_violations(normalized_payload)
+    if violations:
+        return {
+            "blocked": True,
+            "reason": f"plan-language-violation: {violations}",
+            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
+            "recovery_action": "Plan output must be English-only across required fields.",
+            "validation_violations": violations,
+        }
+
+    normalized_data = dict(normalized_payload)
+    normalized_data["language"] = "en"
+    normalized_data["presentation_contract"] = build_presentation_contract(
+        normalized_data,
+        re_review=re_review,
+    )
 
     # Validate against planOutputSchema — fail-closed, no fallback
     validation = validate_plan_response(normalized_data, plan_schema=plan_schema)
@@ -1310,9 +1319,13 @@ def _parse_llm_review_response(
     """
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
     try:
-        from llm_response_validator import validate_review_response
+        from llm_response_validator import (
+            coerce_output_against_mandates_schema,
+            validate_review_response,
+        )
     except (ImportError, ModuleNotFoundError):
         validate_review_response = None
+        coerce_output_against_mandates_schema = None
 
     raw_text = response_text.strip()
 
@@ -1343,6 +1356,15 @@ def _parse_llm_review_response(
             "validation_violations": ["response-not-structured-json"],
             "raw_response": raw_text[:1000],
         }
+
+    if coerce_output_against_mandates_schema is not None:
+        normalized = coerce_output_against_mandates_schema(
+            parsed_data,
+            mandates_schema,
+            "reviewOutputSchema",
+        )
+        if isinstance(normalized, dict):
+            parsed_data = normalized
 
     if validate_review_response is not None:
         validation = validate_review_response(parsed_data, mandates_schema=mandates_schema)

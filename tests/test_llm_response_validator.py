@@ -24,7 +24,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "governance_runtime" / "application" / "validators"))
 from llm_response_validator import (
+    coerce_output_against_mandates_schema,
     validate_developer_response,
+    validate_plan_response,
     validate_review_response,
 )
 
@@ -364,3 +366,69 @@ class TestEdgeCases:
         }
         r = validate_developer_response(data, MANDATES_SCHEMA)
         assert r.valid is True
+
+    def test_coerce_plan_string_fields_avoids_type_mismatch(self):
+        if not isinstance(MANDATES_SCHEMA, dict):
+            pytest.skip("mandates schema not available")
+        defs = MANDATES_SCHEMA.get("$defs", {})
+        plan_schema = defs.get("planOutputSchema")
+        if not isinstance(plan_schema, dict):
+            pytest.skip("planOutputSchema not available")
+
+        raw = {
+            "objective": "Create complete e2e governance evidence.",
+            "target_state": {"artifacts": ["diff", "review"]},
+            "target_flow": ["implement", "test", "review"],
+            "state_machine": {"states": ["a", "b"]},
+            "blocker_taxonomy": [{"code": "X"}],
+            "audit": {"required": ["logs"]},
+            "go_no_go": {"go": ["all evidence present"]},
+            "test_strategy": {"scope": "full"},
+            "reason_code": "PLAN-E2E-001",
+            "language": "en",
+            "presentation_contract": {
+                "title": "Plan Presentation",
+                "language": "en",
+                "open_decisions": [],
+                "next_actions": [
+                    "/review-decision approve",
+                    "/review-decision changes_requested",
+                    "/review-decision reject",
+                ],
+            },
+        }
+        coerced = coerce_output_against_mandates_schema(raw, MANDATES_SCHEMA, "planOutputSchema")
+        result = validate_plan_response(coerced, plan_schema=plan_schema)
+        raw_rules = list(result.raw_violations)
+        assert not any("target_state" in rule and "is not of type 'string'" in rule for rule in raw_rules)
+        assert not any("target_flow" in rule and "is not of type 'string'" in rule for rule in raw_rules)
+        assert not any("state_machine" in rule and "is not of type 'string'" in rule for rule in raw_rules)
+        assert not any("blocker_taxonomy" in rule and "is not of type 'string'" in rule for rule in raw_rules)
+        assert not any("audit" in rule and "is not of type 'string'" in rule for rule in raw_rules)
+        assert not any("go_no_go" in rule and "is not of type 'string'" in rule for rule in raw_rules)
+        assert not any("test_strategy" in rule and "is not of type 'string'" in rule for rule in raw_rules)
+
+    def test_coerce_review_findings_when_json_string(self):
+        if not isinstance(MANDATES_SCHEMA, dict):
+            pytest.skip("mandates schema not available")
+        raw = {
+            "verdict": "changes_requested",
+            "governing_evidence": "Checked src/main.py and tests/test_main.py for contract alignment.",
+            "contract_check": "No SSOT violations found.",
+            "findings": [
+                {
+                    "severity": "high",
+                    "type": "defect",
+                    "location": "src/main.py:42",
+                    "evidence": "Null check missing in critical path when request body is empty",
+                    "impact": "Service can crash on malformed request",
+                    "fix": "Add explicit None guard and return 400",
+                }
+            ],
+            "regression_assessment": "Minimal risk outside changed module.",
+            "test_assessment": "Need one additional negative-path test.",
+        }
+        raw["findings"] = json.dumps(raw["findings"], ensure_ascii=True)
+        coerced = coerce_output_against_mandates_schema(raw, MANDATES_SCHEMA, "reviewOutputSchema")
+        assert isinstance(coerced, dict)
+        assert isinstance(coerced.get("findings"), list)

@@ -987,6 +987,43 @@ class TestPlanGeneration:
         assert result["blocked"] is True
         assert "not-json" in result["reason"] or result["reason_code"] == "BLOCKED-PLAN-GENERATION-FAILED"
 
+    def test_happy_coerces_plan_string_fields_before_schema_validation(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        module = _load_module()
+        _write_workspace_governance_config(tmp_path, pipeline_mode=True)
+        structured = {
+            "objective": "Create complete e2e evidence chain for implement and review",
+            "target_state": {"artifacts": ["impl-evidence", "review-evidence"]},
+            "target_flow": ["run implement", "verify file diff", "run review"],
+            "state_machine": {"states": ["a", "b"]},
+            "blocker_taxonomy": [{"code": "X"}],
+            "audit": {"required": ["diff", "logs"]},
+            "go_no_go": {"go": ["all evidence present"]},
+            "test_strategy": {"scope": "full e2e"},
+            "reason_code": "PLAN-E2E-001",
+            "language": "en",
+            "presentation_contract": "evidence-first",
+        }
+        payload = json.dumps(structured, ensure_ascii=True).replace("'", "'\\''")
+        _set_pipeline_bindings(
+            monkeypatch,
+            execution=f"echo '{payload}'",
+            review="python3 -c \"print('{\\\"verdict\\\": \\\"approve\\\", \\\"findings\\\": []}')\"",
+        )
+
+        result = module._call_llm_generate_plan(
+            ticket_text="Add auth",
+            task_text="Implement login",
+            plan_mandate="Plan mandate text",
+            workspace_dir=tmp_path,
+        )
+        assert result["blocked"] is False
+        structured_plan = result.get("structured_plan")
+        assert isinstance(structured_plan, dict)
+        assert isinstance(structured_plan.get("target_state"), str)
+        assert isinstance(structured_plan.get("target_flow"), str)
+
     def test_blocks_when_bridge_returns_only_tool_events(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -10,6 +11,18 @@ from governance_runtime.application.services.phase6_review_orchestrator.response
     ResponseValidator,
     ValidationResult,
 )
+
+
+_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
+
+
+def _load_schema() -> dict | None:
+    if not _SCHEMA_PATH.exists():
+        return None
+    try:
+        return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
 
 
 class TestResponseValidator:
@@ -84,6 +97,35 @@ class TestResponseValidator:
         assert len(result.findings) == 1
         assert "high" in result.findings[0]
         assert "src/foo.py:42" in result.findings[0]
+
+    def test_edge_coerces_findings_when_json_array_string(self, validator):
+        """Stringified findings array is normalized before schema validation."""
+        schema = _load_schema()
+        if not isinstance(schema, dict):
+            pytest.skip("mandates schema not available")
+
+        finding = {
+            "severity": "high",
+            "type": "defect",
+            "location": "src/foo.py:42",
+            "evidence": "Bug discovered in critical path here",
+            "impact": "Could crash the application",
+            "fix": "Fix it properly",
+        }
+        response = json.dumps(
+            {
+                "verdict": "changes_requested",
+                "governing_evidence": "Issues found during review",
+                "contract_check": "Minor drift detected",
+                "findings": json.dumps([finding], ensure_ascii=True),
+                "regression_assessment": "Medium risk assessment",
+                "test_assessment": "Insufficient coverage",
+            },
+            ensure_ascii=True,
+        )
+        result = validator.validate(response, mandates_schema=schema)
+        assert result.valid is True
+        assert result.verdict == "changes_requested"
 
 
 class TestValidationResult:
