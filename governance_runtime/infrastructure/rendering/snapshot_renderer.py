@@ -328,6 +328,53 @@ def _render_phase5_decision_brief_from_plan_body(plan_body: str) -> str:
         return sanitized
 
 
+def _truncate_plan_under_review(lines: list[str], *, max_chars: int = 800, max_lines: int = 6) -> list[str]:
+    limited = [line.strip() for line in lines if line.strip()][:max_lines]
+    if not limited:
+        return []
+    budget = max(40, max_chars)
+    consumed = 0
+    out: list[str] = []
+    for idx, line in enumerate(limited):
+        sep = 1 if idx > 0 else 0
+        remaining = budget - consumed - sep
+        if remaining <= 0:
+            break
+        if len(line) <= remaining:
+            out.append(line)
+            consumed += len(line) + sep
+            continue
+        clipped = line[: max(0, remaining - 3)].rstrip()
+        out.append((clipped + "...") if clipped else "...")
+        break
+    return out
+
+
+def _build_plan_under_review_lines(snapshot: Snapshot) -> list[str]:
+    summary = str(snapshot.get("review_package_approved_plan_summary") or "").strip()
+    if summary and summary.lower() != "none":
+        raw_lines = [line.strip() for line in summary.splitlines() if line.strip()]
+        return _truncate_plan_under_review(raw_lines, max_chars=800, max_lines=6)
+
+    plan_body = str(snapshot.get("review_package_plan_body") or "").strip()
+    if not plan_body or plan_body.lower() == "none":
+        return []
+
+    cleaned: list[str] = []
+    for raw in plan_body.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("<!--") or line.startswith("```"):
+            continue
+        if line.startswith("#"):
+            line = line.lstrip("#").strip()
+            if not line:
+                continue
+        cleaned.append(line)
+    return _truncate_plan_under_review(cleaned, max_chars=800, max_lines=6)
+
+
 def _render_execution_progress(snapshot: Snapshot) -> list[str]:
     """Render the execution progress section."""
     lines = ["Execution progress"]
@@ -441,12 +488,15 @@ def render_guided_sections(snapshot: Snapshot, action_line: str, *, verbose_gove
     """
     gate = str(snapshot.get("active_gate") or "").strip().lower()
     if gate == "evidence presentation gate" and not _has_blocker(snapshot) and not verbose_governance_frame:
-        plan_body = str(snapshot.get("review_package_plan_body") or "").strip()
-        if plan_body and plan_body.lower() != "none":
-            rendered = _render_phase5_decision_brief_from_plan_body(plan_body)
-            if rendered:
-                return [line.rstrip() for line in rendered.splitlines()]
-        return ["Plan brief is unavailable."]
+        lines: list[str] = []
+        lines.append("Plan under review")
+        review_lines = _build_plan_under_review_lines(snapshot)
+        if review_lines:
+            for item in review_lines:
+                lines.append(f"- {item}")
+        else:
+            lines.append("- Plan summary unavailable.")
+        return lines
 
     lines: list[str] = []
     lines.extend(_render_current_state(snapshot))
@@ -482,8 +532,8 @@ def format_guided_snapshot(
     if action_line is None:
         action_line = "Next action: consult next-step."
     lines = render_guided_sections(snapshot, action_line, verbose_governance_frame=verbose_governance_frame)
-    gate = str(snapshot.get("active_gate") or "").strip().lower()
-    if not (gate == "evidence presentation gate" and not _has_blocker(snapshot) and not verbose_governance_frame):
+    action_line = str(action_line).strip()
+    if action_line:
         lines.append("")
         lines.append(action_line)
     return "\n".join(lines).rstrip() + "\n"

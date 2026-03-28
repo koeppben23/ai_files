@@ -1263,6 +1263,19 @@ class TestPythonBindingArtifact:
         )
         assert "where " not in content.lower(), "Launcher must not probe PATH with where"
 
+    def test_edge_generated_launchers_do_not_inject_timeout_wrappers(self, tmp_path: Path) -> None:
+        """Edge: launcher layer must not enforce timeout around --implement-start."""
+        config_root = tmp_path / "config"
+        r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+        assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
+        unix_content = (config_root / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
+        win_content = (config_root / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
+        for content in (unix_content, win_content):
+            lower = content.lower()
+            assert " timeout " not in lower
+            assert "gtimeout" not in lower
+            assert "start /wait" not in lower
+
     def test_bad_binding_file_consistency_with_paths_json(self, tmp_path: Path) -> None:
         """Bad path guard: PYTHON_BINDING and governance.paths.json pythonCommand must agree."""
         config_root = tmp_path / "config"
@@ -1332,6 +1345,16 @@ class TestRepoLauncherContractDrift:
         assert "python -c \"import sys\"" not in win_content
         assert "py -3 -c \"import sys\"" not in win_content
         assert "%PYTHON%" not in win_content
+
+    def test_edge_repo_wrappers_do_not_wrap_implement_start_with_timeout(self) -> None:
+        """Edge: checked-in wrappers must not inject shell timeout semantics."""
+        unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
+        win_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
+        for content in (unix_content, win_content):
+            lower = content.lower()
+            assert " timeout " not in lower
+            assert "gtimeout" not in lower
+            assert "start /wait" not in lower
 
     def test_bad_repo_wrapper_no_direct_entrypoint_module_in_docs(self) -> None:
         """Bad-path detector: canonical rail docs must not expose module names."""
