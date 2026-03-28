@@ -517,6 +517,43 @@ def _derive_targeted_check_fallbacks(repo_root: Path, requirements: list[dict[st
     return []
 
 
+def _parse_json_events_to_text(response_text: str) -> str:
+    """Parse OpenCode JSON events and extract assistant text response.
+
+    When --format json is used, opencode run returns NDJSON events.
+    We extract the text from 'text' type events.
+
+    Args:
+        response_text: Raw stdout from opencode run --format json
+
+    Returns:
+        Extracted text content from assistant response, or original text if parsing fails.
+    """
+    if not response_text.strip():
+        return response_text
+
+    try:
+        lines = response_text.strip().split("\n")
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+                event_type = event.get("type")
+                if event_type == "text":
+                    part = event.get("part", {})
+                    text_content = part.get("text", "")
+                    if text_content:
+                        return text_content
+            except json.JSONDecodeError:
+                continue
+    except Exception:
+        pass
+
+    return response_text
+
+
 def _build_executor_env(*, bridge_mode: bool) -> dict[str, str] | None:
     if not bridge_mode:
         return None
@@ -594,6 +631,8 @@ def _resolve_desktop_executor_bridge_cmd(*, repo_root: Path) -> str:
         shlex.quote(cli_bin),
         "run",
         "--continue",
+        "--format",
+        "json",
         "--file",
         "{context_file}",
     ]
@@ -833,6 +872,8 @@ def _run_llm_edit_step(
     validation_violations: list[str] = []
     response_valid = False
     response_text = (result.stdout or "").strip()
+
+    response_text = _parse_json_events_to_text(response_text)
 
     if bridge_mode:
         response_valid = True
