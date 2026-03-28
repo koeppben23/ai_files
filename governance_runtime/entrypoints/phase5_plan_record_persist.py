@@ -525,7 +525,9 @@ def _parse_json_events_to_text(response_text: str) -> str:
     """Parse OpenCode JSON events and extract assistant text response.
 
     When --format json is used, opencode run returns NDJSON events.
-    We only accept 'text' type events as the assistant response payload.
+    We extract text from 'text' type events. As a fallback, we also
+    extract completed tool outputs if the LLM used tools instead of
+    responding directly.
 
     Args:
         response_text: Raw stdout from opencode run --format json
@@ -538,6 +540,8 @@ def _parse_json_events_to_text(response_text: str) -> str:
 
     try:
         lines = response_text.strip().split("\n")
+        collected_tool_outputs: list[str] = []
+
         for line in lines:
             line = line.strip()
             if not line:
@@ -546,12 +550,32 @@ def _parse_json_events_to_text(response_text: str) -> str:
                 event = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if event.get("type") != "text":
-                continue
-            part = event.get("part", {})
-            text_content = part.get("text", "")
-            if text_content:
-                return text_content
+
+            event_type = event.get("type", "")
+
+            # Direct text response - return immediately
+            if event_type == "text":
+                part = event.get("part", {})
+                text_content = part.get("text", "")
+                if text_content:
+                    return text_content
+
+            # Tool output fallback - collect for later use
+            elif event_type == "tool_use":
+                part = event.get("part", {})
+                tool_state = part.get("state", {})
+                if tool_state.get("status") == "completed":
+                    tool_output = tool_state.get("output", "")
+                    if tool_output:
+                        collected_tool_outputs.append(tool_output)
+
+        # If we collected tool outputs, combine them as fallback
+        if collected_tool_outputs:
+            combined = "\n".join(collected_tool_outputs)
+            # Try to find JSON in combined output
+            if combined.strip().startswith("{"):
+                return combined
+
     except Exception:
         pass
 
