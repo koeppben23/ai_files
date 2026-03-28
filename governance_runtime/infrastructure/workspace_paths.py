@@ -452,32 +452,57 @@ def phase2_artifact_paths(workspaces_home: Path, repo_fingerprint: str) -> dict[
     }
 
 
-def governance_plan_dir(config_root: Path) -> Path:
-    """Return canonical governance plan artifacts directory."""
-    return config_root / "plan"
+def governance_plan_dir(workspaces_home: Path, repo_fingerprint: str | None = None) -> Path:
+    """Return canonical governance plan artifacts directory.
+
+    When ``repo_fingerprint`` is provided, returns a workspace-scoped path.
+    Otherwise, preserves legacy behavior under ``workspaces_home``.
+    """
+    if repo_fingerprint:
+        return workspace_root(workspaces_home, repo_fingerprint) / "plan"
+    return workspaces_home / "plan"
 
 
-def governance_review_dir(config_root: Path) -> Path:
-    """Return canonical governance review artifacts directory."""
-    return config_root / "review"
+def governance_review_dir(workspaces_home: Path, repo_fingerprint: str | None = None) -> Path:
+    """Return canonical governance review artifacts directory.
+
+    When ``repo_fingerprint`` is provided, returns a workspace-scoped path.
+    Otherwise, preserves legacy behavior under ``workspaces_home``.
+    """
+    if repo_fingerprint:
+        return workspace_root(workspaces_home, repo_fingerprint) / "review"
+    return workspaces_home / "review"
 
 
-def governance_runtime_state_dir(config_root: Path) -> Path:
-    """Return canonical governance runtime state directory."""
-    return config_root / "runtime_state"
+def governance_runtime_state_dir(workspaces_home: Path, repo_fingerprint: str | None = None) -> Path:
+    """Return canonical governance runtime state directory.
+
+    When ``repo_fingerprint`` is provided, returns a workspace-scoped path.
+    Otherwise, preserves legacy behavior under ``workspaces_home``.
+    """
+    if repo_fingerprint:
+        return workspace_root(workspaces_home, repo_fingerprint) / "runtime_state"
+    return workspaces_home / "runtime_state"
 
 
-def governance_implementation_dir(config_root: Path) -> Path:
-    """Return canonical governance implementation artifacts directory."""
-    return config_root / "implementation"
+def governance_implementation_dir(workspaces_home: Path, repo_fingerprint: str | None = None) -> Path:
+    """Return canonical governance implementation artifacts directory.
+
+    When ``repo_fingerprint`` is provided, returns a workspace-scoped path.
+    Otherwise, preserves legacy behavior under ``workspaces_home``.
+    """
+    if repo_fingerprint:
+        return workspace_root(workspaces_home, repo_fingerprint) / "implementation"
+    return workspaces_home / "implementation"
 
 
-def governance_allowed_artifact_dirs(config_root: Path) -> tuple[Path, ...]:
+def governance_allowed_artifact_dirs(workspaces_home: Path, repo_fingerprint: str | None = None) -> tuple[Path, ...]:
     """Return allowed governance directories for materialized artifacts."""
+    root = workspace_root(workspaces_home, repo_fingerprint) if repo_fingerprint else workspaces_home
     return (
-        config_root,
-        governance_runtime_state_dir(config_root),
-        governance_plan_dir(config_root),
-        governance_review_dir(config_root),
-        governance_implementation_dir(config_root),
+        root,
+        governance_runtime_state_dir(workspaces_home, repo_fingerprint),
+        governance_plan_dir(workspaces_home, repo_fingerprint),
+        governance_review_dir(workspaces_home, repo_fingerprint),
+        governance_implementation_dir(workspaces_home, repo_fingerprint),
     )

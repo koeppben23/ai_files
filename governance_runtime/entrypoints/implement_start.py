@@ -610,6 +610,8 @@ def _run_llm_edit_step(
     required_hotspots: list[str],
     commands_home: Path | None = None,
     config_root: Path | None = None,
+    workspaces_home: Path | None = None,
+    repo_fingerprint: str | None = None,
     pipeline_mode: bool = False,
     execution_binding: str = "",
 ) -> dict[str, object]:
@@ -622,7 +624,10 @@ def _run_llm_edit_step(
     stderr_file = implementation_dir / "executor_stderr.log"
 
     governance_root = config_root if config_root is not None else (Path.home() / ".governance")
-    runtime_state_dir = governance_runtime_state_dir(governance_root)
+    if workspaces_home is not None and repo_fingerprint:
+        runtime_state_dir = governance_runtime_state_dir(workspaces_home, repo_fingerprint)
+    else:
+        runtime_state_dir = governance_runtime_state_dir(governance_root, "")
     runtime_state_dir.mkdir(parents=True, exist_ok=True)
 
     mandate_text = ""
@@ -1077,13 +1082,17 @@ def start_implementation(
 
     # Resolve mode-scoped execution binding.
     workspace_dir = session_path.parent
+    workspaces_home: Path | None = None
+    active_repo_fingerprint: str | None = None
     pipeline_mode = False
     execution_binding = ""
     execution_binding_source = ""
     try:
-        resolved_session_path, _, _, resolved_workspace_dir = resolve_active_session_paths()
+        resolved_session_path, resolved_repo_fingerprint, resolved_workspaces_home, resolved_workspace_dir = resolve_active_session_paths()
         if resolved_session_path == session_path:
             workspace_dir = resolved_workspace_dir
+            workspaces_home = resolved_workspaces_home
+            active_repo_fingerprint = resolved_repo_fingerprint
     except Exception:
         pass
 
@@ -1158,6 +1167,8 @@ def start_implementation(
         required_hotspots=required_hotspots,
         commands_home=commands_home,
         config_root=evidence.config_root,
+        workspaces_home=workspaces_home,
+        repo_fingerprint=active_repo_fingerprint,
         pipeline_mode=pipeline_mode,
         execution_binding=execution_binding,
     )
