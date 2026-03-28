@@ -27,7 +27,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from governance_runtime.engine.next_action_resolver import resolve_next_action
 from governance_runtime.entrypoints.phase5_plan_record_persist import (
     _parse_llm_review_response,
     _load_effective_review_policy_text,
@@ -232,71 +231,14 @@ def _should_emit_continue_next_action(snapshot: Snapshot) -> bool:
 
 
 def _resolve_next_action_line(snapshot: Snapshot) -> str:
-    """Determine the next action line (presentation assembly, not formatting)."""
-    render = resolve_next_action(snapshot)
-    label = str(render.label or "").strip()
-    phase = str(snapshot.get("phase") or "").strip().lower()
-    gate = str(snapshot.get("active_gate") or "").strip().lower()
-    next_condition = str(snapshot.get("next_gate_condition") or "").strip().lower()
-
-    if gate == "evidence presentation gate":
-        return "Next action: run /review-decision <approve|changes_requested|reject>."
-
-    if gate == "implementation presentation gate":
-        return "Next action: run /implementation-decision <approve|changes_requested|reject>."
-    
-    if gate == "rework clarification gate" and "chat" in next_condition:
-        import re
-        match = re.search(r"clarif(?:y|ying)\s+(?:the\s+)?requested\s+changes\s+(?:in\s+)?chat[,\s]*", next_condition)
-        if match:
-            return "Next action: describe the requested changes in chat."
-    
-    rework_input = str(snapshot.get("rework_clarification_input") or "").strip().lower()
-    if gate == "rework clarification gate" and rework_input:
-        from governance_runtime.application.use_cases.rework_clarification import (
-            classify_rework_clarification,
-            derive_next_rail,
-        )
-        classification = classify_rework_clarification(rework_input)
-        rail = derive_next_rail(classification)
-        if rail == "/ticket":
-            return "Next action: run /ticket with the revised task details."
-        elif rail == "/plan":
-            return "Next action: run /plan with the updated plan details."
-        elif rail == "/continue":
-            return "Next action: run /continue."
-    
-    if (phase.startswith("4") or gate == "ticket input gate") and "/review" not in label.lower():
-        label = (
-            "run /ticket with the ticket/task details. "
-            "Alternative: run /review for read-only feedback (no state change)."
-        )
-
-    p54_status = str(snapshot.get("p54_evaluated_status") or "").strip().lower()
-    if p54_status == "gap-detected" and (
-        "business rules validation" in gate
-        or phase.startswith("5.4")
-        or "businessrules" in phase
-    ):
-        return "Next action: complete the active business-rules validation work in chat."
-
-    p55_status = str(snapshot.get("p55_evaluated_status") or "").strip().lower()
-    if p55_status == "pending" and (
-        "technical debt" in gate
-        or phase.startswith("5.5")
-        or "technicaldebt" in phase
-    ):
-        return "Next action: complete the active technical-debt validation work in chat."
-
-    p56_status = str(snapshot.get("p56_evaluated_status") or "").strip().lower()
-    if p56_status == "pending" and (
-        "rollback safety" in gate
-        or phase.startswith("5.6")
-        or "rollbacksafety" in phase
-    ):
-        return "Next action: complete the active rollback-safety validation work in chat."
-
-    return f"Next action: {label}"
+    """Render next action from canonical snapshot fields only."""
+    command = str(snapshot.get("next_action_command") or "").strip()
+    if command:
+        return f"Next action: {command}"
+    text = str(snapshot.get("next_action") or "").strip()
+    if text:
+        return f"Next action: {text}"
+    return ""
 
 # Import Phase-5 normalizer functions
 from governance_runtime.application.services.phase5_normalizer import (

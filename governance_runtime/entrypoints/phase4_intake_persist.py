@@ -27,6 +27,7 @@ from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
+from governance_runtime.shared.next_action import NextAction, NextActions, render_next_action_line
 
 
 BLOCKED_P4_INTAKE_MISSING_EVIDENCE = "BLOCKED-P4-INTAKE-MISSING-EVIDENCE"
@@ -55,6 +56,27 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     out: dict[str, object] = {"status": status}
     out.update(kwargs)
     return out
+
+
+def _blocked_payload(
+    reason: str,
+    reason_code: str,
+    recovery_action: str,
+    *,
+    next_action: NextAction | None = None,
+    **extra: object,
+) -> dict[str, object]:
+    """Create a blocked payload with canonical Next Action fields."""
+    payload: dict[str, object] = {
+        "status": "blocked",
+        "reason": reason,
+        "reason_code": reason_code,
+        "recovery_action": recovery_action,
+    }
+    if next_action:
+        payload.update(next_action.to_dict())
+    payload.update(extra)
+    return payload
 
 
 def _ticket_record_path(session_path: Path) -> Path:
@@ -97,12 +119,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.task_file:
             task_source = _read_text(Path(args.task_file))
     except Exception as exc:
-        payload = _payload(
-            "blocked",
-            reason_code=BLOCKED_P4_INTAKE_MISSING_EVIDENCE,
+        payload = _blocked_payload(
             reason="intake-source-unreadable",
-            observed=str(exc),
+            reason_code=BLOCKED_P4_INTAKE_MISSING_EVIDENCE,
             recovery_action="provide readable --ticket-text/--task-text or valid --ticket-file/--task-file",
+            next_action=NextActions.TICKET_REQUIRED,
+            observed=str(exc),
         )
         print(json.dumps(payload, ensure_ascii=True))
         return 2
@@ -110,11 +132,11 @@ def main(argv: list[str] | None = None) -> int:
     ticket = _canonicalize_text(ticket_source)
     task = _canonicalize_text(task_source)
     if not ticket and not task:
-        payload = _payload(
-            "blocked",
-            reason_code=BLOCKED_P4_INTAKE_MISSING_EVIDENCE,
+        payload = _blocked_payload(
             reason="missing-intake-evidence",
+            reason_code=BLOCKED_P4_INTAKE_MISSING_EVIDENCE,
             recovery_action="provide non-empty ticket or task input via text or file",
+            next_action=NextActions.TICKET_REQUIRED,
         )
         print(json.dumps(payload, ensure_ascii=True))
         return 2
@@ -128,11 +150,11 @@ def main(argv: list[str] | None = None) -> int:
         for token in (args.feature_class, args.feature_reason, args.feature_planning_depth)
     )
     if has_fc_inputs and not has_fc_complete:
-        payload = _payload(
-            "blocked",
-            reason_code=BLOCKED_P4_INTAKE_MISSING_EVIDENCE,
+        payload = _blocked_payload(
             reason="feature-complexity-incomplete",
+            reason_code=BLOCKED_P4_INTAKE_MISSING_EVIDENCE,
             recovery_action="provide all FeatureComplexity fields or omit them",
+            next_action=NextActions.TICKET_REQUIRED,
         )
         print(json.dumps(payload, ensure_ascii=True))
         return 2
@@ -219,12 +241,12 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
     except Exception as exc:
-        payload = _payload(
-            "blocked",
-            reason_code=BLOCKED_P4_INTAKE_MISSING_EVIDENCE,
+        payload = _blocked_payload(
             reason="intake-persist-failed",
-            observed=str(exc),
+            reason_code=BLOCKED_P4_INTAKE_MISSING_EVIDENCE,
             recovery_action="verify active workspace pointer/session and rerun intake command",
+            next_action=NextActions.TICKET_REQUIRED,
+            observed=str(exc),
         )
         print(json.dumps(payload, ensure_ascii=True))
         return 2
@@ -238,12 +260,16 @@ def main(argv: list[str] | None = None) -> int:
         phase_after=routed.phase,
         next_phase=str(routed.phase or ""),
         next_gate=routed.active_gate,
-        next_action="run /continue.",
         active_gate=routed.active_gate,
         ticket_record_path=str(ticket_record_path),
+        **NextActions.CONTINUE.to_dict(),
     )
     # Print JSON payload
     print(json.dumps(payload, ensure_ascii=True))
+    if not args.quiet:
+        next_action_line = render_next_action_line(payload)
+        if next_action_line:
+            print(next_action_line)
     return 0
 
 
