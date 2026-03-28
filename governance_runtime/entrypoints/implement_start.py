@@ -846,8 +846,10 @@ def _run_llm_edit_step(
                 response_valid = True
             else:
                 validation_violations = validation.raw_violations
-        except Exception:
+        except json.JSONDecodeError:
             validation_violations = ["response-not-structured-json"]
+        except (OSError, IOError) as e:
+            validation_violations = [f"response-read-error: {e}"]
     else:
         if response_text:
             validation_violations = ["response-not-structured-json"]

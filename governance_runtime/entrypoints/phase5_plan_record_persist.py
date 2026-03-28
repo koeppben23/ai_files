@@ -1184,7 +1184,7 @@ def _parse_llm_review_response(
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
     try:
         from llm_response_validator import validate_review_response
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         validate_review_response = None
 
     raw_text = response_text.strip()
@@ -1479,12 +1479,12 @@ def _run_internal_phase5_self_review(
             "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
             "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
         }
-    except Exception:
+    except (OSError, IOError, PermissionError) as e:
         return {
             "blocked": True,
-            "reason": "mandate-schema-unavailable",
+            "reason": "mandate-schema-io-error",
             "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
-            "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
+            "recovery_action": f"Cannot read mandate schema: {e}",
         }
 
     iteration = 0
