@@ -2404,10 +2404,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     # Print JSON payload
     print(json.dumps(payload, ensure_ascii=True))
-    # Print Next action line after JSON only in non-quiet mode for better UX
-    if not args.quiet:
-        next_action_hint = str(payload.get("next_action") or "run /continue.")
-        print(f"Next action: {next_action_hint}")
     return 0
 
 
