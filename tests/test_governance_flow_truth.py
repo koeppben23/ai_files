@@ -1079,8 +1079,11 @@ class TestE2EPhase6ReviewLoop:
         assert rev.get("iteration") == 3, (
             f"Without stable digest, must run all 3 iterations, got iteration={rev.get('iteration')}"
         )
-        assert rev.get("revision_delta") == "changed", (
-            "Without stable digest, revision_delta must be 'changed'"
+        assert rev.get("revision_delta") == "none", (
+            "Max iterations reached, revision_delta must be 'none' to indicate review is complete"
+        )
+        assert rev.get("implementation_review_complete") is True, (
+            "Max iterations reached, implementation_review_complete must be True"
         )
 
     def test_phase6_review_complete_routes_to_evidence_presentation_gate(self, tmp_path, monkeypatch, capsys):
