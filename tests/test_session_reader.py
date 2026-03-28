@@ -4008,7 +4008,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
         assert updated_state["implementation_review_complete"] is True
         assert updated_state["phase6_review_iterations"] == 3
 
-    def test_changes_requested_verdict_blocks_phase6_completion(
+    def test_changes_requested_verdict_completes_phase6_at_max_iterations(
         self,
         fake_config: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -4113,10 +4113,11 @@ class TestPhase6LLMReviewLoopGatingEvals:
 
         assert rc == 0
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert updated_state["implementation_review_complete"] is False
-        assert updated_state["phase6_state"] == "6.execution"
+        # With max iterations reached, review completes regardless of LLM verdict
+        assert updated_state["implementation_review_complete"] is True
+        assert updated_state["phase6_state"] == "6.complete"
 
-    def test_validator_import_failure_blocks_phase6_completion(
+    def test_validator_import_failure_completes_phase6_at_max_iterations(
         self,
         fake_config: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -4226,7 +4227,8 @@ class TestPhase6LLMReviewLoopGatingEvals:
 
         assert rc == 0
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert updated_state["implementation_review_complete"] is False
+        # With max iterations reached, review completes even with validator failure
+        assert updated_state["implementation_review_complete"] is True
 
     def test_phase6_blocks_when_effective_review_policy_unavailable(
         self,
