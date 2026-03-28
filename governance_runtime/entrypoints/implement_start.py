@@ -1702,6 +1702,12 @@ def main(argv: list[str] | None = None) -> int:
 
     status = str(payload.get("status") or "error").strip().lower()
     print(json.dumps(payload, ensure_ascii=True))
+    # Print Next action line after JSON only in non-quiet mode for better UX
+    if not args.quiet:
+        if status == "ok":
+            print("Next action: run /continue to proceed with review.")
+        else:
+            print("Next action: run /continue.")
     if status == "ok":
         return 0
     return 2
