@@ -16,6 +16,8 @@ The orchestrator follows strict boundaries:
 
 from __future__ import annotations
 
+import json
+
 from governance_runtime.application.services.phase6_review_orchestrator.policy_resolver import (
     PolicyResolver,
     MandateSchema,
@@ -75,6 +77,24 @@ def _get_llm_caller():
                 "OPENCODE_SERVER_PASSWORD",
             ):
                 env.pop(key, None)
+            permission_overlay = {
+                "$schema": "https://opencode.ai/config.json",
+                "permission": {
+                    "bash": "deny",
+                    "read": "deny",
+                    "edit": "deny",
+                    "glob": "deny",
+                    "grep": "deny",
+                    "list": "deny",
+                    "task": "deny",
+                    "skill": "deny",
+                    "webfetch": "deny",
+                    "websearch": "deny",
+                    "codesearch": "deny",
+                    "external_directory": "deny",
+                },
+            }
+            env["OPENCODE_CONFIG_CONTENT"] = json.dumps(permission_overlay, ensure_ascii=True)
             return env
 
         _llm_caller_instance = LLMCaller(

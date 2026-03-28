@@ -147,6 +147,29 @@ class TestLLMCaller:
         assert result.binding_role == "review"
         assert result.binding_source == ""
 
+    def test_resolve_desktop_bridge_cmd_uses_explicit_session(self, tmp_path: Path):
+        """Desktop bridge command pins a concrete session id."""
+        cli_bin = tmp_path / "opencode-cli"
+        cli_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        cli_bin.chmod(0o755)
+
+        env = {
+            "OPENCODE_CLI_BIN": str(cli_bin),
+            "OPENCODE_SESSION_ID": "ses_test_phase6",
+            "OPENCODE_MODEL": "openai/gpt-5",
+        }
+        caller = LLMCaller(
+            executor_cmd="",
+            env_reader=lambda key: env.get(key),
+            subprocess_runner=lambda cmd: SubprocessResult(stdout="", stderr="", returncode=0),
+            workspace_root=tmp_path,
+        )
+
+        cmd = caller._resolve_desktop_bridge_cmd()
+        assert "run --session" in cmd
+        assert "ses_test_phase6" in cmd
+        assert "--continue" not in cmd
+
     def test_build_context(self, caller_with_executor):
         """build_context creates proper context dict."""
         context = caller_with_executor.build_context(

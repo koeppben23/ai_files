@@ -726,11 +726,16 @@ def test_happy_bridge_command_includes_model_and_context_placeholder(
     monkeypatch.setattr(
         entrypoint,
         "resolve_active_opencode_model",
-        lambda **_kwargs: {"provider": "openai", "model_id": "gpt-5.3-codex"},
+        lambda **_kwargs: {
+            "provider": "openai",
+            "model_id": "gpt-5.3-codex",
+            "session_id": "ses_test123",
+        },
     )
 
     cmd = entrypoint._resolve_desktop_executor_bridge_cmd(repo_root=tmp_path)
-    assert "run --continue" in cmd
+    assert "run --session" in cmd
+    assert "ses_test123" in cmd
     assert "--format json" in cmd
     assert "--agent build" not in cmd
     assert "--model" in cmd
