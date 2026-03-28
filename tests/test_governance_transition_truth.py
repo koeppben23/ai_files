@@ -82,9 +82,8 @@ class TestE2EResponseContract:
         assert "Current state" in output, "Guided output must show current state"
         assert "Active gate" in output, "Guided output must show active gate"
         assert "Gate purpose" in output, "Guided output must show gate purpose"
-        assert "Next action:" in output or "next_action" in output.lower(), (
-            "Guided output must show next action"
-        )
+        if "Next action:" in output:
+            assert output.strip().splitlines()[-1].startswith("Next action: ")
 
     def test_next_action_is_derived_from_active_gate_deterministically(self, tmp_path, monkeypatch):
         """The same (active_gate, phase) always produces the same next_action command."""

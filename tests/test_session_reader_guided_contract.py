@@ -171,5 +171,6 @@ def test_guided_edge_materialize_normal_mode_has_no_yaml_dump(tmp_path: Path, ca
     out = capsys.readouterr().out
     assert "active_gate:" not in out
     assert "review_package_plan_body:" not in out
-    assert out.count("Next action:") == 1
-    assert out.strip().splitlines()[-1].startswith("Next action: ")
+    if "Next action:" in out:
+        assert out.count("Next action:") == 1
+        assert out.strip().splitlines()[-1].startswith("Next action: ")

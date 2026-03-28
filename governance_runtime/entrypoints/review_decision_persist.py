@@ -51,6 +51,7 @@ from governance_runtime.infrastructure.adapters.logging.event_sink import write_
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
+from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.shared.next_action import NextAction, NextActions, render_next_action_line
 
 

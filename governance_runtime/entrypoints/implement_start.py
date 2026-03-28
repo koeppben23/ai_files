@@ -82,6 +82,7 @@ def _blocked_payload(
 ) -> dict[str, object]:
     """Create a blocked payload with canonical Next Action fields."""
     payload: dict[str, object] = {
+        "blocked": True,
         "status": "blocked",
         "reason": reason,
         "reason_code": reason_code,
