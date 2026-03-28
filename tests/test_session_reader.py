@@ -1553,9 +1553,10 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Plan brief is unavailable." in output
-        assert "Presented review content" not in output
+        assert "Plan under review" in output
+        assert "\n- " in output.split("Plan under review", 1)[1]
         assert "continue in chat with the active gate work" not in output
+        assert "Next action:" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["implementation_review_complete"] is True
@@ -1671,8 +1672,9 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Plan brief is unavailable." in output
-        assert "Presented review content" not in output
+        assert "Plan under review" in output
+        assert "\n- " in output.split("Plan under review", 1)[1]
+        assert "Next action:" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["phase6_review_iterations"] == 2
@@ -1784,8 +1786,9 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Plan brief is unavailable." in output
-        assert "Presented review content" not in output
+        assert "Plan under review" in output
+        assert "\n- " in output.split("Plan under review", 1)[1]
+        assert "Next action:" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["implementation_review_complete"] is True
@@ -2744,6 +2747,33 @@ class TestMaterializeOutputActionLine:
         assert output.strip().endswith(
             "Next action: /implement"
         )
+
+
+def test_edge_snapshot_next_action_resolver_failure_emits_neutral_unavailable_state(
+    fake_config: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ws_state = _write_pointer(fake_config)
+    _write_workspace_state(
+        ws_state,
+        {
+            "SESSION_STATE": {
+                "phase": "5-ArchitectureReview",
+                "next": "5-ArchitectureReview",
+                "active_gate": "Architecture Review Gate",
+                "next_gate_condition": "Complete architecture review.",
+                "status": "OK",
+            }
+        },
+    )
+
+    monkeypatch.setattr(session_reader_entrypoint, "resolve_next_action", lambda _state: (_ for _ in ()).throw(RuntimeError("boom")))
+    with _mock_readonly_unavailable():
+        snapshot = read_session_snapshot(commands_home=fake_config / "commands")
+
+    assert snapshot["next_action_code"] == "NEXT_ACTION_UNAVAILABLE"
+    assert "next action unavailable" in str(snapshot.get("next_action") or "").lower()
+    assert "next_action_command" not in snapshot
 
 
 class TestRouteTargetExplanation:

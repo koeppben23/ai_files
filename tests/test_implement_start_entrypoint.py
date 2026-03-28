@@ -1358,3 +1358,108 @@ def test_workspace_authority_prefers_active_session_workspace_for_binding_resolu
     assert rc == 2
     assert out["status"] == "blocked"
     assert observed["workspace_root"] == tmp_path
+
+
+def test_happy_bridge_timeout_seconds_none_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS", raising=False)
+    assert entrypoint._bridge_timeout_seconds() is None
+
+
+def test_bad_bridge_timeout_seconds_invalid_env_disables_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS", "not-an-int")
+    assert entrypoint._bridge_timeout_seconds() is None
+
+
+def test_corner_bridge_timeout_seconds_zero_disables_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS", "0")
+    assert entrypoint._bridge_timeout_seconds() is None
+
+
+def test_edge_bridge_timeout_seconds_positive_is_clamped(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS", "5")
+    assert entrypoint._bridge_timeout_seconds() == 30
+    monkeypatch.setenv("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS", "700")
+    assert entrypoint._bridge_timeout_seconds() == 600
+
+
+def _stub_materialization():
+    class _M:
+        plan_mandate_file = None
+        plan_mandate_sha256 = ""
+        plan_mandate_label = ""
+        effective_policy_file = None
+        effective_policy_sha256 = ""
+        effective_policy_label = ""
+
+        def has_materialized(self):
+            return False
+
+    return _M()
+
+
+def test_happy_bridge_runtime_timeout_disabled_omits_subprocess_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS", "0")
+    monkeypatch.setattr(entrypoint, "_resolve_desktop_executor_bridge_cmd", lambda **_kwargs: "bridge-cmd")
+    monkeypatch.setattr(entrypoint, "_load_mandates_schema", lambda: {"$id": "test"})
+    monkeypatch.setattr(entrypoint, "_build_authoring_mandate_text", lambda _schema: "mandate")
+    monkeypatch.setattr(entrypoint, "materialize_governance_artifacts", lambda **_kwargs: _stub_materialization())
+    monkeypatch.setattr(entrypoint, "validate_materialized_artifacts", lambda _materialization: None)
+    monkeypatch.setattr(entrypoint, "_capture_repo_change_baseline", lambda _repo_root: {})
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo_root: [])
+
+    observed_kwargs: dict[str, object] = {}
+
+    def _fake_run(_cmd, **kwargs):  # type: ignore[no-untyped-def]
+        observed_kwargs.update(kwargs)
+        return subprocess.CompletedProcess(args=_cmd, returncode=0, stdout='{"ok":true}', stderr="")
+
+    monkeypatch.setattr(entrypoint.subprocess, "run", _fake_run)
+
+    _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=tmp_path,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete", "next_gate_condition": "n"},
+        ticket_text="ticket",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+    )
+
+    assert "timeout" not in observed_kwargs
+
+
+def test_happy_bridge_runtime_timeout_enabled_sets_subprocess_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS", "90")
+    monkeypatch.setattr(entrypoint, "_resolve_desktop_executor_bridge_cmd", lambda **_kwargs: "bridge-cmd")
+    monkeypatch.setattr(entrypoint, "_load_mandates_schema", lambda: {"$id": "test"})
+    monkeypatch.setattr(entrypoint, "_build_authoring_mandate_text", lambda _schema: "mandate")
+    monkeypatch.setattr(entrypoint, "materialize_governance_artifacts", lambda **_kwargs: _stub_materialization())
+    monkeypatch.setattr(entrypoint, "validate_materialized_artifacts", lambda _materialization: None)
+    monkeypatch.setattr(entrypoint, "_capture_repo_change_baseline", lambda _repo_root: {})
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo_root: [])
+
+    observed_kwargs: dict[str, object] = {}
+
+    def _fake_run(_cmd, **kwargs):  # type: ignore[no-untyped-def]
+        observed_kwargs.update(kwargs)
+        return subprocess.CompletedProcess(args=_cmd, returncode=0, stdout='{"ok":true}', stderr="")
+
+    monkeypatch.setattr(entrypoint.subprocess, "run", _fake_run)
+
+    _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=tmp_path,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete", "next_gate_condition": "n"},
+        ticket_text="ticket",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=["src/service.py"],
+    )
+
+    assert observed_kwargs.get("timeout") == 90

@@ -603,14 +603,16 @@ def _resolve_active_opencode_session_id() -> str:
     return str(model_info.get("session_id") or "").strip()
 
 
-def _bridge_timeout_seconds() -> int:
+def _bridge_timeout_seconds() -> int | None:
     raw = str(os.environ.get("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS") or "").strip()
     if not raw:
-        return 120
+        return None
     try:
         value = int(raw)
     except ValueError:
-        return 120
+        return None
+    if value <= 0:
+        return None
     return max(30, min(value, 600))
 
 
@@ -921,17 +923,19 @@ def _run_llm_edit_step(
     if "{context_file}" in final_cmd:
         final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
 
+    run_kwargs: dict[str, object] = {
+        "shell": True,
+        "cwd": str(repo_root),
+        "capture_output": True,
+        "text": True,
+        "check": False,
+        "env": _build_executor_env(bridge_mode=bridge_mode),
+    }
+    bridge_timeout = _bridge_timeout_seconds() if bridge_mode else None
+    if bridge_timeout is not None:
+        run_kwargs["timeout"] = bridge_timeout
     try:
-        result = subprocess.run(
-            final_cmd,
-            shell=True,
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-            check=False,
-            env=_build_executor_env(bridge_mode=bridge_mode),
-            timeout=_bridge_timeout_seconds() if bridge_mode else None,
-        )
+        result = subprocess.run(final_cmd, **run_kwargs)
     except subprocess.TimeoutExpired:
         _write_text_atomic(stdout_file, "")
         _write_text_atomic(stderr_file, "implementation-llm-timeout\n")

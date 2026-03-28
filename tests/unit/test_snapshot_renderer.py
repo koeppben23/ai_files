@@ -14,6 +14,7 @@ from governance_runtime.infrastructure.rendering.snapshot_renderer import (
     _render_execution_progress,
     _render_presented_review_content,
     _render_phase5_decision_brief_from_plan_body,
+    _build_plan_under_review_lines,
     _sanitize_phase5_decision_brief,
     _section,
     format_snapshot,
@@ -179,19 +180,21 @@ class TestFormatGuidedSnapshot:
 
     def test_includes_review_content(self):
         snapshot = _to_snapshot({
+            "phase": "6-PostFlight",
             "active_gate": "Evidence Presentation Gate",
             "review_package_review_object": "Test Review",
             "review_package_ticket": "TICKET-1",
             "review_package_plan_body": "# PHASE 5 · PLAN FOR APPROVAL\nPlan body text",
+            "review_package_approved_plan_summary": "Implement the approved plan in service layer.",
             "review_package_evidence_summary": "All evidence present",
+            "next_gate_condition": "Present the package and submit a decision.",
         })
         output = format_guided_snapshot(snapshot, "Next action: run /review-decision.")
-        assert "Presented review content" not in output
         assert "Current state" not in output
-        assert "# PHASE 5 · PLAN FOR APPROVAL" in output
-        assert "Plan body text" in output
-        assert "Evidence:" not in output
-        assert "Next action:" not in output
+        assert "What this means now" not in output
+        assert "Plan under review" in output
+        assert "Implement the approved plan in service layer." in output
+        assert output.strip().endswith("Next action: run /review-decision.")
 
     def test_includes_execution_progress(self):
         snapshot = _to_snapshot({
@@ -241,6 +244,36 @@ class TestDecisionBriefSanitizer:
         assert "- Objective: Deliver pipeline mode e2e coverage." in out
         assert "- Risk A" in out
         assert "- Risk B" in out
+
+
+class TestPlanUnderReviewBlock:
+    def test_happy_uses_summary_when_present(self):
+        snapshot = _to_snapshot({
+            "review_package_approved_plan_summary": "Line A\nLine B",
+            "review_package_plan_body": "# Fallback\nLine C",
+        })
+        lines = _build_plan_under_review_lines(snapshot)
+        assert lines == ["Line A", "Line B"]
+
+    def test_bad_returns_empty_when_no_plan_data(self):
+        snapshot = _to_snapshot({})
+        assert _build_plan_under_review_lines(snapshot) == []
+
+    def test_corner_falls_back_to_plan_body_when_summary_missing(self):
+        snapshot = _to_snapshot({
+            "review_package_plan_body": "# Title\n\n- Item 1\n- Item 2\n",
+        })
+        lines = _build_plan_under_review_lines(snapshot)
+        assert lines == ["Title", "- Item 1", "- Item 2"]
+
+    def test_edge_truncates_to_800_char_budget(self):
+        long_line = "A" * 1200
+        snapshot = _to_snapshot({"review_package_approved_plan_summary": long_line})
+        lines = _build_plan_under_review_lines(snapshot)
+        assert lines
+        combined = "\n".join(lines)
+        assert len(combined) <= 800
+        assert combined.endswith("...")
 
 
 def test_decision_brief_renderer_uses_template(monkeypatch: pytest.MonkeyPatch) -> None:

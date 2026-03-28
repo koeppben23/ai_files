@@ -31,6 +31,7 @@ from governance_runtime.entrypoints.phase5_plan_record_persist import (
     _parse_llm_review_response,
     _load_effective_review_policy_text,
 )
+from governance_runtime.engine.next_action_resolver import resolve_next_action
 from governance_runtime.infrastructure.session_pointer import (
     CANONICAL_POINTER_SCHEMA,
     is_session_pointer_document,
@@ -1094,8 +1095,6 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     # Session reader owns computation of snapshot semantics, while renderers
     # must only display these fields.
     try:
-        from governance_runtime.engine.next_action_resolver import resolve_next_action
-
         resolved_action = resolve_next_action(snapshot)
         if resolved_action.command:
             snapshot["next_action_command"] = str(resolved_action.command)
@@ -1104,7 +1103,8 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         if resolved_action.reason:
             snapshot["next_action_code"] = str(resolved_action.reason).upper().replace("-", "_")
     except Exception:
-        pass
+        snapshot["next_action_code"] = "NEXT_ACTION_UNAVAILABLE"
+        snapshot["next_action"] = "Next action unavailable: resolve snapshot computation error and rerun /continue."
     if transition_evidence_hint:
         snapshot["transition_evidence_hint"] = transition_evidence_hint
 
