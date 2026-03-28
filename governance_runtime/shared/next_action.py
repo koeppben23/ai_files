@@ -73,7 +73,7 @@ class NextActions:
 
     CONTINUE = NextAction(
         code="CONTINUE",
-        text="Continue to proceed with the workflow.",
+        text="run /continue.",
         command="/continue",
     )
 
@@ -91,7 +91,7 @@ class NextActions:
 
     IMPLEMENT_START = NextAction(
         code="IMPLEMENT_START",
-        text="Start implementation.",
+        text="run /implement.",
         command="/implement",
     )
 
@@ -103,12 +103,12 @@ class NextActions:
 
     DESCRIBE_CHANGES = NextAction(
         code="DESCRIBE_CHANGES",
-        text="Describe the requested changes in chat.",
+        text="describe the requested changes in chat.",
         command=None,  # No deterministic command - user must type
     )
 
     TICKET_REVISED = NextAction(
         code="TICKET_REVISED",
-        text="Submit revised task details.",
+        text="run /ticket with revised task details.",
         command="/ticket",
     )

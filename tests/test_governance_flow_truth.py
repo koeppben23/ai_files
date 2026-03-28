@@ -402,7 +402,7 @@ class TestE2EReviewDecision:
         assert result["payload"].get("status") == "ok"
         assert result["payload"].get("decision") == "approve"
         assert "next_action" in result["payload"]
-        assert "/implement" in result["payload"]["next_action"]
+        assert result["payload"].get("next_action_command") == "/implement"
 
     def test_changes_requested_transitions_to_rework_clarification(self, tmp_path, monkeypatch, capsys):
         """changes_requested must set active_gate=Rework Clarification Gate and clear workflow_complete."""
@@ -444,7 +444,7 @@ class TestE2EReviewDecision:
         assert result["payload"].get("status") == "ok"
         assert result["payload"].get("decision") == "reject"
         assert "next_action" in result["payload"]
-        assert "ticket" in result["payload"]["next_action"].lower()
+        assert result["payload"].get("next_action_command") == "/ticket"
 
     def test_review_decision_blocks_when_not_phase6(self, tmp_path, monkeypatch, capsys):
         """/review-decision must block when not in Phase 6."""
