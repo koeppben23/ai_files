@@ -11,6 +11,7 @@ import shlex
 import shutil
 import sys
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -157,6 +158,7 @@ def _clear_phase5_max_iterations_cache() -> None:
 _MANDATE_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 
 
+@lru_cache(maxsize=1)
 def _load_mandates_schema() -> dict[str, object] | None:
     """Load the compiled governance mandates schema (JSON).
     Canonical path only; no fallbacks allowed."""

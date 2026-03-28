@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import uuid
+from functools import lru_cache
 from pathlib import Path
 from typing import Mapping
 
@@ -82,6 +83,7 @@ BLOCKED_MANDATE_SCHEMA_UNAVAILABLE = "MANDATE-SCHEMA-UNAVAILABLE"
 _SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 
 
+@lru_cache(maxsize=1)
 def _load_mandates_schema() -> dict[str, object] | None:
     """Load the compiled governance mandates schema (JSON). Returns None if unavailable."""
     if not _SCHEMA_PATH.exists():
