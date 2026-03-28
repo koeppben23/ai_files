@@ -1527,6 +1527,7 @@ def _run_internal_phase5_self_review(
                 mandate_text,
                 effective_review_policy,
                 workspace_dir=workspace_dir,
+                config_root=config_root,
                 workspaces_home=workspaces_home,
                 repo_fingerprint=repo_fingerprint,
             )
