@@ -12,11 +12,49 @@ The caller does NOT validate the response - that's the ResponseValidator's job.
 
 from __future__ import annotations
 
+import json
 import shlex
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+
+
+def _parse_json_events_to_text(response_text: str) -> str:
+    """Parse OpenCode JSON events and extract assistant text response.
+
+    When --format json is used, opencode run returns NDJSON events.
+    We extract the text from 'text' type events.
+
+    Args:
+        response_text: Raw stdout from opencode run --format json
+
+    Returns:
+        Extracted text content from assistant response, or original text if parsing fails.
+    """
+    if not response_text.strip():
+        return response_text
+
+    try:
+        lines = response_text.strip().split("\n")
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+                event_type = event.get("type")
+                if event_type == "text":
+                    part = event.get("part", {})
+                    text_content = part.get("text", "")
+                    if text_content:
+                        return text_content
+            except json.JSONDecodeError:
+                continue
+    except Exception:
+        pass
+
+    return response_text
 
 from governance_runtime.infrastructure.governance_binding_resolver import (
     GovernanceBindingResolutionError,
@@ -175,6 +213,8 @@ class LLMCaller:
             shlex.quote(cli_bin),
             "run",
             "--continue",
+            "--format",
+            "json",
             "--file",
             "{context_file}",
         ]
@@ -316,9 +356,10 @@ class LLMCaller:
             final_cmd = bridge_cmd.replace("{context_file}", shlex.quote(str(context_file)))
             try:
                 result = self._run_subprocess(final_cmd, self._build_bridge_env())
+                stdout = _parse_json_events_to_text(result.stdout or "")
                 return LLMResponse(
                     invoked=True,
-                    stdout=result.stdout or "",
+                    stdout=stdout,
                     stderr=result.stderr or "",
                     return_code=result.returncode,
                     pipeline_mode=False,
