@@ -240,6 +240,7 @@ def _build_authoring_mandate_text(schema: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+@lru_cache(maxsize=1)
 def _get_developer_output_schema_text() -> str:
     """Extract developerOutputSchema from compiled mandates schema as JSON text."""
     schema = _load_mandates_schema()
