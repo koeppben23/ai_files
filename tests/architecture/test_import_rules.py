@@ -49,6 +49,7 @@ _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
     # llm_caller.py: Composition-Root uses injected env_reader
     "governance_runtime/application/services/phase6_review_orchestrator/llm_caller.py": {
         "L84:subprocess.run",    # Composition-Root: default subprocess runner for LLM execution
+        "L122:subprocess.run",   # Default runner implementation for LLM execution
     },
     # __init__.py: Composition-Root creates LLMCaller with env_reader
     "governance_runtime/application/services/phase6_review_orchestrator/__init__.py": {
