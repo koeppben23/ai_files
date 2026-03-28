@@ -688,10 +688,20 @@ def _call_llm_generate_plan(
     instruction_parts = [
         "NO TOOLS. JSON ONLY. Respond with raw JSON only, no text before or after.",
         "Fields: objective, target_state, target_flow, state_machine, blocker_taxonomy, audit, go_no_go, test_strategy, reason_code, language, presentation_contract.",
+        "CRITICAL field constraints:",
+        "- objective: string, min 10 chars, one precise sentence",
+        "- target_state: string, min 20 chars, describes desired end state",
+        "- target_flow: string, min 20 chars, ordered steps to achieve target",
+        "- state_machine: string, min 20 chars, state transitions",
+        "- blocker_taxonomy: string, min 10 chars, expected blockers",
+        "- audit: string, min 10 chars, evidence trail",
+        "- go_no_go: string, min 10 chars, criteria that must be true to proceed",
+        "- test_strategy: string, min 10 chars, how to verify correctness",
+        "- reason_code: non-empty string",
+        "- language: must be 'en'",
+        "- presentation_contract: string, min 10 chars, presentation format",
         "Return language='en'. Do not call tools. Do not emit markdown or explanations.",
     ]
-    if output_schema_text:
-        instruction_parts.append("Schema source: planOutputSchema is authoritative; satisfy required fields and constraints.")
 
     context = {
         "schema": "opencode.plan.llm-context.v1",
