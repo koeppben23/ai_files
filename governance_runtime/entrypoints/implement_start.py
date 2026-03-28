@@ -69,6 +69,28 @@ from governance_runtime.infrastructure.workspace_paths import governance_runtime
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.application.services.state_normalizer import normalize_to_canonical
+from governance_runtime.shared.next_action import NextAction, NextActions, render_next_action_line
+
+
+def _blocked_payload(
+    reason: str,
+    reason_code: str,
+    recovery_action: str,
+    *,
+    next_action: NextAction | None = None,
+    **extra: object,
+) -> dict[str, object]:
+    """Create a blocked payload with canonical Next Action fields."""
+    payload: dict[str, object] = {
+        "status": "blocked",
+        "reason": reason,
+        "reason_code": reason_code,
+        "recovery_action": recovery_action,
+    }
+    if next_action:
+        payload.update(next_action.to_dict())
+    payload.update(extra)
+    return payload
 
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
@@ -712,15 +734,15 @@ def _run_llm_edit_step(
     if schema:
         mandate_text = _build_authoring_mandate_text(schema)
     else:
-        return {
-            "blocked": True,
-            "reason": "mandate-schema-unavailable",
-            "reason_code": BLOCKED_MANDATE_SCHEMA_UNAVAILABLE,
-            "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
-            "binding_resolved": has_executor,
-            "invoke_backend_available": has_executor,
-            "message": "Required mandate schema governance_mandates.v1.schema.json is unavailable.",
-        }
+        return _blocked_payload(
+            reason="mandate-schema-unavailable",
+            reason_code=BLOCKED_MANDATE_SCHEMA_UNAVAILABLE,
+            recovery_action="Provide governance_mandates.v1.schema.json at the canonical runtime location.",
+            next_action=NextActions.IMPLEMENT_START,
+            binding_resolved=has_executor,
+            invoke_backend_available=has_executor,
+            message="Required mandate schema governance_mandates.v1.schema.json is unavailable.",
+        )
 
     effective_policy_text, effective_policy_error = "", ""
     if commands_home is not None:
@@ -732,14 +754,14 @@ def _run_llm_edit_step(
     # Direct mode: active chat binding is authoritative.
     # Pipeline mode: explicit execution binding is authoritative.
     if has_executor and effective_policy_error:
-        return {
-            "blocked": True,
-            "reason": "effective-policy-unavailable",
-            "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
-            "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
-            "binding_resolved": has_executor,
-            "invoke_backend_available": has_executor,
-        }
+        return _blocked_payload(
+            reason="effective-policy-unavailable",
+            reason_code=BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+            recovery_action="Ensure rulebooks and addons are loadable and contain valid policy content.",
+            next_action=NextActions.IMPLEMENT_START,
+            binding_resolved=has_executor,
+            invoke_backend_available=has_executor,
+        )
 
     try:
         materialization = materialize_governance_artifacts(
@@ -749,14 +771,14 @@ def _run_llm_edit_step(
             effective_policy=effective_policy_text if effective_policy_text else None,
         )
     except GovernanceContextMaterializationError as e:
-        return {
-            "blocked": True,
-            "reason": f"governance-context-materialization-failed: {e.reason}",
-            "reason_code": e.reason_code,
-            "recovery_action": "Failed to materialize governance artifacts.",
-            "binding_resolved": has_executor,
-            "invoke_backend_available": has_executor,
-        }
+        return _blocked_payload(
+            reason=f"governance-context-materialization-failed: {e.reason}",
+            reason_code=e.reason_code,
+            recovery_action="Failed to materialize governance artifacts.",
+            next_action=NextActions.IMPLEMENT_START,
+            binding_resolved=has_executor,
+            invoke_backend_available=has_executor,
+        )
 
     developer_schema_text = _get_developer_output_schema_text()
     structured_output_instruction = ""
@@ -828,14 +850,14 @@ def _run_llm_edit_step(
     try:
         validate_materialized_artifacts(materialization)
     except GovernanceContextMaterializationError as e:
-        return {
-            "blocked": True,
-            "reason": f"governance-context-validation-failed: {e.reason}",
-            "reason_code": e.reason_code,
-            "recovery_action": "Materialized artifacts failed validation.",
-            "binding_resolved": has_executor,
-            "invoke_backend_available": has_executor,
-        }
+        return _blocked_payload(
+            reason=f"governance-context-validation-failed: {e.reason}",
+            reason_code=e.reason_code,
+            recovery_action="Materialized artifacts failed validation.",
+            next_action=NextActions.IMPLEMENT_START,
+            binding_resolved=has_executor,
+            invoke_backend_available=has_executor,
+        )
 
     repo_baseline = _capture_repo_change_baseline(repo_root)
     before_changed = set(_parse_changed_files_from_git_status(repo_root))
@@ -856,6 +878,7 @@ def _run_llm_edit_step(
                         "Direct mode requires active chat binding and callable desktop bridge.\n"
                     ),
                 )
+                next_action_dict = NextActions.IMPLEMENT_START.to_dict()
                 return {
                     "executor_invoked": False,
                     "exit_code": 2,
@@ -870,10 +893,13 @@ def _run_llm_edit_step(
                     "changed_files": [],
                     "repo_baseline": repo_baseline,
                     "blocked": True,
+                    "recovery_action": "Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
+                    **next_action_dict,
                 }
         if not executor_cmd:
             _write_text_atomic(stdout_file, "")
             _write_text_atomic(stderr_file, "LLM executor command missing\n")
+            next_action_dict = NextActions.IMPLEMENT_START.to_dict()
             return {
                 "executor_invoked": False,
                 "exit_code": 2,
@@ -886,6 +912,8 @@ def _run_llm_edit_step(
                 "changed_files": [],
                 "repo_baseline": repo_baseline,
                 "blocked": True,
+                "recovery_action": "Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
+                **next_action_dict,
             }
 
     final_cmd = executor_cmd
@@ -906,6 +934,7 @@ def _run_llm_edit_step(
     except subprocess.TimeoutExpired:
         _write_text_atomic(stdout_file, "")
         _write_text_atomic(stderr_file, "implementation-llm-timeout\n")
+        next_action_dict = NextActions.IMPLEMENT_START.to_dict()
         return {
             "executor_invoked": True,
             "exit_code": 124,
@@ -918,6 +947,8 @@ def _run_llm_edit_step(
             "changed_files": [],
             "repo_baseline": repo_baseline,
             "blocked": True,
+            "recovery_action": "Retry /implement after ensuring LLM bridge is responsive.",
+            **next_action_dict,
         }
     _write_text_atomic(stdout_file, str(result.stdout or ""))
     _write_text_atomic(stderr_file, str(result.stderr or ""))
@@ -1246,6 +1277,7 @@ def start_implementation(
                     "invoke_backend_available": False,
                 },
             )
+        next_action_dict = NextActions.IMPLEMENT_START.to_dict()
         return _payload(
             "blocked",
             reason_code=reason_code,
@@ -1260,7 +1292,8 @@ def start_implementation(
             binding_source=execution_binding_source,
             binding_resolved=False,
             invoke_backend_available=False,
-            next_action="Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
+            recovery_action="Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
+            **next_action_dict,
         )
 
     llm_result = _run_llm_edit_step(
@@ -1354,6 +1387,12 @@ def start_implementation(
                     ],
                 },
             )
+        recovery_action = (
+            "Provide required governance bindings for active mode and rerun /implement."
+            if reason_code == RC_EXECUTOR_NOT_CONFIGURED
+            else "Resolve the precheck blocker and rerun /implement."
+        )
+        next_action_dict = NextActions.IMPLEMENT_START.to_dict()
         return _payload(
             "blocked",
             event_id=event_id,
@@ -1382,11 +1421,8 @@ def start_implementation(
             binding_resolved=binding_resolved,
             invoke_backend_available=invoke_backend_available,
             repo_baseline=llm_result.get("repo_baseline") if isinstance(llm_result, Mapping) else None,
-            next_action=(
-                "Provide required governance bindings for active mode and rerun /implement."
-                if reason_code == RC_EXECUTOR_NOT_CONFIGURED
-                else "Resolve the precheck blocker and rerun /implement."
-            ),
+            recovery_action=recovery_action,
+            **next_action_dict,
         )
 
     validation_violations = llm_result.get("validation_violations") or []
@@ -1644,6 +1680,14 @@ def start_implementation(
             },
         )
 
+    if report.is_compliant:
+        next_action_obj = NextActions.CONTINUE
+    else:
+        next_action_obj = NextAction(
+            code="IMPLEMENTATION_BLOCKED",
+            text="run configured LLM executor, produce domain diffs, satisfy plan coverage, and pass targeted checks.",
+            command="/implement",
+        )
     payload = _payload(
         "ok" if report.is_compliant else "blocked",
         event_id=event_id,
@@ -1663,11 +1707,7 @@ def start_implementation(
         binding_resolved=bool(llm_result.get("binding_resolved", True)),
         invoke_backend_available=bool(llm_result.get("invoke_backend_available", True)),
         repo_baseline=llm_result.get("repo_baseline") if isinstance(llm_result, Mapping) else None,
-        next_action=(
-            "run /continue."
-            if report.is_compliant
-            else "run configured LLM executor, produce domain diffs, satisfy plan coverage, and pass targeted checks."
-        ),
+        **next_action_obj.to_dict(),
     )
     if not report.is_compliant:
         payload["primary_reason_code"] = report.primary_reason_code
@@ -1702,6 +1742,10 @@ def main(argv: list[str] | None = None) -> int:
 
     status = str(payload.get("status") or "error").strip().lower()
     print(json.dumps(payload, ensure_ascii=True))
+    if not args.quiet:
+        next_action_line = render_next_action_line(payload)
+        if next_action_line:
+            print(next_action_line)
     if status == "ok":
         return 0
     return 2
