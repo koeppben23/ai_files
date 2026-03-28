@@ -521,19 +521,51 @@ def _has_active_desktop_llm_binding() -> bool:
     return _has_desktop_llm_binding()
 
 
+class _ParseResult:
+    """Result of parsing OpenCode JSON events."""
+
+    __slots__ = ("text", "source")
+
+    def __init__(self, text: str, *, source: str) -> None:
+        self.text = text
+        # "primary" = direct text event, "fallback" = tool output extraction
+        self.source = source
+
+
 def _parse_json_events_to_text(response_text: str) -> str:
     """Parse OpenCode JSON events and extract assistant text response.
 
-    When --format json is used, opencode run returns NDJSON events.
-    We extract text from 'text' type events. As a fallback, we also
-    extract completed tool outputs if the LLM used tools instead of
-    responding directly.
+    OpenCode CLI with ``--format json`` emits NDJSON event streams
+    (``step_start``, ``text``, ``tool_use``, ``step_finish``, …).
+    The official CLI contract guarantees the *stream*, not a single
+    assistant payload.
+
+    Our runtime contract requires a single JSON payload from the LLM.
+    This function implements two extraction paths:
+
+    **Primary path (preferred)**
+        Returns the first ``text`` event content verbatim.  This is the
+        expected response when the LLM honours the "NO TOOLS. JSON ONLY"
+        instruction.
+
+    **Fallback path (degraded / tolerated)**
+        If no ``text`` event is present we collect completed
+        ``tool_use`` outputs and concatenate them.  This is a pragmatic
+        compatibility layer because:
+        - ``OPENCODE_CONFIG_CONTENT`` permission overlays are documented
+          but do NOT deterministically prevent tool usage.
+        - The LLM may emit tool outputs instead of direct text.
+        - Without this fallback the bridge would reject valid responses.
+
+    Neither path is guaranteed by the official OpenCode CLI contract.
+    They are local robustness heuristics.
 
     Args:
-        response_text: Raw stdout from opencode run --format json
+        response_text: Raw stdout from ``opencode run --format json``
 
     Returns:
-        Extracted text content from assistant response, or original text if parsing fails.
+        Extracted text content, or the original ``response_text`` on
+        complete parse failure.
     """
     if not response_text.strip():
         return response_text
@@ -553,14 +585,14 @@ def _parse_json_events_to_text(response_text: str) -> str:
 
             event_type = event.get("type", "")
 
-            # Direct text response - return immediately
+            # PRIMARY: direct text response
             if event_type == "text":
                 part = event.get("part", {})
                 text_content = part.get("text", "")
                 if text_content:
                     return text_content
 
-            # Tool output fallback - collect for later use
+            # FALLBACK: completed tool outputs (degraded, tolerated path)
             elif event_type == "tool_use":
                 part = event.get("part", {})
                 tool_state = part.get("state", {})
@@ -569,10 +601,9 @@ def _parse_json_events_to_text(response_text: str) -> str:
                     if tool_output:
                         collected_tool_outputs.append(tool_output)
 
-        # If we collected tool outputs, combine them as fallback
+        # Fallback: combine collected tool outputs
         if collected_tool_outputs:
             combined = "\n".join(collected_tool_outputs)
-            # Try to find JSON in combined output
             if combined.strip().startswith("{"):
                 return combined
 
