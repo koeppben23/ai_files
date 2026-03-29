@@ -396,6 +396,7 @@ class LLMCaller:
                     model_dict = {"providerID": provider, "modelID": model_id}
 
             if session_id:
+                server_error: str | None = None
                 try:
                     context_json = json.dumps(context, ensure_ascii=True, indent=2)
                     output_schema_text = context.get("output_schema_text", "")
@@ -414,20 +415,37 @@ class LLMCaller:
                         output_schema=output_schema,
                     )
 
-                    return LLMResponse(
-                        invoked=True,
-                        stdout=response_text,
-                        stderr="[server_client] Phase6 review via direct HTTP",
-                        return_code=0,
-                        pipeline_mode=False,
-                        binding_role="review",
-                        binding_source=binding_source,
-                    )
-                except ServerNotAvailableError:
-                    pass
+                    response_valid = False
+                    if response_text and response_text.strip():
+                        if response_text.startswith("{"):
+                            try:
+                                parsed = json.loads(response_text)
+                                if isinstance(parsed, dict):
+                                    response_valid = True
+                            except json.JSONDecodeError:
+                                pass
+
+                    if response_valid:
+                        return LLMResponse(
+                            invoked=True,
+                            stdout=response_text,
+                            stderr="[server_client] Phase6 review via direct HTTP",
+                            return_code=0,
+                            pipeline_mode=False,
+                            binding_role="review",
+                            binding_source=binding_source,
+                        )
+                    else:
+                        server_error = f"Server response invalid or empty: {response_text[:200] if response_text else 'empty'}"
+                except ServerNotAvailableError as exc:
+                    server_error = f"ServerNotAvailableError: {exc}"
                 except Exception as exc:
+                    server_error = f"Server client exception: {exc}"
+
+                if server_error:
                     pass
 
+        # Legacy CLI bridge path (fallback when server path failed or not available)
         if not pipeline_mode:
             bridge_cmd = self._resolve_desktop_bridge_cmd()
             if not bridge_cmd:
@@ -455,7 +473,7 @@ class LLMCaller:
                 return LLMResponse(
                     invoked=True,
                     stdout=stdout,
-                    stderr=result.stderr or "",
+                    stderr="[legacy_cli_bridge] " + (result.stderr or ""),
                     return_code=result.returncode,
                     pipeline_mode=False,
                     binding_role="review",
@@ -465,7 +483,7 @@ class LLMCaller:
                 return LLMResponse(
                     invoked=True,
                     stdout="",
-                    stderr=str(exc),
+                    stderr="[legacy_cli_bridge] " + str(exc),
                     return_code=-1,
                     error=f"LLM executor failed: {exc}",
                     pipeline_mode=False,
