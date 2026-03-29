@@ -57,6 +57,7 @@ Directed rail selection after clarification:
 
 - report current `phase`, `next`, `active_gate`, and `next_gate_condition` after persist
 - if the persist command succeeded, confirm the review decision evidence was written
+- if the session state contains plan data, render a **Plan under review** section with the plan summary
 - if validation fails, render the exact invalid decision and expected values
 
 ---

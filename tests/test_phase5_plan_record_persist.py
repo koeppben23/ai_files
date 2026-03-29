@@ -1516,3 +1516,150 @@ class TestGetPhase5MaxReviewIterations:
         result1 = module._get_phase5_max_review_iterations(tmp_path)
         result2 = module._get_phase5_max_review_iterations(tmp_path)
         assert result1 == result2 == 5
+
+
+class TestPlanUnderReviewSummaryContract:
+    """Contract tests for plan_under_review_summary in JSON output.
+
+    Happy: Structured plan with executive_summary produces plan_under_review_summary
+    Bad:   Missing structured plan produces empty plan_under_review_summary
+    Corner: Plan with only objective produces plan_under_review_summary from objective
+    Edge:  Plan with empty executive_summary and no objective produces empty summary
+    """
+
+    @pytest.mark.governance
+    def test_happy_executive_summary_produces_plan_under_review_summary(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        """Happy: Structured plan with executive_summary produces non-empty plan_under_review_summary."""
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+        monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5-codex")
+
+        structured_plan_json = json.dumps({
+            "objective": "Implement user authentication system",
+            "target_state": "Users can log in securely",
+            "target_flow": "Step 1, Step 2, Step 3",
+            "state_machine": "auth states",
+            "blocker_taxonomy": "none",
+            "audit": "evidence",
+            "go_no_go": "criteria met",
+            "test_strategy": "unit tests",
+            "reason_code": "TEST-REASON",
+            "language": "en",
+            "presentation_contract": {
+                "title": "Phase 5 Plan",
+                "plan_status_badge": "PLAN",
+                "executive_summary": ["Key deliverable 1", "Key deliverable 2", "Key deliverable 3"],
+            }
+        })
+
+        rc = module.main(["--plan-text", structured_plan_json, "--quiet"])
+        assert rc == 0, f"Expected successful persist, got rc={rc}"
+
+        output = capsys.readouterr().out.strip()
+        payload = json.loads(output)
+
+        assert "plan_under_review_summary" in payload, "plan_under_review_summary must be in success payload"
+        assert payload["plan_under_review_summary"] != "", "plan_under_review_summary must be non-empty for executive_summary"
+        assert "Key deliverable 1" in payload["plan_under_review_summary"]
+
+    @pytest.mark.governance
+    def test_bad_no_structured_plan_produces_empty_plan_under_review_summary(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        """Bad: Legacy markdown plan without structured data produces empty plan_under_review_summary."""
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+        monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5-codex")
+
+        legacy_plan = "## Zielbild\n## Soll-Flow\n## State-Machine\n## Blocker-Taxonomie\n## Audit\n## Go/No-Go\nReason code"
+
+        rc = module.main(["--plan-text", legacy_plan, "--quiet"])
+        assert rc == 0, f"Expected successful persist, got rc={rc}"
+
+        output = capsys.readouterr().out.strip()
+        payload = json.loads(output)
+
+        assert "plan_under_review_summary" in payload, "plan_under_review_summary must be in success payload"
+        assert payload["plan_under_review_summary"] == "", "plan_under_review_summary must be empty for legacy plan"
+
+    @pytest.mark.governance
+    def test_corner_objective_only_produces_plan_under_review_summary(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        """Corner: Structured plan with only objective (no executive_summary) produces plan_under_review_summary."""
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+        monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5-codex")
+
+        structured_plan_json = json.dumps({
+            "objective": "Implement user authentication system",
+            "target_state": "Users can log in securely",
+            "target_flow": "Step 1, Step 2, Step 3",
+            "state_machine": "auth states",
+            "blocker_taxonomy": "none",
+            "audit": "evidence",
+            "go_no_go": "criteria met",
+            "test_strategy": "unit tests",
+            "reason_code": "TEST-REASON",
+            "language": "en",
+            "presentation_contract": {
+                "title": "Phase 5 Plan",
+                "plan_status_badge": "PLAN",
+            }
+        })
+
+        rc = module.main(["--plan-text", structured_plan_json, "--quiet"])
+        assert rc == 0, f"Expected successful persist, got rc={rc}"
+
+        output = capsys.readouterr().out.strip()
+        payload = json.loads(output)
+
+        assert "plan_under_review_summary" in payload, "plan_under_review_summary must be in success payload"
+        assert payload["plan_under_review_summary"] != "", "plan_under_review_summary must contain objective"
+        assert "Implement user authentication system" in payload["plan_under_review_summary"]
+
+    @pytest.mark.governance
+    def test_edge_empty_executive_summary_and_no_objective_produces_empty_summary(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        """Edge: Structured plan with empty executive_summary and no objective produces empty summary."""
+        module = _load_module()
+        config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+        monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+        monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5-codex")
+
+        structured_plan_json = json.dumps({
+            "objective": "",
+            "target_state": "Users can log in securely",
+            "target_flow": "Step 1, Step 2, Step 3",
+            "state_machine": "auth states",
+            "blocker_taxonomy": "none",
+            "audit": "evidence",
+            "go_no_go": "criteria met",
+            "test_strategy": "unit tests",
+            "reason_code": "TEST-REASON",
+            "language": "en",
+            "presentation_contract": {
+                "title": "Phase 5 Plan",
+                "plan_status_badge": "PLAN",
+                "executive_summary": [],
+            }
+        })
+
+        rc = module.main(["--plan-text", structured_plan_json, "--quiet"])
+        assert rc == 0, f"Expected successful persist, got rc={rc}"
+
+        output = capsys.readouterr().out.strip()
+        payload = json.loads(output)
+
+        assert "plan_under_review_summary" in payload, "plan_under_review_summary must be in success payload"
+        assert payload["plan_under_review_summary"] == "", "plan_under_review_summary must be empty when no data"

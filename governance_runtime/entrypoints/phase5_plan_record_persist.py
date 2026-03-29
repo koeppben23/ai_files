@@ -2419,6 +2419,20 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, ensure_ascii=True))
         return 2
 
+    plan_summary = ""
+    if isinstance(structured_plan, Mapping):
+        presentation = structured_plan.get("presentation_contract")
+        if isinstance(presentation, Mapping):
+            exec_summary = presentation.get("executive_summary")
+            if isinstance(exec_summary, list) and exec_summary:
+                plan_summary = "\n".join(str(item).strip() for item in exec_summary if str(item).strip())
+            elif isinstance(exec_summary, str) and exec_summary.strip():
+                plan_summary = str(exec_summary).strip()
+        if not plan_summary:
+            objective = structured_plan.get("objective")
+            if isinstance(objective, str) and objective.strip():
+                plan_summary = str(objective).strip()
+
     payload = _payload(
         "ok",
         reason="phase5-plan-record-persisted",
@@ -2435,6 +2449,7 @@ def main(argv: list[str] | None = None) -> int:
         max_iterations=_as_int(review_result.get("max_iterations"), max_iterations),
         revision_delta=str(review_result.get("revision_delta") or "changed"),
         self_review_iterations_met=bool(review_result.get("self_review_iterations_met")),
+        plan_under_review_summary=plan_summary,
         **NextActions.CONTINUE.to_dict(),
     )
     # Print JSON payload

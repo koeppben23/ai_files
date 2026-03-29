@@ -34,6 +34,7 @@ For Phase 5.4 (Business Rules Validation): if extraction evidence shows all miss
 
 - reflect current `SESSION_STATE.phase` and `SESSION_STATE.next`
 - include delta-only progress for the active step
+- if the session state contains plan data (`plan_under_review_summary` or `review_package_plan_body`), render a **Plan under review** section with the plan summary
 - if kernel reports a blocker or warning, render it with concise evidence and one recovery action
 - end with one explicit `Next action:` line as the final output line (including terminal states); for Phase 4 / Ticket Input Gate include both options: `/ticket` and the read-only alternative `/review` (no state change)
 
