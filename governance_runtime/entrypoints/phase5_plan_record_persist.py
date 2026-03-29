@@ -1403,6 +1403,8 @@ def _call_llm_review(
 
     use_server_client = False
     bridge_mode = False
+    server_required = is_server_required_mode()
+    server_error: str | None = None
 
     if not executor_cmd and not pipeline_mode and _has_active_desktop_llm_binding():
         session_id = _resolve_active_opencode_session_id()
@@ -1428,6 +1430,7 @@ def _call_llm_review(
                     prompt_text=prompt_text,
                     model_info=model_dict,
                     output_schema=output_schema,
+                    required=server_required,
                 )
 
                 response_text = _parse_json_events_to_text(response_text)
@@ -1451,17 +1454,53 @@ def _call_llm_review(
                 parsed["binding_role"] = "review"
                 parsed["binding_source"] = binding_source
                 parsed["invoke_backend"] = "server_client"
+                server_url = ""
+                try:
+                    server_url = resolve_opencode_server_base_url()
+                except ServerNotAvailableError:
+                    pass
+                parsed["invoke_backend_url"] = server_url
 
                 use_server_client = True
                 atomic_write_text(stdout_file, response_text)
-                atomic_write_text(stderr_file, "[server_client] Review via direct HTTP")
+                atomic_write_text(stderr_file, f"[server_client] Review via direct HTTP (url: {server_url})")
                 return parsed
-            except ServerNotAvailableError:
-                pass
+            except ServerNotAvailableError as exc:
+                server_error = str(exc)
+                atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+                if server_required:
+                    return {
+                        "llm_invoked": True,
+                        "verdict": "changes_requested",
+                        "findings": [f"Server required but unavailable: {server_error}"],
+                        "reason_code": "BLOCKED-SERVER-REQUIRED-UNAVAILABLE",
+                        "pipeline_mode": pipeline_mode,
+                        "binding_role": "review",
+                        "binding_source": binding_source,
+                        "binding_resolved": True,
+                        "invoke_backend_available": False,
+                        "invoke_backend": "server_client",
+                        "invoke_backend_error": server_error,
+                    }
             except Exception as exc:
-                atomic_write_text(stderr_file, f"[server_client] Failed: {exc}")
+                server_error = str(exc)
+                atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+                if server_required:
+                    return {
+                        "llm_invoked": True,
+                        "verdict": "changes_requested",
+                        "findings": [f"Server required but failed: {server_error}"],
+                        "reason_code": "BLOCKED-SERVER-REQUIRED-FAILED",
+                        "pipeline_mode": pipeline_mode,
+                        "binding_role": "review",
+                        "binding_source": binding_source,
+                        "binding_resolved": True,
+                        "invoke_backend_available": False,
+                        "invoke_backend": "server_client",
+                        "invoke_backend_error": server_error,
+                    }
 
-        if not use_server_client:
+        if not use_server_client and not server_required:
             legacy_bridge_cmd = _resolve_desktop_bridge_cmd(
                 repo_root=Path.cwd(),
                 message="Read the attached review context JSON and produce only valid JSON conforming to the provided output schema.",
