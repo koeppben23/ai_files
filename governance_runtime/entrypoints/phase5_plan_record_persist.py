@@ -2398,7 +2398,6 @@ def main(argv: list[str] | None = None) -> int:
                 state_after["phase5_state"] = "phase5-in-progress"
                 state_after["Phase5State"] = "phase5-in-progress"
                 state_after["phase5_completion_status"] = "phase5-in-progress"
-                document["SESSION_STATE"] = state_after
         _write_json_atomic(session_path, document)
         _append_jsonl(
             session_path.parent / "logs" / "events.jsonl",
@@ -2451,6 +2450,13 @@ def main(argv: list[str] | None = None) -> int:
             objective = structured_plan.get("objective")
             if isinstance(objective, str) and objective.strip():
                 plan_summary = _normalize_plan_preview(str(objective).strip())
+
+        document = _load_json(session_path)
+        state_for_summary = document.get("SESSION_STATE")
+        if isinstance(state_for_summary, dict):
+            state_for_summary["plan_under_review_summary"] = plan_summary
+            document["SESSION_STATE"] = state_for_summary
+            _write_json_atomic(session_path, document)
 
     payload = _payload(
         "ok",

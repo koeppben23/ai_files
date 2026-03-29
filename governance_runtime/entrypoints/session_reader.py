@@ -1134,6 +1134,10 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         snapshot["review_package_presented"] = True
         snapshot["review_package_plan_body_present"] = plan_body != "none"
 
+    plan_summary = state_view.get("plan_under_review_summary") or state.get("plan_under_review_summary") or ""
+    if plan_summary:
+        snapshot["plan_under_review_summary"] = plan_summary
+
     # --- Fix 3.1 (B6): Phase 5 self-review diagnostics ---
     # Surface kernel-owned exit conditions so users can see WHY an exit
     # from the Architecture Review Gate is not yet possible.
