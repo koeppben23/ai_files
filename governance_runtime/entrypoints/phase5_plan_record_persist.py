@@ -1433,8 +1433,6 @@ def _call_llm_review(
                     required=server_required,
                 )
 
-                response_text = _parse_json_events_to_text(response_text)
-
                 try:
                     mandates_schema = _load_mandates_schema()
                 except (MandateSchemaMissingError, MandateSchemaInvalidJsonError,

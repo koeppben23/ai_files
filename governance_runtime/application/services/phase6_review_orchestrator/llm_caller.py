@@ -462,6 +462,20 @@ class LLMCaller:
                 except Exception as exc:
                     server_error = f"Server client exception: {exc}"
 
+                if server_error and server_required:
+                    return LLMResponse(
+                        invoked=True,
+                        stdout="",
+                        stderr=f"[server_required_fail_closed] {server_error}",
+                        return_code=1,
+                        error=f"Server required but failed: {server_error}",
+                        pipeline_mode=False,
+                        binding_role="review",
+                        binding_source=binding_source,
+                        invoke_backend="server_client",
+                        invoke_backend_error=server_error,
+                    )
+
                 if server_error:
                     pass
 
