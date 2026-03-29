@@ -132,6 +132,7 @@ class LLMResponse:
     binding_source: str = ""
     invoke_backend: str = ""
     invoke_backend_url: str = ""
+    invoke_backend_error: str = ""
 
     @property
     def has_output(self) -> bool:
