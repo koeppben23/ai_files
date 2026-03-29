@@ -56,11 +56,53 @@ def _parse_json_events_to_text(response_text: str) -> str:
 
     return response_text
 
+
+def _invoke_llm_via_server(
+    session_id: str,
+    prompt_text: str,
+    model_info: dict | None = None,
+    output_schema: dict | None = None,
+) -> str:
+    """Try to invoke LLM via direct server API, fallback to legacy on failure.
+
+    This replaces subprocess("opencode run --session ...") with direct HTTP calls.
+
+    Args:
+        session_id: OpenCode session ID
+        prompt_text: The prompt to send
+        model_info: Optional model specification from resolve_active_opencode_model()
+        output_schema: Optional JSON schema for structured output
+
+    Returns:
+        LLM response text
+
+    Raises:
+        ServerNotAvailableError: If server method fails and no legacy fallback possible
+    """
+    try:
+        response = send_session_prompt(
+            session_id=session_id,
+            text=prompt_text,
+            model=model_info,
+            output_schema=output_schema,
+        )
+        return extract_session_response(response)
+    except ServerNotAvailableError:
+        raise
+    except Exception as exc:
+        raise ServerNotAvailableError(f"Server client failed: {exc}") from exc
+
+
 from governance_runtime.infrastructure.governance_binding_resolver import (
     GovernanceBindingResolutionError,
     resolve_governance_binding,
 )
 from governance_runtime.infrastructure.opencode_model_binding import resolve_active_opencode_model
+from governance_runtime.infrastructure.opencode_server_client import (
+    send_session_prompt,
+    extract_session_response,
+    ServerNotAvailableError,
+)
 
 
 @dataclass(frozen=True)
@@ -339,6 +381,52 @@ class LLMCaller:
                 binding_role="review",
                 binding_source="",
             )
+
+        if not pipeline_mode and self._has_active_desktop_llm_binding():
+            session_id = str(self._env_reader("OPENCODE_SESSION_ID") or "").strip()
+            model_info = resolve_active_opencode_model(env_reader=self._env_reader)
+            if not session_id and isinstance(model_info, dict):
+                session_id = str(model_info.get("session_id") or "").strip()
+
+            model_dict = None
+            if model_info and isinstance(model_info, dict):
+                provider = model_info.get("provider", "")
+                model_id = model_info.get("model_id", "")
+                if provider and model_id:
+                    model_dict = {"providerID": provider, "modelID": model_id}
+
+            if session_id:
+                try:
+                    context_json = json.dumps(context, ensure_ascii=True, indent=2)
+                    output_schema_text = context.get("output_schema_text", "")
+                    output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
+
+                    instruction = "Review the implementation and produce valid JSON conforming to the output schema."
+                    if output_schema:
+                        instruction += f"\n\nOutput schema:\n{json.dumps(output_schema, ensure_ascii=True)}"
+
+                    prompt_text = instruction + "\n\nContext:\n" + context_json
+
+                    response_text = _invoke_llm_via_server(
+                        session_id=session_id,
+                        prompt_text=prompt_text,
+                        model_info=model_dict,
+                        output_schema=output_schema,
+                    )
+
+                    return LLMResponse(
+                        invoked=True,
+                        stdout=response_text,
+                        stderr="[server_client] Phase6 review via direct HTTP",
+                        return_code=0,
+                        pipeline_mode=False,
+                        binding_role="review",
+                        binding_source=binding_source,
+                    )
+                except ServerNotAvailableError:
+                    pass
+                except Exception as exc:
+                    pass
 
         if not pipeline_mode:
             bridge_cmd = self._resolve_desktop_bridge_cmd()
