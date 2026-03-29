@@ -1607,6 +1607,24 @@ def _normalize_label(label: str) -> str:
     return lowered
 
 
+def _normalize_plan_preview(raw: str) -> str:
+    lines = raw.split("\n")
+    cleaned = []
+    for line in lines:
+        line = line.strip()
+        line = re.sub(r"^#+\s*", "", line)
+        line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+        line = re.sub(r"[*_`]+", "", line)
+        if line:
+            cleaned.append(line)
+    if len(cleaned) > 6:
+        cleaned = cleaned[:6]
+    result = "\n".join(cleaned)
+    if len(result) > 800:
+        result = result[:797] + "..."
+    return result
+
+
 def _collect_findings(plan_text: str) -> list[str]:
     section_aliases: dict[str, tuple[str, ...]] = {
         "target-state": ("target-state", "zielbild"),
@@ -2418,23 +2436,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(payload, ensure_ascii=True))
         return 2
-
-    def _normalize_plan_preview(raw: str) -> str:
-        lines = raw.split("\n")
-        cleaned = []
-        for line in lines:
-            line = line.strip()
-            line = re.sub(r"^#+\s*", "", line)
-            line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
-            line = re.sub(r"[*_`]+", "", line)
-            if line:
-                cleaned.append(line)
-        if len(cleaned) > 6:
-            cleaned = cleaned[:6]
-        result = "\n".join(cleaned)
-        if len(result) > 800:
-            result = result[:797] + "..."
-        return result
 
     plan_summary = ""
     if isinstance(structured_plan, Mapping):

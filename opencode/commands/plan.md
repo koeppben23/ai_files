@@ -63,12 +63,10 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 ## Response shape
 
-- report current `phase`, `next`, `active_gate`, and `next_gate_condition` after persist
-- if the persist command succeeded, confirm evidence was written and state was rerouted
-- if a blocker or warning is present, render it with concise evidence and one recovery action
-- **always** emit a final governance readout after successful persist — do not stop at raw JSON output
-- when `plan_under_review_summary` is present in the JSON payload, render a **Plan** section containing exactly that preview (max 6 lines, max 800 chars, Markdown cleaned)
-- **always** end with exactly one `Next action:` line as the final output line
+- report `phase`, `next`, `active_gate`, `next_gate_condition` after persist; confirm evidence written and state rerouted on success
+- emit final governance readout after successful persist — do not stop at raw JSON output; if blocker/warning present, render with evidence and one recovery action
+- when `plan_under_review_summary` is present, **you must** render a **Plan** section containing exactly that preview (max 6 lines, max 800 chars); never skip this section
+- **always** end with exactly one `Next action:` line as the final output line — no additional text after it
 
 ---
 

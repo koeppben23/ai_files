@@ -1664,60 +1664,47 @@ class TestPlanUnderReviewSummaryContract:
 class TestPlanPreviewNormalization:
     """Tests for preview normalization (max lines, max chars, markdown cleanup).
 
-    These tests verify the _normalize_plan_preview helper behavior.
+    These tests verify the real _normalize_plan_preview helper from the module.
     """
-
-    def _normalize_plan_preview(self, raw: str) -> str:
-        import re
-        lines = raw.split("\n")
-        cleaned = []
-        for line in lines:
-            line = line.strip()
-            line = re.sub(r"^#+\s*", "", line)
-            line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
-            line = re.sub(r"[*_`]+", "", line)
-            if line:
-                cleaned.append(line)
-        if len(cleaned) > 6:
-            cleaned = cleaned[:6]
-        result = "\n".join(cleaned)
-        if len(result) > 800:
-            result = result[:797] + "..."
-        return result
 
     def test_max_six_lines(self):
         """Preview is truncated to max 6 lines."""
+        module = _load_module()
         raw = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8"
-        result = self._normalize_plan_preview(raw)
+        result = module._normalize_plan_preview(raw)
         lines = result.split("\n")
         assert len(lines) == 6
 
     def test_max_eight_hundred_chars(self):
         """Preview is truncated to max 800 chars."""
+        module = _load_module()
         raw = "x" * 1000
-        result = self._normalize_plan_preview(raw)
+        result = module._normalize_plan_preview(raw)
         assert len(result) <= 800
         assert result.endswith("...")
 
     def test_heading_cleanup(self):
         """Markdown headings are removed."""
+        module = _load_module()
         raw = "# Header\n## Subheader\n### Deep\nNormal text"
-        result = self._normalize_plan_preview(raw)
+        result = module._normalize_plan_preview(raw)
         assert "#" not in result
         assert "Header" in result
 
     def test_link_cleanup(self):
         """Markdown links are converted to plain text."""
+        module = _load_module()
         raw = "Check [this link](https://example.com) for more"
-        result = self._normalize_plan_preview(raw)
+        result = module._normalize_plan_preview(raw)
         assert "[" not in result
         assert "(" not in result
         assert "this link" in result
 
     def test_bold_italic_cleanup(self):
         """Markdown formatting is removed."""
+        module = _load_module()
         raw = "**bold** and *italic* and `code`"
-        result = self._normalize_plan_preview(raw)
+        result = module._normalize_plan_preview(raw)
         assert "*" not in result
         assert "`" not in result
         assert "bold" in result
@@ -1725,7 +1712,8 @@ class TestPlanPreviewNormalization:
 
     def test_stable_truncation(self):
         """Truncation is deterministic."""
+        module = _load_module()
         raw = "x" * 1000
-        result1 = self._normalize_plan_preview(raw)
-        result2 = self._normalize_plan_preview(raw)
+        result1 = module._normalize_plan_preview(raw)
+        result2 = module._normalize_plan_preview(raw)
         assert result1 == result2

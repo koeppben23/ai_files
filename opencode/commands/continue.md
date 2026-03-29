@@ -32,14 +32,10 @@ For Phase 5.4 (Business Rules Validation): if extraction evidence shows all miss
 
 ## Response shape
 
-- reflect current `SESSION_STATE.phase` and `SESSION_STATE.next`
-- include delta-only progress for the active step
-- if the session state contains plan data, render a **Plan under review** section:
-  - prefer `plan_under_review_summary` from the JSON payload (already normalized: max 6 lines, max 800 chars)
-  - fallback to `review_package_plan_body` if summary is unavailable
-  - truncate deterministically at line/char budget if content exceeds limits
-- if kernel reports a blocker or warning, render it with concise evidence and one recovery action
-- **always** end with exactly one `Next action:` line as the final output line (including terminal states); for Phase 4 / Ticket Input Gate include both options: `/ticket` and the read-only alternative `/review` (no state change)
+- reflect current `SESSION_STATE.phase` and `SESSION_STATE.next`; include delta-only progress for the active step
+- if session contains plan data, render **Plan under review** section (prefer `plan_under_review_summary` normalized to max 6 lines/800 chars; fallback to `review_package_plan_body`)
+- if kernel reports blocker/warning, render with evidence and one recovery action
+- **always** end with exactly one `Next action:` line as final output; for Phase 4 / Ticket Input Gate include both: `/ticket` and `/review`
 
 ---
 
