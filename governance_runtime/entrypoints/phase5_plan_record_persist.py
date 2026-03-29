@@ -7,8 +7,6 @@ import hashlib
 import json
 import os
 import re
-import shlex
-import shutil
 import sys
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -84,37 +82,6 @@ class MandateSchemaUnavailableError(Exception):
 _PHASE5_REVIEW_MIN_ITERATIONS = 1
 
 
-def _build_bridge_env() -> dict[str, str]:
-    env = dict(os.environ)
-    for key in (
-        "OPENCODE",
-        "OPENCODE_CLIENT",
-        "OPENCODE_PID",
-        "OPENCODE_SERVER_USERNAME",
-        "OPENCODE_SERVER_PASSWORD",
-    ):
-        env.pop(key, None)
-    permission_overlay = {
-        "$schema": "https://opencode.ai/config.json",
-        "permission": {
-            "bash": "deny",
-            "read": "deny",
-            "edit": "deny",
-            "glob": "deny",
-            "grep": "deny",
-            "list": "deny",
-            "task": "deny",
-            "skill": "deny",
-            "webfetch": "deny",
-            "websearch": "deny",
-            "codesearch": "deny",
-            "external_directory": "deny",
-        },
-    }
-    env["OPENCODE_CONFIG_CONTENT"] = json.dumps(permission_overlay, ensure_ascii=True)
-    return env
-
-
 def _resolve_active_opencode_session_id() -> str:
     session_id = str(os.environ.get("OPENCODE_SESSION_ID") or "").strip()
     if session_id:
@@ -123,67 +90,6 @@ def _resolve_active_opencode_session_id() -> str:
     if not isinstance(model_info, dict):
         return ""
     return str(model_info.get("session_id") or "").strip()
-
-
-def _bridge_timeout_seconds() -> int:
-    raw = str(os.environ.get("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS") or "").strip()
-    if not raw:
-        return 120
-    try:
-        value = int(raw)
-    except ValueError:
-        return 120
-    return max(30, min(value, 600))
-
-
-def _resolve_desktop_bridge_cmd(*, repo_root: Path, message: str) -> str:
-    candidate_env = str(os.environ.get("OPENCODE_CLI_BIN") or "").strip()
-    candidate_paths: list[str] = []
-    if candidate_env:
-        candidate_paths.append(candidate_env)
-    candidate_paths.append("/Applications/OpenCode.app/Contents/MacOS/opencode-cli")
-    which_opencode = shutil.which("opencode")
-    if which_opencode:
-        candidate_paths.append(which_opencode)
-    which_opencode_cli = shutil.which("opencode-cli")
-    if which_opencode_cli:
-        candidate_paths.append(which_opencode_cli)
-
-    cli_bin = ""
-    for token in candidate_paths:
-        path = Path(token)
-        if path.exists() and os.access(str(path), os.X_OK):
-            cli_bin = str(path)
-            break
-    if not cli_bin:
-        return ""
-
-    session_id = _resolve_active_opencode_session_id()
-    if not session_id:
-        return ""
-
-    model_info = resolve_active_opencode_model()
-    model_token = ""
-    if isinstance(model_info, dict):
-        provider = str(model_info.get("provider") or "").strip()
-        model_id = str(model_info.get("model_id") or "").strip()
-        if provider and model_id:
-            model_token = f"{provider}/{model_id}"
-
-    cmd_parts = [
-        shlex.quote(cli_bin),
-        "run",
-        "--session",
-        shlex.quote(session_id),
-        "--format",
-        "json",
-        "--file",
-        "{context_file}",
-    ]
-    if model_token:
-        cmd_parts.extend(["--model", shlex.quote(model_token)])
-    cmd_parts.append(shlex.quote(message))
-    return " ".join(cmd_parts)
 
 
 def _invoke_llm_via_server(
@@ -807,103 +713,89 @@ def _call_llm_generate_plan(
         )
 
     use_server_client = False
-    bridge_mode = False
-    server_required = is_server_required_mode()
-    server_error: str | None = None
+    session_id = _resolve_active_opencode_session_id()
+    model_info = resolve_active_opencode_model()
+    model_dict = None
+    if model_info and isinstance(model_info, dict):
+        provider = model_info.get("provider", "")
+        model_id = model_info.get("model_id", "")
+        if provider and model_id:
+            model_dict = {"providerID": provider, "modelID": model_id}
 
-    if not executor_cmd and not pipeline_mode and _has_active_desktop_llm_binding():
-        session_id = _resolve_active_opencode_session_id()
-        model_info = resolve_active_opencode_model()
-        model_dict = None
-        if model_info and isinstance(model_info, dict):
-            provider = model_info.get("provider", "")
-            model_id = model_info.get("model_id", "")
-            if provider and model_id:
-                model_dict = {"providerID": provider, "modelID": model_id}
+    if not session_id:
+        return _blocked_payload(
+            reason="plan-server-session-unavailable",
+            reason_code="BLOCKED-PLAN-SERVER-SESSION-UNAVAILABLE",
+            recovery_action="Configure OPENCODE_SESSION_ID (or active OpenCode desktop binding), then rerun /plan.",
+            next_action=NextActions.CONTINUE,
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=binding_source,
+            binding_resolved=True,
+            invoke_backend_available=False,
+            invoke_backend="server_client",
+            invoke_backend_error="missing-session-id",
+        )
 
-        if session_id:
-            try:
-                context_json = context_file.read_text(encoding="utf-8")
-                output_schema_text = _get_plan_output_schema_text()
-                output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
+    try:
+        context_json = context_file.read_text(encoding="utf-8")
+        output_schema_text = _get_plan_output_schema_text()
+        output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
 
-                prompt_text = "Read the following planning context JSON and produce only valid JSON conforming to the provided output schema.\n\n" + context_json
+        prompt_text = "Read the following planning context JSON and produce only valid JSON conforming to the provided output schema.\n\n" + context_json
 
-                response_text = _invoke_llm_via_server(
-                    session_id=session_id,
-                    prompt_text=prompt_text,
-                    model_info=model_dict,
-                    output_schema=output_schema,
-                    required=server_required,
-                )
+        response_text = _invoke_llm_via_server(
+            session_id=session_id,
+            prompt_text=prompt_text,
+            model_info=model_dict,
+            output_schema=output_schema,
+            required=True,
+        )
 
-                response_text = _parse_json_events_to_text(response_text)
-                parsed = _parse_plan_generation_response(response_text, re_review=re_review)
+        response_text = _parse_json_events_to_text(response_text)
+        parsed = _parse_plan_generation_response(response_text, re_review=re_review)
 
-                use_server_client = True
-                server_url = ""
-                try:
-                    server_url = resolve_opencode_server_base_url()
-                except ServerNotAvailableError:
-                    pass
-                atomic_write_text(stdout_file, response_text)
-                atomic_write_text(stderr_file, "")
-                atomic_write_text(stderr_file, f"[server_client] Plan generated via direct HTTP (url: {server_url})")
-            except ServerNotAvailableError as exc:
-                server_error = str(exc)
-                atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
-                if server_required:
-                    return _blocked_payload(
-                        reason="server-required-but-unavailable",
-                        reason_code="BLOCKED-SERVER-REQUIRED-UNAVAILABLE",
-                        recovery_action="AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER=1 is set but OpenCode server is not available.",
-                        next_action=NextActions.CONTINUE,
-                        pipeline_mode=pipeline_mode,
-                        binding_role="execution",
-                        binding_source=binding_source,
-                        binding_resolved=True,
-                        invoke_backend_available=False,
-                        invoke_backend="server_client",
-                        invoke_backend_error=server_error,
-                    )
-            except Exception as exc:
-                server_error = str(exc)
-                atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
-                if server_required:
-                    return _blocked_payload(
-                        reason="server-required-but-failed",
-                        reason_code="BLOCKED-SERVER-REQUIRED-FAILED",
-                        recovery_action="AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER=1 is set but server call failed.",
-                        next_action=NextActions.CONTINUE,
-                        pipeline_mode=pipeline_mode,
-                        binding_role="execution",
-                        binding_source=binding_source,
-                        binding_resolved=True,
-                        invoke_backend_available=False,
-                        invoke_backend="server_client",
-                        invoke_backend_error=server_error,
-                    )
-
-        if not use_server_client and not server_required:
-            legacy_bridge_cmd = _resolve_desktop_bridge_cmd(
-                repo_root=Path.cwd(),
-                message="Read the attached planning context JSON and produce only valid JSON conforming to the provided output schema.",
-            )
-            if legacy_bridge_cmd:
-                executor_cmd = legacy_bridge_cmd
-                bridge_mode = True
-            elif not session_id:
-                return _blocked_payload(
-                    reason="plan-llm-executor-unavailable",
-                    reason_code="BLOCKED-PLAN-EXECUTOR-UNAVAILABLE",
-                    recovery_action="Direct mode requires active chat binding and resolvable session id.",
-                    next_action=NextActions.CONTINUE,
-                    pipeline_mode=pipeline_mode,
-                    binding_role="execution",
-                    binding_source=binding_source,
-                    binding_resolved=True,
-                    invoke_backend_available=False,
-                )
+        use_server_client = True
+        server_url = ""
+        try:
+            server_url = resolve_opencode_server_base_url()
+        except ServerNotAvailableError:
+            pass
+        atomic_write_text(stdout_file, response_text)
+        atomic_write_text(stderr_file, "")
+        atomic_write_text(stderr_file, f"[server_client] Plan generated via direct HTTP (url: {server_url})")
+    except ServerNotAvailableError as exc:
+        server_error = str(exc)
+        atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+        return _blocked_payload(
+            reason="server-required-but-unavailable",
+            reason_code="BLOCKED-SERVER-REQUIRED-UNAVAILABLE",
+            recovery_action="OpenCode server is not available for /plan.",
+            next_action=NextActions.CONTINUE,
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=binding_source,
+            binding_resolved=True,
+            invoke_backend_available=False,
+            invoke_backend="server_client",
+            invoke_backend_error=server_error,
+        )
+    except Exception as exc:
+        server_error = str(exc)
+        atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+        return _blocked_payload(
+            reason="server-required-but-failed",
+            reason_code="BLOCKED-SERVER-REQUIRED-FAILED",
+            recovery_action="OpenCode server call failed during /plan.",
+            next_action=NextActions.CONTINUE,
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=binding_source,
+            binding_resolved=True,
+            invoke_backend_available=False,
+            invoke_backend="server_client",
+            invoke_backend_error=server_error,
+        )
 
     if use_server_client:
         parsed["pipeline_mode"] = pipeline_mode
@@ -912,64 +804,18 @@ def _call_llm_generate_plan(
         parsed["invoke_backend"] = "server_client"
         return parsed
 
-    response_text = ""
-    final_cmd = executor_cmd
-    if "{context_file}" in final_cmd:
-        final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
-    import subprocess
-    try:
-        result = subprocess.run(
-            final_cmd,
-            shell=True,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=_bridge_timeout_seconds() if bridge_mode else None,
-            env=_build_bridge_env() if bridge_mode else None,
-        )
-        atomic_write_text(stdout_file, str(result.stdout or ""))
-        atomic_write_text(stderr_file, str(result.stderr or ""))
-        response_text = result.stdout or ""
-    except Exception as exc:
-        return _blocked_payload(
-            reason=f"plan-llm-execution-failed: {exc}",
-            reason_code=BLOCKED_PLAN_GENERATION_FAILED,
-            recovery_action="LLM execution failed.",
-            next_action=NextActions.CONTINUE,
-            pipeline_mode=pipeline_mode,
-            binding_role="execution",
-            binding_source=binding_source,
-        )
-
-    if not response_text.strip():
-        return _blocked_payload(
-            reason="plan-llm-empty-response",
-            reason_code=BLOCKED_PLAN_GENERATION_FAILED,
-            recovery_action="LLM returned empty response for plan generation.",
-            next_action=NextActions.CONTINUE,
-            pipeline_mode=pipeline_mode,
-            binding_role="execution",
-            binding_source=binding_source,
-        )
-
-    if bridge_mode and '"type":"tool_use"' in response_text and '"type":"text"' not in response_text:
-        return _blocked_payload(
-            reason="plan-llm-tool-use-disallowed",
-            reason_code=BLOCKED_PLAN_GENERATION_FAILED,
-            recovery_action="LLM must return JSON directly without tool calls in plan mode.",
-            next_action=NextActions.CONTINUE,
-            pipeline_mode=pipeline_mode,
-            binding_role="execution",
-            binding_source=binding_source,
-        )
-
-    response_text = _parse_json_events_to_text(response_text)
-    parsed = _parse_plan_generation_response(response_text, re_review=re_review)
-    parsed["pipeline_mode"] = pipeline_mode
-    parsed["binding_role"] = "execution"
-    parsed["binding_source"] = binding_source
-    parsed["invoke_backend"] = "legacy_cli_bridge"
-    return parsed
+    return _blocked_payload(
+        reason="plan-server-invocation-failed",
+        reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+        recovery_action="OpenCode server invocation failed.",
+        next_action=NextActions.CONTINUE,
+        pipeline_mode=pipeline_mode,
+        binding_role="execution",
+        binding_source=binding_source,
+        binding_resolved=True,
+        invoke_backend_available=False,
+        invoke_backend="server_client",
+    )
 
 
 def _parse_plan_generation_response(response_text: str, *, re_review: bool = False) -> dict[str, object]:
@@ -1417,184 +1263,62 @@ def _call_llm_review(
     server_required = is_server_required_mode()
     server_error: str | None = None
 
-    if not executor_cmd and not pipeline_mode and _has_active_desktop_llm_binding():
-        session_id = _resolve_active_opencode_session_id()
-        model_info = resolve_active_opencode_model()
-        model_dict = None
-        if model_info and isinstance(model_info, dict):
-            provider = model_info.get("provider", "")
-            model_id = model_info.get("model_id", "")
-            if provider and model_id:
-                model_dict = {"providerID": provider, "modelID": model_id}
+    session_id = _resolve_active_opencode_session_id()
+    model_info = resolve_active_opencode_model()
+    model_dict = None
+    if model_info and isinstance(model_info, dict):
+        provider = model_info.get("provider", "")
+        model_id = model_info.get("model_id", "")
+        if provider and model_id:
+            model_dict = {"providerID": provider, "modelID": model_id}
 
-        if session_id:
-            try:
-                context_json = context_file.read_text(encoding="utf-8")
-                output_schema_text = _get_review_output_schema_text()
-                output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
+    if not session_id:
+        return {
+            "llm_invoked": False,
+            "verdict": "changes_requested",
+            "findings": ["server-session-unavailable"],
+            "reason_code": "BLOCKED-REVIEW-SERVER-SESSION-UNAVAILABLE",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+            "binding_resolved": True,
+            "invoke_backend_available": False,
+            "invoke_backend": "server_client",
+            "invoke_backend_error": "missing-session-id",
+        }
 
-                prompt_text = "Read the following review context JSON and produce only valid JSON conforming to the provided output schema.\n\n" + context_json
-
-                response_text = _invoke_llm_via_server(
-                    session_id=session_id,
-                    prompt_text=prompt_text,
-                    model_info=model_dict,
-                    output_schema=output_schema,
-                    required=server_required,
-                )
-
-                try:
-                    mandates_schema = _load_mandates_schema()
-                except (MandateSchemaMissingError, MandateSchemaInvalidJsonError,
-                        MandateSchemaInvalidStructureError, MandateSchemaUnavailableError) as exc:
-                    reason_code = _mandate_schema_reason_code(exc)
-                    return {
-                        "llm_invoked": False,
-                        "verdict": "changes_requested",
-                        "findings": [f"{reason_code.lower()}: {exc}"],
-                        "reason_code": reason_code,
-                        "pipeline_mode": pipeline_mode,
-                        "binding_role": "review",
-                        "binding_source": binding_source,
-                    }
-
-                parsed = _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
-                parsed["pipeline_mode"] = pipeline_mode
-                parsed["binding_role"] = "review"
-                parsed["binding_source"] = binding_source
-                parsed["invoke_backend"] = "server_client"
-                server_url = ""
-                try:
-                    server_url = resolve_opencode_server_base_url()
-                except ServerNotAvailableError:
-                    pass
-                parsed["invoke_backend_url"] = server_url
-
-                use_server_client = True
-                atomic_write_text(stdout_file, response_text)
-                atomic_write_text(stderr_file, f"[server_client] Review via direct HTTP (url: {server_url})")
-                return parsed
-            except ServerNotAvailableError as exc:
-                server_error = str(exc)
-                atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
-                if server_required:
-                    return {
-                        "llm_invoked": True,
-                        "verdict": "changes_requested",
-                        "findings": [f"Server required but unavailable: {server_error}"],
-                        "reason_code": "BLOCKED-SERVER-REQUIRED-UNAVAILABLE",
-                        "pipeline_mode": pipeline_mode,
-                        "binding_role": "review",
-                        "binding_source": binding_source,
-                        "binding_resolved": True,
-                        "invoke_backend_available": False,
-                        "invoke_backend": "server_client",
-                        "invoke_backend_error": server_error,
-                    }
-            except Exception as exc:
-                server_error = str(exc)
-                atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
-                if server_required:
-                    return {
-                        "llm_invoked": True,
-                        "verdict": "changes_requested",
-                        "findings": [f"Server required but failed: {server_error}"],
-                        "reason_code": "BLOCKED-SERVER-REQUIRED-FAILED",
-                        "pipeline_mode": pipeline_mode,
-                        "binding_role": "review",
-                        "binding_source": binding_source,
-                        "binding_resolved": True,
-                        "invoke_backend_available": False,
-                        "invoke_backend": "server_client",
-                        "invoke_backend_error": server_error,
-                    }
-
-        if not use_server_client and not server_required:
-            legacy_bridge_cmd = _resolve_desktop_bridge_cmd(
-                repo_root=Path.cwd(),
-                message="Read the attached review context JSON and produce only valid JSON conforming to the provided output schema.",
-            )
-            if legacy_bridge_cmd:
-                executor_cmd = legacy_bridge_cmd
-                bridge_mode = True
-            elif not session_id:
-                return {
-                    "llm_invoked": False,
-                    "verdict": "changes_requested",
-                    "findings": [
-                        "Direct mode review binding requires active chat binding and resolvable session id."
-                    ],
-                    "reason_code": "BLOCKED-REVIEW-EXECUTOR-UNAVAILABLE",
-                    "pipeline_mode": pipeline_mode,
-                    "binding_role": "review",
-                    "binding_source": binding_source,
-                    "binding_resolved": True,
-                    "invoke_backend_available": False,
-                }
-
-    response_text = ""
-    final_cmd = executor_cmd
-    if "{context_file}" in final_cmd:
-        final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
-    import subprocess
     try:
-        result = subprocess.run(
-            final_cmd,
-            shell=True,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=_bridge_timeout_seconds() if bridge_mode else None,
-            env=_build_bridge_env() if bridge_mode else None,
+        context_json = context_file.read_text(encoding="utf-8")
+        output_schema_text = _get_review_output_schema_text()
+        output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
+
+        prompt_text = "Read the following review context JSON and produce only valid JSON conforming to the provided output schema.\n\n" + context_json
+
+        response_text = _invoke_llm_via_server(
+            session_id=session_id,
+            prompt_text=prompt_text,
+            model_info=model_dict,
+            output_schema=output_schema,
+            required=True,
         )
-        atomic_write_text(stdout_file, str(result.stdout or ""))
-        atomic_write_text(stderr_file, str(result.stderr or ""))
-        response_text = result.stdout or ""
-    except subprocess.TimeoutExpired:
-        return {
-            "llm_invoked": False,
-            "verdict": "changes_requested",
-            "findings": ["review-llm-timeout"],
-            "reason_code": BLOCKED_REVIEW_EXECUTOR_TIMEOUT,
-            "pipeline_mode": pipeline_mode,
-            "binding_role": "review",
-            "binding_source": binding_source,
-        }
-    except Exception as exc:
-        return {
-            "llm_invoked": False,
-            "verdict": "changes_requested",
-            "findings": [f"LLM executor failed: {exc}"],
-            "pipeline_mode": pipeline_mode,
-            "binding_role": "review",
-            "binding_source": binding_source,
-        }
 
-    if not response_text.strip():
-        return {
-            "llm_invoked": False,
-            "verdict": "changes_requested",
-            "findings": ["LLM executor returned empty response"],
-            "pipeline_mode": pipeline_mode,
-            "binding_role": "review",
-            "binding_source": binding_source,
-        }
-
-    if bridge_mode and '"type":"tool_use"' in response_text and '"type":"text"' not in response_text:
-        return {
-            "llm_invoked": False,
-            "verdict": "changes_requested",
-            "findings": ["review-llm-tool-use-disallowed"],
-            "reason_code": BLOCKED_REVIEW_TOOL_USE_DISALLOWED,
-            "pipeline_mode": pipeline_mode,
-            "binding_role": "review",
-            "binding_source": binding_source,
-        }
-
-    response_text = _parse_json_events_to_text(response_text)
-
-    try:
         mandates_schema = _load_mandates_schema()
+        parsed = _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
+        parsed["pipeline_mode"] = pipeline_mode
+        parsed["binding_role"] = "review"
+        parsed["binding_source"] = binding_source
+        parsed["invoke_backend"] = "server_client"
+        server_url = ""
+        try:
+            server_url = resolve_opencode_server_base_url()
+        except ServerNotAvailableError:
+            pass
+        parsed["invoke_backend_url"] = server_url
+
+        use_server_client = True
+        atomic_write_text(stdout_file, response_text)
+        atomic_write_text(stderr_file, f"[server_client] Review via direct HTTP (url: {server_url})")
+        return parsed
     except (MandateSchemaMissingError, MandateSchemaInvalidJsonError,
             MandateSchemaInvalidStructureError, MandateSchemaUnavailableError) as exc:
         reason_code = _mandate_schema_reason_code(exc)
@@ -1606,14 +1330,40 @@ def _call_llm_review(
             "pipeline_mode": pipeline_mode,
             "binding_role": "review",
             "binding_source": binding_source,
+            "invoke_backend": "server_client",
         }
-
-    parsed = _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
-    parsed["pipeline_mode"] = pipeline_mode
-    parsed["binding_role"] = "review"
-    parsed["binding_source"] = binding_source
-    parsed["invoke_backend"] = "legacy_cli_bridge"
-    return parsed
+    except ServerNotAvailableError as exc:
+        server_error = str(exc)
+        atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": [f"Server required but unavailable: {server_error}"],
+            "reason_code": "BLOCKED-SERVER-REQUIRED-UNAVAILABLE",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+            "binding_resolved": True,
+            "invoke_backend_available": False,
+            "invoke_backend": "server_client",
+            "invoke_backend_error": server_error,
+        }
+    except Exception as exc:
+        server_error = str(exc)
+        atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": [f"Server required but failed: {server_error}"],
+            "reason_code": "BLOCKED-SERVER-REQUIRED-FAILED",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+            "binding_resolved": True,
+            "invoke_backend_available": False,
+            "invoke_backend": "server_client",
+            "invoke_backend_error": server_error,
+        }
 
 
 def _parse_llm_review_response(
