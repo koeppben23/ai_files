@@ -1025,6 +1025,24 @@ class TestMain:
         assert "Current phase is" in captured.out
         assert "Next action:" in captured.out
 
+    def test_debug_flag_uses_guided_renderer(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "phase": "4",
+                "active_gate": "Ticket Input Gate",
+                "next_gate_condition": "Provide ticket details",
+                "status": "OK",
+            },
+        )
+        with _mock_readonly_unavailable():
+            rc = main(["--commands-home", str(fake_config / "commands"), "--debug"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "Current state" in captured.out
+        assert "What this means now" in captured.out
+
     def test_error_exit_code(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
         # No pointer file -> error
         rc = main(["--commands-home", str(fake_config / "commands")])
