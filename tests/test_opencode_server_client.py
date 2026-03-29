@@ -47,27 +47,17 @@ class TestResolveServerBaseUrl:
         result = resolve_opencode_server_base_url()
         assert result == "http://127.0.0.1:5000"
 
-    def test_happy_opencode_port_with_hostname(self, monkeypatch: pytest.MonkeyPatch):
-        """Happy: OPENCODE_HOST and OPENCODE_PORT combined."""
-        monkeypatch.delenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", raising=False)
-        monkeypatch.setenv("OPENCODE_HOST", "192.168.1.100")
-        monkeypatch.setenv("OPENCODE_PORT", "6000")
-        result = resolve_opencode_server_base_url()
-        assert result == "http://192.168.1.100:6000"
-
-    def test_happy_opencode_port_default(self, monkeypatch: pytest.MonkeyPatch):
-        """Happy: Default port 4096 when OPENCODE_PORT is set but empty."""
-        monkeypatch.delenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", raising=False)
+    def test_happy_opencode_port_default_4096(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: Default port 4096 when only override is empty."""
+        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "")
         monkeypatch.setenv("OPENCODE_PORT", "")
-        monkeypatch.setenv("OPENCODE_HOST", "192.168.1.1")
-        result = resolve_opencode_server_base_url()
-        assert result == "http://192.168.1.1:4096"
+        with pytest.raises(ServerNotAvailableError):
+            resolve_opencode_server_base_url()
 
     def test_bad_no_env_vars(self, monkeypatch: pytest.MonkeyPatch):
         """Bad: Missing all env vars raises ServerNotAvailableError."""
         monkeypatch.delenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", raising=False)
         monkeypatch.delenv("OPENCODE_PORT", raising=False)
-        monkeypatch.delenv("OPENCODE_HOST", raising=False)
         with pytest.raises(ServerNotAvailableError) as exc_info:
             resolve_opencode_server_base_url()
         assert "not resolvable" in str(exc_info.value).lower()
@@ -187,6 +177,18 @@ class TestExtractSessionResponse:
         result = extract_session_response(payload)
         assert result == ""
 
+    def test_happy_top_level_parts(self):
+        """Happy: Top-level parts are extracted when info.parts is empty."""
+        payload = {
+            "info": {},
+            "parts": [
+                {"type": "text", "text": "Top level 1"},
+                {"type": "text", "text": "Top level 2"},
+            ]
+        }
+        result = extract_session_response(payload)
+        assert result == "Top level 1\nTop level 2"
+
 
 class TestSendSessionPrompt:
     """Tests for sending prompts to sessions.
@@ -267,6 +269,7 @@ class TestSendSessionCommand:
             assert "/session/session-123/command" in call_args[0][0]
             body = call_args[0][1]
             assert body["command"] == "/plan"
+            assert body["arguments"] == []
 
     def test_bad_empty_session_id(self):
         """Bad: Empty session_id raises APIError."""
@@ -280,31 +283,33 @@ class TestSendSessionCommand:
 
 
 class TestCheckServerHealth:
-    """Tests for server health check."""
+    """Tests for server health check - uses GET /global/health."""
 
     def test_happy_healthy_server(self):
         """Happy: Healthy server returns True."""
-        with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
+        with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
             with patch("governance_runtime.infrastructure.opencode_server_client.resolve_opencode_server_base_url") as url_mock:
                 url_mock.return_value = "http://localhost:4096"
-                mock.return_value = {"healthy": True}
+                mock_response = mock_urlopen.return_value.__enter__.return_value
+                mock_response.read.return_value = b'{"healthy": true}'
                 result = check_server_health()
                 assert result is True
 
     def test_happy_unhealthy_server(self):
         """Happy: Unhealthy server returns False."""
-        with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
+        with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
             with patch("governance_runtime.infrastructure.opencode_server_client.resolve_opencode_server_base_url") as url_mock:
                 url_mock.return_value = "http://localhost:4096"
-                mock.return_value = {"healthy": False}
+                mock_response = mock_urlopen.return_value.__enter__.return_value
+                mock_response.read.return_value = b'{"healthy": false}'
                 result = check_server_health()
                 assert result is False
 
     def test_bad_server_unavailable(self):
         """Bad: Server not available returns False."""
-        with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
+        with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
             with patch("governance_runtime.infrastructure.opencode_server_client.resolve_opencode_server_base_url") as url_mock:
                 url_mock.return_value = "http://localhost:4096"
-                mock.side_effect = ServerNotAvailableError("test")
+                mock_urlopen.side_effect = Exception("Connection refused")
                 result = check_server_health()
                 assert result is False
