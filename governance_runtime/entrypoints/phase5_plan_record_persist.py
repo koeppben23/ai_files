@@ -873,6 +873,14 @@ def _parse_plan_generation_response(response_text: str, *, re_review: bool = Fal
             pass
 
     if parsed_data is None:
+        json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", raw_text, re.DOTALL)
+        if json_match:
+            try:
+                parsed_data = json.loads(json_match.group(0))
+            except json.JSONDecodeError:
+                pass
+
+    if parsed_data is None:
         return _blocked_payload(
             reason=f"plan-response-not-json: received {len(raw_text)} chars starting with: {raw_text[:80]!r}",
             reason_code=BLOCKED_PLAN_GENERATION_FAILED,
