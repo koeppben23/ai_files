@@ -58,6 +58,7 @@ from governance_runtime.infrastructure.opencode_server_client import (
     extract_session_response,
     ServerNotAvailableError,
     resolve_opencode_server_base_url,
+    is_server_required_mode,
 )
 from governance_runtime.infrastructure.workspace_paths import plan_record_archive_dir, plan_record_path
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
@@ -795,6 +796,8 @@ def _call_llm_generate_plan(
 
     use_server_client = False
     bridge_mode = False
+    server_required = is_server_required_mode()
+    server_error: str | None = None
 
     if not executor_cmd and not pipeline_mode and _has_active_desktop_llm_binding():
         session_id = _resolve_active_opencode_session_id()
@@ -820,21 +823,57 @@ def _call_llm_generate_plan(
                     prompt_text=prompt_text,
                     model_info=model_dict,
                     output_schema=output_schema,
+                    required=server_required,
                 )
 
                 response_text = _parse_json_events_to_text(response_text)
                 parsed = _parse_plan_generation_response(response_text, re_review=re_review)
 
                 use_server_client = True
+                server_url = ""
+                try:
+                    server_url = resolve_opencode_server_base_url()
+                except ServerNotAvailableError:
+                    pass
                 atomic_write_text(stdout_file, response_text)
                 atomic_write_text(stderr_file, "")
-                atomic_write_text(stderr_file, "[server_client] Plan generated via direct HTTP")
-            except ServerNotAvailableError:
-                pass
+                atomic_write_text(stderr_file, f"[server_client] Plan generated via direct HTTP (url: {server_url})")
+            except ServerNotAvailableError as exc:
+                server_error = str(exc)
+                atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+                if server_required:
+                    return _blocked_payload(
+                        reason="server-required-but-unavailable",
+                        reason_code="BLOCKED-SERVER-REQUIRED-UNAVAILABLE",
+                        recovery_action="AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER=1 is set but OpenCode server is not available.",
+                        next_action=NextActions.CONTINUE,
+                        pipeline_mode=pipeline_mode,
+                        binding_role="execution",
+                        binding_source=binding_source,
+                        binding_resolved=True,
+                        invoke_backend_available=False,
+                        invoke_backend="server_client",
+                        invoke_backend_error=server_error,
+                    )
             except Exception as exc:
-                atomic_write_text(stderr_file, f"[server_client] Failed: {exc}")
+                server_error = str(exc)
+                atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+                if server_required:
+                    return _blocked_payload(
+                        reason="server-required-but-failed",
+                        reason_code="BLOCKED-SERVER-REQUIRED-FAILED",
+                        recovery_action="AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER=1 is set but server call failed.",
+                        next_action=NextActions.CONTINUE,
+                        pipeline_mode=pipeline_mode,
+                        binding_role="execution",
+                        binding_source=binding_source,
+                        binding_resolved=True,
+                        invoke_backend_available=False,
+                        invoke_backend="server_client",
+                        invoke_backend_error=server_error,
+                    )
 
-        if not use_server_client:
+        if not use_server_client and not server_required:
             legacy_bridge_cmd = _resolve_desktop_bridge_cmd(
                 repo_root=Path.cwd(),
                 message="Read the attached planning context JSON and produce only valid JSON conforming to the provided output schema.",
