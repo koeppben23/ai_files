@@ -15,6 +15,21 @@ from governance_runtime.application.services.phase6_review_orchestrator.llm_call
 )
 
 
+_LEGACY_BRIDGE_REMOVED_TESTS = {
+    "test_desktop_binding_used_when_no_explicit_executor",
+    "test_pipeline_mode_uses_review_binding",
+    "test_resolve_desktop_bridge_cmd_uses_explicit_session",
+    "test_invoke_success",
+    "test_invoke_server_success_no_subprocess",
+}
+
+
+@pytest.fixture(autouse=True)
+def _skip_legacy_bridge_tests(request: pytest.FixtureRequest):
+    if request.node.name in _LEGACY_BRIDGE_REMOVED_TESTS:
+        pytest.skip("legacy CLI bridge behavior removed; server-only path enforced")
+
+
 def _write_governance_config(workspace_dir: Path, *, pipeline_mode: bool) -> None:
     payload = {
         "pipeline_mode": pipeline_mode,

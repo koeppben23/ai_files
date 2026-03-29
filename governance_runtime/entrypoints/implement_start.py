@@ -16,8 +16,6 @@ import hashlib
 import json
 import os
 import re
-import shlex
-import shutil
 import subprocess
 import sys
 import uuid
@@ -647,60 +645,6 @@ def _has_active_desktop_llm_binding() -> bool:
     return _has_desktop_llm_binding()
 
 
-def _resolve_desktop_executor_bridge_cmd(*, repo_root: Path) -> str:
-    candidate_env = str(os.environ.get("OPENCODE_CLI_BIN") or "").strip()
-    candidate_paths: list[str] = []
-    if candidate_env:
-        candidate_paths.append(candidate_env)
-    candidate_paths.append("/Applications/OpenCode.app/Contents/MacOS/opencode-cli")
-    which_opencode = shutil.which("opencode")
-    if which_opencode:
-        candidate_paths.append(which_opencode)
-    which_opencode_cli = shutil.which("opencode-cli")
-    if which_opencode_cli:
-        candidate_paths.append(which_opencode_cli)
-
-    cli_bin = ""
-    for token in candidate_paths:
-        path = Path(token)
-        if path.exists() and os.access(str(path), os.X_OK):
-            cli_bin = str(path)
-            break
-    if not cli_bin:
-        return ""
-
-    session_id = _resolve_active_opencode_session_id()
-    if not session_id:
-        return ""
-
-    model_info = resolve_active_opencode_model()
-    model_token = ""
-    if isinstance(model_info, dict):
-        provider = str(model_info.get("provider") or "").strip()
-        model_id = str(model_info.get("model_id") or "").strip()
-        if provider and model_id:
-            model_token = f"{provider}/{model_id}"
-
-    message = (
-        "Read the attached implementation context JSON and execute the approved plan by editing "
-        "domain repository files (not .governance). Return strict JSON only."
-    )
-    cmd_parts = [
-        shlex.quote(cli_bin),
-        "run",
-        "--session",
-        shlex.quote(session_id),
-        "--format",
-        "json",
-        "--file",
-        "{context_file}",
-    ]
-    if model_token:
-        cmd_parts.extend(["--model", shlex.quote(model_token)])
-    cmd_parts.append(shlex.quote(message))
-    return " ".join(cmd_parts)
-
-
 def _invoke_llm_via_server(
     session_id: str,
     prompt_text: str,
@@ -1063,154 +1007,45 @@ def _run_llm_edit_step(
                         "recovery_action": "AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER=1 is set but server call failed.",
                     }
 
-    if not executor_cmd and not server_required:
-        if _has_active_desktop_llm_binding() and not pipeline_mode:
-            bridge_cmd = _resolve_desktop_executor_bridge_cmd(repo_root=repo_root)
-            if bridge_cmd:
-                executor_cmd = bridge_cmd
-                bridge_mode = True
-            else:
-                _write_text_atomic(stdout_file, "")
-                _write_text_atomic(
-                    stderr_file,
-                    (
-                        "Direct mode requires active chat binding and callable desktop bridge.\n"
-                    ),
-                )
-                next_action_dict = NextActions.IMPLEMENT_START.to_dict()
-                return {
-                    "executor_invoked": False,
-                    "exit_code": 2,
-                    "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
-                    "binding_resolved": True,
-                    "invoke_backend_available": False,
-                    "message": (
-                        "Direct mode binding resolved to active chat binding, but no callable desktop bridge with a resolvable session id is available in this shell process."
-                    ),
-                    "stdout_path": str(stdout_file),
-                    "stderr_path": str(stderr_file),
-                    "changed_files": [],
-                    "repo_baseline": repo_baseline,
-                    "blocked": True,
-                    "recovery_action": "Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
-                    **next_action_dict,
-                }
-        if not executor_cmd:
-            _write_text_atomic(stdout_file, "")
-            _write_text_atomic(stderr_file, "LLM executor command missing\n")
-            next_action_dict = NextActions.IMPLEMENT_START.to_dict()
-            return {
-                "executor_invoked": False,
-                "exit_code": 2,
-                "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
-                "binding_resolved": False,
-                "invoke_backend_available": False,
-                "message": "No implementation execution binding available for active mode.",
-                "stdout_path": str(stdout_file),
-                "stderr_path": str(stderr_file),
-                "changed_files": [],
-                "repo_baseline": repo_baseline,
-                "blocked": True,
-                "recovery_action": "Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
-                **next_action_dict,
-            }
-
-    final_cmd = executor_cmd
-    if "{context_file}" in final_cmd:
-        final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
-
-    run_kwargs: dict[str, object] = {
-        "shell": True,
-        "cwd": str(repo_root),
-        "capture_output": True,
-        "text": True,
-        "check": False,
-        "env": _build_executor_env(bridge_mode=bridge_mode),
-    }
-    bridge_timeout = _bridge_timeout_seconds() if bridge_mode else None
-    if bridge_timeout is not None:
-        run_kwargs["timeout"] = bridge_timeout
-    try:
-        result = subprocess.run(final_cmd, **run_kwargs)
-    except subprocess.TimeoutExpired:
+    if not use_server_client:
         _write_text_atomic(stdout_file, "")
-        _write_text_atomic(stderr_file, "implementation-llm-timeout\n")
+        if server_error:
+            _write_text_atomic(stderr_file, f"[server_client] Failed: {server_error}")
         next_action_dict = NextActions.IMPLEMENT_START.to_dict()
         return {
             "executor_invoked": True,
-            "exit_code": 124,
+            "exit_code": 1,
             "reason_code": RC_EXECUTOR_FAILED,
             "binding_resolved": True,
-            "invoke_backend_available": True,
-            "invoke_backend": "legacy_cli_bridge",
-            "message": "Implementation LLM bridge timed out.",
+            "invoke_backend_available": False,
+            "invoke_backend": "server_client",
+            "invoke_backend_error": server_error or "server-invocation-failed",
+            "message": "Implementation server invocation failed.",
             "stdout_path": str(stdout_file),
             "stderr_path": str(stderr_file),
             "changed_files": [],
             "repo_baseline": repo_baseline,
             "blocked": True,
-            "recovery_action": "Retry /implement after ensuring LLM bridge is responsive.",
+            "recovery_action": "Ensure OpenCode server is available and rerun /implement.",
             **next_action_dict,
         }
-    _write_text_atomic(stdout_file, str(result.stdout or ""))
-    _write_text_atomic(stderr_file, str(result.stderr or ""))
 
-    validation_violations: list[str] = []
-    response_valid = False
-    response_text = (result.stdout or "").strip()
-
-    response_text = _parse_json_events_to_text(response_text)
-
-    if bridge_mode:
-        response_valid = True
-    elif response_text and response_text.startswith("{"):
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
-        try:
-            from llm_response_validator import (
-                coerce_output_against_mandates_schema,
-                validate_developer_response,
-            )
-            parsed = json.loads(response_text)
-            normalized = coerce_output_against_mandates_schema(parsed, schema, "developerOutputSchema")
-            if isinstance(normalized, dict):
-                parsed = normalized
-            validation = validate_developer_response(parsed, mandates_schema=schema)
-            if validation.valid:
-                response_valid = True
-            else:
-                validation_violations = validation.raw_violations
-        except json.JSONDecodeError:
-            validation_violations = ["response-not-structured-json"]
-        except (OSError, IOError) as e:
-            validation_violations = [f"response-read-error: {e}"]
-    else:
-        if response_text:
-            validation_violations = ["response-not-structured-json"]
-
-    after_changed = set(_parse_changed_files_from_git_status(repo_root))
-    delta_changed = sorted(after_changed - before_changed)
-    after_hotspot_hashes = _capture_hotspot_hashes(repo_root, required_hotspots)
-    hotspot_changed = sorted(
-        path
-        for path in sorted(set(before_hotspot_hashes).union(after_hotspot_hashes))
-        if before_hotspot_hashes.get(path, "") != after_hotspot_hashes.get(path, "")
-    )
-    changed_files = sorted(set(delta_changed).union(hotspot_changed))
     return {
         "executor_invoked": True,
-        "exit_code": int(result.returncode),
-        "reason_code": "" if result.returncode == 0 else RC_EXECUTOR_FAILED,
-        "message": "" if result.returncode == 0 else str(result.stderr or result.stdout or "").strip(),
+        "exit_code": 1,
+        "reason_code": RC_EXECUTOR_FAILED,
+        "binding_resolved": True,
+        "invoke_backend_available": False,
+        "invoke_backend": "server_client",
+        "invoke_backend_error": "unexpected-state-no-server-result",
+        "message": "Implementation server invocation returned no result.",
         "stdout_path": str(stdout_file),
         "stderr_path": str(stderr_file),
-        "changed_files": changed_files,
-        "response_valid": response_valid,
-        "validation_violations": validation_violations,
-        "bridge_mode": bridge_mode,
-        "binding_resolved": True,
-        "invoke_backend_available": True,
-        "invoke_backend": "legacy_cli_bridge",
+        "changed_files": [],
         "repo_baseline": repo_baseline,
+        "blocked": True,
+        "recovery_action": "Ensure OpenCode server is available and rerun /implement.",
+        **NextActions.IMPLEMENT_START.to_dict(),
     }
 
 

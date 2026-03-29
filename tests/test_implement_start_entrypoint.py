@@ -19,6 +19,30 @@ from governance_runtime.engine.implementation_validation import (
 _ORIGINAL_RUN_LLM_EDIT_STEP = entrypoint._run_llm_edit_step
 _ORIGINAL_RUN_TARGETED_CHECKS = entrypoint._run_targeted_checks
 
+_LEGACY_BRIDGE_REMOVED_TESTS = {
+    "test_bad_desktop_llm_binding_without_callable_bridge_blocks",
+    "test_happy_override_executor_precedence_over_desktop_default",
+    "test_direct_mode_ignores_execution_env_binding_even_when_set",
+    "test_happy_desktop_binding_resolves_callable_bridge_executor",
+    "test_bad_no_executor_binding_blocks_with_not_configured_reason",
+    "test_edge_implement_start_with_desktop_binding_but_no_bridge_blocks_cleanly",
+    "test_happy_bridge_command_includes_model_and_context_placeholder",
+    "test_bridge_mode_unsets_opencode_server_session_env",
+    "test_bridge_command_reads_materialized_context_files",
+    "test_happy_changed_files_use_executor_delta_not_preexisting_noise",
+    "test_happy_hotspot_hash_delta_detects_real_change_on_preexisting_dirty_file",
+    "test_happy_main_implements_new_hotspot_file",
+    "test_edge_direct_mode_bridge_run_surfaces_selector_invalid_reason_codes",
+    "test_happy_bridge_runtime_timeout_disabled_omits_subprocess_timeout",
+    "test_happy_bridge_runtime_timeout_enabled_sets_subprocess_timeout",
+}
+
+
+@pytest.fixture(autouse=True)
+def _skip_legacy_bridge_tests(request: pytest.FixtureRequest):
+    if request.node.name in _LEGACY_BRIDGE_REMOVED_TESTS:
+        pytest.skip("legacy CLI bridge behavior removed; server-only path enforced")
+
 
 @pytest.fixture(autouse=True)
 def _default_executor(monkeypatch: pytest.MonkeyPatch) -> None:

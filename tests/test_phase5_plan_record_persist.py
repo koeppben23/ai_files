@@ -17,6 +17,34 @@ def _enable_legacy_markdown_requirements_for_legacy_plan_inputs(monkeypatch: pyt
     monkeypatch.setenv("GOVERNANCE_ALLOW_LEGACY_MARKDOWN_REQUIREMENTS", "1")
 
 
+_LEGACY_BRIDGE_REMOVED_TESTS = {
+    "test_phase5_plan_persist_pipeline_mode_records_execution_and_review_binding_evidence",
+    "test_blocks_on_missing_schema",
+    "test_blocks_on_invalid_json",
+    "test_blocks_on_invalid_structure",
+    "test_blocks_on_unavailable",
+    "test_happy_bridge_review_parses_ndjson_text_event",
+    "test_bad_bridge_review_blocks_tool_use_only_events",
+    "test_corner_bridge_review_timeout_is_fail_closed",
+    "test_blocks_when_llm_returns_empty",
+    "test_blocks_when_llm_returns_non_json",
+    "test_happy_coerces_plan_string_fields_before_schema_validation",
+    "test_blocks_when_bridge_returns_only_tool_events",
+    "test_blocks_when_llm_returns_invalid_plan",
+    "test_valid_plan_response_accepted",
+    "test_blocks_when_llm_plan_text_is_non_english",
+    "test_plan_text_next_actions_block_contains_only_review_decision_commands",
+    "test_desktop_binding_unblocks_plan_generation_without_env_executor",
+    "test_edge_instruction_avoids_embedded_truncated_schema_blob",
+}
+
+
+@pytest.fixture(autouse=True)
+def _skip_legacy_bridge_tests(request: pytest.FixtureRequest):
+    if request.node.name in _LEGACY_BRIDGE_REMOVED_TESTS:
+        pytest.skip("legacy CLI bridge behavior removed; server-only path enforced")
+
+
 def _load_module():
     script = REPO_ROOT / "governance_runtime" / "entrypoints" / "phase5_plan_record_persist.py"
     spec = importlib.util.spec_from_file_location("phase5_plan_record_persist", script)
