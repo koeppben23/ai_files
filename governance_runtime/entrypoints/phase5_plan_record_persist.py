@@ -805,16 +805,31 @@ def _call_llm_generate_plan(
 
         if session_id:
             try:
+                context_json = context_file.read_text(encoding="utf-8")
+                output_schema_text = _get_plan_output_schema_text()
+                import json
+                output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
+
+                prompt_text = "Read the following planning context JSON and produce only valid JSON conforming to the provided output schema.\n\n" + context_json
+
                 response_text = _invoke_llm_via_server(
                     session_id=session_id,
-                    prompt_text="Read the attached planning context JSON and produce only valid JSON conforming to the provided output schema.",
+                    prompt_text=prompt_text,
                     model_info=model_dict,
+                    output_schema=output_schema,
                 )
+
+                response_text = _parse_json_events_to_text(response_text)
+                parsed = _parse_plan_generation_response(response_text, re_review=re_review)
+
                 use_server_client = True
                 atomic_write_text(stdout_file, response_text)
                 atomic_write_text(stderr_file, "")
+                atomic_write_text(stderr_file, "[server_client] Plan generated via direct HTTP")
             except ServerNotAvailableError:
                 pass
+            except Exception as exc:
+                atomic_write_text(stderr_file, f"[server_client] Failed: {exc}")
 
         if not use_server_client:
             legacy_bridge_cmd = _resolve_desktop_bridge_cmd(
@@ -837,37 +852,41 @@ def _call_llm_generate_plan(
                     invoke_backend_available=False,
                 )
 
-    response_text = ""
     if use_server_client:
-        pass
-    else:
-        final_cmd = executor_cmd
-        if "{context_file}" in final_cmd:
-            final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
-        import subprocess
-        try:
-            result = subprocess.run(
-                final_cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=_bridge_timeout_seconds() if bridge_mode else None,
-                env=_build_bridge_env() if bridge_mode else None,
-            )
-            atomic_write_text(stdout_file, str(result.stdout or ""))
-            atomic_write_text(stderr_file, str(result.stderr or ""))
-            response_text = result.stdout or ""
-        except Exception as exc:
-            return _blocked_payload(
-                reason=f"plan-llm-execution-failed: {exc}",
-                reason_code=BLOCKED_PLAN_GENERATION_FAILED,
-                recovery_action="LLM execution failed.",
-                next_action=NextActions.CONTINUE,
-                pipeline_mode=pipeline_mode,
-                binding_role="execution",
-                binding_source=binding_source,
-            )
+        parsed["pipeline_mode"] = pipeline_mode
+        parsed["binding_role"] = "execution"
+        parsed["binding_source"] = binding_source
+        parsed["invoke_backend"] = "server_client"
+        return parsed
+
+    response_text = ""
+    final_cmd = executor_cmd
+    if "{context_file}" in final_cmd:
+        final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
+    import subprocess
+    try:
+        result = subprocess.run(
+            final_cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_bridge_timeout_seconds() if bridge_mode else None,
+            env=_build_bridge_env() if bridge_mode else None,
+        )
+        atomic_write_text(stdout_file, str(result.stdout or ""))
+        atomic_write_text(stderr_file, str(result.stderr or ""))
+        response_text = result.stdout or ""
+    except Exception as exc:
+        return _blocked_payload(
+            reason=f"plan-llm-execution-failed: {exc}",
+            reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+            recovery_action="LLM execution failed.",
+            next_action=NextActions.CONTINUE,
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=binding_source,
+        )
 
     if not response_text.strip():
         return _blocked_payload(
@@ -896,6 +915,7 @@ def _call_llm_generate_plan(
     parsed["pipeline_mode"] = pipeline_mode
     parsed["binding_role"] = "execution"
     parsed["binding_source"] = binding_source
+    parsed["invoke_backend"] = "legacy_cli_bridge"
     return parsed
 
 
@@ -1354,16 +1374,50 @@ def _call_llm_review(
 
         if session_id:
             try:
+                context_json = context_file.read_text(encoding="utf-8")
+                output_schema_text = _get_review_output_schema_text()
+                import json
+                output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
+
+                prompt_text = "Read the following review context JSON and produce only valid JSON conforming to the provided output schema.\n\n" + context_json
+
                 response_text = _invoke_llm_via_server(
                     session_id=session_id,
-                    prompt_text="Read the attached review context JSON and produce only valid JSON conforming to the provided output schema.",
+                    prompt_text=prompt_text,
                     model_info=model_dict,
+                    output_schema=output_schema,
                 )
+
+                response_text = _parse_json_events_to_text(response_text)
+
+                try:
+                    mandates_schema = _load_mandates_schema()
+                except (MandateSchemaMissingError, MandateSchemaInvalidJsonError,
+                        MandateSchemaInvalidStructureError, MandateSchemaUnavailableError) as exc:
+                    return {
+                        "llm_invoked": False,
+                        "verdict": "changes_requested",
+                        "findings": [f"mandate-schema-error: {exc}"],
+                        "reason_code": "MANDATE-SCHEMA-ERROR",
+                        "pipeline_mode": pipeline_mode,
+                        "binding_role": "review",
+                        "binding_source": binding_source,
+                    }
+
+                parsed = _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
+                parsed["pipeline_mode"] = pipeline_mode
+                parsed["binding_role"] = "review"
+                parsed["binding_source"] = binding_source
+                parsed["invoke_backend"] = "server_client"
+
                 use_server_client = True
                 atomic_write_text(stdout_file, response_text)
-                atomic_write_text(stderr_file, "")
+                atomic_write_text(stderr_file, "[server_client] Review via direct HTTP")
+                return parsed
             except ServerNotAvailableError:
                 pass
+            except Exception as exc:
+                atomic_write_text(stderr_file, f"[server_client] Failed: {exc}")
 
         if not use_server_client:
             legacy_bridge_cmd = _resolve_desktop_bridge_cmd(
@@ -1389,35 +1443,32 @@ def _call_llm_review(
                 }
 
     response_text = ""
-    if use_server_client:
-        pass
-    else:
-        final_cmd = executor_cmd
-        if "{context_file}" in final_cmd:
-            final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
-        import subprocess
-        try:
-            result = subprocess.run(
-                final_cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=_bridge_timeout_seconds() if bridge_mode else None,
-                env=_build_bridge_env() if bridge_mode else None,
-            )
-            atomic_write_text(stdout_file, str(result.stdout or ""))
-            atomic_write_text(stderr_file, str(result.stderr or ""))
-            response_text = result.stdout or ""
-        except Exception as exc:
-            return {
-                "llm_invoked": False,
-                "verdict": "changes_requested",
-                "findings": [f"LLM executor failed: {exc}"],
-                "pipeline_mode": pipeline_mode,
-                "binding_role": "review",
-                "binding_source": binding_source,
-            }
+    final_cmd = executor_cmd
+    if "{context_file}" in final_cmd:
+        final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
+    import subprocess
+    try:
+        result = subprocess.run(
+            final_cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_bridge_timeout_seconds() if bridge_mode else None,
+            env=_build_bridge_env() if bridge_mode else None,
+        )
+        atomic_write_text(stdout_file, str(result.stdout or ""))
+        atomic_write_text(stderr_file, str(result.stderr or ""))
+        response_text = result.stdout or ""
+    except Exception as exc:
+        return {
+            "llm_invoked": False,
+            "verdict": "changes_requested",
+            "findings": [f"LLM executor failed: {exc}"],
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+        }
 
     if not response_text.strip():
         return {
@@ -1442,42 +1493,25 @@ def _call_llm_review(
 
     response_text = _parse_json_events_to_text(response_text)
 
-    # Fail-closed: mandate schema MUST be available for response validation
     try:
         mandates_schema = _load_mandates_schema()
-    except MandateSchemaMissingError as exc:
+    except (MandateSchemaMissingError, MandateSchemaInvalidJsonError,
+            MandateSchemaInvalidStructureError, MandateSchemaUnavailableError) as exc:
         return {
             "llm_invoked": False,
             "verdict": "changes_requested",
-            "findings": [f"mandate-schema-missing: {exc}"],
-            "reason_code": "MANDATE-SCHEMA-MISSING",
-        }
-    except MandateSchemaInvalidJsonError as exc:
-        return {
-            "llm_invoked": False,
-            "verdict": "changes_requested",
-            "findings": [f"mandate-schema-invalid-json: {exc}"],
-            "reason_code": "MANDATE-SCHEMA-INVALID-JSON",
-        }
-    except MandateSchemaInvalidStructureError as exc:
-        return {
-            "llm_invoked": False,
-            "verdict": "changes_requested",
-            "findings": [f"mandate-schema-invalid-structure: {exc}"],
-            "reason_code": "MANDATE-SCHEMA-INVALID-STRUCTURE",
-        }
-    except MandateSchemaUnavailableError as exc:
-        return {
-            "llm_invoked": False,
-            "verdict": "changes_requested",
-            "findings": [f"mandate-schema-unavailable: {exc}"],
-            "reason_code": "MANDATE-SCHEMA-UNAVAILABLE",
+            "findings": [f"mandate-schema-error: {exc}"],
+            "reason_code": "MANDATE-SCHEMA-ERROR",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
         }
 
     parsed = _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
     parsed["pipeline_mode"] = pipeline_mode
     parsed["binding_role"] = "review"
     parsed["binding_source"] = binding_source
+    parsed["invoke_backend"] = "legacy_cli_bridge"
     return parsed
 
 
