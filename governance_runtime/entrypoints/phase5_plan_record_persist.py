@@ -873,6 +873,16 @@ def _parse_plan_generation_response(response_text: str, *, re_review: bool = Fal
             pass
 
     if parsed_data is None:
+        first_brace = raw_text.find("{")
+        last_brace = raw_text.rfind("}")
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            candidate = raw_text[first_brace : last_brace + 1]
+            try:
+                parsed_data = json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+
+    if parsed_data is None:
         return _blocked_payload(
             reason=f"plan-response-not-json: received {len(raw_text)} chars starting with: {raw_text[:80]!r}",
             reason_code=BLOCKED_PLAN_GENERATION_FAILED,
