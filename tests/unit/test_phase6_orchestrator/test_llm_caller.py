@@ -234,6 +234,61 @@ class TestLLMCaller:
         assert result.stdout == '{"verdict": "approve"}'
         assert result.return_code == 0
 
+    def test_invoke_server_success_no_subprocess(self, tmp_path: Path):
+        """Direct-mode server success should not use subprocess fallback."""
+        env = {
+            "OPENCODE": "1",
+            "OPENCODE_SESSION_ID": "sess_phase6",
+            "OPENCODE_MODEL": "openai/gpt-5",
+            "AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER": "0",
+        }
+        caller = LLMCaller(
+            env_reader=lambda key: env.get(key),
+            subprocess_runner=lambda cmd: (_ for _ in ()).throw(AssertionError("subprocess must not run")),
+            workspace_root=tmp_path,
+        )
+
+        with patch.object(caller, "_resolve_review_binding", return_value=(False, "", "active_chat_binding")):
+            with patch("governance_runtime.application.services.phase6_review_orchestrator.llm_caller._invoke_llm_via_server", return_value='{"verdict":"approve","findings":[]}'):
+                result = caller.invoke(
+                    context={"task": "x", "output_schema_text": "{}"},
+                    context_file=tmp_path / "ctx.json",
+                    context_writer=lambda _p, _d: None,
+                )
+
+        assert result.invoked is True
+        assert result.return_code == 0
+        assert result.invoke_backend == "server_client"
+
+    def test_invoke_server_required_fail_closed_no_fallback(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """Server-required mode must fail closed without legacy fallback."""
+        monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "1")
+        env = {
+            "OPENCODE": "1",
+            "OPENCODE_SESSION_ID": "sess_phase6",
+            "OPENCODE_MODEL": "openai/gpt-5",
+        }
+        caller = LLMCaller(
+            env_reader=lambda key: env.get(key),
+            subprocess_runner=lambda cmd: (_ for _ in ()).throw(AssertionError("subprocess must not run")),
+            workspace_root=tmp_path,
+        )
+
+        with patch.object(caller, "_resolve_review_binding", return_value=(False, "", "active_chat_binding")):
+            with patch(
+                "governance_runtime.application.services.phase6_review_orchestrator.llm_caller._invoke_llm_via_server",
+                side_effect=Exception("server down"),
+            ):
+                result = caller.invoke(
+                    context={"task": "x", "output_schema_text": "{}"},
+                    context_file=tmp_path / "ctx.json",
+                    context_writer=lambda _p, _d: None,
+                )
+
+        assert result.return_code != 0
+        assert result.invoke_backend == "server_client"
+        assert "Server required but failed" in str(result.error)
+
 
 class TestLLMResponse:
     """Tests for LLMResponse dataclass."""

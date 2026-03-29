@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -1717,3 +1718,87 @@ class TestPlanPreviewNormalization:
         result1 = module._normalize_plan_preview(raw)
         result2 = module._normalize_plan_preview(raw)
         assert result1 == result2
+
+
+@pytest.mark.governance
+def test_phase5_generate_plan_server_success_no_subprocess(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    module = _load_module()
+    config_root, commands_home, _session_path, _ = _write_fixture_state(tmp_path)
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "0")
+
+    class _Mat:
+        plan_mandate_file = None
+        plan_mandate_sha256 = ""
+        plan_mandate_label = ""
+        effective_policy_file = None
+        effective_policy_sha256 = ""
+        effective_policy_label = ""
+
+        def has_materialized(self) -> bool:
+            return False
+
+    monkeypatch.setattr(module, "_resolve_plan_execution_binding", lambda workspace_dir=None: (False, "", "active_chat_binding"))
+    monkeypatch.setattr(module, "_has_active_desktop_llm_binding", lambda: True)
+    monkeypatch.setattr(module, "_resolve_active_opencode_session_id", lambda: "sess_phase5")
+    monkeypatch.setattr(module, "resolve_active_opencode_model", lambda: {"provider": "openai", "model_id": "gpt-5"})
+    monkeypatch.setattr(module, "materialize_governance_artifacts", lambda **kwargs: _Mat())
+    monkeypatch.setattr(module, "validate_materialized_artifacts", lambda materialization: None)
+    monkeypatch.setattr(module, "_get_plan_output_schema_text", lambda: "{}")
+    monkeypatch.setattr(module, "_invoke_llm_via_server", lambda **kwargs: '{"x":1}')
+    monkeypatch.setattr(module, "_parse_plan_generation_response", lambda text, re_review=False: {"parsed": True})
+
+    with patch("subprocess.run") as mock_run:
+        result = module._call_llm_generate_plan(
+            ticket_text="T",
+            task_text="Task",
+            plan_mandate="",
+            workspace_dir=tmp_path,
+            config_root=config_root,
+        )
+
+    mock_run.assert_not_called()
+    assert result.get("invoke_backend") == "server_client"
+
+
+@pytest.mark.governance
+def test_phase5_review_server_required_fail_closed_no_subprocess(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    module = _load_module()
+    config_root, commands_home, _session_path, _ = _write_fixture_state(tmp_path)
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "1")
+
+    class _Mat:
+        review_mandate_file = None
+        review_mandate_sha256 = ""
+        review_mandate_label = ""
+        effective_policy_file = None
+        effective_policy_sha256 = ""
+        effective_policy_label = ""
+
+        def has_materialized(self) -> bool:
+            return False
+
+    monkeypatch.setattr(module, "_resolve_plan_review_binding", lambda workspace_dir=None: (False, "", "active_chat_binding"))
+    monkeypatch.setattr(module, "_has_active_desktop_llm_binding", lambda: True)
+    monkeypatch.setattr(module, "_resolve_active_opencode_session_id", lambda: "sess_phase5_review")
+    monkeypatch.setattr(module, "resolve_active_opencode_model", lambda: {"provider": "openai", "model_id": "gpt-5"})
+    monkeypatch.setattr(module, "materialize_governance_artifacts", lambda **kwargs: _Mat())
+    monkeypatch.setattr(module, "validate_materialized_artifacts", lambda materialization: None)
+    monkeypatch.setattr(module, "_get_review_output_schema_text", lambda: "{}")
+    monkeypatch.setattr(module, "_invoke_llm_via_server", lambda **kwargs: (_ for _ in ()).throw(module.ServerNotAvailableError("down")))
+
+    with patch("subprocess.run") as mock_run:
+        result = module._call_llm_review(
+            content="review me",
+            mandate="m",
+            workspace_dir=tmp_path,
+            config_root=config_root,
+        )
+
+    mock_run.assert_not_called()
+    assert result.get("reason_code") == "BLOCKED-SERVER-REQUIRED-UNAVAILABLE"
