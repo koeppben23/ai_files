@@ -32,6 +32,8 @@ def resolve_opencode_server_base_url() -> str:
     2. OPENCODE_PORT (for Desktop/TUI server port)
     3. fail-closed with clear error
 
+    Note: OPENCODE_HOST is NOT a documented contract - removed for docs compliance.
+
     Returns:
         Base URL like "http://127.0.0.1:4096"
 
@@ -42,19 +44,13 @@ def resolve_opencode_server_base_url() -> str:
     if override_url:
         return override_url.rstrip("/")
 
-    hostname = os.environ.get("OPENCODE_HOST", "").strip()
     port = os.environ.get("OPENCODE_PORT", "").strip()
-
-    if hostname:
-        port = port or "4096"
-        return f"http://{hostname}:{port}"
-
     if port:
         return f"http://127.0.0.1:{port}"
 
     raise ServerNotAvailableError(
         "OpenCode server URL not resolvable for direct session call. "
-        "Set AI_GOVERNANCE_OPENCODE_SERVER_URL, OPENCODE_HOST, or OPENCODE_PORT."
+        "Set AI_GOVERNANCE_OPENCODE_SERVER_URL or OPENCODE_PORT."
     )
 
 
@@ -144,13 +140,17 @@ def send_session_prompt(
     This is the documented programmatic way to access the OpenCode session LLM,
     replacing the legacy subprocess("opencode run --session ...") approach.
 
+    Note: The server API documentation is inconsistent between format (SDK examples)
+    and outputFormat (API overview). This implementation uses "format" per SDK examples.
+    Should be verified against /doc and adjusted if needed.
+
     Args:
         session_id: Session ID to continue
         text: Prompt text to send
         model: Optional model specification (e.g., {"providerID": "openai", "modelID": "gpt-5"})
                If None, uses the session's default model
         output_schema: Optional JSON schema for structured output
-                      (format field will be verified against /doc)
+                      Uses "format" field per SDK examples - verify against /doc
 
     Returns:
         Session response dict with info and parts
@@ -211,6 +211,11 @@ def extract_session_response(payload: dict) -> str:
     if not isinstance(parts, list):
         parts = []
 
+    if not parts:
+        parts = payload.get("parts", [])
+        if not isinstance(parts, list):
+            parts = []
+
     text_parts = []
     for part in parts:
         if not isinstance(part, dict):
@@ -253,6 +258,7 @@ def send_session_command(
 
     body = {
         "command": command,
+        "arguments": [],
     }
 
     return post_json(f"/session/{session_id}/command", body)
@@ -261,16 +267,30 @@ def send_session_command(
 def check_server_health(*, base_url: str | None = None) -> bool:
     """Check if OpenCode server is available and healthy.
 
+    Uses GET /global/health per official server API documentation.
+
     Args:
         base_url: Base URL override
 
     Returns:
         True if server is healthy, False otherwise
     """
+    import urllib.request
+
     try:
         if base_url is None:
             base_url = resolve_opencode_server_base_url()
-        response = post_json("/health", {}, base_url=base_url)
-        return response.get("healthy", False) is True
+
+        url = f"{base_url}/global/health"
+        headers = {}
+        auth_headers = _resolve_auth()
+        if auth_headers:
+            headers.update(auth_headers)
+
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            import json
+            data = json.loads(resp.read().decode("utf-8"))
+            return data.get("healthy", False) is True
     except Exception:
         return False
