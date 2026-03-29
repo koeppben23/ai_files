@@ -464,6 +464,6 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     assert run_continue.returncode in (0, 1), run_continue.stdout + "\n" + run_continue.stderr
 
     output = run_continue.stdout
-    assert "Current state" in output
-    assert "What this means now" in output
+    assert "Session State" in output
+    assert "Phase:" in output
     assert "Next action:" not in output or output.strip().splitlines()[-1].startswith("Next action: ")

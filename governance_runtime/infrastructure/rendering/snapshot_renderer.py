@@ -516,6 +516,69 @@ def render_guided_sections(snapshot: Snapshot, action_line: str, *, verbose_gove
     return lines
 
 
+def format_standard_snapshot(
+    snapshot: Snapshot,
+    action_line: str | None = None,
+    *,
+    verbose_governance_frame: bool = False,
+) -> str:
+    """Format compact Session-State readout.
+
+    This is the standard presentation mode that shows:
+    - Session State header
+    - Phase, Next gate condition, Active gate
+    - Plan under review (if relevant and no blocker)
+    - Blocker/Warning status
+    - Next action (always last line)
+
+    Args:
+        snapshot: The typed snapshot to render.
+        action_line: The pre-computed next action line.
+                   If None, a default will be generated.
+        verbose_governance_frame: If True, show full governance details.
+    """
+    if action_line is None:
+        action_line = "Next action: consult next-step."
+
+    lines: list[str] = []
+    lines.append("Session State")
+
+    phase = str(snapshot.get("phase") or snapshot.get("current_phase") or "unknown").strip()
+    lines.append(f"Phase: {phase}")
+
+    next_gate = str(snapshot.get("next_gate_condition") or "none").strip()
+    lines.append(f"Next: {next_gate}")
+
+    active_gate = str(snapshot.get("active_gate") or "none").strip()
+    lines.append(f"Active gate: {active_gate}")
+
+    has_blocker = _has_blocker(snapshot)
+
+    if not has_blocker and not verbose_governance_frame:
+        plan_summary = snapshot.get("review_package_approved_plan_summary")
+        plan_body = snapshot.get("review_package_plan_body")
+        if plan_summary or plan_body:
+            plan_lines = _build_plan_under_review_lines(snapshot)
+            if plan_lines:
+                lines.append("Plan under review")
+                for plan_line in plan_lines:
+                    lines.append(f"- {plan_line}")
+
+    if has_blocker:
+        blocker_info = _render_blocker(snapshot)
+        if blocker_info:
+            status_line = blocker_info[0]
+            lines.append(status_line)
+    else:
+        warning = snapshot.get("warning")
+        if warning:
+            lines.append(f"Warning: {warning}")
+
+    lines.append(action_line.strip())
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def format_guided_snapshot(
     snapshot: Snapshot,
     action_line: str | None = None,

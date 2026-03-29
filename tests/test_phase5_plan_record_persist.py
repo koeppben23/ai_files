@@ -159,6 +159,9 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
 def _write_workspace_governance_config(workspace_dir: Path, *, pipeline_mode: bool) -> None:
     payload = {
         "pipeline_mode": pipeline_mode,
+        "presentation": {
+            "mode": "standard",
+        },
         "review": {
             "phase5_max_review_iterations": 3,
             "phase6_max_review_iterations": 3,
@@ -1481,6 +1484,9 @@ class TestGetPhase5MaxReviewIterations:
         module._clear_phase5_max_iterations_cache()
         
         config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 7,
                 "phase6_max_review_iterations": 5,
@@ -1497,6 +1503,9 @@ class TestGetPhase5MaxReviewIterations:
         module._clear_phase5_max_iterations_cache()
         
         config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 5,
                 "phase6_max_review_iterations": 5,

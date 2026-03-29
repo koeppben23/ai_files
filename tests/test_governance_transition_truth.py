@@ -38,6 +38,9 @@ def _set_pipeline_mode_with_bindings(
 ) -> None:
     payload = {
         "pipeline_mode": True,
+        "presentation": {
+            "mode": "standard",
+        },
         "review": {
             "phase5_max_review_iterations": 3,
             "phase6_max_review_iterations": 3,
@@ -79,9 +82,8 @@ class TestE2EResponseContract:
         assert rc == 0, "/continue must succeed at Evidence Presentation Gate"
 
         output = capsys.readouterr().out
-        assert "Current state" in output, "Guided output must show current state"
-        assert "Active gate" in output, "Guided output must show active gate"
-        assert "Gate purpose" in output, "Guided output must show gate purpose"
+        assert "Session State" in output, "Standard output must show Session State"
+        assert "Active gate" in output, "Output must show active gate"
         if "Next action:" in output:
             assert output.strip().splitlines()[-1].startswith("Next action: ")
 
@@ -1097,6 +1099,9 @@ class TestE2EPersistedStateContract:
             json.dumps(
                 {
                     "pipeline_mode": True,
+                    "presentation": {
+                        "mode": "standard",
+                    },
                     "review": {
                         "phase5_max_review_iterations": 3,
                         "phase6_max_review_iterations": 3,

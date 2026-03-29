@@ -14,6 +14,9 @@ from governance_runtime.infrastructure.governance_binding_resolver import (
 def _write_governance_config(workspace_dir: Path, *, pipeline_mode: bool) -> None:
     payload = {
         "pipeline_mode": pipeline_mode,
+        "presentation": {
+            "mode": "standard",
+        },
         "review": {
             "phase5_max_review_iterations": 3,
             "phase6_max_review_iterations": 3,

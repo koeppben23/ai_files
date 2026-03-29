@@ -321,6 +321,9 @@ class TestValidationBad:
 
 def _valid_config() -> dict:
     return {
+        "presentation": {
+            "mode": "standard",
+        },
         "review": {
             "phase5_max_review_iterations": 3,
             "phase6_max_review_iterations": 3,
@@ -409,6 +412,9 @@ class TestGovernanceConfigJsonInvalid:
     def test_optional_schema_key(self, tmp_path: Path):
         """Missing $schema key is allowed (optional field)."""
         config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 3,
