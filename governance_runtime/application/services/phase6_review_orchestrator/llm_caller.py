@@ -103,6 +103,7 @@ from governance_runtime.infrastructure.opencode_server_client import (
     extract_session_response,
     ServerNotAvailableError,
 )
+from governance_runtime.infrastructure.opencode_model_binding import has_active_desktop_llm_binding as _has_desktop_llm_binding
 
 
 @dataclass(frozen=True)
@@ -382,6 +383,7 @@ class LLMCaller:
                 binding_source="",
             )
 
+        server_error: str | None = None
         if not pipeline_mode and self._has_active_desktop_llm_binding():
             session_id = str(self._env_reader("OPENCODE_SESSION_ID") or "").strip()
             model_info = resolve_active_opencode_model(env_reader=self._env_reader)
@@ -396,7 +398,6 @@ class LLMCaller:
                     model_dict = {"providerID": provider, "modelID": model_id}
 
             if session_id:
-                server_error: str | None = None
                 try:
                     context_json = json.dumps(context, ensure_ascii=True, indent=2)
                     output_schema_text = context.get("output_schema_text", "")
@@ -416,14 +417,15 @@ class LLMCaller:
                     )
 
                     response_valid = False
+                    validation_error = ""
                     if response_text and response_text.strip():
-                        if response_text.startswith("{"):
-                            try:
-                                parsed = json.loads(response_text)
-                                if isinstance(parsed, dict):
-                                    response_valid = True
-                            except json.JSONDecodeError:
-                                pass
+                        from governance_runtime.application.services.phase6_review_orchestrator.response_validator import ResponseValidator
+                        validator = ResponseValidator()
+                        validation_result = validator.validate(response_text)
+                        if validation_result.valid:
+                            response_valid = True
+                        else:
+                            validation_error = f"Response validation failed: {validation_result.findings}"
 
                     if response_valid:
                         return LLMResponse(
@@ -436,7 +438,10 @@ class LLMCaller:
                             binding_source=binding_source,
                         )
                     else:
-                        server_error = f"Server response invalid or empty: {response_text[:200] if response_text else 'empty'}"
+                        if validation_error:
+                            server_error = validation_error
+                        else:
+                            server_error = f"Server response invalid or empty: {response_text[:200] if response_text else 'empty'}"
                 except ServerNotAvailableError as exc:
                     server_error = f"ServerNotAvailableError: {exc}"
                 except Exception as exc:
@@ -467,13 +472,16 @@ class LLMCaller:
             context_file.parent.mkdir(parents=True, exist_ok=True)
             context_writer(context_file, context)
             final_cmd = bridge_cmd.replace("{context_file}", shlex.quote(str(context_file)))
+            server_prefix = ""
+            if server_error:
+                server_prefix = f"[server_client_failed: {server_error}] "
             try:
                 result = self._run_subprocess(final_cmd, self._build_bridge_env())
                 stdout = _parse_json_events_to_text(result.stdout or "")
                 return LLMResponse(
                     invoked=True,
                     stdout=stdout,
-                    stderr="[legacy_cli_bridge] " + (result.stderr or ""),
+                    stderr=server_prefix + "[legacy_cli_bridge] " + (result.stderr or ""),
                     return_code=result.returncode,
                     pipeline_mode=False,
                     binding_role="review",
@@ -483,7 +491,7 @@ class LLMCaller:
                 return LLMResponse(
                     invoked=True,
                     stdout="",
-                    stderr="[legacy_cli_bridge] " + str(exc),
+                    stderr=server_prefix + "[legacy_cli_bridge] " + str(exc),
                     return_code=-1,
                     error=f"LLM executor failed: {exc}",
                     pipeline_mode=False,
