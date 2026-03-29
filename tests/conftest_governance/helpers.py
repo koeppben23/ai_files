@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +29,30 @@ def _load_module(name: str, filename: str):
 
 
 def _load_phase5():
-    return _load_module("phase5_plan_record_persist", "phase5_plan_record_persist.py")
+    module = _load_module("phase5_plan_record_persist", "phase5_plan_record_persist.py")
+    original_invoke = module._invoke_llm_via_server
+
+    def _fake_invoke_llm_via_server(**kwargs):  # type: ignore[no-untyped-def]
+        plan_response = str(os.environ.get("AI_GOVERNANCE_TEST_PLAN_RESPONSE") or "").strip()
+        review_response = str(os.environ.get("AI_GOVERNANCE_TEST_REVIEW_RESPONSE") or "").strip()
+        if plan_response:
+            if not review_response:
+                review_response = json.dumps({"verdict": "approve", "findings": []}, ensure_ascii=True)
+            prompt = str(kwargs.get("prompt_text") or "")
+            if "review context JSON" in prompt:
+                return review_response
+            return plan_response
+        return original_invoke(**kwargs)
+
+    module._invoke_llm_via_server = _fake_invoke_llm_via_server
+    module._resolve_active_opencode_session_id = lambda: str(
+        os.environ.get("OPENCODE_SESSION_ID") or "sess_test"
+    )
+    module.resolve_active_opencode_model = lambda: {
+        "provider": "openai",
+        "model_id": "gpt-5",
+    }
+    return module
 
 
 def _load_session_reader():
