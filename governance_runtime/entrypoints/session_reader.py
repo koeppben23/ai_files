@@ -1397,7 +1397,7 @@ def main(argv: list[str] | None = None) -> int:
         resolve_presentation_mode,
     )
     from governance_runtime.infrastructure.rendering.snapshot_renderer import (
-        format_standard_snapshot,
+        format_narrative_snapshot,
     )
 
     effective_mode = resolve_presentation_mode(
@@ -1414,14 +1414,14 @@ def main(argv: list[str] | None = None) -> int:
             action_line,
             verbose_governance_frame=verbose_governance_frame,
         )
-    elif effective_mode == "standard":
-        rendered = format_standard_snapshot(
+    elif effective_mode == "narrative":
+        rendered = format_narrative_snapshot(
             snapshot,
             action_line,
             verbose_governance_frame=verbose_governance_frame,
         )
     else:
-        rendered = format_guided_snapshot(
+        rendered = format_narrative_snapshot(
             snapshot,
             action_line,
             verbose_governance_frame=verbose_governance_frame,

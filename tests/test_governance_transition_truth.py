@@ -82,8 +82,8 @@ class TestE2EResponseContract:
         assert rc == 0, "/continue must succeed at Evidence Presentation Gate"
 
         output = capsys.readouterr().out
-        assert "Session State" in output, "Standard output must show Session State"
-        assert "Active gate" in output, "Output must show active gate"
+        assert "Current phase is" in output, "Narrative output must show current phase sentence"
+        assert "active gate" in output, "Output must show active gate"
         if "Next action:" in output:
             assert output.strip().splitlines()[-1].startswith("Next action: ")
 

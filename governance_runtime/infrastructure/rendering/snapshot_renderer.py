@@ -522,35 +522,75 @@ def format_standard_snapshot(
     *,
     verbose_governance_frame: bool = False,
 ) -> str:
-    """Format compact Session-State readout.
+    """Legacy compatibility wrapper for "standard" mode.
 
-    This is the standard presentation mode that shows:
-    - Session State header
-    - Phase, Next gate condition, Active gate
-    - Plan under review (if relevant and no blocker)
-    - Blocker/Warning status
-    - Next action (always last line)
+    "standard" is deprecated and normalized to narrative presentation.
+    """
+    return format_narrative_snapshot(
+        snapshot,
+        action_line,
+        verbose_governance_frame=verbose_governance_frame,
+    )
 
-    Args:
-        snapshot: The typed snapshot to render.
-        action_line: The pre-computed next action line.
-                   If None, a default will be generated.
-        verbose_governance_frame: If True, show full governance details.
+
+def _sentence(text: str, *, default: str) -> str:
+    normalized = str(text or "").strip()
+    if not normalized:
+        normalized = default
+    if normalized[-1] not in {".", "!", "?"}:
+        normalized = normalized + "."
+    return normalized
+
+
+def _narrative_delta(snapshot: Snapshot) -> str:
+    if _has_blocker(snapshot):
+        condition = str(snapshot.get("next_gate_condition") or "blocker conditions are still active").strip()
+        return _sentence(
+            f"session state was materialized; no gate transition occurred because {condition}",
+            default="session state was materialized; no gate transition occurred because blocker conditions are still active",
+        )
+
+    source = str(snapshot.get("source") or "").strip().lower()
+    if source == "transition":
+        return "a gate transition was applied during materialization and the active gate now reflects the updated state."
+
+    warning = str(snapshot.get("warning") or "").strip()
+    if warning:
+        return _sentence(
+            f"session state was materialized; no gate transition occurred, and warning remains: {warning}",
+            default="session state was materialized; no gate transition occurred, and warning remains active",
+        )
+
+    return "session state was materialized; no gate transition occurred, and the gate remains aligned to the current next condition."
+
+
+def format_narrative_snapshot(
+    snapshot: Snapshot,
+    action_line: str | None = None,
+    *,
+    verbose_governance_frame: bool = False,
+) -> str:
+    """Format concise narrative operator-facing output.
+
+    Output shape:
+    - Current phase sentence
+    - Current next sentence
+    - Delta sentence
+    - Optional plan-under-review sentence
+    - Optional blocker/warning sentence
+    - Next action line (always last)
     """
     if action_line is None:
         action_line = "Next action: consult next-step."
 
     lines: list[str] = []
-    lines.append("Session State")
-
     phase = str(snapshot.get("phase") or snapshot.get("current_phase") or "unknown").strip()
-    lines.append(f"Phase: {phase}")
-
-    next_gate = str(snapshot.get("next_gate_condition") or "none").strip()
-    lines.append(f"Next: {next_gate}")
-
     active_gate = str(snapshot.get("active_gate") or "none").strip()
-    lines.append(f"Active gate: {active_gate}")
+    next_gate = str(snapshot.get("next_gate_condition") or "none").strip()
+
+    lines.append(_sentence(f"Current phase is {phase} with active gate {active_gate}", default="Current phase is unknown"))
+    lines.append(_sentence(f"Current next is: {next_gate}", default="Current next is: none"))
+    lines.append(_sentence(f"Delta for this step: {_narrative_delta(snapshot)}", default="Delta for this step: no additional changes recorded"))
 
     has_blocker = _has_blocker(snapshot)
 
@@ -560,19 +600,16 @@ def format_standard_snapshot(
         if plan_summary or plan_body:
             plan_lines = _build_plan_under_review_lines(snapshot)
             if plan_lines:
-                lines.append("Plan under review")
-                for plan_line in plan_lines:
-                    lines.append(f"- {plan_line}")
+                narrative_plan = "; ".join(plan_lines)
+                lines.append(_sentence(f"Plan under review: {narrative_plan}", default="Plan under review: summary unavailable"))
 
     if has_blocker:
-        blocker_info = _render_blocker(snapshot)
-        if blocker_info:
-            status_line = blocker_info[0]
-            lines.append(status_line)
+        blocker = str(snapshot.get("next_gate_condition") or "blocker conditions remain active").strip()
+        lines.append(_sentence(f"Current blocker is active: {blocker}", default="Current blocker is active"))
     else:
         warning = snapshot.get("warning")
         if warning:
-            lines.append(f"Warning: {warning}")
+            lines.append(_sentence(f"Current warning is: {warning}", default="Current warning is active"))
 
     lines.append(action_line.strip())
 

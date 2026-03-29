@@ -5,7 +5,7 @@ preserves backward compatibility when governance-config.json is missing.
 
 Current defaults include:
 - pipeline_mode: false (direct mode default)
-- presentation.mode: standard (compact Session-State readout)
+- presentation.mode: narrative (default concise sentence readout)
 - review.phase5_max_review_iterations: 3
 - review.phase6_max_review_iterations: 3
 """
@@ -20,7 +20,7 @@ SCHEMA_ID = "governance-config.v1.schema.json"
 
 @dataclass(frozen=True)
 class PresentationDefaults:
-    mode: str = "standard"
+    mode: str = "narrative"
 
 
 DEFAULT_PRESENTATION = PresentationDefaults()
