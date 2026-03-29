@@ -35,6 +35,18 @@ def _set_pipeline_mode_with_bindings(
     execution_cmd: str,
     review_cmd: str = "echo '{\"verdict\":\"approve\",\"findings\":[]}'",
 ) -> None:
+    def _extract_json_from_cmd(cmd: str) -> str:
+        token = str(cmd or "").strip()
+        if token.startswith("cat "):
+            path = Path(token[4:].strip())
+            if path.exists():
+                return path.read_text(encoding="utf-8")
+        if token.startswith("echo '") and token.endswith("'"):
+            return token[6:-1]
+        if token.startswith('echo "') and token.endswith('"'):
+            return token[6:-1]
+        return token
+
     payload = {
         "pipeline_mode": True,
         "presentation": {
@@ -51,6 +63,11 @@ def _set_pipeline_mode_with_bindings(
     )
     monkeypatch.setenv("AI_GOVERNANCE_EXECUTION_BINDING", execution_cmd)
     monkeypatch.setenv("AI_GOVERNANCE_REVIEW_BINDING", review_cmd)
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("OPENCODE_SESSION_ID", "sess_test")
+    monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5")
+    monkeypatch.setenv("AI_GOVERNANCE_TEST_PLAN_RESPONSE", _extract_json_from_cmd(execution_cmd))
+    monkeypatch.setenv("AI_GOVERNANCE_TEST_REVIEW_RESPONSE", _extract_json_from_cmd(review_cmd))
 
 
 # ── A. /TICKET ─────────────────────────────────────────────────────────────
