@@ -62,6 +62,7 @@ def _invoke_llm_via_server(
     prompt_text: str,
     model_info: dict | None = None,
     output_schema: dict | None = None,
+    required: bool = False,
 ) -> str:
     """Try to invoke LLM via direct server API, fallback to legacy on failure.
 
@@ -72,6 +73,7 @@ def _invoke_llm_via_server(
         prompt_text: The prompt to send
         model_info: Optional model specification from resolve_active_opencode_model()
         output_schema: Optional JSON schema for structured output
+        required: If True, fail-closed when server not available
 
     Returns:
         LLM response text
@@ -85,6 +87,7 @@ def _invoke_llm_via_server(
             text=prompt_text,
             model=model_info,
             output_schema=output_schema,
+            required=required,
         )
         return extract_session_response(response)
     except ServerNotAvailableError:
@@ -102,6 +105,7 @@ from governance_runtime.infrastructure.opencode_server_client import (
     send_session_prompt,
     extract_session_response,
     ServerNotAvailableError,
+    resolve_opencode_server_base_url,
 )
 
 
@@ -125,6 +129,8 @@ class LLMResponse:
     pipeline_mode: bool | None = None
     binding_role: str = "review"
     binding_source: str = ""
+    invoke_backend: str = ""
+    invoke_backend_url: str = ""
 
     @property
     def has_output(self) -> bool:
@@ -427,6 +433,11 @@ class LLMCaller:
                             validation_error = f"Response validation failed: {validation_result.findings}"
 
                     if response_valid:
+                        server_url = ""
+                        try:
+                            server_url = resolve_opencode_server_base_url()
+                        except ServerNotAvailableError:
+                            pass
                         return LLMResponse(
                             invoked=True,
                             stdout=response_text,
@@ -435,6 +446,8 @@ class LLMCaller:
                             pipeline_mode=False,
                             binding_role="review",
                             binding_source=binding_source,
+                            invoke_backend="server_client",
+                            invoke_backend_url=server_url,
                         )
                     else:
                         if validation_error:
@@ -485,6 +498,7 @@ class LLMCaller:
                     pipeline_mode=False,
                     binding_role="review",
                     binding_source=binding_source,
+                    invoke_backend="legacy_cli_bridge",
                 )
             except Exception as exc:
                 return LLMResponse(
@@ -496,6 +510,7 @@ class LLMCaller:
                     pipeline_mode=False,
                     binding_role="review",
                     binding_source=binding_source,
+                    invoke_backend="legacy_cli_bridge",
                 )
 
         if context_writer is None:

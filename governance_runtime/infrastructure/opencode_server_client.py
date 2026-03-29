@@ -24,15 +24,32 @@ class APIError(OpenCodeServerError):
     pass
 
 
-def resolve_opencode_server_base_url() -> str:
+def is_server_required_mode() -> bool:
+    """Check if server is required (fail-closed) mode.
+
+    When AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER=1 is set:
+    - Server MUST be available or call will fail
+    - No fallback to legacy CLI bridge
+
+    Returns:
+        True if server is required, False for opportunistic mode (default)
+    """
+    return os.environ.get("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def resolve_opencode_server_base_url(*, required: bool = False) -> str:
     """Resolve OpenCode server base URL.
 
     Resolution order:
     1. AI_GOVERNANCE_OPENCODE_SERVER_URL (override)
     2. OPENCODE_PORT (for Desktop/TUI server port)
-    3. fail-closed with clear error
+    3. fail-closed with clear error (if required=True)
 
     Note: OPENCODE_HOST is NOT a documented contract - removed for docs compliance.
+
+    Args:
+        required: If True, fail-closed when server not resolvable.
+                 If False (default), raise ServerNotAvailableError for both cases.
 
     Returns:
         Base URL like "http://127.0.0.1:4096"
@@ -134,6 +151,7 @@ def send_session_prompt(
     *,
     model: dict[str, str] | None = None,
     output_schema: dict | None = None,
+    required: bool = False,
 ) -> dict:
     """Send a prompt to a session and get LLM response.
 
@@ -151,17 +169,29 @@ def send_session_prompt(
                If None, uses the session's default model
         output_schema: Optional JSON schema for structured output
                       Uses "format" by default; set AI_GOVERNANCE_USE_OUTPUTFORMAT=1 for outputFormat
+        required: If True, fail-closed when server not available (respects AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER)
 
     Returns:
         Session response dict with info and parts
 
     Raises:
-        ServerNotAvailableError: If server is not reachable
+        ServerNotAvailableError: If server is not reachable (or in required mode)
         AuthenticationError: If auth fails
         APIError: For API errors
     """
     if not session_id:
         raise APIError("session_id is required")
+
+    server_required = required or is_server_required_mode()
+
+    try:
+        server_url = resolve_opencode_server_base_url()
+    except ServerNotAvailableError as exc:
+        if server_required:
+            raise ServerNotAvailableError(
+                f"OpenCode server required but not available: {exc}"
+            ) from exc
+        raise
 
     body: dict = {
         "noReply": False,
@@ -184,7 +214,7 @@ def send_session_prompt(
                 "schema": output_schema,
             }
 
-    return post_json(f"/session/{session_id}/message", body)
+    return post_json(f"/session/{session_id}/message", body, base_url=server_url)
 
 
 def extract_session_response(payload: dict) -> str:

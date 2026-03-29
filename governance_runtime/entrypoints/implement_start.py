@@ -704,6 +704,7 @@ def _invoke_llm_via_server(
     prompt_text: str,
     model_info: dict | None = None,
     output_schema: dict | None = None,
+    required: bool = False,
 ) -> str:
     """Try to invoke LLM via direct server API, fallback to legacy on failure.
 
@@ -714,6 +715,7 @@ def _invoke_llm_via_server(
         prompt_text: The prompt to send
         model_info: Optional model specification from resolve_active_opencode_model()
         output_schema: Optional JSON schema for structured output
+        required: If True, fail-closed when server not available
 
     Returns:
         LLM response text
@@ -727,6 +729,7 @@ def _invoke_llm_via_server(
             text=prompt_text,
             model=model_info,
             output_schema=output_schema,
+            required=required,
         )
         return extract_session_response(response)
     except ServerNotAvailableError:
