@@ -926,11 +926,14 @@ def _run_llm_edit_step(
                 developer_schema_text = _get_developer_output_schema_text()
                 output_schema = json.loads(developer_schema_text) if developer_schema_text.strip() else None
 
-                prompt_text = (
-                    "Read the following implementation context JSON and execute the approved plan by editing "
-                    "domain repository files (not .governance). Return strict JSON only.\n\n"
-                    + context_json
+                instruction = (
+                    "Execute the approved plan by editing domain repository files (not .governance). "
+                    "Return strict JSON only with your response."
                 )
+                if output_schema:
+                    instruction += f"\n\nOutput schema:\n{json.dumps(output_schema, ensure_ascii=True)}"
+
+                prompt_text = instruction + "\n\nContext:\n" + context_json
 
                 response_text = _invoke_llm_via_server(
                     session_id=session_id,
@@ -939,12 +942,10 @@ def _run_llm_edit_step(
                     output_schema=output_schema,
                 )
 
-                response_text = _parse_json_events_to_text(response_text)
-
                 _write_text_atomic(stdout_file, response_text)
                 _write_text_atomic(stderr_file, "[server_client] Implementation via direct HTTP")
 
-                response_valid = True
+                response_valid = False
                 validation_violations: list[str] = []
 
                 if response_text and response_text.startswith("{"):
@@ -962,20 +963,15 @@ def _run_llm_edit_step(
                         if validation.valid:
                             response_valid = True
                         else:
-                            response_valid = False
                             validation_violations = validation.raw_violations
                     except json.JSONDecodeError:
                         validation_violations = ["response-not-structured-json"]
-                        response_valid = False
                     except (OSError, IOError) as e:
                         validation_violations = [f"response-read-error: {e}"]
-                        response_valid = False
                 elif not response_text:
                     validation_violations = ["response-empty"]
-                    response_valid = False
                 else:
                     validation_violations = ["response-not-structured-json"]
-                    response_valid = False
 
                 after_changed = set(_parse_changed_files_from_git_status(repo_root))
                 delta_changed = sorted(after_changed - before_changed)
@@ -987,13 +983,20 @@ def _run_llm_edit_step(
                 )
                 changed_files = sorted(set(delta_changed).union(hotspot_changed))
 
+                impl_success = response_valid and bool(changed_files)
+                impl_message = ""
+                if response_valid and not changed_files:
+                    impl_message = "LLM response valid but no files changed"
+                elif not response_valid and changed_files:
+                    impl_message = "Files changed but LLM response invalid"
+
                 use_server_client = True
 
                 return {
                     "executor_invoked": True,
-                    "exit_code": 0,
-                    "reason_code": "",
-                    "message": "",
+                    "exit_code": 0 if impl_success else 1,
+                    "reason_code": RC_EXECUTOR_FAILED if not impl_success else "",
+                    "message": impl_message,
                     "stdout_path": str(stdout_file),
                     "stderr_path": str(stderr_file),
                     "changed_files": changed_files,
