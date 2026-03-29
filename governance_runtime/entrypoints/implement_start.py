@@ -68,6 +68,11 @@ from governance_runtime.infrastructure.plan_record_state import resolve_plan_rec
 from governance_runtime.infrastructure.workspace_paths import governance_runtime_state_dir
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
+from governance_runtime.infrastructure.opencode_server_client import (
+    send_session_prompt,
+    extract_session_response,
+    ServerNotAvailableError,
+)
 from governance_runtime.application.services.state_normalizer import normalize_to_canonical
 from governance_runtime.shared.next_action import NextAction, NextActions, render_next_action_line
 
@@ -694,6 +699,42 @@ def _resolve_desktop_executor_bridge_cmd(*, repo_root: Path) -> str:
     return " ".join(cmd_parts)
 
 
+def _invoke_llm_via_server(
+    session_id: str,
+    prompt_text: str,
+    model_info: dict | None = None,
+    output_schema: dict | None = None,
+) -> str:
+    """Try to invoke LLM via direct server API, fallback to legacy on failure.
+
+    This replaces subprocess("opencode run --session ...") with direct HTTP calls.
+
+    Args:
+        session_id: OpenCode session ID
+        prompt_text: The prompt to send
+        model_info: Optional model specification from resolve_active_opencode_model()
+        output_schema: Optional JSON schema for structured output
+
+    Returns:
+        LLM response text
+
+    Raises:
+        ServerNotAvailableError: If server method fails and no legacy fallback possible
+    """
+    try:
+        response = send_session_prompt(
+            session_id=session_id,
+            text=prompt_text,
+            model=model_info,
+            output_schema=output_schema,
+        )
+        return extract_session_response(response)
+    except ServerNotAvailableError:
+        raise
+    except Exception as exc:
+        raise ServerNotAvailableError(f"Server client failed: {exc}") from exc
+
+
 def _run_llm_edit_step(
     *,
     repo_root: Path,
@@ -866,7 +907,109 @@ def _run_llm_edit_step(
     before_changed = set(_parse_changed_files_from_git_status(repo_root))
     before_hotspot_hashes = _capture_hotspot_hashes(repo_root, required_hotspots)
 
+    use_server_client = False
     bridge_mode = False
+
+    if not executor_cmd and _has_active_desktop_llm_binding() and not pipeline_mode:
+        session_id = _resolve_active_opencode_session_id()
+        model_info = resolve_active_opencode_model()
+        model_dict = None
+        if model_info and isinstance(model_info, dict):
+            provider = model_info.get("provider", "")
+            model_id = model_info.get("model_id", "")
+            if provider and model_id:
+                model_dict = {"providerID": provider, "modelID": model_id}
+
+        if session_id:
+            try:
+                context_json = context_file.read_text(encoding="utf-8")
+                developer_schema_text = _get_developer_output_schema_text()
+                output_schema = json.loads(developer_schema_text) if developer_schema_text.strip() else None
+
+                prompt_text = (
+                    "Read the following implementation context JSON and execute the approved plan by editing "
+                    "domain repository files (not .governance). Return strict JSON only.\n\n"
+                    + context_json
+                )
+
+                response_text = _invoke_llm_via_server(
+                    session_id=session_id,
+                    prompt_text=prompt_text,
+                    model_info=model_dict,
+                    output_schema=output_schema,
+                )
+
+                response_text = _parse_json_events_to_text(response_text)
+
+                _write_text_atomic(stdout_file, response_text)
+                _write_text_atomic(stderr_file, "[server_client] Implementation via direct HTTP")
+
+                response_valid = True
+                validation_violations: list[str] = []
+
+                if response_text and response_text.startswith("{"):
+                    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
+                    try:
+                        from llm_response_validator import (
+                            coerce_output_against_mandates_schema,
+                            validate_developer_response,
+                        )
+                        parsed = json.loads(response_text)
+                        normalized = coerce_output_against_mandates_schema(parsed, schema, "developerOutputSchema")
+                        if isinstance(normalized, dict):
+                            parsed = normalized
+                        validation = validate_developer_response(parsed, mandates_schema=schema)
+                        if validation.valid:
+                            response_valid = True
+                        else:
+                            response_valid = False
+                            validation_violations = validation.raw_violations
+                    except json.JSONDecodeError:
+                        validation_violations = ["response-not-structured-json"]
+                        response_valid = False
+                    except (OSError, IOError) as e:
+                        validation_violations = [f"response-read-error: {e}"]
+                        response_valid = False
+                elif not response_text:
+                    validation_violations = ["response-empty"]
+                    response_valid = False
+                else:
+                    validation_violations = ["response-not-structured-json"]
+                    response_valid = False
+
+                after_changed = set(_parse_changed_files_from_git_status(repo_root))
+                delta_changed = sorted(after_changed - before_changed)
+                after_hotspot_hashes = _capture_hotspot_hashes(repo_root, required_hotspots)
+                hotspot_changed = sorted(
+                    path
+                    for path in sorted(set(before_hotspot_hashes).union(after_hotspot_hashes))
+                    if before_hotspot_hashes.get(path, "") != after_hotspot_hashes.get(path, "")
+                )
+                changed_files = sorted(set(delta_changed).union(hotspot_changed))
+
+                use_server_client = True
+
+                return {
+                    "executor_invoked": True,
+                    "exit_code": 0,
+                    "reason_code": "",
+                    "message": "",
+                    "stdout_path": str(stdout_file),
+                    "stderr_path": str(stderr_file),
+                    "changed_files": changed_files,
+                    "response_valid": response_valid,
+                    "validation_violations": validation_violations,
+                    "bridge_mode": False,
+                    "binding_resolved": True,
+                    "invoke_backend_available": True,
+                    "invoke_backend": "server_client",
+                    "repo_baseline": repo_baseline,
+                }
+            except ServerNotAvailableError:
+                pass
+            except Exception as exc:
+                _write_text_atomic(stderr_file, f"[server_client] Failed: {exc}")
+
     if not executor_cmd:
         if _has_active_desktop_llm_binding() and not pipeline_mode:
             bridge_cmd = _resolve_desktop_executor_bridge_cmd(repo_root=repo_root)
@@ -946,6 +1089,7 @@ def _run_llm_edit_step(
             "reason_code": RC_EXECUTOR_FAILED,
             "binding_resolved": True,
             "invoke_backend_available": True,
+            "invoke_backend": "legacy_cli_bridge",
             "message": "Implementation LLM bridge timed out.",
             "stdout_path": str(stdout_file),
             "stderr_path": str(stderr_file),
@@ -1012,6 +1156,7 @@ def _run_llm_edit_step(
         "bridge_mode": bridge_mode,
         "binding_resolved": True,
         "invoke_backend_available": True,
+        "invoke_backend": "legacy_cli_bridge",
         "repo_baseline": repo_baseline,
     }
 
