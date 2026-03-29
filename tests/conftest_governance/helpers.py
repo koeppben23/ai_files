@@ -28,6 +28,28 @@ def _load_module(name: str, filename: str):
     return module
 
 
+def _resolve_test_model_identity() -> dict[str, str]:
+    """Resolve provider/model for tests without pinning vendor.
+
+    Preference:
+    1) OPENCODE_MODEL as provider/model
+    2) AI_GOVERNANCE_TEST_MODEL as provider/model
+    3) generic fallback test-provider/test-model
+    """
+    raw = str(
+        os.environ.get("OPENCODE_MODEL")
+        or os.environ.get("AI_GOVERNANCE_TEST_MODEL")
+        or ""
+    ).strip()
+    if "/" in raw:
+        provider, model_id = raw.split("/", 1)
+        provider = provider.strip()
+        model_id = model_id.strip()
+        if provider and model_id:
+            return {"provider": provider, "model_id": model_id}
+    return {"provider": "test-provider", "model_id": "test-model"}
+
+
 def _load_phase5():
     module = _load_module("phase5_plan_record_persist", "phase5_plan_record_persist.py")
     original_invoke = module._invoke_llm_via_server
@@ -48,10 +70,7 @@ def _load_phase5():
     module._resolve_active_opencode_session_id = lambda: str(
         os.environ.get("OPENCODE_SESSION_ID") or "sess_test"
     )
-    module.resolve_active_opencode_model = lambda: {
-        "provider": "openai",
-        "model_id": "gpt-5",
-    }
+    module.resolve_active_opencode_model = _resolve_test_model_identity
     return module
 
 
