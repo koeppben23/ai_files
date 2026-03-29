@@ -198,8 +198,9 @@ class TestSendSessionPrompt:
     Corner: Model and output_schema handling
     """
 
-    def test_happy_minimal_request(self):
+    def test_happy_minimal_request(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Minimal request with just session_id and text."""
+        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://127.0.0.1:4096")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {"parts": [{"type": "text", "text": "Response"}]}}
             result = send_session_prompt("session-123", "Hello")
@@ -211,8 +212,9 @@ class TestSendSessionPrompt:
             assert body["noReply"] is False
             assert body["parts"][0]["text"] == "Hello"
 
-    def test_happy_with_model(self):
+    def test_happy_with_model(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Model specification is included in request."""
+        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://127.0.0.1:4096")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {}}
             model = {"providerID": "openai", "modelID": "gpt-5"}
@@ -221,8 +223,9 @@ class TestSendSessionPrompt:
             body = call_args[0][1]
             assert body["model"] == model
 
-    def test_happy_with_output_schema(self):
+    def test_happy_with_output_schema(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Output schema is included for structured output."""
+        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://127.0.0.1:4096")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {}}
             schema = {"type": "object", "properties": {"key": {"type": "string"}}}
@@ -233,8 +236,9 @@ class TestSendSessionPrompt:
             assert body["format"]["type"] == "json_schema"
             assert body["format"]["schema"] == schema
 
-    def test_happy_uses_server_url(self):
+    def test_happy_uses_server_url(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Server URL is resolved and used."""
+        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://127.0.0.1:4096")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {}}
             send_session_prompt("session-123", "Hello")
