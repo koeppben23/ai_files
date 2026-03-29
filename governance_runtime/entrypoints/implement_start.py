@@ -72,6 +72,8 @@ from governance_runtime.infrastructure.opencode_server_client import (
     send_session_prompt,
     extract_session_response,
     ServerNotAvailableError,
+    is_server_required_mode,
+    resolve_opencode_server_base_url,
 )
 from governance_runtime.application.services.state_normalizer import normalize_to_canonical
 from governance_runtime.shared.next_action import NextAction, NextActions, render_next_action_line
@@ -912,6 +914,8 @@ def _run_llm_edit_step(
 
     use_server_client = False
     bridge_mode = False
+    server_required = is_server_required_mode()
+    server_error: str | None = None
 
     if not executor_cmd and _has_active_desktop_llm_binding() and not pipeline_mode:
         session_id = _resolve_active_opencode_session_id()
@@ -943,10 +947,16 @@ def _run_llm_edit_step(
                     prompt_text=prompt_text,
                     model_info=model_dict,
                     output_schema=output_schema,
+                    required=server_required,
                 )
 
                 _write_text_atomic(stdout_file, response_text)
-                _write_text_atomic(stderr_file, "[server_client] Implementation via direct HTTP")
+                server_url = ""
+                try:
+                    server_url = resolve_opencode_server_base_url()
+                except ServerNotAvailableError:
+                    pass
+                _write_text_atomic(stderr_file, f"[server_client] Implementation via direct HTTP (url: {server_url})")
 
                 response_valid = False
                 validation_violations: list[str] = []
@@ -1009,14 +1019,51 @@ def _run_llm_edit_step(
                     "binding_resolved": True,
                     "invoke_backend_available": True,
                     "invoke_backend": "server_client",
+                    "invoke_backend_url": server_url,
                     "repo_baseline": repo_baseline,
                 }
-            except ServerNotAvailableError:
-                pass
+            except ServerNotAvailableError as exc:
+                server_error = str(exc)
+                _write_text_atomic(stderr_file, f"[server_client] Failed: {server_error}")
+                if server_required:
+                    return {
+                        "executor_invoked": True,
+                        "exit_code": 1,
+                        "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
+                        "message": f"Server required but unavailable: {server_error}",
+                        "stdout_path": str(stdout_file),
+                        "stderr_path": str(stderr_file),
+                        "changed_files": [],
+                        "repo_baseline": repo_baseline,
+                        "blocked": True,
+                        "binding_resolved": True,
+                        "invoke_backend_available": False,
+                        "invoke_backend": "server_client",
+                        "invoke_backend_error": server_error,
+                        "recovery_action": "AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER=1 is set but OpenCode server is not available.",
+                    }
             except Exception as exc:
-                _write_text_atomic(stderr_file, f"[server_client] Failed: {exc}")
+                server_error = str(exc)
+                _write_text_atomic(stderr_file, f"[server_client] Failed: {server_error}")
+                if server_required:
+                    return {
+                        "executor_invoked": True,
+                        "exit_code": 1,
+                        "reason_code": RC_EXECUTOR_FAILED,
+                        "message": f"Server required but failed: {server_error}",
+                        "stdout_path": str(stdout_file),
+                        "stderr_path": str(stderr_file),
+                        "changed_files": [],
+                        "repo_baseline": repo_baseline,
+                        "blocked": True,
+                        "binding_resolved": True,
+                        "invoke_backend_available": False,
+                        "invoke_backend": "server_client",
+                        "invoke_backend_error": server_error,
+                        "recovery_action": "AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER=1 is set but server call failed.",
+                    }
 
-    if not executor_cmd:
+    if not executor_cmd and not server_required:
         if _has_active_desktop_llm_binding() and not pipeline_mode:
             bridge_cmd = _resolve_desktop_executor_bridge_cmd(repo_root=repo_root)
             if bridge_cmd:

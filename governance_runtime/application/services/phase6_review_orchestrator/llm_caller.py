@@ -106,6 +106,7 @@ from governance_runtime.infrastructure.opencode_server_client import (
     extract_session_response,
     ServerNotAvailableError,
     resolve_opencode_server_base_url,
+    is_server_required_mode,
 )
 
 
@@ -389,6 +390,7 @@ class LLMCaller:
             )
 
         server_error: str | None = None
+        server_required = is_server_required_mode()
         if not pipeline_mode and self._has_active_desktop_llm_binding():
             session_id = str(self._env_reader("OPENCODE_SESSION_ID") or "").strip()
             model_info = resolve_active_opencode_model(env_reader=self._env_reader)
@@ -419,6 +421,7 @@ class LLMCaller:
                         prompt_text=prompt_text,
                         model_info=model_dict,
                         output_schema=output_schema,
+                        required=server_required,
                     )
 
                     response_valid = False
@@ -463,9 +466,21 @@ class LLMCaller:
                     pass
 
         # Legacy CLI bridge path (fallback when server path failed or not available)
-        if not pipeline_mode:
+        if not server_required and not pipeline_mode:
             bridge_cmd = self._resolve_desktop_bridge_cmd()
             if not bridge_cmd:
+                if server_required:
+                    return LLMResponse(
+                        invoked=False,
+                        stdout="",
+                        stderr=f"[server_client_failed: {server_error or 'server not available'}]",
+                        return_code=1,
+                        error="Server required but not available and no legacy fallback in required mode",
+                        pipeline_mode=False,
+                        binding_role="review",
+                        binding_source=binding_source,
+                        invoke_backend="server_client",
+                    )
                 return LLMResponse(
                     invoked=False,
                     stdout="",
