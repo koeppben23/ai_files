@@ -103,7 +103,6 @@ from governance_runtime.infrastructure.opencode_server_client import (
     extract_session_response,
     ServerNotAvailableError,
 )
-from governance_runtime.infrastructure.opencode_model_binding import has_active_desktop_llm_binding as _has_desktop_llm_binding
 
 
 @dataclass(frozen=True)
