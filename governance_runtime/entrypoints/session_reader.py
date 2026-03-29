@@ -1408,14 +1408,14 @@ def main(argv: list[str] | None = None) -> int:
 
     action_line = _resolve_next_action_line(snapshot)
 
-    if effective_mode == "debug":
-        rendered = format_guided_snapshot(
+    if effective_mode == "narrative":
+        rendered = format_narrative_snapshot(
             snapshot,
             action_line,
             verbose_governance_frame=verbose_governance_frame,
         )
-    elif effective_mode == "narrative":
-        rendered = format_narrative_snapshot(
+    elif effective_mode == "debug":
+        rendered = format_guided_snapshot(
             snapshot,
             action_line,
             verbose_governance_frame=verbose_governance_frame,
