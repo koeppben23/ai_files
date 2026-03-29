@@ -141,8 +141,8 @@ def send_session_prompt(
     replacing the legacy subprocess("opencode run --session ...") approach.
 
     Note: The server API documentation is inconsistent between format (SDK examples)
-    and outputFormat (API overview). This implementation uses "format" per SDK examples.
-    Should be verified against /doc and adjusted if needed.
+    and outputFormat (API overview). Default uses "format" per SDK examples.
+    Set AI_GOVERNANCE_USE_OUTPUTFORMAT=1 to use "outputFormat" instead.
 
     Args:
         session_id: Session ID to continue
@@ -150,7 +150,7 @@ def send_session_prompt(
         model: Optional model specification (e.g., {"providerID": "openai", "modelID": "gpt-5"})
                If None, uses the session's default model
         output_schema: Optional JSON schema for structured output
-                      Uses "format" field per SDK examples - verify against /doc
+                      Uses "format" by default; set AI_GOVERNANCE_USE_OUTPUTFORMAT=1 for outputFormat
 
     Returns:
         Session response dict with info and parts
@@ -172,10 +172,17 @@ def send_session_prompt(
         body["model"] = model
 
     if output_schema:
-        body["format"] = {
-            "type": "json_schema",
-            "schema": output_schema,
-        }
+        use_outputformat = os.environ.get("AI_GOVERNANCE_USE_OUTPUTFORMAT", "").strip().lower() == "1"
+        if use_outputformat:
+            body["outputFormat"] = {
+                "type": "json_schema",
+                "schema": output_schema,
+            }
+        else:
+            body["format"] = {
+                "type": "json_schema",
+                "schema": output_schema,
+            }
 
     return post_json(f"/session/{session_id}/message", body)
 
