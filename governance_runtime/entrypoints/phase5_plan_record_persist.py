@@ -534,6 +534,18 @@ BLOCKED_PLAN_EXECUTOR_UNAVAILABLE = "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE"
 BLOCKED_REVIEW_EXECUTOR_TIMEOUT = "BLOCKED-REVIEW-EXECUTOR-TIMEOUT"
 BLOCKED_REVIEW_TOOL_USE_DISALLOWED = "BLOCKED-REVIEW-TOOL-USE-DISALLOWED"
 
+
+def _mandate_schema_reason_code(exc: Exception) -> str:
+    if isinstance(exc, MandateSchemaMissingError):
+        return "MANDATE-SCHEMA-MISSING"
+    if isinstance(exc, MandateSchemaInvalidJsonError):
+        return "MANDATE-SCHEMA-INVALID-JSON"
+    if isinstance(exc, MandateSchemaInvalidStructureError):
+        return "MANDATE-SCHEMA-INVALID-STRUCTURE"
+    if isinstance(exc, MandateSchemaUnavailableError):
+        return "MANDATE-SCHEMA-UNAVAILABLE"
+    return "MANDATE-SCHEMA-ERROR"
+
 NEXT_ACTION_FIX_PLAN_VALIDATOR = NextAction(
     code="FIX_PLAN_VALIDATOR",
     text="Fix plan validator configuration/imports, then rerun /plan.",
@@ -813,7 +825,6 @@ def _call_llm_generate_plan(
             try:
                 context_json = context_file.read_text(encoding="utf-8")
                 output_schema_text = _get_plan_output_schema_text()
-                import json
                 output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
 
                 prompt_text = "Read the following planning context JSON and produce only valid JSON conforming to the provided output schema.\n\n" + context_json
@@ -1420,7 +1431,6 @@ def _call_llm_review(
             try:
                 context_json = context_file.read_text(encoding="utf-8")
                 output_schema_text = _get_review_output_schema_text()
-                import json
                 output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
 
                 prompt_text = "Read the following review context JSON and produce only valid JSON conforming to the provided output schema.\n\n" + context_json
@@ -1437,11 +1447,12 @@ def _call_llm_review(
                     mandates_schema = _load_mandates_schema()
                 except (MandateSchemaMissingError, MandateSchemaInvalidJsonError,
                         MandateSchemaInvalidStructureError, MandateSchemaUnavailableError) as exc:
+                    reason_code = _mandate_schema_reason_code(exc)
                     return {
                         "llm_invoked": False,
                         "verdict": "changes_requested",
-                        "findings": [f"mandate-schema-error: {exc}"],
-                        "reason_code": "MANDATE-SCHEMA-ERROR",
+                        "findings": [f"{reason_code.lower()}: {exc}"],
+                        "reason_code": reason_code,
                         "pipeline_mode": pipeline_mode,
                         "binding_role": "review",
                         "binding_source": binding_source,
@@ -1539,6 +1550,16 @@ def _call_llm_review(
         atomic_write_text(stdout_file, str(result.stdout or ""))
         atomic_write_text(stderr_file, str(result.stderr or ""))
         response_text = result.stdout or ""
+    except subprocess.TimeoutExpired:
+        return {
+            "llm_invoked": False,
+            "verdict": "changes_requested",
+            "findings": ["review-llm-timeout"],
+            "reason_code": BLOCKED_REVIEW_EXECUTOR_TIMEOUT,
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+        }
     except Exception as exc:
         return {
             "llm_invoked": False,
@@ -1576,11 +1597,12 @@ def _call_llm_review(
         mandates_schema = _load_mandates_schema()
     except (MandateSchemaMissingError, MandateSchemaInvalidJsonError,
             MandateSchemaInvalidStructureError, MandateSchemaUnavailableError) as exc:
+        reason_code = _mandate_schema_reason_code(exc)
         return {
             "llm_invoked": False,
             "verdict": "changes_requested",
-            "findings": [f"mandate-schema-error: {exc}"],
-            "reason_code": "MANDATE-SCHEMA-ERROR",
+            "findings": [f"{reason_code.lower()}: {exc}"],
+            "reason_code": reason_code,
             "pipeline_mode": pipeline_mode,
             "binding_role": "review",
             "binding_source": binding_source,
