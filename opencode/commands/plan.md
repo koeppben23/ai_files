@@ -66,6 +66,8 @@ If no snapshot is available, proceed using only the context visible in the curre
 - report current `phase`, `next`, `active_gate`, and `next_gate_condition` after persist
 - if the persist command succeeded, confirm evidence was written and state was rerouted
 - if a blocker or warning is present, render it with concise evidence and one recovery action
+- after successful persist, render a footer section labeled **Plan** containing the plan summary (use the `plan_under_review_summary` field from the JSON payload if present; otherwise extract the objective from `structured_plan.objective`)
+- end with one explicit `Next action:` line as the final output line
 
 ---
 
