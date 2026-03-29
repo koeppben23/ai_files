@@ -23,7 +23,7 @@ class TestGovernanceConfigCanonicalDefaults:
     def test_default_config_matches_loader_defaults(self) -> None:
         """Asset defaults must match hardcoded loader defaults.
         
-        Note: Asset intentionally omits $schema to avoid resolution issues.
+        Note: Asset may include $schema but loader defaults do not.
         """
         from governance_runtime.domain.default_governance_config import get_default_governance_config
         
@@ -33,6 +33,8 @@ class TestGovernanceConfigCanonicalDefaults:
         assert asset_path.exists(), f"governance-config.json asset not found at {asset_path}"
         
         asset_content = json.loads(asset_path.read_text(encoding="utf-8"))
+        
+        asset_content.pop("$schema", None)
         
         assert asset_content == loader_defaults
 
@@ -151,6 +153,9 @@ class TestGovernanceConfigLoaderDefaults:
         workspace_dir.mkdir()
         
         custom_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 7,
                 "phase6_max_review_iterations": 5,
@@ -196,6 +201,9 @@ class TestGetReviewIterationsDefaults:
         workspace_dir.mkdir()
         
         custom_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 5,
                 "phase6_max_review_iterations": 7,

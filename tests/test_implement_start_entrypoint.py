@@ -103,6 +103,9 @@ def _set_pipeline_mode_bindings(monkeypatch: pytest.MonkeyPatch, workspace_dir: 
         json.dumps(
             {
                 "pipeline_mode": True,
+                "presentation": {
+                    "mode": "standard",
+                },
                 "review": {
                     "phase5_max_review_iterations": 3,
                     "phase6_max_review_iterations": 3,
@@ -1213,6 +1216,9 @@ def test_bad_pipeline_missing_binding_emits_resolution_vs_invoke_false_false(
         json.dumps(
             {
                 "pipeline_mode": True,
+                "presentation": {
+                    "mode": "standard",
+                },
                 "review": {
                     "phase5_max_review_iterations": 3,
                     "phase6_max_review_iterations": 3,

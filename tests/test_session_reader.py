@@ -123,6 +123,9 @@ def _set_pipeline_mode_bindings(
         json.dumps(
             {
                 "pipeline_mode": True,
+                "presentation": {
+                    "mode": "standard",
+                },
                 "review": {
                     "phase5_max_review_iterations": 3,
                     "phase6_max_review_iterations": 3,
@@ -1019,7 +1022,7 @@ class TestMain:
             rc = main(["--commands-home", str(fake_config / "commands")])
         assert rc == 0
         captured = capsys.readouterr()
-        assert "Current state" in captured.out
+        assert "Session State" in captured.out
         assert "Next action:" in captured.out
 
     def test_error_exit_code(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
@@ -1203,7 +1206,7 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "- Active gate: Architecture Review Gate" in output
+        assert "Active gate: Architecture Review Gate" in output
         assert "Phase 5 self-review status: iteration=0/3" in output
         assert "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review" not in output
         assert "Next action:" in output
@@ -1284,7 +1287,7 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "- Active gate: Plan Record Preparation Gate" in output
+        assert "Active gate: Plan Record Preparation Gate" in output
         assert output.strip().endswith("Next action: /plan")
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
@@ -1434,7 +1437,7 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "- Active gate: Ticket Input Gate" in output
+        assert "Active gate: Ticket Input Gate" in output
         assert not output.strip().endswith("Next action: run /continue.")
 
     def test_materialize_mode_phase6_runs_internal_review_loop_without_chat_interaction(
@@ -3180,6 +3183,9 @@ class TestPhase6GovernanceConfigWiring:
         })
 
         governance_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,
@@ -3217,6 +3223,9 @@ class TestPhase6GovernanceConfigWiring:
         })
 
         governance_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,
@@ -3281,6 +3290,9 @@ class TestPhase6KernelGovernanceConfigWiring:
         )
         
         governance_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,
@@ -3313,6 +3325,9 @@ class TestPhase6KernelGovernanceConfigWiring:
         
         ws_state = _write_pointer(fake_config)
         governance_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,

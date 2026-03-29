@@ -80,6 +80,9 @@ def _call_llm_review_with_response(content: str, stdout: str, stderr: str = "", 
                 json.dumps(
                     {
                         "pipeline_mode": True,
+                        "presentation": {
+                            "mode": "standard",
+                        },
                         "review": {
                             "phase5_max_review_iterations": 3,
                             "phase6_max_review_iterations": 3,

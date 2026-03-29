@@ -1305,6 +1305,7 @@ def main(argv: list[str] | None = None) -> int:
     diagnose_mode = False
     materialize_mode = False
     verbose_governance_frame = False
+    quiet_mode = False
     tail_count = 25
     args = argv if argv is not None else sys.argv[1:]
 
@@ -1339,6 +1340,10 @@ def main(argv: list[str] | None = None) -> int:
             verbose_governance_frame = True
             idx += 1
             continue
+        if arg == "--quiet":
+            quiet_mode = True
+            idx += 1
+            continue
         if arg == "--tail-count":
             if idx + 1 >= len(args):
                 print("status: ERROR", file=sys.stdout)
@@ -1368,23 +1373,60 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(json.dumps(payload, ensure_ascii=True, indent=2) + "\n")
         return 0
 
-    raw_snapshot = read_session_snapshot(commands_home=commands_home, materialize=materialize_mode)
-    # Cast to typed Snapshot for renderer contract
-    snapshot: Snapshot = {k: v for k, v in raw_snapshot.items()}
-
-    if not audit_mode and not debug_mode and not diagnose_mode:
-        action_line = _resolve_next_action_line(snapshot)
-        rendered = format_guided_snapshot(
-            snapshot,
-            action_line,
-            verbose_governance_frame=verbose_governance_frame,
-        )
-    else:
+    if diagnose_mode:
+        raw_snapshot = read_session_snapshot(commands_home=commands_home, materialize=materialize_mode)
+        snapshot: Snapshot = {k: v for k, v in raw_snapshot.items()}
         rendered = format_snapshot(snapshot)
         if materialize_mode:
             action_line = _resolve_next_action_line(snapshot)
             if action_line:
                 rendered = rendered + action_line + "\n"
+        sys.stdout.write(rendered)
+        return 0 if snapshot.get("status") != "ERROR" else 1
+
+    raw_snapshot = read_session_snapshot(commands_home=commands_home, materialize=materialize_mode)
+    snapshot: Snapshot = {k: v for k, v in raw_snapshot.items()}
+
+    workspace_dir = commands_home.parent if commands_home else None
+
+    if quiet_mode:
+        sys.stdout.write(json.dumps(snapshot, ensure_ascii=True, indent=2) + "\n")
+        return 0
+
+    from governance_runtime.infrastructure.governance_config_loader import (
+        resolve_presentation_mode,
+    )
+    from governance_runtime.infrastructure.rendering.snapshot_renderer import (
+        format_standard_snapshot,
+    )
+
+    effective_mode = resolve_presentation_mode(
+        cli_quiet=quiet_mode,
+        cli_debug=debug_mode,
+        workspace_root=workspace_dir,
+    )
+
+    action_line = _resolve_next_action_line(snapshot)
+
+    if effective_mode == "debug":
+        rendered = format_guided_snapshot(
+            snapshot,
+            action_line,
+            verbose_governance_frame=verbose_governance_frame,
+        )
+    elif effective_mode == "standard":
+        rendered = format_standard_snapshot(
+            snapshot,
+            action_line,
+            verbose_governance_frame=verbose_governance_frame,
+        )
+    else:
+        rendered = format_guided_snapshot(
+            snapshot,
+            action_line,
+            verbose_governance_frame=verbose_governance_frame,
+        )
+
     sys.stdout.write(rendered)
     return 0 if snapshot.get("status") != "ERROR" else 1
 
