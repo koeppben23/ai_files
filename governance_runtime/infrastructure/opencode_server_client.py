@@ -37,13 +37,42 @@ def is_server_required_mode() -> bool:
     return os.environ.get("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _resolve_base_url_from_config(workspace_dir: str | None) -> str | None:
+    """Resolve base_url from governance-config.json.
+
+    Args:
+        workspace_dir: Path to workspace directory (from AI_GOVERNANCE_WORKSPACE_DIR)
+
+    Returns:
+        base_url if found in config, None otherwise
+    """
+    if not workspace_dir:
+        return None
+
+    try:
+        config_path = Path(workspace_dir) / "governance-config.json"
+        if not config_path.is_file():
+            return None
+
+        import json
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        server_config = config.get("opencode_server", {})
+        base_url = server_config.get("base_url", "").strip()
+        if base_url:
+            return base_url.rstrip("/")
+    except Exception:
+        pass
+    return None
+
+
 def resolve_opencode_server_base_url() -> str:
     """Resolve OpenCode server base URL.
 
     Resolution order:
-    1. AI_GOVERNANCE_OPENCODE_SERVER_URL (override)
-    2. OPENCODE_PORT (for Desktop/TUI server port)
-    3. fail-closed with clear error
+    1. governance-config.json (if AI_GOVERNANCE_WORKSPACE_DIR set)
+    2. AI_GOVERNANCE_OPENCODE_SERVER_URL (override)
+    3. OPENCODE_PORT (for Desktop/TUI server port)
+    4. fail-closed with clear error
 
     Note: OPENCODE_HOST is NOT a documented contract - removed for docs compliance.
 
@@ -53,6 +82,11 @@ def resolve_opencode_server_base_url() -> str:
     Raises:
         ServerNotAvailableError: If no server URL can be resolved
     """
+    workspace_dir = os.environ.get("AI_GOVERNANCE_WORKSPACE_DIR", "").strip()
+    config_url = _resolve_base_url_from_config(workspace_dir)
+    if config_url:
+        return config_url
+
     override_url = os.environ.get("AI_GOVERNANCE_OPENCODE_SERVER_URL", "").strip()
     if override_url:
         return override_url.rstrip("/")
@@ -63,7 +97,7 @@ def resolve_opencode_server_base_url() -> str:
 
     raise ServerNotAvailableError(
         "OpenCode server URL not resolvable for direct session call. "
-        "Set AI_GOVERNANCE_OPENCODE_SERVER_URL or OPENCODE_PORT."
+        "Set AI_GOVERNANCE_OPENCODE_SERVER_URL, AI_GOVERNANCE_WORKSPACE_DIR (with opencode_server.base_url in governance-config.json), or OPENCODE_PORT."
     )
 
 

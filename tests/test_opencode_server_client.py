@@ -23,49 +23,94 @@ from governance_runtime.infrastructure.opencode_server_client import (
 class TestResolveServerBaseUrl:
     """Tests for server URL resolution.
 
+    Priority: governance-config.json > AI_GOVERNANCE_OPENCODE_SERVER_URL > OPENCODE_PORT > fail-closed
+
     Happy: Valid env vars produce correct URL
     Bad: Missing env vars raise error
     Corner: Edge cases in env var handling
     """
 
+    def _clear_env(self, monkeypatch: pytest.MonkeyPatch):
+        """Clear all server URL related env vars."""
+        monkeypatch.delenv("AI_GOVERNANCE_WORKSPACE_DIR", raising=False)
+        monkeypatch.delenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", raising=False)
+        monkeypatch.delenv("OPENCODE_PORT", raising=False)
+
+    def test_happy_config_base_url(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Happy: governance-config.json with opencode_server.base_url."""
+        self._clear_env(monkeypatch)
+        config = {
+            "opencode_server": {"base_url": "http://192.168.1.100:7000"}
+        }
+        config_file = tmp_path / "governance-config.json"
+        config_file.write_text(json.dumps(config))
+        monkeypatch.setenv("AI_GOVERNANCE_WORKSPACE_DIR", str(tmp_path))
+        result = resolve_opencode_server_base_url()
+        assert result == "http://192.168.1.100:7000"
+
     def test_happy_override_url(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: AI_GOVERNANCE_OPENCODE_SERVER_URL produces exact URL."""
+        self._clear_env(monkeypatch)
         monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://custom:8080")
         result = resolve_opencode_server_base_url()
         assert result == "http://custom:8080"
 
     def test_happy_trailing_slash_stripped(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Trailing slash is stripped from override URL."""
+        self._clear_env(monkeypatch)
         monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://custom:8080/")
         result = resolve_opencode_server_base_url()
         assert result == "http://custom:8080"
 
     def test_happy_opencode_port(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: OPENCODE_PORT produces correct localhost URL."""
-        monkeypatch.delenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", raising=False)
+        self._clear_env(monkeypatch)
         monkeypatch.setenv("OPENCODE_PORT", "5000")
         result = resolve_opencode_server_base_url()
         assert result == "http://127.0.0.1:5000"
 
-    def test_happy_opencode_port_default_4096(self, monkeypatch: pytest.MonkeyPatch):
-        """Happy: Default port 4096 when only override is empty."""
-        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "")
-        monkeypatch.setenv("OPENCODE_PORT", "")
-        with pytest.raises(ServerNotAvailableError):
-            resolve_opencode_server_base_url()
+    def test_happy_config_priority_over_env(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Happy: Config takes priority over AI_GOVERNANCE_OPENCODE_SERVER_URL."""
+        config = {
+            "opencode_server": {"base_url": "http://config:9000"}
+        }
+        config_file = tmp_path / "governance-config.json"
+        config_file.write_text(json.dumps(config))
+        monkeypatch.setenv("AI_GOVERNANCE_WORKSPACE_DIR", str(tmp_path))
+        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://env:8000")
+        result = resolve_opencode_server_base_url()
+        assert result == "http://config:9000"
+
+    def test_happy_env_priority_over_port(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: AI_GOVERNANCE_OPENCODE_SERVER_URL takes priority over OPENCODE_PORT."""
+        self._clear_env(monkeypatch)
+        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://env:8000")
+        monkeypatch.setenv("OPENCODE_PORT", "5000")
+        result = resolve_opencode_server_base_url()
+        assert result == "http://env:8000"
 
     def test_bad_no_env_vars(self, monkeypatch: pytest.MonkeyPatch):
         """Bad: Missing all env vars raises ServerNotAvailableError."""
-        monkeypatch.delenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", raising=False)
-        monkeypatch.delenv("OPENCODE_PORT", raising=False)
+        self._clear_env(monkeypatch)
         with pytest.raises(ServerNotAvailableError) as exc_info:
             resolve_opencode_server_base_url()
         assert "not resolvable" in str(exc_info.value).lower()
 
     def test_corner_whitespace_only(self, monkeypatch: pytest.MonkeyPatch):
         """Corner: Whitespace-only values are treated as empty."""
+        self._clear_env(monkeypatch)
         monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "   ")
         monkeypatch.setenv("OPENCODE_PORT", "")
+        with pytest.raises(ServerNotAvailableError):
+            resolve_opencode_server_base_url()
+
+    def test_corner_config_missing_base_url(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Corner: Config exists but no opencode_server.base_url."""
+        self._clear_env(monkeypatch)
+        config = {"review": {"phase5_max_review_iterations": 3, "phase6_max_review_iterations": 3}}
+        config_file = tmp_path / "governance-config.json"
+        config_file.write_text(json.dumps(config))
+        monkeypatch.setenv("AI_GOVERNANCE_WORKSPACE_DIR", str(tmp_path))
         with pytest.raises(ServerNotAvailableError):
             resolve_opencode_server_base_url()
 
