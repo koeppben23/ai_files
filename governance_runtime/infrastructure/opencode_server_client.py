@@ -37,19 +37,15 @@ def is_server_required_mode() -> bool:
     return os.environ.get("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def resolve_opencode_server_base_url(*, required: bool = False) -> str:
+def resolve_opencode_server_base_url() -> str:
     """Resolve OpenCode server base URL.
 
     Resolution order:
     1. AI_GOVERNANCE_OPENCODE_SERVER_URL (override)
     2. OPENCODE_PORT (for Desktop/TUI server port)
-    3. fail-closed with clear error (if required=True)
+    3. fail-closed with clear error
 
     Note: OPENCODE_HOST is NOT a documented contract - removed for docs compliance.
-
-    Args:
-        required: If True, fail-closed when server not resolvable.
-                 If False (default), raise ServerNotAvailableError for both cases.
 
     Returns:
         Base URL like "http://127.0.0.1:4096"
