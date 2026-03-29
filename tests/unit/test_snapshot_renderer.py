@@ -238,9 +238,9 @@ class TestFormatStandardSnapshot:
 
         output = format_standard_snapshot(snapshot, "Next action: run /continue.")
 
-        assert "Session State" in output
-        assert "Plan under review" in output
-        assert "- Use canary rollout for deployment." in output
+        assert "Current phase is 6 with active gate Some Other Gate." in output
+        assert "Current next is: Continue review." in output
+        assert "Plan under review: Use canary rollout for deployment." in output
         assert output.strip().endswith("Next action: run /continue.")
 
     def test_omits_plan_under_review_when_no_plan_data(self):
@@ -252,7 +252,7 @@ class TestFormatStandardSnapshot:
 
         output = format_standard_snapshot(snapshot, "Next action: run /continue.")
 
-        assert "Plan under review" not in output
+        assert "Plan under review:" not in output
         assert output.strip().endswith("Next action: run /continue.")
 
     def test_omits_plan_under_review_when_blocked(self):
@@ -266,8 +266,8 @@ class TestFormatStandardSnapshot:
 
         output = format_standard_snapshot(snapshot, "Next action: resolve blocker.")
 
-        assert "Plan under review" not in output
-        assert "Blocker" in output
+        assert "Plan under review:" not in output
+        assert "Current blocker is active:" in output
         assert output.strip().endswith("Next action: resolve blocker.")
 
     def test_falls_back_to_plan_body_when_summary_missing(self):
@@ -280,10 +280,8 @@ class TestFormatStandardSnapshot:
 
         output = format_standard_snapshot(snapshot, "Next action: run /continue.")
 
-        assert "Plan under review" in output
-        assert "- Plan" in output
-        assert "- - Step 1" in output
-        assert "- - Step 2" in output
+        assert "Plan under review:" in output
+        assert "Plan; - Step 1; - Step 2" in output
 
     def test_truncation_is_deterministic_in_standard_output(self):
         long_summary = "A" * 900
@@ -298,12 +296,11 @@ class TestFormatStandardSnapshot:
         output2 = format_standard_snapshot(snapshot, "Next action: run /continue.")
 
         assert output1 == output2
-        assert "Plan under review" in output1
+        assert "Plan under review:" in output1
         assert "..." in output1
 
-        plan_section = output1.split("Plan under review", 1)[1].split("Next action:", 1)[0]
-        bullet_lines = [line for line in plan_section.splitlines() if line.startswith("- ")]
-        assert len(bullet_lines) <= 6
+        plan_line = [line for line in output1.splitlines() if line.startswith("Plan under review:")][0]
+        assert len(plan_line) <= 850
 
     def test_standard_and_debug_share_plan_content_for_same_snapshot(self):
         snapshot = _to_snapshot({
@@ -316,10 +313,21 @@ class TestFormatStandardSnapshot:
         standard_output = format_standard_snapshot(snapshot, "Next action: run /review-decision.")
         debug_output = format_guided_snapshot(snapshot, "Next action: run /review-decision.")
 
-        assert "Plan under review" in standard_output
+        assert "Plan under review: Ship canary rollout first." in standard_output
         assert "Plan under review" in debug_output
-        assert "- Ship canary rollout first." in standard_output
         assert "- Ship canary rollout first." in debug_output
+
+    def test_standard_alias_is_narrative_compatible(self):
+        snapshot = _to_snapshot({
+            "phase": "4",
+            "active_gate": "Ticket Input Gate",
+            "next_gate_condition": "Provide task details",
+        })
+
+        output = format_standard_snapshot(snapshot, "Next action: run /ticket.")
+
+        assert "Current phase is 4 with active gate Ticket Input Gate." in output
+        assert "Current next is: Provide task details." in output
 
 
 class TestDecisionBriefSanitizer:

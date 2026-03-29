@@ -442,8 +442,10 @@ def _validate_presentation_section(section_config: dict) -> list[str]:
         errors.append("presentation: missing required key 'mode'")
     elif not isinstance(section_config["mode"], str):
         errors.append("presentation.mode must be a string")
-    elif section_config["mode"] not in {"standard", "debug"}:
-        errors.append(f"presentation.mode must be 'standard' or 'debug', got '{section_config['mode']}'")
+    elif section_config["mode"] not in {"narrative", "debug", "standard"}:
+        errors.append(
+            f"presentation.mode must be 'narrative' or 'debug' (legacy 'standard' alias allowed), got '{section_config['mode']}'"
+        )
 
     unknown_keys = set(section_config.keys()) - {"mode"}
     if unknown_keys:
@@ -499,7 +501,10 @@ def get_pipeline_mode(workspace_root: Path | None = None) -> bool:
 def get_presentation_mode(workspace_root: Path | None = None) -> str:
     """Get presentation mode from governance config.
 
-    Returns 'standard' by default when config is missing.
+    Returns canonical mode ('narrative' or 'debug').
+
+    Legacy compatibility:
+    - "standard" is accepted and normalized to "narrative".
     """
     if workspace_root is None:
         from governance_runtime.domain.default_governance_config import get_default_presentation_config
@@ -508,9 +513,11 @@ def get_presentation_mode(workspace_root: Path | None = None) -> str:
 
     config = load_governance_config(workspace_root)
     presentation = config.get("presentation", {})
-    mode = presentation.get("mode", "standard")
-    if mode not in ("standard", "debug"):
-        mode = "standard"
+    mode = str(presentation.get("mode", "narrative") or "narrative").strip().lower()
+    if mode == "standard":
+        return "narrative"
+    if mode not in ("narrative", "debug"):
+        mode = "narrative"
     return mode
 
 
@@ -524,11 +531,11 @@ def resolve_presentation_mode(
     Priority order (highest to lowest):
     1. --quiet (cli_quiet=True) -> "quiet"
     2. --debug (cli_debug=True) -> "debug"
-    3. presentation.mode from config -> "standard" | "debug"
-    4. Default -> "standard"
+    3. presentation.mode from config -> "narrative" | "debug" ("standard" alias -> "narrative")
+    4. Default -> "narrative"
 
     Returns:
-        "quiet", "debug", or "standard"
+        "quiet", "debug", or "narrative"
     """
     if cli_quiet:
         return "quiet"

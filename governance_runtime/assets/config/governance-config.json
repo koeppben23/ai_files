@@ -2,7 +2,7 @@
   "$schema": "governance-config.v1.schema.json",
   "pipeline_mode": false,
   "presentation": {
-    "mode": "standard"
+    "mode": "narrative"
   },
   "review": {
     "phase5_max_review_iterations": 3,

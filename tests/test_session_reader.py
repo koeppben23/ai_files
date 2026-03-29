@@ -1022,7 +1022,7 @@ class TestMain:
             rc = main(["--commands-home", str(fake_config / "commands")])
         assert rc == 0
         captured = capsys.readouterr()
-        assert "Session State" in captured.out
+        assert "Current phase is" in captured.out
         assert "Next action:" in captured.out
 
     def test_error_exit_code(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
@@ -1030,7 +1030,7 @@ class TestMain:
         rc = main(["--commands-home", str(fake_config / "commands")])
         assert rc == 1
         captured = capsys.readouterr()
-        assert "Blocker" in captured.out
+        assert "Current blocker is active:" in captured.out
         if "Next action:" in captured.out:
             assert captured.out.strip().splitlines()[-1].startswith("Next action: ")
 
@@ -1206,7 +1206,8 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Active gate: Architecture Review Gate" in output
+        assert "Current phase is" in output
+        assert "active gate Architecture Review Gate" in output
         assert "Phase 5 self-review status: iteration=0/3" in output
         assert "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review" not in output
         assert "Next action:" in output
@@ -1287,7 +1288,7 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Active gate: Plan Record Preparation Gate" in output
+        assert "active gate Plan Record Preparation Gate" in output
         assert output.strip().endswith("Next action: /plan")
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
@@ -1437,7 +1438,7 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Active gate: Ticket Input Gate" in output
+        assert "active gate Ticket Input Gate" in output
         assert not output.strip().endswith("Next action: run /continue.")
 
     def test_materialize_mode_phase6_runs_internal_review_loop_without_chat_interaction(
@@ -1556,8 +1557,7 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Plan under review" in output
-        assert "\n- " in output.split("Plan under review", 1)[1]
+        assert "Plan under review:" in output
         assert "continue in chat with the active gate work" not in output
         assert "Next action:" in output
 
@@ -1675,8 +1675,7 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Plan under review" in output
-        assert "\n- " in output.split("Plan under review", 1)[1]
+        assert "Plan under review:" in output
         assert "Next action:" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
@@ -1789,8 +1788,7 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Plan under review" in output
-        assert "\n- " in output.split("Plan under review", 1)[1]
+        assert "Plan under review:" in output
         assert "Next action:" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]

@@ -57,6 +57,8 @@ class TestGovernanceConfigCanonicalDefaults:
         
         asset_content = json.loads(asset_path.read_text(encoding="utf-8"))
         
+        assert "presentation" in asset_content
+        assert asset_content["presentation"]["mode"] == "narrative"
         assert "review" in asset_content
         assert "phase5_max_review_iterations" in asset_content["review"]
         assert "phase6_max_review_iterations" in asset_content["review"]
