@@ -2419,19 +2419,37 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, ensure_ascii=True))
         return 2
 
+    def _normalize_plan_preview(raw: str) -> str:
+        lines = raw.split("\n")
+        cleaned = []
+        for line in lines:
+            line = line.strip()
+            line = re.sub(r"^#+\s*", "", line)
+            line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+            line = re.sub(r"[*_`]+", "", line)
+            if line:
+                cleaned.append(line)
+        if len(cleaned) > 6:
+            cleaned = cleaned[:6]
+        result = "\n".join(cleaned)
+        if len(result) > 800:
+            result = result[:797] + "..."
+        return result
+
     plan_summary = ""
     if isinstance(structured_plan, Mapping):
         presentation = structured_plan.get("presentation_contract")
         if isinstance(presentation, Mapping):
             exec_summary = presentation.get("executive_summary")
             if isinstance(exec_summary, list) and exec_summary:
-                plan_summary = "\n".join(str(item).strip() for item in exec_summary if str(item).strip())
+                raw_summary = "\n".join(str(item).strip() for item in exec_summary if str(item).strip())
+                plan_summary = _normalize_plan_preview(raw_summary)
             elif isinstance(exec_summary, str) and exec_summary.strip():
-                plan_summary = str(exec_summary).strip()
+                plan_summary = _normalize_plan_preview(str(exec_summary).strip())
         if not plan_summary:
             objective = structured_plan.get("objective")
             if isinstance(objective, str) and objective.strip():
-                plan_summary = str(objective).strip()
+                plan_summary = _normalize_plan_preview(str(objective).strip())
 
     payload = _payload(
         "ok",

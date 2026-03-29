@@ -57,8 +57,12 @@ Directed rail selection after clarification:
 
 - report current `phase`, `next`, `active_gate`, and `next_gate_condition` after persist
 - if the persist command succeeded, confirm the review decision evidence was written
-- if the session state contains plan data, render a **Plan under review** section with the plan summary
+- if the session state contains plan data, render a **Plan under review** section:
+  - prefer `plan_under_review_summary` from the JSON payload (already normalized: max 6 lines, max 800 chars)
+  - fallback to `review_package_plan_body` if summary is unavailable
+  - truncate deterministically at line/char budget if content exceeds limits
 - if validation fails, render the exact invalid decision and expected values
+- **always** end with exactly one `Next action:` line as the final output line
 
 ---
 
