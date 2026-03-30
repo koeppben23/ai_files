@@ -230,51 +230,69 @@ class TestSessionHydrationEdge:
 class TestBootstrapOpencodePort:
     """Tests for bootstrap --opencode-port parameter."""
 
-    @pytest.mark.integration
     def test_bootstrap_parses_opencode_port(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """Bootstrap accepts --opencode-port parameter.
 
-        Requires installed Python binding - marked as integration test.
+        Creates a temporary PYTHON_BINDING file if needed to test the bootstrap.
         """
         import subprocess
 
         bootstrap_path = Path(__file__).parent.parent / "bin" / "opencode-governance-bootstrap"
         binding_file = bootstrap_path.parent / "PYTHON_BINDING"
 
-        if not binding_file.exists():
-            pytest.skip("PYTHON_BINDING not found - requires installation")
+        original_binding = None
+        if binding_file.exists():
+            original_binding = binding_file.read_text()
 
-        result = subprocess.run(
-            ["bash", str(bootstrap_path), "--opencode-port", "4096", "--help"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        try:
+            binding_file.write_text("/usr/bin/python3\n")
 
-        assert result.returncode == 0
+            result = subprocess.run(
+                ["bash", str(bootstrap_path), "--opencode-port", "4096", "--help"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
 
-    @pytest.mark.integration
+            assert result.returncode == 0, f"Bootstrap failed: {result.stderr}"
+
+        finally:
+            if original_binding is not None:
+                binding_file.write_text(original_binding)
+            elif binding_file.exists():
+                binding_file.unlink()
+
     def test_bootstrap_hydrate_routes_to_session_hydration(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """Bootstrap --hydrate routes to session_hydration module.
 
-        Requires installed Python binding - marked as integration test.
+        Creates a temporary PYTHON_BINDING file if needed to test the bootstrap.
         """
         import subprocess
 
         bootstrap_path = Path(__file__).parent.parent / "bin" / "opencode-governance-bootstrap"
         binding_file = bootstrap_path.parent / "PYTHON_BINDING"
 
-        if not binding_file.exists():
-            pytest.skip("PYTHON_BINDING not found - requires installation")
+        original_binding = None
+        if binding_file.exists():
+            original_binding = binding_file.read_text()
 
-        monkeypatch.setenv("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "1")
+        try:
+            binding_file.write_text("/usr/bin/python3\n")
 
-        result = subprocess.run(
-            ["bash", str(bootstrap_path), "--hydrate", "--help"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+            monkeypatch.setenv("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "1")
 
-        assert result.returncode == 0
+            result = subprocess.run(
+                ["bash", str(bootstrap_path), "--hydrate", "--help"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            assert result.returncode == 0, f"Bootstrap failed: {result.stderr}"
+
+        finally:
+            if original_binding is not None:
+                binding_file.write_text(original_binding)
+            elif binding_file.exists():
+                binding_file.unlink()
         assert "hydrate" in result.stdout.lower() or "session" in result.stdout.lower()
