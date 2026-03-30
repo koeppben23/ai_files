@@ -1320,3 +1320,110 @@ def test_phase5_review_server_required_fail_closed_no_subprocess(tmp_path: Path,
 
     mock_run.assert_not_called()
     assert result.get("reason_code") == "BLOCKED-SERVER-REQUIRED-UNAVAILABLE"
+
+
+@pytest.mark.governance
+def test_phase5_fails_without_opencode_session_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Phase 5 must fail when OPENCODE_SESSION_ID is not set."""
+    from governance_runtime.infrastructure.opencode_server_client import APIError
+
+    module = _load_module()
+    config_root, commands_home, _session_path, _ = _write_fixture_state(tmp_path)
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.delenv("OPENCODE_SESSION_ID", raising=False)
+    monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "1")
+
+    class _Mat:
+        review_mandate_file = None
+        review_mandate_sha256 = ""
+        review_mandate_label = ""
+        effective_policy_file = None
+        effective_policy_sha256 = ""
+        effective_policy_label = ""
+
+        def has_materialized(self) -> bool:
+            return False
+
+    monkeypatch.setattr(module, "_resolve_plan_review_binding", lambda workspace_dir=None: (False, "", "active_chat_binding"))
+    monkeypatch.setattr(module, "_has_active_desktop_llm_binding", lambda: True)
+    monkeypatch.setattr(module, "resolve_active_opencode_model", lambda: {"provider": "openai", "model_id": "gpt-5"})
+    monkeypatch.setattr(module, "materialize_governance_artifacts", lambda **kwargs: _Mat())
+    monkeypatch.setattr(module, "validate_materialized_artifacts", lambda materialization: None)
+    monkeypatch.setattr(module, "_get_review_output_schema_text", lambda: "{}")
+
+    with pytest.raises(APIError) as exc_info:
+        module._call_llm_review(
+            content="review me",
+            mandate="m",
+            workspace_dir=tmp_path,
+            config_root=config_root,
+        )
+
+    assert "OPENCODE_SESSION_ID" in str(exc_info.value)
+
+
+def test_phase5_uses_server_client_with_session_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """With OPENCODE_SESSION_ID set, Phase 5 uses server client (not subprocess)."""
+    from unittest.mock import MagicMock
+
+    module = _load_module()
+    config_root, commands_home, _session_path, _ = _write_fixture_state(tmp_path)
+    test_session_id = "sess-phase5-test"
+
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("OPENCODE_SESSION_ID", test_session_id)
+    monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "1")
+
+    class _Mat:
+        review_mandate_file = None
+        review_mandate_sha256 = ""
+        review_mandate_label = ""
+        effective_policy_file = None
+        effective_policy_sha256 = ""
+        effective_policy_label = ""
+
+        def has_materialized(self) -> bool:
+            return False
+
+    monkeypatch.setattr(module, "_resolve_plan_review_binding", lambda workspace_dir=None: (False, "", "active_chat_binding"))
+    monkeypatch.setattr(module, "_has_active_desktop_llm_binding", lambda: True)
+    monkeypatch.setattr(module, "resolve_active_opencode_model", lambda: {"provider": "openai", "model_id": "gpt-5"})
+    monkeypatch.setattr(module, "materialize_governance_artifacts", lambda **kwargs: _Mat())
+    monkeypatch.setattr(module, "validate_materialized_artifacts", lambda materialization: None)
+    monkeypatch.setattr(module, "_get_review_output_schema_text", lambda: "{}")
+
+    subprocess_called = False
+
+    def _mock_subprocess_run(*args, **kwargs):
+        nonlocal subprocess_called
+        subprocess_called = True
+        return MagicMock(returncode=0, stdout="{}", stderr="")
+
+    import subprocess
+    monkeypatch.setattr(subprocess, "run", _mock_subprocess_run)
+
+    monkeypatch.setattr(
+        module,
+        "send_session_prompt",
+        lambda **kwargs: {
+            "info": {"parts": [{"type": "text", "text": '{"verdict": "approve", "findings": []}'}]},
+            "resolved_session_id": test_session_id,
+            "session_evidence": {"session_id_source": "OPENCODE_SESSION_ID"}
+        },
+    )
+
+    result = module._call_llm_review(
+        content="review me",
+        mandate="m",
+        workspace_dir=tmp_path,
+        config_root=config_root,
+    )
+
+    assert subprocess_called is False, "subprocess.run must NOT be called when using server client"
+    assert result.get("invoke_backend") == "server_client"
+    assert "resolved_session_id" in str(result) or result.get("llm_invoked") is True
+

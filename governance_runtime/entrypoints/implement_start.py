@@ -599,13 +599,15 @@ def _build_executor_env(*, bridge_mode: bool) -> dict[str, str] | None:
 
 
 def _resolve_active_opencode_session_id() -> str:
+    """Resolve OpenCode session ID - ONLY from environment, no fallback."""
+    from governance_runtime.infrastructure.opencode_server_client import APIError
     session_id = str(os.environ.get("OPENCODE_SESSION_ID") or "").strip()
-    if session_id:
-        return session_id
-    model_info = resolve_active_opencode_model()
-    if not isinstance(model_info, dict):
-        return ""
-    return str(model_info.get("session_id") or "").strip()
+    if not session_id:
+        raise APIError(
+            "OPENCODE_SESSION_ID environment variable is required for production LLM calls. "
+            "No heuristic fallback allowed. Set OPENCODE_SESSION_ID to a valid session ID."
+        )
+    return session_id
 
 
 def _bridge_timeout_seconds() -> int | None:
