@@ -4,7 +4,9 @@
 
 ## Purpose
 
-`/review` is an independent, parallel review command for Phase 4. It lives alongside `/ticket` as its own workflow — it does not require ticket intake and does not depend on `/ticket` having been run. When the full governance bootstrap has been executed, `/review` has access to the complete repository context including repo discovery, architecture decisions, and business rules. This knowledge must inform the review.
+`/review` is an independent, parallel review command for Phase 4. It lives alongside `/ticket` as its own workflow — it does not require ticket intake and does not depend on `/ticket` having been run. However, `/review` requires `/hydrate` to be executed first to bind the governance session to the OpenCode session and establish the knowledge base context.
+
+When the full governance bootstrap has been executed AND `/hydrate` has been run, `/review` has access to the complete repository context including repo discovery, architecture decisions, and business rules. This knowledge must inform the review.
 
 `/review` is a read-only rail entrypoint for PR, file, or directory review. It does not perform implementation changes and does not reroute phase state. The review gate authority remains in the kernel (phase_api.yaml), not in the rail itself.
 
@@ -18,7 +20,14 @@ Binding mode is authoritative per `governance-config.json` and mode-scoped:
 
 ## Execute
 
-When governance execution is available, first read the materialized Session/Gate view (via `opencode-governance-bootstrap --session-reader`) to establish the phase and gate context. No state mutation occurs.
+**Prerequisite: Hydration Required** — Fail-closed.
+
+1. Read session snapshot via `opencode-governance-bootstrap --session-reader`
+2. Check `session_hydrated` field
+3. **If NOT hydrated**: Block and do no review work. Return: `blocked: session-not-hydrated. Run /hydrate first.`
+4. **If hydrated**: Proceed with review below.
+
+When governance execution is available, first read the materialized Session/Gate view (via `opencode-governance-bootstrap --session-reader`) to establish the phase and gate context.
 
 1. Fetch content: GitHub → `gh pr diff <N> --repo <owner>/<repo>`; GitLab → `glab mr diff <IID>`; Bitbucket → `bb pr <ID>`; local files → read directly.
 2. Apply the Review mandate below — falsification-first, evidence-only, fail-closed.
@@ -63,5 +72,4 @@ Quality bar:
 - prefer high-signal findings over stylistic noise
 - focus on correctness, risk, and release safety first
 - keep feedback actionable and specific to changed surfaces
-
 Copyright © 2026 Benjamin Fuchs. All rights reserved. See LICENSE.

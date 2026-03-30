@@ -26,9 +26,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from governance_runtime.infrastructure.session_pointer import (
-    resolve_active_session_state_path,
-)
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.json_store import (
     load_json,
@@ -38,9 +35,9 @@ from governance_runtime.infrastructure.workspace_paths import (
     repo_map_digest_path,
     workspace_memory_path,
     decision_pack_path,
+    business_rules_path,
     governance_runtime_state_dir,
 )
-from governance_runtime.application.services.state_accessor import get_phase
 from governance_runtime.infrastructure.opencode_server_client import (
     check_server_health,
     get_active_session,
@@ -55,6 +52,11 @@ HYDRATION_RECEIPT_SCHEMA = "governance.hydration.receipt.v1"
 HYDRATION_STATUS_HYDRATED = "hydrated"
 HYDRATION_STATUS_FAILED = "failed"
 TICKET_INTAKE_GATE = "Ticket Intake Gate"
+CORE_KNOWLEDGE_ARTIFACTS = (
+    "repo-map-digest.md",
+    "workspace-memory.yaml",
+    "decision-pack.md",
+)
 
 
 def _blocked_payload(
@@ -106,21 +108,57 @@ def _compute_artifact_digest(
     """
     hasher = hashlib.sha256()
 
-    artifact_paths = [
-        repo_map_digest_path(workspaces_home, repo_fingerprint),
-        workspace_memory_path(workspaces_home, repo_fingerprint),
-        decision_pack_path(workspaces_home, repo_fingerprint),
-    ]
+    artifact_paths = {
+        "repo-map-digest.md": repo_map_digest_path(workspaces_home, repo_fingerprint),
+        "workspace-memory.yaml": workspace_memory_path(workspaces_home, repo_fingerprint),
+        "decision-pack.md": decision_pack_path(workspaces_home, repo_fingerprint),
+        "business-rules.md": business_rules_path(workspaces_home, repo_fingerprint),
+    }
 
-    for path in artifact_paths:
+    for name, path in artifact_paths.items():
         if path.exists():
             try:
                 content = path.read_text(encoding="utf-8")
+                hasher.update(name.encode("utf-8"))
+                hasher.update(b"\0")
                 hasher.update(content.encode("utf-8"))
+                hasher.update(b"\0")
             except Exception:
                 pass
 
-    return hasher.hexdigest()[:16]
+    return hasher.hexdigest()
+
+
+def _knowledge_base_artifact_paths(workspaces_home: Path, repo_fingerprint: str) -> dict[str, Path]:
+    return {
+        "repo-map-digest.md": repo_map_digest_path(workspaces_home, repo_fingerprint),
+        "workspace-memory.yaml": workspace_memory_path(workspaces_home, repo_fingerprint),
+        "decision-pack.md": decision_pack_path(workspaces_home, repo_fingerprint),
+        "business-rules.md": business_rules_path(workspaces_home, repo_fingerprint),
+    }
+
+
+def _validate_knowledge_base(workspaces_home: Path, repo_fingerprint: str) -> tuple[bool, list[str], list[str]]:
+    artifact_paths = _knowledge_base_artifact_paths(workspaces_home, repo_fingerprint)
+    missing_or_empty: list[str] = []
+    optional_missing: list[str] = []
+
+    for name in CORE_KNOWLEDGE_ARTIFACTS:
+        path = artifact_paths[name]
+        if not path.exists():
+            missing_or_empty.append(name)
+            continue
+        try:
+            if not path.read_text(encoding="utf-8").strip():
+                missing_or_empty.append(name)
+        except Exception:
+            missing_or_empty.append(name)
+
+    optional_path = artifact_paths["business-rules.md"]
+    if not optional_path.exists():
+        optional_missing.append("business-rules.md")
+
+    return (len(missing_or_empty) == 0, missing_or_empty, optional_missing)
 
 
 def _build_hydration_brief(
@@ -191,7 +229,22 @@ def _build_hydration_brief(
     else:
         parts.append("*No decision pack available.*\n")
 
-    parts.append("\n\n## 4. Governance Context\n\n")
+    parts.append("\n\n## 4. Business Rules\n\n")
+
+    business_rules = business_rules_path(workspaces_home, repo_fingerprint)
+    if business_rules.exists():
+        try:
+            content = business_rules.read_text(encoding="utf-8")
+            lines = content.split("\n")[:30]
+            parts.append("\n".join(lines))
+            if len(content.split("\n")) > 30:
+                parts.append("\n... (truncated)")
+        except Exception as e:
+            parts.append(f"[Error reading business rules: {e}]")
+    else:
+        parts.append("*Business rules inventory not available (optional in some profiles).*\n")
+
+    parts.append("\n\n## 5. Governance Context\n\n")
 
     runtime_state = governance_runtime_state_dir(workspaces_home, repo_fingerprint)
     config_path = runtime_state / "governance-config.json"
@@ -275,8 +328,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    is_quiet = args.quiet
-
     try:
         session_path, repo_fingerprint, workspaces_home, workspace_dir = resolve_active_session_paths()
     except Exception as exc:
@@ -305,6 +356,36 @@ def main(argv: list[str] | None = None) -> int:
     project_path = args.project_path
     if not project_path:
         project_path = str(state.get("repo_root") or "")
+    project_path = str(project_path).strip()
+
+    if not project_path:
+        payload = _blocked_payload(
+            reason="project-path-missing",
+            reason_code="HYDRATION-PROJECT-PATH-MISSING",
+            recovery_action="Set SESSION_STATE.repo_root or pass --project-path before running /hydrate",
+        )
+        print(json.dumps(payload, ensure_ascii=True))
+        return 2
+
+    knowledge_ok, missing_or_empty, optional_missing = _validate_knowledge_base(workspaces_home, repo_fingerprint)
+    if not knowledge_ok:
+        observed = json.dumps(
+            {
+                "missing_or_empty": missing_or_empty,
+                "optional_missing": optional_missing,
+            },
+            ensure_ascii=True,
+        )
+        payload = _blocked_payload(
+            reason="knowledge-base-incomplete",
+            reason_code="HYDRATION-KNOWLEDGE-BASE-INCOMPLETE",
+            recovery_action=(
+                "Run bootstrap/persist to generate repo-map-digest.md, workspace-memory.yaml, and decision-pack.md"
+            ),
+            observed=observed,
+        )
+        print(json.dumps(payload, ensure_ascii=True))
+        return 2
 
     health_check_skipped = os.environ.get("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "").strip().lower()
 
@@ -331,7 +412,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     try:
-        active_session = get_active_session(project_path if project_path else None)
+        active_session = get_active_session(project_path)
         session_id = active_session.get("id", "")
         session_title = active_session.get("title", "")
     except ServerNotAvailableError as exc:

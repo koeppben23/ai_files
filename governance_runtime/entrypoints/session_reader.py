@@ -32,6 +32,7 @@ from governance_runtime.entrypoints.phase5_plan_record_persist import (
     _load_effective_review_policy_text,
 )
 from governance_runtime.engine.next_action_resolver import resolve_next_action
+from governance_runtime.infrastructure.session_hydration import is_session_hydrated
 from governance_runtime.infrastructure.session_pointer import (
     CANONICAL_POINTER_SCHEMA,
     is_session_pointer_document,
@@ -233,6 +234,10 @@ def _should_emit_continue_next_action(snapshot: Snapshot) -> bool:
 
 def _resolve_next_action_line(snapshot: Snapshot) -> str:
     """Render next action from canonical snapshot fields only."""
+    session_hydrated = snapshot.get("session_hydrated")
+    if session_hydrated is False:
+        return "Next action: run /hydrate."
+
     command = str(snapshot.get("next_action_command") or "").strip()
     if command:
         return f"Next action: {command}"
@@ -1057,6 +1062,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "active_gate": _safe_str(active_gate),
         "next_gate_condition": _safe_str(next_gate_condition),
         "ticket_intake_ready": _safe_str(ticket_intake_ready),
+        "session_hydrated": is_session_hydrated(state_view if isinstance(state_view, dict) else {}),
         "phase_transition_evidence": transition_evidence_met,
         "gates_blocked": gates_blocked,
         "plan_record_status": plan_status,

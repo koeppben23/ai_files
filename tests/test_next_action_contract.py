@@ -36,6 +36,28 @@ def test_session_reader_does_not_derive_next_action_without_fields() -> None:
     assert _resolve_next_action_line(snapshot) == ""
 
 
+def test_session_reader_not_hydrated_forces_hydrate_next_action() -> None:
+    snapshot = {
+        "status": "OK",
+        "phase": "4",
+        "active_gate": "Ticket Input Gate",
+        "next_action_command": "/ticket",
+        "session_hydrated": False,
+    }
+    assert _resolve_next_action_line(snapshot) == "Next action: run /hydrate."
+
+
+def test_session_reader_hydrated_uses_command_next_action() -> None:
+    snapshot = {
+        "status": "OK",
+        "phase": "4",
+        "active_gate": "Ticket Input Gate",
+        "next_action_command": "/review",
+        "session_hydrated": True,
+    }
+    assert _resolve_next_action_line(snapshot) == "Next action: /review"
+
+
 def test_review_decision_main_quiet_mode_prints_json_only(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         review_decision,

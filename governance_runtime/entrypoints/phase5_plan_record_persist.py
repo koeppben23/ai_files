@@ -65,10 +65,12 @@ from governance_runtime.shared.next_action import NextAction, NextActions, rende
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
+from governance_runtime.infrastructure.session_hydration import is_session_hydrated
 
 
 BLOCKED_P5_PLAN_RECORD_PERSIST = reason_codes.BLOCKED_P5_PLAN_RECORD_PERSIST
 BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE = "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+BLOCKED_P5_NOT_HYDRATED = "BLOCKED-P5-NOT-HYDRATED"
 
 # Canonical mandate schema error types (Python exceptions, not reason codes)
 class MandateSchemaMissingError(Exception):
@@ -1918,6 +1920,16 @@ def main(argv: list[str] | None = None) -> int:
             recovery_action="ensure session state is loadable",
             next_action=NextActions.CONTINUE,
             observed=str(exc),
+        )
+        print(json.dumps(payload, ensure_ascii=True))
+        return 2
+
+    if not is_session_hydrated(state):
+        payload = _blocked_payload(
+            reason="session-not-hydrated",
+            reason_code="BLOCKED-P5-NOT-HYDRATED",
+            recovery_action="run /hydrate first to bind governance session to OpenCode session",
+            next_action=NextActions.HYDRATE_REQUIRED,
         )
         print(json.dumps(payload, ensure_ascii=True))
         return 2

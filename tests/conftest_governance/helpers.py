@@ -174,6 +174,13 @@ def _write_e2e_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str, Path]:
             "session_run_id": "e2e-workflow-test",
             "active_gate": "Plan Record Preparation Gate",
             "next_gate_condition": "Persist plan record evidence",
+            "SessionHydration": {
+                "status": "hydrated",
+                "hydrated_session_id": "test-session-123",
+                "hydrated_at": "2026-01-01T00:00:00Z",
+                "digest": "abc123",
+                "artifact_digest": "def456",
+            },
             "Ticket": "Implement JWT authentication endpoint",
             "TicketRecordDigest": "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
             "Task": "Add /auth/login route that validates credentials and returns JWT",
@@ -260,6 +267,13 @@ def _write_phase6_session(
             "session_run_id": "e2e-workflow-test",
             "active_gate": "Evidence Presentation Gate",
             "next_gate_condition": "Awaiting final review decision.",
+            "SessionHydration": {
+                "status": "hydrated",
+                "hydrated_session_id": "test-session-123",
+                "hydrated_at": "2026-01-01T00:00:00Z",
+                "digest": "abc123",
+                "artifact_digest": "def456",
+            },
             "implementation_review_complete": True,
             "ImplementationReview": {
                 "implementation_review_complete": True,

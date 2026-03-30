@@ -1255,6 +1255,13 @@ class TestMain:
                     "active_gate": "Architecture Review Gate",
                     "next_gate_condition": "Continue",
                     "status": "OK",
+                    "SessionHydration": {
+                        "status": "hydrated",
+                        "hydrated_session_id": "test-session-123",
+                        "hydrated_at": "2026-01-01T00:00:00Z",
+                        "digest": "abc123",
+                        "artifact_digest": "def456",
+                    },
                     "ActiveProfile": "profile.fallback-minimum",
                     "TicketRecordDigest": "sha256:ticket-v1",
                     "PersistenceCommitted": True,
