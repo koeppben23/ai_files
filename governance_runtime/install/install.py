@@ -1844,6 +1844,13 @@ def ensure_opencode_json(
             plugins_merged.append(plugin_uri)
         existing[OPENCODE_PLUGIN_KEY] = plugins_merged
 
+        # Ensure server configuration exists (SSOT for server connection)
+        if "server" not in existing:
+            existing["server"] = {
+                "hostname": "127.0.0.1",
+                "port": 4096,
+            }
+
         if dry_run:
             print(f"  [DRY-RUN] merge instructions into {target}")
             return {"status": "planned-merge", "dst": str(target)}
@@ -1857,6 +1864,10 @@ def ensure_opencode_json(
     payload = {
         "instructions": list(OPENCODE_INSTRUCTIONS),
         OPENCODE_PLUGIN_KEY: [plugin_uri],
+        "server": {
+            "hostname": "127.0.0.1",
+            "port": 4096,
+        },
     }
     if include_legacy_command_files:
         payload["command_files"] = list(OPENCODE_INSTRUCTIONS)
