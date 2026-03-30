@@ -484,3 +484,167 @@ def get_session_messages(session_id: str | None = None) -> dict:
         raise APIError(f"HTTP {e.code}: {e.reason}") from e
     except Exception as e:
         raise APIError(f"Failed to get session messages: {e}") from e
+
+
+def check_server_health() -> dict:
+    """Check if OpenCode server is reachable.
+
+    Uses GET /global/health per official server API documentation.
+
+    Returns:
+        Dict with "healthy" (bool) and "version" (str) keys
+
+    Raises:
+        ServerNotAvailableError: If server is not reachable
+    """
+    try:
+        server_url = resolve_opencode_server_base_url()
+    except ServerNotAvailableError as exc:
+        raise ServerNotAvailableError(
+            f"OpenCode server not reachable: {exc}. "
+            "Ensure OpenCode Desktop is running or start with: opencode serve"
+        ) from exc
+
+    headers = {}
+    auth_headers = _resolve_auth()
+    if auth_headers:
+        headers.update(auth_headers)
+
+    url = f"{server_url}/global/health"
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise ServerNotAvailableError(f"Server health check failed: HTTP {e.code}") from e
+    except Exception as e:
+        raise ServerNotAvailableError(f"Cannot connect to server: {e}") from e
+
+
+def get_sessions() -> list[dict]:
+    """Get all sessions from OpenCode server.
+
+    Uses GET /session per official server API documentation.
+
+    Returns:
+        List of session dicts with id, title, projectID, directory, etc.
+
+    Raises:
+        ServerNotAvailableError: If server is not reachable
+        APIError: For API errors
+    """
+    try:
+        server_url = resolve_opencode_server_base_url()
+    except ServerNotAvailableError as exc:
+        raise ServerNotAvailableError(
+            f"OpenCode server not reachable: {exc}. "
+            "Ensure OpenCode Desktop is running."
+        ) from exc
+
+    headers = {}
+    auth_headers = _resolve_auth()
+    if auth_headers:
+        headers.update(auth_headers)
+
+    url = f"{server_url}/session"
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise APIError(f"Failed to get sessions: HTTP {e.code}: {e.reason}") from e
+    except Exception as e:
+        raise APIError(f"Failed to get sessions: {e}") from e
+
+
+def get_active_session(project_path: str | None = None) -> dict:
+    """Get the active session for a project.
+
+    If project_path is provided, returns the session for that project.
+    Otherwise, returns the most recently updated session.
+
+    Args:
+        project_path: Optional project directory path (e.g., "/Users/koeppben/work/ai_files")
+
+    Returns:
+        Session dict with id, title, projectID, directory, etc.
+
+    Raises:
+        ServerNotAvailableError: If server is not reachable
+        APIError: If no session found
+    """
+    sessions = get_sessions()
+
+    if not sessions:
+        raise APIError(
+            "No OpenCode sessions found. "
+            "Start a session in OpenCode Desktop before running /hydrate."
+        )
+
+    if project_path:
+        for session in sessions:
+            session_dir = session.get("directory", "")
+            if session_dir == project_path:
+                return session
+
+    return sessions[0]
+
+
+def send_session_message(
+    text: str,
+    session_id: str | None = None,
+    *,
+    model: dict[str, str] | None = None,
+) -> dict:
+    """Send a message to a session without waiting for LLM response.
+
+    Uses POST /session/:id/message per official server API documentation.
+    This is used by /hydrate to write the hydration brief to the session.
+
+    Args:
+        text: Message text to send
+        session_id: Session ID (optional, uses OPENCODE_SESSION_ID if not provided)
+        model: Optional model specification
+
+    Returns:
+        Session response dict with info and parts
+
+    Raises:
+        ServerNotAvailableError: If server is not reachable
+        APIError: For API errors or missing session ID
+    """
+    if session_id is None:
+        session_id, _ = resolve_session_id()
+
+    try:
+        server_url = resolve_opencode_server_base_url()
+    except ServerNotAvailableError as exc:
+        raise APIError(f"Server not available: {exc}") from exc
+
+    body: dict = {
+        "noReply": True,
+        "parts": [{"type": "text", "text": text}],
+    }
+
+    if model:
+        body["model"] = model
+
+    headers = {"Content-Type": "application/json"}
+    auth_headers = _resolve_auth()
+    if auth_headers:
+        headers.update(auth_headers)
+
+    url = f"{server_url}/session/{session_id}/message"
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            response_body = resp.read().decode("utf-8")
+            if response_body:
+                return json.loads(response_body)
+            return {}
+    except urllib.error.HTTPError as e:
+        raise APIError(f"HTTP {e.code}: {e.reason}") from e
+    except Exception as e:
+        raise APIError(f"Failed to send session message: {e}") from e
