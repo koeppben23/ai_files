@@ -23,94 +23,84 @@ from governance_runtime.infrastructure.opencode_server_client import (
 class TestResolveServerBaseUrl:
     """Tests for server URL resolution.
 
-    Priority: governance-config.json > AI_GOVERNANCE_OPENCODE_SERVER_URL > OPENCODE_PORT > fail-closed
+    Priority: opencode.json (SSOT) > OPENCODE_PORT > fail-closed
 
-    Happy: Valid env vars produce correct URL
-    Bad: Missing env vars raise error
+    Happy: Valid config produces correct URL
+    Bad: Missing config raises error
     Corner: Edge cases in env var handling
     """
 
     def _clear_env(self, monkeypatch: pytest.MonkeyPatch):
         """Clear all server URL related env vars."""
-        monkeypatch.delenv("AI_GOVERNANCE_WORKSPACE_DIR", raising=False)
-        monkeypatch.delenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", raising=False)
         monkeypatch.delenv("OPENCODE_PORT", raising=False)
 
-    def test_happy_config_base_url(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-        """Happy: governance-config.json with opencode_server.base_url."""
+    def _mock_home(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Mock home directory for opencode.json."""
+        home = tmp_path / "home"
+        home.mkdir(parents=True)
+        config_dir = home / ".config" / "opencode"
+        config_dir.mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(home))
+        return config_dir
+
+    def test_happy_opencode_json(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Happy: opencode.json with server.hostname and server.port."""
         self._clear_env(monkeypatch)
-        config = {
-            "opencode_server": {"base_url": "http://192.168.1.100:7000"}
-        }
-        config_file = tmp_path / "governance-config.json"
-        config_file.write_text(json.dumps(config))
-        monkeypatch.setenv("AI_GOVERNANCE_WORKSPACE_DIR", str(tmp_path))
+        config_dir = self._mock_home(monkeypatch, tmp_path)
+        config = {"server": {"hostname": "192.168.1.100", "port": 7000}}
+        (config_dir / "opencode.json").write_text(json.dumps(config))
         result = resolve_opencode_server_base_url()
         assert result == "http://192.168.1.100:7000"
 
-    def test_happy_override_url(self, monkeypatch: pytest.MonkeyPatch):
-        """Happy: AI_GOVERNANCE_OPENCODE_SERVER_URL produces exact URL."""
+    def test_happy_opencode_json_default_hostname(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Happy: opencode.json with only port defaults to 127.0.0.1."""
         self._clear_env(monkeypatch)
-        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://custom:8080")
+        config_dir = self._mock_home(monkeypatch, tmp_path)
+        config = {"server": {"port": 4096}}
+        (config_dir / "opencode.json").write_text(json.dumps(config))
         result = resolve_opencode_server_base_url()
-        assert result == "http://custom:8080"
+        assert result == "http://127.0.0.1:4096"
 
-    def test_happy_trailing_slash_stripped(self, monkeypatch: pytest.MonkeyPatch):
-        """Happy: Trailing slash is stripped from override URL."""
+    def test_happy_opencode_port(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Happy: OPENCODE_PORT fallback produces correct localhost URL."""
         self._clear_env(monkeypatch)
-        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://custom:8080/")
-        result = resolve_opencode_server_base_url()
-        assert result == "http://custom:8080"
-
-    def test_happy_opencode_port(self, monkeypatch: pytest.MonkeyPatch):
-        """Happy: OPENCODE_PORT produces correct localhost URL."""
-        self._clear_env(monkeypatch)
+        self._mock_home(monkeypatch, tmp_path)
         monkeypatch.setenv("OPENCODE_PORT", "5000")
         result = resolve_opencode_server_base_url()
         assert result == "http://127.0.0.1:5000"
 
-    def test_happy_config_priority_over_env(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-        """Happy: Config takes priority over AI_GOVERNANCE_OPENCODE_SERVER_URL."""
-        config = {
-            "opencode_server": {"base_url": "http://config:9000"}
-        }
-        config_file = tmp_path / "governance-config.json"
-        config_file.write_text(json.dumps(config))
-        monkeypatch.setenv("AI_GOVERNANCE_WORKSPACE_DIR", str(tmp_path))
-        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://env:8000")
-        result = resolve_opencode_server_base_url()
-        assert result == "http://config:9000"
-
-    def test_happy_env_priority_over_port(self, monkeypatch: pytest.MonkeyPatch):
-        """Happy: AI_GOVERNANCE_OPENCODE_SERVER_URL takes priority over OPENCODE_PORT."""
+    def test_happy_opencode_json_priority_over_port(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Happy: opencode.json takes priority over OPENCODE_PORT."""
         self._clear_env(monkeypatch)
-        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://env:8000")
+        config_dir = self._mock_home(monkeypatch, tmp_path)
+        config = {"server": {"hostname": "config-host", "port": 9000}}
+        (config_dir / "opencode.json").write_text(json.dumps(config))
         monkeypatch.setenv("OPENCODE_PORT", "5000")
         result = resolve_opencode_server_base_url()
-        assert result == "http://env:8000"
+        assert result == "http://config-host:9000"
 
-    def test_bad_no_env_vars(self, monkeypatch: pytest.MonkeyPatch):
-        """Bad: Missing all env vars raises ServerNotAvailableError."""
+    def test_bad_no_config(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Bad: Missing opencode.json and OPENCODE_PORT raises error."""
         self._clear_env(monkeypatch)
+        self._mock_home(monkeypatch, tmp_path)
         with pytest.raises(ServerNotAvailableError) as exc_info:
             resolve_opencode_server_base_url()
         assert "not resolvable" in str(exc_info.value).lower()
 
-    def test_corner_whitespace_only(self, monkeypatch: pytest.MonkeyPatch):
-        """Corner: Whitespace-only values are treated as empty."""
+    def test_corner_whitespace_only(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Corner: Whitespace-only OPENCODE_PORT is treated as empty."""
         self._clear_env(monkeypatch)
-        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "   ")
-        monkeypatch.setenv("OPENCODE_PORT", "")
+        self._mock_home(monkeypatch, tmp_path)
+        monkeypatch.setenv("OPENCODE_PORT", "   ")
         with pytest.raises(ServerNotAvailableError):
             resolve_opencode_server_base_url()
 
-    def test_corner_config_missing_base_url(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-        """Corner: Config exists but no opencode_server.base_url."""
+    def test_corner_config_missing_opencode_json(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Corner: opencode.json missing server config."""
         self._clear_env(monkeypatch)
-        config = {"review": {"phase5_max_review_iterations": 3, "phase6_max_review_iterations": 3}}
-        config_file = tmp_path / "governance-config.json"
-        config_file.write_text(json.dumps(config))
-        monkeypatch.setenv("AI_GOVERNANCE_WORKSPACE_DIR", str(tmp_path))
+        config_dir = self._mock_home(monkeypatch, tmp_path)
+        config = {"review": {"phase5_max_review_iterations": 3}}
+        (config_dir / "opencode.json").write_text(json.dumps(config))
         with pytest.raises(ServerNotAvailableError):
             resolve_opencode_server_base_url()
 
@@ -245,7 +235,7 @@ class TestSendSessionPrompt:
 
     def test_happy_minimal_request(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Minimal request with just session_id and text."""
-        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://127.0.0.1:4096")
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {"parts": [{"type": "text", "text": "Response"}]}}
             result = send_session_prompt("session-123", "Hello")
@@ -259,7 +249,7 @@ class TestSendSessionPrompt:
 
     def test_happy_with_model(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Model specification is included in request."""
-        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://127.0.0.1:4096")
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {}}
             model = {"providerID": "openai", "modelID": "gpt-5"}
@@ -270,7 +260,7 @@ class TestSendSessionPrompt:
 
     def test_happy_with_output_schema(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Output schema is included for structured output."""
-        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://127.0.0.1:4096")
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {}}
             schema = {"type": "object", "properties": {"key": {"type": "string"}}}
@@ -283,7 +273,7 @@ class TestSendSessionPrompt:
 
     def test_happy_uses_server_url(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Server URL is resolved and used."""
-        monkeypatch.setenv("AI_GOVERNANCE_OPENCODE_SERVER_URL", "http://127.0.0.1:4096")
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {}}
             send_session_prompt("session-123", "Hello")

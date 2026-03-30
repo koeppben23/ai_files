@@ -37,31 +37,40 @@ def is_server_required_mode() -> bool:
     return os.environ.get("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _resolve_base_url_from_config(workspace_dir: str | None) -> str | None:
-    """Resolve base_url from governance-config.json.
+def _resolve_base_url_from_opencode_json() -> str | None:
+    """Resolve base_url from opencode.json (SSOT for server config).
 
-    Args:
-        workspace_dir: Path to workspace directory (from AI_GOVERNANCE_WORKSPACE_DIR)
+    Reads ~/.config/opencode/opencode.json or opencode.jsonc for:
+    - server.hostname
+    - server.port
 
     Returns:
         base_url if found in config, None otherwise
     """
-    if not workspace_dir:
-        return None
+    import json
+    import re
+    import os
 
-    try:
-        config_path = Path(workspace_dir) / "governance-config.json"
+    home = os.path.expanduser("~")
+    config_root = Path(home) / ".config" / "opencode"
+
+    for filename in ("opencode.json", "opencode.jsonc"):
+        config_path = config_root / filename
         if not config_path.is_file():
-            return None
+            continue
 
-        import json
-        config = json.loads(config_path.read_text(encoding="utf-8"))
-        server_config = config.get("opencode_server", {})
-        base_url = server_config.get("base_url", "").strip()
-        if base_url:
-            return base_url.rstrip("/")
-    except Exception:
-        pass
+        try:
+            content = config_path.read_text(encoding="utf-8")
+            if filename.endswith(".jsonc"):
+                content = re.sub(r"//.*$", "", content, flags=re.MULTILINE)
+            config = json.loads(content)
+            server = config.get("server", {})
+            hostname = server.get("hostname", "").strip() or "127.0.0.1"
+            port = server.get("port")
+            if port:
+                return f"http://{hostname}:{port}"
+        except Exception:
+            continue
     return None
 
 
@@ -69,12 +78,9 @@ def resolve_opencode_server_base_url() -> str:
     """Resolve OpenCode server base URL.
 
     Resolution order:
-    1. governance-config.json (if AI_GOVERNANCE_WORKSPACE_DIR set)
-    2. AI_GOVERNANCE_OPENCODE_SERVER_URL (override)
-    3. OPENCODE_PORT (for Desktop/TUI server port)
-    4. fail-closed with clear error
-
-    Note: OPENCODE_HOST is NOT a documented contract - removed for docs compliance.
+    1. opencode.json (server.hostname + server.port) - SSOT
+    2. OPENCODE_PORT (fallback for explicit port)
+    3. fail-closed with clear error
 
     Returns:
         Base URL like "http://127.0.0.1:4096"
@@ -82,22 +88,18 @@ def resolve_opencode_server_base_url() -> str:
     Raises:
         ServerNotAvailableError: If no server URL can be resolved
     """
-    workspace_dir = os.environ.get("AI_GOVERNANCE_WORKSPACE_DIR", "").strip()
-    config_url = _resolve_base_url_from_config(workspace_dir)
+    config_url = _resolve_base_url_from_opencode_json()
     if config_url:
         return config_url
-
-    override_url = os.environ.get("AI_GOVERNANCE_OPENCODE_SERVER_URL", "").strip()
-    if override_url:
-        return override_url.rstrip("/")
 
     port = os.environ.get("OPENCODE_PORT", "").strip()
     if port:
         return f"http://127.0.0.1:{port}"
 
     raise ServerNotAvailableError(
-        "OpenCode server URL not resolvable for direct session call. "
-        "Set AI_GOVERNANCE_OPENCODE_SERVER_URL, AI_GOVERNANCE_WORKSPACE_DIR (with opencode_server.base_url in governance-config.json), or OPENCODE_PORT."
+        "OpenCode server URL not resolvable. "
+        "Set server.hostname/server.port in ~/.config/opencode/opencode.json "
+        "or set OPENCODE_PORT."
     )
 
 
@@ -361,3 +363,50 @@ def check_server_health(*, base_url: str | None = None) -> bool:
             return data.get("healthy", False) is True
     except Exception:
         return False
+
+
+def bootstrap_check_server_reachable(config_root: Path | None = None) -> tuple[bool, str]:
+    """Check if configured OpenCode server is reachable.
+
+    Reads server.hostname/server.port from opencode.json and performs health check.
+
+    Args:
+        config_root: Path to config root (optional, for future use)
+
+    Returns:
+        (is_reachable, error_message) tuple
+    """
+    base_url = _resolve_base_url_from_opencode_json()
+
+    if not base_url:
+        return True, ""
+
+    from urllib.parse import urlparse
+    parsed = urlparse(base_url)
+    if parsed.scheme not in ("http", "https"):
+        return False, f"Invalid scheme: {parsed.scheme}"
+    if not parsed.netloc:
+        return False, "Missing netloc"
+
+    url = f"{base_url}/global/health"
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status == 200:
+                return True, ""
+            return False, f"Health check returned status {resp.status}"
+    except urllib.error.HTTPError as e:
+        return False, f"HTTP {e.code}: {e.reason}"
+    except urllib.error.URLError as e:
+        return False, f"Connection failed: {e.reason}"
+    except Exception as e:
+        return False, f"Health check error: {e}"
+
+
+def is_bootstrap_server_health_check_skipped() -> bool:
+    """Check if server health check should be skipped (for testing).
+
+    Returns:
+        True if health check should be skipped
+    """
+    return os.environ.get("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "").strip().lower() in {"1", "true", "yes"}

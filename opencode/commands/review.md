@@ -53,4 +53,15 @@ $env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --session-
 
 If the command cannot be executed, paste the command output. If no snapshot is available, proceed using visible context and state assumptions explicitly. Minimum required snapshot fields: `phase`, `next`, `active_gate`, `next_gate_condition`.
 
+## Response shape
+
+- give a clear verdict aligned to final decision tokens: `approve` or `changes_requested`
+- list findings with severity and one concrete action per finding
+- provide paste-ready PR comments (one per blocker/high + one summary)
+
+Quality bar:
+- prefer high-signal findings over stylistic noise
+- focus on correctness, risk, and release safety first
+- keep feedback actionable and specific to changed surfaces
+
 Copyright © 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
