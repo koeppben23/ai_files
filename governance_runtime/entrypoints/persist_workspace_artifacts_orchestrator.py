@@ -276,7 +276,7 @@ except ImportError:
         section = repo_map_digest_section(date, repository_type)
         return "# Repo Map Digest\n" f"Repo: {repo_name}\n" f"LastUpdated: {date}\n\n" f"{section}"
 
-    def decision_pack_section(date: str, date_compact: str) -> str:
+    def decision_pack_section(date: str, date_compact: str, semantic=None) -> str:
         return "\n".join(
             [
                 f"## Decision Pack — {date}",
@@ -290,7 +290,7 @@ except ImportError:
             ]
         )
 
-    def render_decision_pack_create(*, date: str, date_compact: str, repo_name: str) -> str:
+    def render_decision_pack_create(*, date: str, date_compact: str, repo_name: str, semantic=None) -> str:
         section = decision_pack_section(date, date_compact)
         return "# Decision Pack\n" f"Repo: {repo_name}\n" f"LastUpdated: {date}\n\n" f"{section}"
 
@@ -1009,12 +1009,12 @@ def _render_repo_map_digest_create(*, date: str, repo_name: str, discovery: _Str
         return render_repo_map_digest_create(date=date, repo_name=repo_name, repository_type=effective_repo_type)
 
 
-def _decision_pack_section(date: str, date_compact: str) -> str:
-    return decision_pack_section(date, date_compact)
+def _decision_pack_section(date: str, date_compact: str, semantic: Any = None) -> str:
+    return decision_pack_section(date, date_compact, semantic=semantic)
 
 
-def _render_decision_pack_create(*, date: str, date_compact: str, repo_name: str) -> str:
-    return render_decision_pack_create(date=date, date_compact=date_compact, repo_name=repo_name)
+def _render_decision_pack_create(*, date: str, date_compact: str, repo_name: str, semantic: Any = None) -> str:
+    return render_decision_pack_create(date=date, date_compact=date_compact, repo_name=repo_name, semantic=semantic)
 
 
 def _render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str, semantic: Any = None) -> str:
@@ -1997,9 +1997,9 @@ def main() -> int:
         )
         digest_append = _repo_map_digest_section(today, repository_type_text)
     decision_create = _render_decision_pack_create(
-        date=today, date_compact=today_compact, repo_name=repo_name
+        date=today, date_compact=today_compact, repo_name=repo_name, semantic=semantic_facts
     )
-    decision_append = _decision_pack_section(today, today_compact)
+    decision_append = _decision_pack_section(today, today_compact, semantic=semantic_facts)
     memory_content = _render_workspace_memory(
         date=today, repo_name=repo_name, repo_fingerprint=repo_fingerprint, semantic=semantic_facts
     )
