@@ -80,8 +80,8 @@ class TestFreshInstall:
         for entry in data["instructions"]:
             assert entry.startswith("commands/"), f"Expected relative path, got: {entry}"
 
-    def test_eight_canonical_commands(self, config_root: Path) -> None:
-        """The 8 instruction entries are the slash command files."""
+    def test_nine_canonical_commands(self, config_root: Path) -> None:
+        """The 9 instruction entries are the slash command files."""
         ensure_opencode_json(config_root, dry_run=False)
         data = _read_opencode_json(config_root)
         basenames = [entry.split("/")[-1] for entry in data["instructions"]]
@@ -89,7 +89,7 @@ class TestFreshInstall:
         assert "plan.md" in basenames
         assert "implement.md" in basenames
         assert "review.md" in basenames
-        assert len(basenames) == 8
+        assert len(basenames) == 9
 
     def test_valid_json_with_newline(self, config_root: Path) -> None:
         """Written file is valid JSON and ends with a newline."""

@@ -65,11 +65,10 @@ opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
 
 **Profiles:** `solo`, `team`, `regulated`
 
-### Step 4: Open Desktop and continue
+### Step 4: Open Desktop and hydrate
 
-After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/continue`.
+After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/hydrate`.
 
-If `/continue` shows `Next action: run /hydrate.`, run `/hydrate` first.
 After hydration succeeds, if Phase 4 is active, choose:
 
 | Command | Purpose |
@@ -663,6 +662,12 @@ After Phase 1.1 (bootstrap) completes successfully:
 - `Next` (string; canonical continuation pointer)
 - `Bootstrap.Present`, `Bootstrap.Satisfied`, `Bootstrap.Evidence`
 - `Scope`, `RepoFacts`, `LoadedRulebooks.*`, `ActiveProfile`, `Gates`, `ticket_intake_ready`
+- `workspace_ready` (workspace bootstrap/materialization readiness)
+- `session_hydrated` (session binding readiness for mutating/read-only rails)
+
+`workspace_ready` and `session_hydrated` are intentionally distinct:
+- workspace ready means artifacts/pointer/bootstrap persistence is complete
+- session hydrated means `/hydrate` bound governance to the active OpenCode session
 
 ### Gates
 

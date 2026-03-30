@@ -8,7 +8,7 @@ It mirrors the deterministic resolver behavior in
 
 | Phase | Active Gate | Condition | Next Action | Notes |
 |---|---|---|---|---|
-| 4 | Ticket Input Gate | ticket/task not persisted | `/ticket` | `/ticket` requires hydrated session; `/continue` must include `/review` read-only alternative |
+| 4 | Ticket Input Gate | ticket/task not persisted | `/ticket` | `/ticket` requires hydrated session; bootstrap guidance points to `/hydrate` first and `/review` remains read-only alternative |
 
 ## Hydration Preconditions
 
@@ -58,7 +58,7 @@ It mirrors the deterministic resolver behavior in
 
 - `/review` is read-only and does not mutate governance session state.
 - `/review` requires hydrated session context and must fail closed to `/hydrate` when not hydrated.
-- In Phase 4 guidance, `/continue` must present `/review` as the explicit read-only alternative to `/ticket`.
+- In Phase 4 guidance, bootstrap output points to `/hydrate` first; once hydrated, `/review` remains the explicit read-only alternative to `/ticket`.
 - `/review` and `/review-decision` are distinct rails: `/review` is analysis-only; `/review-decision` mutates state in Phase 6 evidence presentation.
 
 ## Verification Matrix Tests

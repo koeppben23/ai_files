@@ -1903,10 +1903,27 @@ def main() -> int:
         or repo_root.name
     )
     repo_name = _sanitize_repo_name(repo_name_raw, repo_fingerprint)
-    profile = active_profile if isinstance(active_profile, str) and active_profile else "unknown"
-    profile_evidence_text = (
-        profile_evidence if isinstance(profile_evidence, str) and profile_evidence else "unknown"
-    )
+    profile = active_profile if isinstance(active_profile, str) and active_profile else ""
+    profile_evidence_text = profile_evidence if isinstance(profile_evidence, str) and profile_evidence else ""
+
+    # Harmonize profile signals across artifacts and SESSION_STATE:
+    # if ActiveProfile is absent, infer from repo policy as fallback.
+    if not profile:
+        policy_path = repo_root / ".opencode" / "governance-repo-policy.json"
+        try:
+            policy_payload = _load_json(policy_path)
+            inferred = str(policy_payload.get("operatingMode") or "").strip()
+            if inferred in {"solo", "team", "regulated"}:
+                profile = inferred
+                if not profile_evidence_text:
+                    profile_evidence_text = "repo-policy.operatingMode"
+        except Exception:
+            pass
+
+    if not profile:
+        profile = "unknown"
+    if not profile_evidence_text:
+        profile_evidence_text = "unknown"
     repository_type_text = (
         repository_type if isinstance(repository_type, str) and repository_type else "unknown"
     )

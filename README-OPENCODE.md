@@ -16,20 +16,25 @@ Primary operator bootstrap path is `opencode-governance-bootstrap init ...`.
    - Windows: `opencode-governance-bootstrap.cmd init --profile <solo|team|regulated> --repo-root <repo-root>`
    - optional alias (same semantics): `--set-operating-mode <solo|team|regulated>`
 2. Open OpenCode Desktop in the same repository.
-3. Run `/continue`.
-4. If `/continue` shows `Next action: run /hydrate.`, run `/hydrate` first.
-5. After successful hydration, if Phase 4 is active, run `/ticket`, then `/plan`.
+3. Run `/hydrate` (first session-bound step).
+4. After successful hydration, if Phase 4 is active, run `/ticket`, then `/plan`.
    Alternative path: run `/review` for read-only review feedback (no state change).
    `/ticket` is Plan Mode intake and persists Phase-4 ticket/plan evidence.
 6. Use `/review` as the read-only rail entrypoint for quality review.
 7. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>`.
    Example: `/review-decision approve`.
-8. `changes_requested` enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
-9. `reject` routes back to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
-10. After `approve`, run `/implement` to start authorized implementation execution.
+7. `changes_requested` enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
+8. `reject` routes back to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
+9. After `approve`, run `/implement` to start authorized implementation execution.
     - Direct mode (`pipeline_mode=false`, default): uses the active OpenCode Desktop LLM binding.
     - Pipeline mode (`pipeline_mode=true`): requires `AI_GOVERNANCE_EXECUTION_BINDING` and `AI_GOVERNANCE_REVIEW_BINDING`.
-11. Use `/audit-readout` for a read-only audit snapshot.
+10. Use `/audit-readout` for a read-only audit snapshot.
+
+### Bootstrap output modes
+
+- default: human-readable summary + workspace/routing blocks + prominent next action
+- `--verbose`: includes additional diagnostics
+- `--json`: emits one structured JSON document (machine-readable)
 
 Runtime persistence: `${WORKSPACE_HOME}/<repo_fingerprint>/...` with pointer `${SESSION_STATE_POINTER_FILE}`.
 Path-binding: `${CONFIG_ROOT}/governance.paths.json`.

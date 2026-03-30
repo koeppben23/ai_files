@@ -72,6 +72,11 @@ opencode-governance-bootstrap init --profile <solo|team|regulated>
 
 The system establishes workspace context, profile selection, and persistence prerequisites. If required evidence is missing, execution **blocks** rather than guessing.
 
+Bootstrap UX contract:
+- default output is human-readable summary with a prominent next action
+- `--json` emits one structured JSON document
+- after bootstrap reaches Phase 4, next action is `/hydrate` (not `/continue`)
+
 ### 2. Governed Command Surface
 
 Nine governance rails map to workflow phases:

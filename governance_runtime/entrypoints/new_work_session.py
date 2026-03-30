@@ -70,6 +70,11 @@ def _reset_for_new_work(
     state["phase4_intake_evidence"] = False
     state["phase4_intake_source"] = "new-work-session"
     state["phase4_intake_updated_at"] = observed_at
+    state["session_hydrated"] = False
+    state["SessionHydration"] = {
+        "status": "not_hydrated",
+        "source": "new-work-session",
+    }
     state["phase_transition_evidence"] = False
 
     state["phase"] = "4"
@@ -77,7 +82,7 @@ def _reset_for_new_work(
     state["Mode"] = "IN_PROGRESS"
     state["status"] = "OK"
     state["active_gate"] = "Ticket Input Gate"
-    state["next_gate_condition"] = "Collect ticket and planning constraints (or run /review for review-only lead/staff feedback)."
+    state["next_gate_condition"] = "Run /hydrate first to bind the session, then collect ticket and planning constraints (or run /review for review-only lead/staff feedback)."
     apply_fresh_start_business_rules_neutralization(state)
     hydrate_business_rules_state_from_artifacts(
         state=state,

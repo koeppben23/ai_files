@@ -910,11 +910,19 @@ def _ticket_intake_ready(state: Mapping[str, object], phase_token: str) -> bool:
     return True
 
 
+def _session_hydrated(state: Mapping[str, object]) -> bool:
+    hydration = state.get("SessionHydration")
+    if not isinstance(hydration, Mapping):
+        return False
+    return str(hydration.get("status") or "").strip().lower() == "hydrated"
+
+
 def _apply_ticket_intake_readiness(document: Mapping[str, object], *, phase_token: str) -> dict[str, object]:
     updated = dict(document)
     state = _root_state(updated)
     ready = _ticket_intake_ready(state, phase_token)
     state["ticket_intake_ready"] = ready
+    state["session_hydrated"] = _session_hydrated(state)
     phase_ready = _phase_ready_value(get_phase(state) or phase_token)
     if phase_ready is not None:
         state["phase_ready"] = phase_ready
@@ -1453,6 +1461,11 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
     if final_phase == "4" and not (has_ticket or has_task or has_ticket_digest or has_task_digest):
         final_state["phase4_intake_source"] = "bootstrap"
         final_state["phase4_intake_evidence"] = False
+        final_state["session_hydrated"] = False
+        final_state["SessionHydration"] = {
+            "status": "not_hydrated",
+            "source": "bootstrap",
+        }
         final_state["phase4_intake_updated_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         final_state["phase_transition_evidence"] = False
         apply_fresh_start_business_rules_neutralization(final_state)
@@ -1469,9 +1482,11 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
         "next_gate_condition": str(last_result.get("next_gate_condition") or ""),
         "source": str(last_result.get("source") or ""),
         "hops": hops,
+        "workspace_ready": bool(_read_bool(final_state, "WorkspaceReadyGateCommitted", "workspace_ready_gate_committed")),
+        "session_hydrated": bool(final_state.get("session_hydrated") is True),
     }
     if phase_rank(resolved_token) >= phase_rank("4"):
-        payload["next_step"] = "Open OpenCode Desktop in this repository and run /continue"
+        payload["next_step"] = "Open OpenCode Desktop in this repository and run /hydrate"
     else:
         payload["next_step"] = "Rerun the local bootstrap launcher until Phase 4 is reached"
     return payload

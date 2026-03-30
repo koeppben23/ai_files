@@ -112,6 +112,10 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
                     "type": "boolean",
                     "description": "Authoritative readiness gate for ticket intake",
                 },
+                "session_hydrated": {
+                    "type": "boolean",
+                    "description": "True only after /hydrate binds governance to an OpenCode session",
+                },
                 "AddonsEvidence": {"type": "object", "additionalProperties": True},
                 "RulebookLoadEvidence": {"type": "object", "additionalProperties": True},
                 "ActiveProfile": {"type": ["string", "null"]},

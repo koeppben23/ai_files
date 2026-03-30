@@ -245,7 +245,7 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
 
     launcher = _bootstrap_launcher(checkout_root)
     proc = _run(
-        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
+        launcher + ["--repo-root", str(repo), "--config-root", str(config_root), "--json"],
         cwd=repo,
         env=env,
     )
@@ -384,7 +384,7 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
 
     launcher = _bootstrap_launcher(checkout_root)
     proc = _run(
-        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
+        launcher + ["--repo-root", str(repo), "--config-root", str(config_root), "--json"],
         cwd=repo,
         env=env,
     )
@@ -440,7 +440,7 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
 
     launcher = _bootstrap_launcher(checkout_root)
     proc = _run(
-        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
+        launcher + ["--repo-root", str(repo), "--config-root", str(config_root), "--json"],
         cwd=repo,
         env=env,
     )

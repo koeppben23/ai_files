@@ -33,9 +33,9 @@ class TestCanonicalCommands:
         """Each canonical command must be recognized."""
         assert is_canonical_command(Path(cmd)) is True
 
-    def test_all_8_canonical_commands_present(self) -> None:
-        """Must have exactly 8 canonical commands."""
-        assert len(CANONICAL_COMMANDS) == 8
+    def test_all_9_canonical_commands_present(self) -> None:
+        """Must have exactly 9 canonical commands."""
+        assert len(CANONICAL_COMMANDS) == 9
 
     def test_canonical_commands_are_immutable(self) -> None:
         """Canonical commands must be immutable."""
@@ -71,8 +71,8 @@ class TestCommandSurfaceBoundary:
     def test_command_surface_includes_both(self) -> None:
         """Command surface should include canonical + non-command."""
         surface = get_all_command_surface_files()
-        # Should have 8 canonical + 4 non-command = 12
-        assert len(surface) == 12
+        # Should have 9 canonical + 4 non-command = 13
+        assert len(surface) == 13
 
 
 class TestDeprecatedCommands:

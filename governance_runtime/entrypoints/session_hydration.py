@@ -306,6 +306,7 @@ def _update_session_state_for_hydration(
         "artifact_digest": artifact_digest,
         "status": HYDRATION_STATUS_HYDRATED,
     }
+    state["session_hydrated"] = True
 
     state["phase"] = "4"
     state["active_gate"] = TICKET_INTAKE_GATE

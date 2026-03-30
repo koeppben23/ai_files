@@ -16,6 +16,7 @@ MANIFEST_NAME = "INSTALL_MANIFEST.json"
 CANONICAL_RAILS = [
     "audit-readout.md",
     "continue.md",
+    "hydrate.md",
     "implement.md",
     "implementation-decision.md",
     "plan.md",

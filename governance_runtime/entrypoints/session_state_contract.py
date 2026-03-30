@@ -89,6 +89,11 @@ except Exception:
                     "addons": {},
                 },
                 "ticket_intake_ready": False,
+                "session_hydrated": False,
+                "SessionHydration": {
+                    "status": "not_hydrated",
+                    "source": "session-state-contract",
+                },
                 "AddonsEvidence": {},
                 "RulebookLoadEvidence": {
                     "top_tier": {

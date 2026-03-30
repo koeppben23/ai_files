@@ -2520,7 +2520,7 @@ def install(
     print(f"Commands dir: {plan.commands_dir}")
     print("Next: run the local bootstrap launcher:")
     print(f"  {plan.config_root}/bin/opencode-governance-bootstrap")
-    print("Then open OpenCode Desktop in this repository and run /continue.")
+    print("Then open OpenCode Desktop in this repository and run /hydrate.")
     return 0
 
 
