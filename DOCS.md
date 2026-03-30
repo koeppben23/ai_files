@@ -348,7 +348,7 @@ phase = get_phase(state)
 - **Phase 1 (Workspace Persistence)** persists bootstrap artifacts and verifies workspace state.
 - **Phase 1.2 (Activation Intent)** captures activation intent with sha256 evidence.
 - **Phase 1.3 (Rulebook Load)** loads core/profile/templates/addons rulebooks with evidence before routing to Phase 2.
-- **Phase 2 (Repository Discovery)** builds repo context and reusable decision artifacts.
+- **Phase 2 (Repository Discovery)** builds repo context and reusable decision artifacts using Deep Repository Discovery (structural facts: topology, modules, entry points, data stores, build tooling, testing surface).
 - **Phase 2.1 (Decision Pack)** creates the Decision Pack and resolves Phase 1.5 routing.
 - **Phase 1.5 (Business Rules Discovery, optional)** extracts business rules; once executed, Phase 5.4 becomes mandatory.
 - **Phase 3A (API Inventory)** inventories external API artifacts — always executed, may record `not-applicable`.
