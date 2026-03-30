@@ -22,7 +22,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
+
+if TYPE_CHECKING:
+    from governance_runtime.infrastructure.repo_discovery.semantic_discovery import SemanticFacts
 
 # ---------------------------------------------------------------------------
 # Fact Types with Confidence/Evidence
@@ -115,12 +118,12 @@ class StructuralFacts:
 @dataclass(frozen=True)
 class DiscoveredFacts:
     """Combined discovery results: structural + semantic.
-    
+
     This is the canonical container for all repository facts.
     Structural facts are deterministic; semantic facts are interpretive.
     """
     structural: StructuralFacts
-    semantic: Any = None  # SemanticFacts (imported lazily to avoid circular)
+    semantic: SemanticFacts | None = None
 
 
 # ---------------------------------------------------------------------------
