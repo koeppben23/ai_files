@@ -560,8 +560,11 @@ def get_sessions() -> list[dict]:
 def get_active_session(project_path: str | None = None) -> dict:
     """Get the active session for a project.
 
-    If project_path is provided, returns the session for that project.
-    Otherwise, returns the most recently updated session.
+    If project_path is provided, returns the session for that project ONLY if
+    exactly one matching session exists. Fail-closed: raises APIError if no
+    match or multiple matches.
+
+    If project_path is not provided, returns the most recently updated session.
 
     Args:
         project_path: Optional project directory path (e.g., "/Users/koeppben/work/ai_files")
@@ -571,7 +574,7 @@ def get_active_session(project_path: str | None = None) -> dict:
 
     Raises:
         ServerNotAvailableError: If server is not reachable
-        APIError: If no session found
+        APIError: If no unique session found for project_path
     """
     sessions = get_sessions()
 
@@ -582,10 +585,23 @@ def get_active_session(project_path: str | None = None) -> dict:
         )
 
     if project_path:
+        matching_sessions = []
         for session in sessions:
             session_dir = session.get("directory", "")
             if session_dir == project_path:
-                return session
+                matching_sessions.append(session)
+
+        if len(matching_sessions) == 0:
+            raise APIError(
+                f"No session found for project path: {project_path}. "
+                "Open the workspace in OpenCode Desktop first."
+            )
+        if len(matching_sessions) > 1:
+            raise APIError(
+                f"Multiple sessions ({len(matching_sessions)}) found for project path: {project_path}. "
+                "Close other sessions for this project or specify a different project path."
+            )
+        return matching_sessions[0]
 
     return sessions[0]
 
