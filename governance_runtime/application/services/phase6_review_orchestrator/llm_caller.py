@@ -19,18 +19,17 @@ from typing import Any, Callable
 
 
 def _invoke_llm_via_server(
-    session_id: str,
     prompt_text: str,
     model_info: dict | None = None,
     output_schema: dict | None = None,
     required: bool = False,
 ) -> str:
-    """Try to invoke LLM via direct server API, fallback to legacy on failure.
+    """Invoke LLM via direct server API.
 
     This replaces subprocess("opencode run --session ...") with direct HTTP calls.
+    Session ID must be set via OPENCODE_SESSION_ID environment variable.
 
     Args:
-        session_id: OpenCode session ID
         prompt_text: The prompt to send
         model_info: Optional model specification from resolve_active_opencode_model()
         output_schema: Optional JSON schema for structured output
@@ -40,11 +39,11 @@ def _invoke_llm_via_server(
         LLM response text
 
     Raises:
-        ServerNotAvailableError: If server method fails and no legacy fallback possible
+        ServerNotAvailableError: If server method fails
+        APIError: If OPENCODE_SESSION_ID is not set
     """
     try:
         response = send_session_prompt(
-            session_id=session_id,
             text=prompt_text,
             model=model_info,
             output_schema=output_schema,
@@ -308,7 +307,6 @@ class LLMCaller:
 
             prompt_text = instruction + "\n\nContext:\n" + context_json
             response_text = _invoke_llm_via_server(
-                session_id=session_id,
                 prompt_text=prompt_text,
                 model_info=model_dict,
                 output_schema=output_schema,
