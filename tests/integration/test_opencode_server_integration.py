@@ -209,8 +209,9 @@ class TestGovernanceWithRealServer:
             import uuid
             session_id = str(uuid.uuid4())
 
+        os.environ["OPENCODE_SESSION_ID"] = session_id
         try:
-            result = send_session_prompt(session_id, "Hello")
+            result = send_session_prompt("Hello")
             assert result is not None
         except APIError as e:
             if "400" in str(e):

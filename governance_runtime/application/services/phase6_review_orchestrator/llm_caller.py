@@ -62,11 +62,13 @@ from governance_runtime.infrastructure.governance_binding_resolver import (
 )
 from governance_runtime.infrastructure.opencode_model_binding import resolve_active_opencode_model
 from governance_runtime.infrastructure.opencode_server_client import (
+    APIError,
     send_session_prompt,
     extract_session_response,
     ServerNotAvailableError,
     resolve_opencode_server_base_url,
 )
+from governance_runtime.application.services.phase6_review_orchestrator.response_validator import ResponseValidator
 
 
 @dataclass(frozen=True)
@@ -271,30 +273,19 @@ class LLMCaller:
             )
 
         session_id = str(self._env_reader("OPENCODE_SESSION_ID") or "").strip()
-        model_info = resolve_active_opencode_model(env_reader=self._env_reader)
-        if not session_id and isinstance(model_info, dict):
-            session_id = str(model_info.get("session_id") or "").strip()
+        if not session_id:
+            raise APIError(
+                "OPENCODE_SESSION_ID environment variable is required for production LLM calls. "
+                "No heuristic fallback allowed. Set OPENCODE_SESSION_ID to a valid session ID."
+            )
 
+        model_info = resolve_active_opencode_model(env_reader=self._env_reader)
         model_dict = None
         if model_info and isinstance(model_info, dict):
             provider = model_info.get("provider", "")
             model_id = model_info.get("model_id", "")
             if provider and model_id:
                 model_dict = {"providerID": provider, "modelID": model_id}
-
-        if not session_id:
-            return LLMResponse(
-                invoked=False,
-                stdout="",
-                stderr="[server_client] missing session id",
-                return_code=1,
-                error="Server session id unavailable for review invocation",
-                pipeline_mode=pipeline_mode,
-                binding_role="review",
-                binding_source=binding_source,
-                invoke_backend="server_client",
-                invoke_backend_error="missing-session-id",
-            )
 
         try:
             context_json = json.dumps(context, ensure_ascii=True, indent=2)

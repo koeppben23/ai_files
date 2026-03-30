@@ -155,6 +155,94 @@ class TestLLMCaller:
         assert result.invoke_backend == "server_client"
         assert "Server required but failed" in str(result.error)
 
+    def test_invoke_fails_without_opencode_session_id(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """LLMCaller must fail when OPENCODE_SESSION_ID is not set."""
+        from governance_runtime.infrastructure.opencode_server_client import APIError
+
+        monkeypatch.delenv("OPENCODE_SESSION_ID", raising=False)
+        monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "1")
+        env = {
+            "OPENCODE": "1",
+            "OPENCODE_MODEL": "openai/gpt-5",
+        }
+        caller = LLMCaller(
+            env_reader=lambda key: env.get(key),
+            subprocess_runner=lambda cmd: (_ for _ in ()).throw(AssertionError("subprocess must not run")),
+            workspace_root=tmp_path,
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            caller.invoke(
+                context={"task": "x", "output_schema_text": "{}"},
+                context_file=tmp_path / "ctx.json",
+                context_writer=lambda _p, _d: None,
+            )
+
+        assert "OPENCODE_SESSION_ID" in str(exc_info.value)
+
+    def test_invoke_uses_server_client_with_session_id(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """With OPENCODE_SESSION_ID set, LLMCaller uses server client (not subprocess)."""
+        import os
+        test_session_id = "sess-phase6-test"
+
+        monkeypatch.setenv("OPENCODE_SESSION_ID", test_session_id)
+        monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "1")
+        env = {
+            "OPENCODE": "1",
+            "OPENCODE_MODEL": "openai/gpt-5",
+        }
+
+        subprocess_called = False
+
+        def _mock_subprocess_runner(cmd):
+            nonlocal subprocess_called
+            subprocess_called = True
+            return SubprocessResult(stdout="", stderr="", returncode=0)
+
+        def _mock_env_reader(key: str):
+            val = env.get(key)
+            if val is not None:
+                return val
+            return os.environ.get(key)
+
+        caller = LLMCaller(
+            env_reader=_mock_env_reader,
+            subprocess_runner=_mock_subprocess_runner,
+            workspace_root=tmp_path,
+        )
+
+        from unittest.mock import patch
+
+        class MockValidationResult:
+            valid = True
+            findings = []
+
+        class MockResponseValidator:
+            def validate(self, response_text, mandates_schema=None):
+                return MockValidationResult()
+
+        with patch(
+            "governance_runtime.application.services.phase6_review_orchestrator.llm_caller.send_session_prompt",
+            return_value={
+                "info": {"parts": [{"type": "text", "text": '{"review": "ok"}'}]},
+                "resolved_session_id": test_session_id,
+                "session_evidence": {"session_id_source": "OPENCODE_SESSION_ID"}
+            },
+        ):
+            with patch(
+                "governance_runtime.application.services.phase6_review_orchestrator.llm_caller.ResponseValidator",
+                return_value=MockResponseValidator(),
+            ):
+                result = caller.invoke(
+                    context={"task": "x", "output_schema_text": "{}"},
+                    context_file=tmp_path / "ctx.json",
+                    context_writer=lambda _p, _d: None,
+                )
+
+        assert subprocess_called is False, "subprocess.run must NOT be called when using server client"
+        assert result.invoke_backend == "server_client"
+        assert result.return_code == 0
+
 
 class TestLLMResponse:
     """Tests for LLMResponse dataclass."""

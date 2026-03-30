@@ -1024,3 +1024,67 @@ def test_run_llm_edit_step_server_required_fail_closed_no_subprocess(monkeypatch
 
     assert result.get("blocked") is True
     assert result.get("invoke_backend") == "server_client"
+
+
+def test_implement_fails_without_opencode_session_id(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Implement must fail when OPENCODE_SESSION_ID is not set."""
+    from governance_runtime.infrastructure.opencode_server_client import APIError
+    from governance_runtime.entrypoints import implement_start as entrypoint
+
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.delenv("OPENCODE_SESSION_ID", raising=False)
+    monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "1")
+    monkeypatch.setattr(entrypoint, "_load_mandates_schema", lambda: {"$id": "test", "definitions": {}})
+    monkeypatch.setattr(entrypoint, "_has_active_desktop_llm_binding", lambda: True)
+    monkeypatch.setattr(entrypoint, "resolve_active_opencode_model", lambda: {"provider": "openai", "model_id": "gpt-5"})
+    monkeypatch.setattr(entrypoint, "_capture_repo_change_baseline", lambda _repo_root: {})
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo_root: [])
+    monkeypatch.setattr(entrypoint, "_capture_hotspot_hashes", lambda _repo_root, _hotspots: {})
+    monkeypatch.setattr(entrypoint, "_get_developer_output_schema_text", lambda: "{}")
+
+    with pytest.raises(APIError) as exc_info:
+        entrypoint._resolve_active_opencode_session_id()
+
+    assert "OPENCODE_SESSION_ID" in str(exc_info.value)
+
+
+def test_implement_uses_server_client_with_session_id(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """With OPENCODE_SESSION_ID set, Implement uses server client (not subprocess)."""
+    from governance_runtime.entrypoints import implement_start as entrypoint
+
+    test_session_id = "sess-test-123"
+
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("OPENCODE_SESSION_ID", test_session_id)
+    monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "1")
+    monkeypatch.setattr(entrypoint, "_load_mandates_schema", lambda: {"$id": "test", "definitions": {}})
+    monkeypatch.setattr(entrypoint, "_has_active_desktop_llm_binding", lambda: True)
+    monkeypatch.setattr(entrypoint, "resolve_active_opencode_model", lambda: {"provider": "openai", "model_id": "gpt-5"})
+    monkeypatch.setattr(entrypoint, "_capture_repo_change_baseline", lambda _repo_root: {})
+    monkeypatch.setattr(entrypoint, "_parse_changed_files_from_git_status", lambda _repo_root: [])
+    monkeypatch.setattr(entrypoint, "_capture_hotspot_hashes", lambda _repo_root, _hotspots: {})
+    monkeypatch.setattr(entrypoint, "_get_developer_output_schema_text", lambda: "{}")
+
+    resolved_id = entrypoint._resolve_active_opencode_session_id()
+    assert resolved_id == test_session_id
+
+    monkeypatch.setattr(
+        entrypoint,
+        "send_session_prompt",
+        lambda **kwargs: {"info": {"parts": [{"type": "text", "text": '{"changed_files": ["a.py"]}'}]},
+                          "resolved_session_id": test_session_id,
+                          "session_evidence": {"session_id_source": "OPENCODE_SESSION_ID"}},
+    )
+
+    result = _ORIGINAL_RUN_LLM_EDIT_STEP(
+        repo_root=tmp_path,
+        state={"phase": "6-PostFlight", "active_gate": "Workflow Complete", "next_gate_condition": "n"},
+        ticket_text="ticket",
+        task_text="task",
+        plan_text="plan",
+        required_hotspots=[],
+    )
+
+    assert result.get("invoke_backend") == "server_client"
+    assert result.get("blocked") is not True
+
