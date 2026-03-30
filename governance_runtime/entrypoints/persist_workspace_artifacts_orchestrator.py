@@ -294,7 +294,7 @@ except ImportError:
         section = decision_pack_section(date, date_compact)
         return "# Decision Pack\n" f"Repo: {repo_name}\n" f"LastUpdated: {date}\n\n" f"{section}"
 
-    def render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str) -> str:
+    def render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str, semantic=None) -> str:
         return "\n".join(
             [
                 "WorkspaceMemory:",
@@ -1017,8 +1017,8 @@ def _render_decision_pack_create(*, date: str, date_compact: str, repo_name: str
     return render_decision_pack_create(date=date, date_compact=date_compact, repo_name=repo_name)
 
 
-def _render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str) -> str:
-    return render_workspace_memory(date=date, repo_name=repo_name, repo_fingerprint=repo_fingerprint)
+def _render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str, semantic: Any = None) -> str:
+    return render_workspace_memory(date=date, repo_name=repo_name, repo_fingerprint=repo_fingerprint, semantic=semantic)
 
 
 def _business_rules_extraction_evidence(session: dict[str, Any] | None) -> bool:
@@ -1932,6 +1932,18 @@ def main() -> int:
     except Exception:
         structural_facts = None  # Will use legacy rendering
 
+    # Run semantic discovery (Phase 2b) - SSOTs, Invariants, Conventions, Patterns
+    semantic_facts = None
+    try:
+        from governance_runtime.infrastructure.repo_discovery import discover_semantic_facts
+        semantic_facts = discover_semantic_facts(
+            repo_root,
+            profile=profile,
+            repo_fingerprint=repo_fingerprint,
+        )
+    except Exception:
+        semantic_facts = None  # Will use legacy rendering
+
     if structural_facts is not None:
         cache_content = _render_repo_cache(
             date=today,
@@ -1962,7 +1974,7 @@ def main() -> int:
     )
     decision_append = _decision_pack_section(today, today_compact)
     memory_content = _render_workspace_memory(
-        date=today, repo_name=repo_name, repo_fingerprint=repo_fingerprint
+        date=today, repo_name=repo_name, repo_fingerprint=repo_fingerprint, semantic=semantic_facts
     )
     extraction_report, extraction_diagnostics, extractor_ran = extract_validated_business_rules_with_diagnostics(repo_root)
 

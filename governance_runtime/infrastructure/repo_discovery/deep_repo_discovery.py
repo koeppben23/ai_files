@@ -18,7 +18,7 @@ import json
 import os
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -106,6 +106,13 @@ class StructuralFacts:
     testing_surface: list[TestingFact]
     discovered_at: str
     discovery_version: str = "2.0"
+    # Phase 2b: Semantic facts (populated separately)
+    ssots: list[Any] = field(default_factory=list)
+    invariants: list[Any] = field(default_factory=list)
+    conventions: list[Any] = field(default_factory=list)
+    patterns: list[Any] = field(default_factory=list)
+    defaults: list[Any] = field(default_factory=list)
+    deviations: list[Any] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
