@@ -40,6 +40,22 @@ def _write_session_state(tmp_path: Path, state: dict) -> Path:
     return session_path
 
 
+def _write_core_hydration_artifacts(workspace_dir: Path) -> None:
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    (workspace_dir / "repo-map-digest.md").write_text(
+        "# Repo Map\n\n- src/api.py\n- src/core.py\n",
+        encoding="utf-8",
+    )
+    (workspace_dir / "workspace-memory.yaml").write_text(
+        "patterns:\n  - auth-flow\n",
+        encoding="utf-8",
+    )
+    (workspace_dir / "decision-pack.md").write_text(
+        "# Decision Pack\n\n- D001: Use JWT\n",
+        encoding="utf-8",
+    )
+
+
 class TestSessionHydrationHappy:
     """Happy path tests for session hydration."""
 
@@ -50,7 +66,7 @@ class TestSessionHydrationHappy:
         session_path = _write_session_state(tmp_path, {"phase": "3", "repo_root": str(tmp_path / "repo")})
 
         mock_workspace = tmp_path / "workspaces" / "testrepo"
-        mock_workspace.mkdir(parents=True, exist_ok=True)
+        _write_core_hydration_artifacts(mock_workspace)
 
         def mock_resolve_paths():
             return (
@@ -94,17 +110,19 @@ class TestSessionHydrationHappy:
         assert state.get("phase") == "4"
 
     def test_hydration_with_workspace_artifacts(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        """Hydration brief includes workspace artifact counts."""
+        """Hydration brief is built from canonical artifact content."""
         from governance_runtime.entrypoints import session_hydration as module
-        from governance_runtime.infrastructure.json_store import write_json_atomic
 
         session_path = _write_session_state(tmp_path, {"phase": "3", "repo_root": str(tmp_path / "repo")})
 
         workspace_dir = tmp_path / "workspaces" / "testrepo"
-        workspace_dir.mkdir(parents=True, exist_ok=True)
+        _write_core_hydration_artifacts(workspace_dir)
+        (workspace_dir / "business-rules.md").write_text(
+            "# Business Rules\n\n- BR-1: Always verify auth\n",
+            encoding="utf-8",
+        )
 
-        write_json_atomic(workspace_dir / "repo-map.json", {"items": [{"name": "a.py"}, {"name": "b.py"}]})
-        write_json_atomic(workspace_dir / "decision-pack.json", {"items": [{"id": "D001"}]})
+        captured = {"text": "", "session_id": ""}
 
         def mock_resolve_paths():
             return (session_path, "testrepo", tmp_path / "workspaces", workspace_dir)
@@ -116,6 +134,8 @@ class TestSessionHydrationHappy:
             return {"id": "ses_test456", "title": "Test Session"}
 
         def mock_send_message(text, session_id):
+            captured["text"] = text
+            captured["session_id"] = session_id
             return {"info": {"id": "msg_test"}}
 
         monkeypatch.setattr(module, "resolve_active_session_paths", mock_resolve_paths)
@@ -127,6 +147,39 @@ class TestSessionHydrationHappy:
         result = module.main(["--quiet"])
 
         assert result == 0
+        assert captured["session_id"] == "ses_test456"
+        assert "Architecture Summary (repo-map-digest)" in captured["text"]
+        assert "Workspace Memory" in captured["text"]
+        assert "Decision Pack" in captured["text"]
+        assert "Business Rules" in captured["text"]
+        assert "D001: Use JWT" in captured["text"]
+        assert "BR-1: Always verify auth" in captured["text"]
+
+    def test_hydration_blocks_when_core_knowledge_base_missing(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+    ):
+        """Hydration must fail-closed when core knowledge artifacts are missing."""
+        from governance_runtime.entrypoints import session_hydration as module
+
+        session_path = _write_session_state(tmp_path, {"phase": "3", "repo_root": str(tmp_path / "repo")})
+        workspace_dir = tmp_path / "workspaces" / "testrepo"
+        workspace_dir.mkdir(parents=True, exist_ok=True)
+        (workspace_dir / "repo-map-digest.md").write_text("# Repo\n", encoding="utf-8")
+
+        def mock_resolve_paths():
+            return (session_path, "testrepo", tmp_path / "workspaces", workspace_dir)
+
+        monkeypatch.setattr(module, "resolve_active_session_paths", mock_resolve_paths)
+
+        rc = module.main(["--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["status"] == "blocked"
+        assert payload["reason"] == "knowledge-base-incomplete"
+        assert payload["reason_code"] == "HYDRATION-KNOWLEDGE-BASE-INCOMPLETE"
 
 
 class TestSessionHydrationBad:
@@ -137,7 +190,8 @@ class TestSessionHydrationBad:
         from governance_runtime.entrypoints import session_hydration as module
         from governance_runtime.infrastructure.opencode_server_client import ServerNotAvailableError
 
-        session_path = _write_session_state(tmp_path, {"phase": "3"})
+        session_path = _write_session_state(tmp_path, {"phase": "3", "repo_root": str(tmp_path / "repo")})
+        _write_core_hydration_artifacts(tmp_path / "workspaces" / "testrepo")
 
         def mock_resolve_paths():
             return (session_path, "testrepo", tmp_path / "workspaces", tmp_path / "workspaces" / "testrepo")
@@ -157,7 +211,8 @@ class TestSessionHydrationBad:
         from governance_runtime.entrypoints import session_hydration as module
         from governance_runtime.infrastructure.opencode_server_client import APIError
 
-        session_path = _write_session_state(tmp_path, {"phase": "3"})
+        session_path = _write_session_state(tmp_path, {"phase": "3", "repo_root": str(tmp_path / "repo")})
+        _write_core_hydration_artifacts(tmp_path / "workspaces" / "testrepo")
 
         def mock_resolve_paths():
             return (session_path, "testrepo", tmp_path / "workspaces", tmp_path / "workspaces" / "testrepo")
@@ -187,6 +242,7 @@ class TestSessionHydrationEdge:
 
         existing_state = {
             "phase": "4",
+            "repo_root": str(tmp_path / "repo"),
             "active_gate": "Ticket Intake Gate",
             "SessionHydration": {
                 "hydrated_session_id": "ses_old",
@@ -197,7 +253,7 @@ class TestSessionHydrationEdge:
         session_path = _write_session_state(tmp_path, existing_state)
 
         workspace_dir = tmp_path / "workspaces" / "testrepo"
-        workspace_dir.mkdir(parents=True, exist_ok=True)
+        _write_core_hydration_artifacts(workspace_dir)
 
         def mock_resolve_paths():
             return (session_path, "testrepo", tmp_path / "workspaces", workspace_dir)

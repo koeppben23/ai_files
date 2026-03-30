@@ -27,10 +27,12 @@ from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
+from governance_runtime.infrastructure.session_hydration import is_session_hydrated
 from governance_runtime.shared.next_action import NextAction, NextActions, render_next_action_line
 
 
 BLOCKED_P4_INTAKE_MISSING_EVIDENCE = "BLOCKED-P4-INTAKE-MISSING-EVIDENCE"
+BLOCKED_P4_NOT_HYDRATED = "BLOCKED-P4-NOT-HYDRATED"
 
 
 def _read_text(path: Path) -> str:
@@ -167,6 +169,16 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeError("SESSION_STATE root missing")
 
         phase_before = get_phase(state)
+
+        if not is_session_hydrated(state):
+            payload = _blocked_payload(
+                reason="session-not-hydrated",
+                reason_code=BLOCKED_P4_NOT_HYDRATED,
+                recovery_action="run /hydrate first to bind governance session to OpenCode session",
+                next_action=NextActions.HYDRATE_REQUIRED,
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
 
         # When /ticket is executed from Phase-6 rework clarification,
         # consume clarification state and force deterministic Phase-4 re-entry

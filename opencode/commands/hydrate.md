@@ -38,10 +38,10 @@ $env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --hydrate 
 
 If the command cannot be executed, verify:
 1. OpenCode Desktop is running
-2. Server is reachable: `curl http://127.0.0.1:4096/health`
+2. Server is reachable: `curl http://127.0.0.1:4096/global/health`
 3. OPENCODE_PORT matches the server port (default: 4096)
 
-If the server is not running, start it with:
+If OpenCode Desktop is not running, start it with:
 ```bash
 opencode serve --port 4096 --hostname 127.0.0.1
 ```
@@ -51,6 +51,8 @@ Or set OPENCODE_PORT before starting OpenCode Desktop:
 export OPENCODE_PORT=4096
 opencode
 ```
+
+If OpenCode Desktop is already running on another port, set `OPENCODE_PORT` to that port before running `/hydrate`.
 
 ## Interpretation scope
 

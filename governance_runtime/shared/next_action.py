@@ -89,6 +89,12 @@ class NextActions:
         command="/ticket",
     )
 
+    HYDRATE_REQUIRED = NextAction(
+        code="HYDRATE_REQUIRED",
+        text="run /hydrate first to bind governance session.",
+        command="/hydrate",
+    )
+
     IMPLEMENT_START = NextAction(
         code="IMPLEMENT_START",
         text="run /implement.",

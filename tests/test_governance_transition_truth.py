@@ -276,6 +276,13 @@ class TestE2EResponseContract:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         state.pop("Ticket", None)
         state.pop("Task", None)
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
@@ -417,6 +424,13 @@ class TestE2EResponseContract:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
         module_ticket = _load_module("phase4_intake_persist", "phase4_intake_persist.py")
@@ -586,6 +600,13 @@ class TestE2EStateTransitionInvariants:
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state["next_gate_condition"] = "Provide ticket and task details."
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         state.pop("Ticket", None)
         state.pop("Task", None)
         state.pop("TicketRecordDigest", None)
@@ -790,6 +811,13 @@ class TestE2EStateTransitionInvariants:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
         _load_module("phase4_intake_persist", "phase4_intake_persist.py").main(
@@ -815,6 +843,13 @@ class TestE2EStateTransitionInvariants:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         state.pop("Ticket", None)
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -1020,6 +1055,13 @@ class TestE2EPersistedStateContract:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
         module = _load_module("phase4_intake_persist", "phase4_intake_persist.py")
@@ -1096,6 +1138,13 @@ class TestE2EPersistedStateContract:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
         module = _load_module("phase4_intake_persist", "phase4_intake_persist.py")
@@ -1170,6 +1219,13 @@ class TestE2EPersistedStateContract:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
         module = _load_module("phase4_intake_persist", "phase4_intake_persist.py")
