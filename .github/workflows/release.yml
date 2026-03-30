@@ -98,8 +98,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/governance_lint.py
-          pytest -q -m release
-          pytest -q -m build
+          python -m pytest -q -m release
+          python -m pytest -q -m build
 
       - name: Build release artifacts
         run: |
