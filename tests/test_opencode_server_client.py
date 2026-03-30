@@ -333,30 +333,31 @@ class TestCheckServerHealth:
     """Tests for server health check - uses GET /global/health."""
 
     def test_happy_healthy_server(self):
-        """Happy: Healthy server returns True."""
+        """Happy: Healthy server returns dict with healthy=True."""
         with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
             with patch("governance_runtime.infrastructure.opencode_server_client.resolve_opencode_server_base_url") as url_mock:
                 url_mock.return_value = "http://localhost:4096"
                 mock_response = mock_urlopen.return_value.__enter__.return_value
-                mock_response.read.return_value = b'{"healthy": true}'
+                mock_response.read.return_value = b'{"healthy": true, "version": "1.3.7"}'
                 result = check_server_health()
-                assert result is True
+                assert result.get("healthy") is True
 
     def test_happy_unhealthy_server(self):
-        """Happy: Unhealthy server returns False."""
+        """Happy: Unhealthy server returns dict with healthy=False."""
         with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
             with patch("governance_runtime.infrastructure.opencode_server_client.resolve_opencode_server_base_url") as url_mock:
                 url_mock.return_value = "http://localhost:4096"
                 mock_response = mock_urlopen.return_value.__enter__.return_value
                 mock_response.read.return_value = b'{"healthy": false}'
                 result = check_server_health()
-                assert result is False
+                assert result.get("healthy") is False
 
     def test_bad_server_unavailable(self):
-        """Bad: Server not available returns False."""
+        """Bad: Server not available raises ServerNotAvailableError."""
+        from governance_runtime.infrastructure.opencode_server_client import ServerNotAvailableError
         with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
             with patch("governance_runtime.infrastructure.opencode_server_client.resolve_opencode_server_base_url") as url_mock:
                 url_mock.return_value = "http://localhost:4096"
                 mock_urlopen.side_effect = Exception("Connection refused")
-                result = check_server_health()
-                assert result is False
+                with pytest.raises(ServerNotAvailableError):
+                    check_server_health()

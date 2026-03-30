@@ -109,7 +109,7 @@ class TestR10FinalStateProof:
     def test_core_end_state_invariants(self) -> None:
         commands = REPO_ROOT / "opencode" / "commands"
         assert commands.is_dir()
-        assert len(list(commands.glob("*.md"))) == 8
+        assert len(list(commands.glob("*.md"))) == 9
 
         assert (REPO_ROOT / "governance_content" / "reference" / "master.md").exists()
         assert (REPO_ROOT / "governance_spec" / "phase_api.yaml").exists()
