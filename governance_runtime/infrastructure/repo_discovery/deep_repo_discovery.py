@@ -95,7 +95,11 @@ class BuildAndToolingFact:
 
 @dataclass(frozen=True)
 class StructuralFacts:
-    """Complete structural discovery results."""
+    """Complete structural discovery results.
+    
+    Contains only filesystem-observable facts: topology, modules,
+    entry points, data stores, build tooling, testing surface.
+    """
     repository_type: str          # "monorepo" | "single-package" | "library" | "app"
     layers: list[str]
     core_subsystems: list[str]
@@ -106,13 +110,17 @@ class StructuralFacts:
     testing_surface: list[TestingFact]
     discovered_at: str
     discovery_version: str = "2.0"
-    # Phase 2b: Semantic facts (populated separately)
-    ssots: list[Any] = field(default_factory=list)
-    invariants: list[Any] = field(default_factory=list)
-    conventions: list[Any] = field(default_factory=list)
-    patterns: list[Any] = field(default_factory=list)
-    defaults: list[Any] = field(default_factory=list)
-    deviations: list[Any] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class DiscoveredFacts:
+    """Combined discovery results: structural + semantic.
+    
+    This is the canonical container for all repository facts.
+    Structural facts are deterministic; semantic facts are interpretive.
+    """
+    structural: StructuralFacts
+    semantic: Any = None  # SemanticFacts (imported lazily to avoid circular)
 
 
 # ---------------------------------------------------------------------------

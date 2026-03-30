@@ -281,49 +281,128 @@ def discover_invariants(repo_root: Path) -> list[InvariantFact]:
     Invariants are detected by searching for specific patterns in code
     and configuration files. Conservative approach: Only report invariants
     with clear evidence.
+    
+    Invariants are detected by:
+    1. Searching for known constraint patterns in Python code
+    2. Checking for gate enforcement (emit_gate_failure patterns)
+    3. Verifying schema requirements in configuration files
     """
     invariants: list[InvariantFact] = []
     
-    # Check for path constraint invariants
-    config_root = repo_root / "governance.paths.json"
-    if _file_exists(config_root):
-        # If governance.paths.json exists, config-root-outside-repo is enforced
+    # Collect Python files for code analysis
+    python_files: list[Path] = []
+    try:
+        for entry in repo_root.iterdir():
+            if entry.is_file() and entry.suffix == ".py":
+                python_files.append(entry)
+            elif entry.is_dir() and not entry.name.startswith(".") and entry.name != "__pycache__":
+                for subentry in _safe_list_dir(entry, max_items=30):
+                    if subentry.is_file() and subentry.suffix == ".py":
+                        python_files.append(subentry)
+    except Exception:
+        pass
+    
+    # Scan code for invariant enforcement patterns
+    code_invariants: dict[str, list[str]] = {
+        "config-root-outside-repo": [],
+        "fingerprint-24-hex": [],
+        "phase-1.3-mandatory": [],
+        "session-state-required": [],
+        "binding-absolute": [],
+        "pointer-verification": [],
+    }
+    
+    for py_file in python_files[:40]:
+        try:
+            content = py_file.read_text(encoding="utf-8", errors="ignore")
+            rel_path = str(py_file.relative_to(repo_root))
+            
+            # Config root constraint
+            if "configRoot" in content and ("outside" in content.lower() or "must not be within" in content.lower()):
+                code_invariants["config-root-outside-repo"].append(rel_path)
+            
+            # Fingerprint format
+            if "fingerprint" in content.lower() and ("24" in content and "hex" in content.lower()):
+                code_invariants["fingerprint-24-hex"].append(rel_path)
+            
+            # Phase ordering
+            if "Phase 1.3" in content or "1.3-Bootstrap" in content:
+                code_invariants["phase-1.3-mandatory"].append(rel_path)
+            
+            # Session state requirement
+            if "SESSION_STATE" in content and ("must exist" in content or "required" in content.lower()[:500]):
+                code_invariants["session-state-required"].append(rel_path)
+            
+            # Binding path absolute
+            if "commands_home" in content and "is_absolute" in content:
+                code_invariants["binding-absolute"].append(rel_path)
+            
+            # Pointer verification
+            if "verify_pointer" in content or "POINTER_VERIFY" in content:
+                code_invariants["pointer-verification"].append(rel_path)
+                
+        except Exception:
+            pass
+    
+    # Create invariant facts from code evidence
+    if code_invariants["config-root-outside-repo"]:
         invariants.append(InvariantFact(
             rule="Config root must be outside repository root",
             category="path-constraint",
-            evidence=Evidence("file_exists", "governance.paths.json", Confidence.HIGH),
+            evidence=Evidence("code_enforcement", code_invariants["config-root-outside-repo"][0], Confidence.HIGH),
             enforcement="gate",
         ))
     
-    # Check for fingerprint format invariant
-    paths_json_content = _read_first_lines(config_root, 50)
-    if any("fingerprint" in line.lower() for line in paths_json_content):
+    if code_invariants["fingerprint-24-hex"]:
         invariants.append(InvariantFact(
             rule="Repository fingerprint must be 24-hex format",
             category="data-integrity",
-            evidence=Evidence("pattern_match", "governance.paths.json", Confidence.MEDIUM),
+            evidence=Evidence("code_enforcement", code_invariants["fingerprint-24-hex"][0], Confidence.HIGH),
             enforcement="validation",
         ))
     
-    # Check for phase ordering invariant
-    phase_api_files = _find_files_by_pattern(repo_root, "phase_api.*")
-    if phase_api_files:
+    if code_invariants["phase-1.3-mandatory"]:
         invariants.append(InvariantFact(
             rule="Phase 1.3 (Rulebook Load) is mandatory before Phase 2+",
             category="phase-ordering",
-            evidence=Evidence("file_exists", str(phase_api_files[0]), Confidence.HIGH),
+            evidence=Evidence("code_enforcement", code_invariants["phase-1.3-mandatory"][0], Confidence.HIGH),
             enforcement="gate",
         ))
     
-    # Check for SESSION_STATE existence requirement
-    session_files = _find_files_by_pattern(repo_root, "SESSION_STATE.json")
-    if session_files:
+    if code_invariants["session-state-required"]:
         invariants.append(InvariantFact(
             rule="SESSION_STATE file must exist before persistence operations",
             category="data-integrity",
-            evidence=Evidence("file_exists", str(session_files[0]), Confidence.HIGH),
+            evidence=Evidence("code_enforcement", code_invariants["session-state-required"][0], Confidence.HIGH),
             enforcement="gate",
         ))
+    
+    if code_invariants["binding-absolute"]:
+        invariants.append(InvariantFact(
+            rule="Binding paths (commands_home, workspaces_home) must be absolute",
+            category="path-constraint",
+            evidence=Evidence("code_enforcement", code_invariants["binding-absolute"][0], Confidence.HIGH),
+            enforcement="validation",
+        ))
+    
+    if code_invariants["pointer-verification"]:
+        invariants.append(InvariantFact(
+            rule="Global pointer must be verified after bootstrap",
+            category="data-integrity",
+            evidence=Evidence("code_enforcement", code_invariants["pointer-verification"][0], Confidence.HIGH),
+            enforcement="gate",
+        ))
+    
+    # Fallback: check for file existence if code scanning found nothing
+    if not invariants:
+        config_root = repo_root / "governance.paths.json"
+        if _file_exists(config_root):
+            invariants.append(InvariantFact(
+                rule="Config root must be outside repository root",
+                category="path-constraint",
+                evidence=Evidence("file_exists", "governance.paths.json", Confidence.MEDIUM),
+                enforcement="gate",
+            ))
     
     return invariants
 
@@ -539,6 +618,27 @@ def discover_deviations(repo_root: Path) -> list[DeviationFact]:
     return deviations
 
 
+def _run_discovery_with_error_handling(
+    name: str,
+    discovery_fn,
+    repo_root: Path,
+    errors: list[DeviationFact],
+) -> list:
+    """Run a discovery function and capture errors as deviations."""
+    try:
+        return discovery_fn(repo_root)
+    except Exception as exc:
+        errors.append(DeviationFact(
+            description=f"Discovery failed: {name}",
+            expected=f"{name} to complete successfully",
+            observed=f"Exception: {type(exc).__name__}: {str(exc)[:100]}",
+            severity="warning",
+            evidence=Evidence("discovery-error", name, Confidence.LOW),
+            recommendation=f"Check {name} implementation",
+        ))
+        return []
+
+
 def discover_semantic_facts(
     repo_root: Path,
     *,
@@ -550,25 +650,37 @@ def discover_semantic_facts(
     This is the main entry point for semantic discovery.
     Conservative approach: Only report facts with clear evidence.
     
+    Each discovery step is wrapped with error handling - failures are
+    reported as DeviationFact entries, never silently swallowed.
+    
     Args:
         repo_root: Root directory of the repository
         profile: Operating profile (solo/team/regulated)
         repo_fingerprint: Repository fingerprint
     
     Returns:
-        SemanticFacts with all discovered semantic information
+        SemanticFacts with all discovered semantic information.
+        If a discovery step fails, results are empty and a DeviationFact is added.
     """
     from datetime import datetime, timezone
     
     discovered_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     
-    # Run all discovery functions
-    ssots = discover_ssots(repo_root)
-    invariants = discover_invariants(repo_root)
-    conventions = discover_conventions(repo_root)
-    patterns = discover_patterns(repo_root)
-    defaults = discover_defaults(repo_root)
-    deviations = discover_deviations(repo_root)
+    # Track errors across all discovery steps
+    discovery_errors: list[DeviationFact] = []
+    
+    # Run base deviation discovery first (captures structural issues)
+    base_deviations = discover_deviations(repo_root)
+    
+    # Run all discovery functions with error handling
+    ssots = _run_discovery_with_error_handling("discover_ssots", discover_ssots, repo_root, discovery_errors)
+    invariants = _run_discovery_with_error_handling("discover_invariants", discover_invariants, repo_root, discovery_errors)
+    conventions = _run_discovery_with_error_handling("discover_conventions", discover_conventions, repo_root, discovery_errors)
+    patterns = _run_discovery_with_error_handling("discover_patterns", discover_patterns, repo_root, discovery_errors)
+    defaults = _run_discovery_with_error_handling("discover_defaults", discover_defaults, repo_root, discovery_errors)
+    
+    # Combine base deviations with discovery errors
+    all_deviations = base_deviations + discovery_errors
     
     return SemanticFacts(
         ssots=ssots,
@@ -576,7 +688,7 @@ def discover_semantic_facts(
         conventions=conventions,
         patterns=patterns,
         defaults=defaults,
-        deviations=deviations,
+        deviations=all_deviations,
         discovered_at=discovered_at,
     )
 

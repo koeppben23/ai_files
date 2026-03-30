@@ -53,63 +53,84 @@ def _render_with_semantics(
         "",
     ]
     
-    # Conventions
+    # Conventions - now with evidence and confidence
     lines.append("  Conventions:")
     if semantic.conventions:
         for c in semantic.conventions[:10]:
-            lines.append(f'    {c.name}: "{c.description[:80]}"')
+            lines.append(f'    {c.name}:')
+            lines.append(f'      description: "{c.description[:80]}"')
+            lines.append(f'      confidence: "{c.evidence.confidence.value}"')
+            lines.append(f'      evidence: "{c.evidence.source}: {c.evidence.reference[:60]}"')
     else:
         lines.append("    {}")
     
     lines.append("")
     
-    # Patterns
+    # Patterns - now with locations and confidence
     lines.append("  Patterns:")
     if semantic.patterns:
-        for p in semantic.patterns[:10]:
-            lines.append(f'    {p.name}: "{p.description[:80]}"')
+        for p in semantic.patterns[:8]:
+            lines.append(f'    {p.name}:')
+            lines.append(f'      description: "{p.description[:80]}"')
+            lines.append(f'      confidence: "{p.evidence.confidence.value}"')
+            lines.append(f'      occurrences: {len(p.locations)}')
+            if p.locations[:3]:
+                for loc in p.locations[:3]:
+                    lines.append(f'      - "{loc}"')
     else:
         lines.append("    {}")
     
     lines.append("")
     
-    # Decisions / Defaults
+    # Decisions / Defaults - now with override info
     lines.append("  Decisions:")
     lines.append("    Defaults:")
     if semantic.defaults:
         for d in semantic.defaults[:10]:
-            lines.append(f'      {d.setting}: "{d.value}"')
+            lines.append(f'      {d.setting}:')
+            lines.append(f'        value: "{d.value}"')
+            lines.append(f'        confidence: "{d.evidence.confidence.value}"')
+            if d.override_path:
+                lines.append(f'        override: "{d.override_path}"')
     else:
         lines.append("      []")
     
     lines.append("")
     
-    # Deviations
+    # Deviations - with recommendation
     lines.append("  Deviations:")
     if semantic.deviations:
         for dev in semantic.deviations[:5]:
             lines.append(f'    - description: "{dev.description[:60]}"')
             lines.append(f'      severity: "{dev.severity}"')
+            lines.append(f'      expected: "{dev.expected[:50]}"')
+            lines.append(f'      observed: "{dev.observed[:50]}"')
+            if dev.recommendation:
+                lines.append(f'      recommendation: "{dev.recommendation[:60]}"')
     else:
         lines.append("    []")
     
     lines.append("")
     
-    # SSOTs (new section)
+    # SSOTs - with schema
     if semantic.ssots:
         lines.append("  SSOTs:")
         for s in semantic.ssots[:10]:
             lines.append(f'    - concern: "{s.concern}"')
             lines.append(f'      path: "{s.path}"')
             lines.append(f'      authority: "{s.authority}"')
+            lines.append(f'      confidence: "{s.evidence.confidence.value}"')
+            if s.schema:
+                lines.append(f'      schema: "{s.schema}"')
         lines.append("")
     
-    # Invariants (new section)
+    # Invariants - with enforcement details
     if semantic.invariants:
         lines.append("  Invariants:")
         for i in semantic.invariants[:10]:
             lines.append(f'    - rule: "{i.rule[:80]}"')
             lines.append(f'      category: "{i.category}"')
+            lines.append(f'      confidence: "{i.evidence.confidence.value}"')
             if i.enforcement:
                 lines.append(f'      enforcement: "{i.enforcement}"')
         lines.append("")

@@ -2,6 +2,7 @@
 from governance_runtime.infrastructure.repo_discovery.deep_repo_discovery import (
     discover_structural_facts,
     StructuralFacts,
+    DiscoveredFacts,
     Confidence,
     Evidence,
     ModuleFact,
@@ -25,6 +26,7 @@ __all__ = [
     # Structural discovery
     "discover_structural_facts",
     "StructuralFacts",
+    "DiscoveredFacts",
     "Confidence",
     "Evidence",
     "ModuleFact",

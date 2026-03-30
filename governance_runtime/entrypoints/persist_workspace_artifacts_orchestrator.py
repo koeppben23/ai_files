@@ -1933,16 +1933,43 @@ def main() -> int:
         structural_facts = None  # Will use legacy rendering
 
     # Run semantic discovery (Phase 2b) - SSOTs, Invariants, Conventions, Patterns
+    # Never silently swallow errors - report as deviations in the facts
     semantic_facts = None
     try:
         from governance_runtime.infrastructure.repo_discovery import discover_semantic_facts
+        from governance_runtime.infrastructure.repo_discovery import DeviationFact, Evidence, Confidence
         semantic_facts = discover_semantic_facts(
             repo_root,
             profile=profile,
             repo_fingerprint=repo_fingerprint,
         )
-    except Exception:
-        semantic_facts = None  # Will use legacy rendering
+    except Exception as exc:
+        # Create empty SemanticFacts with error recorded as deviation
+        try:
+            from governance_runtime.infrastructure.repo_discovery import (
+                SemanticFacts as _SemanticFacts,
+                DeviationFact as _DeviationFact,
+                Evidence as _Evidence,
+                Confidence as _Confidence,
+            )
+            semantic_facts = _SemanticFacts(
+                ssots=[],
+                invariants=[],
+                conventions=[],
+                patterns=[],
+                defaults=[],
+                deviations=[_DeviationFact(
+                    description="Semantic discovery failed completely",
+                    expected="discover_semantic_facts() to succeed",
+                    observed=f"{type(exc).__name__}: {str(exc)[:200]}",
+                    severity="warning",
+                    evidence=_Evidence("discovery-error", "discover_semantic_facts", _Confidence.LOW),
+                    recommendation="Check repo_discovery imports and dependencies",
+                )],
+                discovered_at=today,
+            )
+        except Exception:
+            semantic_facts = None  # Ultimate fallback if even error creation fails
 
     if structural_facts is not None:
         cache_content = _render_repo_cache(
