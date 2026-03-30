@@ -37,6 +37,7 @@ def _set_pipeline_mode_with_bindings(
     review_cmd: str = "echo '{\"verdict\":\"approve\",\"findings\":[]}'",
 ) -> None:
     def _extract_json_from_cmd(cmd: str) -> str:
+        import base64
         token = str(cmd or "").strip()
         if token.startswith("cat "):
             path = Path(token[4:].strip())
@@ -46,6 +47,18 @@ def _set_pipeline_mode_with_bindings(
             return token[6:-1]
         if token.startswith('echo "') and token.endswith('"'):
             return token[6:-1]
+        # Handle Windows base64-encoded python command
+        if token.startswith("python -c "):
+            try:
+                # Extract base64 content from: python -c "import base64,sys;sys.stdout.write(base64.b64decode('...').decode())"
+                import re
+                match = re.search(r"base64\.b64decode\(['\"](.+?)['\"]\)", token)
+                if match:
+                    encoded = match.group(1)
+                    decoded = base64.b64decode(encoded).decode("utf-8")
+                    return decoded
+            except Exception:
+                pass
         return token
 
     payload = {
