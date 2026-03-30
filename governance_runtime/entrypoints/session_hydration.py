@@ -7,11 +7,11 @@ and prepares the session for productive work.
 
 This command:
 1. Checks server reachability
-2. Resolves active session
+2. Resolves active session (fail-closed if no unique match for project)
 3. Validates knowledge base
 4. Writes hydration brief to session
-5. Persists hydration receipt
-6. Opens ticket gate
+5. Persists hydration receipt with artifact-based digest
+6. Transitions to Ticket Intake Gate
 
 Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
@@ -34,6 +34,12 @@ from governance_runtime.infrastructure.json_store import (
     load_json,
     write_json_atomic,
 )
+from governance_runtime.infrastructure.workspace_paths import (
+    repo_map_digest_path,
+    workspace_memory_path,
+    decision_pack_path,
+    governance_runtime_state_dir,
+)
 from governance_runtime.application.services.state_accessor import get_phase
 from governance_runtime.infrastructure.opencode_server_client import (
     check_server_health,
@@ -48,6 +54,7 @@ from governance_runtime.shared.next_action import NextActions
 HYDRATION_RECEIPT_SCHEMA = "governance.hydration.receipt.v1"
 HYDRATION_STATUS_HYDRATED = "hydrated"
 HYDRATION_STATUS_FAILED = "failed"
+TICKET_INTAKE_GATE = "Ticket Intake Gate"
 
 
 def _blocked_payload(
@@ -81,49 +88,125 @@ def _success_payload(
         "digest": digest,
         "phase": "4",
         "next": "Ticket Intake Gate",
-        "active_gate": "Ticket Intake Gate",
+        "active_gate": TICKET_INTAKE_GATE,
         "next_gate_condition": "TicketRecordVersion > 0",
         "next_action": "run /ticket.",
         "next_action_command": "/ticket",
     }
 
 
+def _compute_artifact_digest(
+    repo_fingerprint: str,
+    workspaces_home: Path,
+) -> str:
+    """Compute digest from actual workspace artifacts.
+
+    Uses SHA256 of artifact file contents to create a stable digest
+    that changes when workspace knowledge changes.
+    """
+    hasher = hashlib.sha256()
+
+    artifact_paths = [
+        repo_map_digest_path(workspaces_home, repo_fingerprint),
+        workspace_memory_path(workspaces_home, repo_fingerprint),
+        decision_pack_path(workspaces_home, repo_fingerprint),
+    ]
+
+    for path in artifact_paths:
+        if path.exists():
+            try:
+                content = path.read_text(encoding="utf-8")
+                hasher.update(content.encode("utf-8"))
+            except Exception:
+                pass
+
+    return hasher.hexdigest()[:16]
+
+
 def _build_hydration_brief(
     repo_root: Path,
-    workspace_dir: Path,
+    workspaces_home: Path,
+    repo_fingerprint: str,
 ) -> str:
-    """Build a compact hydration brief from available knowledge artifacts."""
+    """Build a comprehensive hydration brief from available knowledge artifacts.
+
+    Creates a detailed working context for the LLM including:
+    - Repository identity
+    - Architecture summary (repo-map-digest)
+    - Workspace memory
+    - Decision pack
+    - Governance mode
+    """
     parts = []
 
     repo_name = repo_root.name
-    parts.append(f"# Governance Hydration Brief\n")
+    parts.append(f"# Governance Hydration Brief\n\n")
     parts.append(f"**Repository:** {repo_name}\n")
+    parts.append(f"**Fingerprint:** {repo_fingerprint}\n")
     parts.append(f"**Hydrated:** {datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}\n\n")
 
-    parts.append("## Known Artifacts\n")
+    parts.append("---\n\n")
+    parts.append("## 1. Architecture Summary (repo-map-digest)\n\n")
 
-    artifact_paths = [
-        ("REPO_MAP", workspace_dir / "repo-map.json"),
-        ("DECISION_PACK", workspace_dir / "decision-pack.json"),
-        ("BUSINESS_RULES", workspace_dir / "business-rules-status.json"),
-        ("API_INVENTORY", workspace_dir / "api-inventory.json"),
-    ]
+    repo_map = repo_map_digest_path(workspaces_home, repo_fingerprint)
+    if repo_map.exists():
+        try:
+            content = repo_map.read_text(encoding="utf-8")
+            lines = content.split("\n")[:30]
+            parts.append("\n".join(lines))
+            if len(content.split("\n")) > 30:
+                parts.append("\n... (truncated)")
+        except Exception as e:
+            parts.append(f"[Error reading repo-map: {e}]")
+    else:
+        parts.append("*No architecture summary available. Run bootstrap or persistence.*\n")
 
-    found_count = 0
-    for name, path in artifact_paths:
-        if path.exists():
-            try:
-                data = load_json(path)
-                count = len(data.get("items", []) if isinstance(data, dict) else data)
-                parts.append(f"- {name}: {count} items")
-                found_count += 1
-            except Exception:
-                parts.append(f"- {name}: present (parse error)")
-                found_count += 1
-        else:
-            parts.append(f"- {name}: not found")
+    parts.append("\n\n## 2. Workspace Memory\n\n")
 
-    parts.append(f"\n**Coverage:** {found_count}/{len(artifact_paths)} artifacts\n")
+    workspace_mem = workspace_memory_path(workspaces_home, repo_fingerprint)
+    if workspace_mem.exists():
+        try:
+            content = workspace_mem.read_text(encoding="utf-8")
+            lines = content.split("\n")[:20]
+            parts.append("\n".join(lines))
+            if len(content.split("\n")) > 20:
+                parts.append("\n... (truncated)")
+        except Exception as e:
+            parts.append(f"[Error reading workspace memory: {e}]")
+    else:
+        parts.append("*No workspace memory available.*\n")
+
+    parts.append("\n\n## 3. Decision Pack\n\n")
+
+    decision = decision_pack_path(workspaces_home, repo_fingerprint)
+    if decision.exists():
+        try:
+            content = decision.read_text(encoding="utf-8")
+            lines = content.split("\n")[:30]
+            parts.append("\n".join(lines))
+            if len(content.split("\n")) > 30:
+                parts.append("\n... (truncated)")
+        except Exception as e:
+            parts.append(f"[Error reading decision pack: {e}]")
+    else:
+        parts.append("*No decision pack available.*\n")
+
+    parts.append("\n\n## 4. Governance Context\n\n")
+
+    runtime_state = governance_runtime_state_dir(workspaces_home, repo_fingerprint)
+    config_path = runtime_state / "governance-config.json"
+    if config_path.exists():
+        try:
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            mode = config.get("governance", {}).get("mode", "unknown")
+            parts.append(f"**Governance Mode:** {mode}\n")
+        except Exception:
+            parts.append("*Governance mode unknown.*\n")
+    else:
+        parts.append("*No governance config found.*\n")
+
+    parts.append("\n\n---\n\n")
+    parts.append("**Next Action:** Run `/ticket` to create a ticket.\n")
 
     return "".join(parts)
 
@@ -134,12 +217,14 @@ def _persist_hydration_receipt(
     hydrated_at: str,
     digest: str,
     project_path: str,
+    artifact_digest: str,
 ) -> None:
     receipt = {
         "$schema": HYDRATION_RECEIPT_SCHEMA,
         "hydrated_session_id": hydrated_session_id,
         "hydrated_at": hydrated_at,
         "digest": digest,
+        "artifact_digest": artifact_digest,
         "project_path": project_path,
         "status": HYDRATION_STATUS_HYDRATED,
     }
@@ -156,6 +241,7 @@ def _update_session_state_for_hydration(
     hydrated_session_id: str,
     hydrated_at: str,
     digest: str,
+    artifact_digest: str,
 ) -> None:
     document = load_json(session_path)
     state = document.get("SESSION_STATE", {})
@@ -164,14 +250,13 @@ def _update_session_state_for_hydration(
         "hydrated_session_id": hydrated_session_id,
         "hydrated_at": hydrated_at,
         "digest": digest,
+        "artifact_digest": artifact_digest,
         "status": HYDRATION_STATUS_HYDRATED,
     }
 
-    current_phase = get_phase(state)
-    if current_phase not in ("4", 4):
-        state["phase"] = "4"
-    if not state.get("active_gate"):
-        state["active_gate"] = "Ticket Intake Gate"
+    state["phase"] = "4"
+    state["active_gate"] = TICKET_INTAKE_GATE
+    state["next_gate_condition"] = "TicketRecordVersion > 0"
 
     document["SESSION_STATE"] = state
 
@@ -186,9 +271,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--project-path",
         default="",
-        help="Project path to match session (defaults to repo root from session state)",
+        help="Project path to match session (required for unique session resolution)",
     )
     args = parser.parse_args(argv)
+
+    is_quiet = args.quiet
 
     try:
         session_path, repo_fingerprint, workspaces_home, workspace_dir = resolve_active_session_paths()
@@ -196,7 +283,7 @@ def main(argv: list[str] | None = None) -> int:
         payload = _blocked_payload(
             reason=f"session-state-unreadable: {exc}",
             reason_code="HYDRATION-SESSION-UNAVAILABLE",
-            recovery_action="Ensure session state is loadable",
+            recovery_action="Ensure session state is loadable - run bootstrap first",
             observed=str(exc),
         )
         print(json.dumps(payload, ensure_ascii=True))
@@ -228,7 +315,7 @@ def main(argv: list[str] | None = None) -> int:
             payload = _blocked_payload(
                 reason=f"server-unreachable: {exc}",
                 reason_code="HYDRATION-SERVER-UNAVAILABLE",
-                recovery_action="Start OpenCode Desktop or run: opencode serve --port 4096",
+                recovery_action="Start OpenCode Desktop with configured port, then run /hydrate again",
                 observed=str(exc),
             )
             print(json.dumps(payload, ensure_ascii=True))
@@ -237,7 +324,7 @@ def main(argv: list[str] | None = None) -> int:
             payload = _blocked_payload(
                 reason=f"server-error: {exc}",
                 reason_code="HYDRATION-SERVER-ERROR",
-                recovery_action="Check OpenCode Desktop status",
+                recovery_action="Check OpenCode Desktop status - ensure it is running",
                 observed=str(exc),
             )
             print(json.dumps(payload, ensure_ascii=True))
@@ -251,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
         payload = _blocked_payload(
             reason=f"server-unreachable: {exc}",
             reason_code="HYDRATION-SERVER-UNAVAILABLE",
-            recovery_action="Start OpenCode Desktop or run: opencode serve --port 4096",
+            recovery_action="Start OpenCode Desktop with configured port, then run /hydrate again",
             observed=str(exc),
         )
         print(json.dumps(payload, ensure_ascii=True))
@@ -260,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:
         payload = _blocked_payload(
             reason=f"session-unavailable: {exc}",
             reason_code="HYDRATION-SESSION-UNAVAILABLE",
-            recovery_action="Start a session in OpenCode Desktop before running /hydrate",
+            recovery_action="Open a workspace in OpenCode Desktop before running /hydrate",
             observed=str(exc),
         )
         print(json.dumps(payload, ensure_ascii=True))
@@ -270,7 +357,7 @@ def main(argv: list[str] | None = None) -> int:
         payload = _blocked_payload(
             reason="no-active-session",
             reason_code="HYDRATION-NO-SESSION",
-            recovery_action="Start a session in OpenCode Desktop before running /hydrate",
+            recovery_action="Open a workspace in OpenCode Desktop before running /hydrate",
         )
         print(json.dumps(payload, ensure_ascii=True))
         return 2
@@ -288,10 +375,16 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             pass
 
+    artifact_digest = ""
     hydration_brief = ""
-    if repo_root and workspace_dir:
+    if repo_root and workspaces_home and repo_fingerprint:
         try:
-            hydration_brief = _build_hydration_brief(repo_root, workspace_dir)
+            artifact_digest = _compute_artifact_digest(repo_fingerprint, workspaces_home)
+        except Exception:
+            artifact_digest = ""
+
+        try:
+            hydration_brief = _build_hydration_brief(repo_root, workspaces_home, repo_fingerprint)
         except Exception:
             hydration_brief = "# Governance Hydration Brief\n\n(No artifacts available)"
 
@@ -301,14 +394,14 @@ def main(argv: list[str] | None = None) -> int:
         payload = _blocked_payload(
             reason=f"session-write-failed: {exc}",
             reason_code="HYDRATION-SESSION-WRITE-FAILED",
-            recovery_action="Check OpenCode Desktop session status",
+            recovery_action="Check OpenCode Desktop session status - ensure session is active",
             observed=str(exc),
         )
         print(json.dumps(payload, ensure_ascii=True))
         return 2
 
     hydrated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    digest = hashlib.sha256(f"{session_id}:{hydrated_at}".encode()).hexdigest()[:16]
+    digest = hashlib.sha256(f"{session_id}:{hydrated_at}:{artifact_digest}".encode()).hexdigest()[:16]
 
     try:
         _persist_hydration_receipt(
@@ -316,6 +409,7 @@ def main(argv: list[str] | None = None) -> int:
             hydrated_session_id=session_id,
             hydrated_at=hydrated_at,
             digest=digest,
+            artifact_digest=artifact_digest,
             project_path=project_path,
         )
     except Exception as exc:
@@ -334,6 +428,7 @@ def main(argv: list[str] | None = None) -> int:
             hydrated_session_id=session_id,
             hydrated_at=hydrated_at,
             digest=digest,
+            artifact_digest=artifact_digest,
         )
     except Exception as exc:
         payload = _blocked_payload(
