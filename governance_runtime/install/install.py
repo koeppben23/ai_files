@@ -240,6 +240,7 @@ VERSION = "1.1.0-RC.2"
 CANONICAL_RAIL_FILENAMES = (
     "audit-readout.md",
     "continue.md",
+    "hydrate.md",
     "implement.md",
     "implementation-decision.md",
     "plan.md",
@@ -2345,6 +2346,13 @@ def install(
     )
     concrete_bin_dir = _path_for_json(plan.config_root / "bin")
     template_injections = {
+        "hydrate.md": inject_session_reader_path_for_command(
+            plan.commands_dir,
+            command_markdown="hydrate.md",
+            bin_dir=concrete_bin_dir,
+            python_command=binding_python,
+            dry_run=dry_run,
+        ),
         "continue.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="continue.md",
