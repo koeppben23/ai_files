@@ -48,6 +48,44 @@ If command execution is unavailable, ask the user to run the command locally and
 
 - `BLOCKED-MISSING-BINDING-FILE`: rerun installer and verify with `--status`.
 - `BLOCKED-VARIABLE-RESOLUTION`: validate binding resolution (`docs/install-layout.md`).
+
+## Server/Client Configuration
+
+For production LLM calls, Governance uses the OpenCode HTTP server API (documented at https://opencode.ai/docs/server).
+
+### Server Configuration
+
+Configure the OpenCode server in `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "server": {
+    "hostname": "127.0.0.1",
+    "port": 4096
+  }
+}
+```
+
+Start the server: `opencode serve --hostname 127.0.0.1 --port 4096`
+
+### Session ID (Required)
+
+**OPENCODE_SESSION_ID** must be set for all production LLM calls.
+
+This is the ONLY supported method - no heuristic fallback allowed.
+
+- Set via environment: `export OPENCODE_SESSION_ID=<session-id>`
+- Session ID must correspond to an existing OpenCode session
+- Use `GET /session/:id/message` to verify session continuity
+
+### Authentication (Optional)
+
+If the server requires authentication:
+
+```bash
+export OPENCODE_SERVER_PASSWORD=your-password
+export OPENCODE_SERVER_USERNAME=opencode  # optional, default
+```
 - `BLOCKED-REPO-IDENTITY-RESOLUTION`: ensure repo is a git checkout and `git` is in `PATH`.
 - `NOT_VERIFIED-MISSING-EVIDENCE`: refresh evidence and rerun.
 
