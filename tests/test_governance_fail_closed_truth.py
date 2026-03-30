@@ -37,6 +37,9 @@ def _set_pipeline_mode_with_bindings(
 ) -> None:
     payload = {
         "pipeline_mode": True,
+        "presentation": {
+            "mode": "standard",
+        },
         "review": {
             "phase5_max_review_iterations": 3,
             "phase6_max_review_iterations": 3,

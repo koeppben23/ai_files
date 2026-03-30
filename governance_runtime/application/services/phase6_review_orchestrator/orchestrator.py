@@ -37,7 +37,7 @@ def _run_subprocess(cmd: str) -> SubprocessResult:
         capture_output=True,
         text=True,
         check=False,
-        timeout=120,
+        timeout=None,
     )
     return SubprocessResult(
         stdout=result.stdout or "",
@@ -365,13 +365,13 @@ def run_review_loop(
 
             if llm_result.is_approve:
                 llm_approve = True
-                if iteration >= config.max_iterations:
-                    complete = True
-                elif iteration >= config.min_iterations and revision_delta == "none":
-                    complete = True
 
-        # Complete if digest is stable and we've met minimum iterations (even without LLM)
-        if not complete and iteration >= config.min_iterations and revision_delta == "none":
+        # Complete if we've reached max iterations (regardless of LLM verdict)
+        if not complete and iteration >= config.max_iterations:
+            complete = True
+            revision_delta = "none"  # Max iterations reached - review is complete
+        # Complete if digest is stable and we've met minimum iterations
+        elif not complete and iteration >= config.min_iterations and revision_delta == "none":
             complete = True
 
         # Create iteration result

@@ -140,6 +140,9 @@ def test_does_not_overwrite_existing_governance_config(tmp_path: Path) -> None:
     workspace_root.mkdir(parents=True)
 
     custom_content = json.dumps({
+        "presentation": {
+            "mode": "standard",
+        },
         "review": {
             "phase5_max_review_iterations": 99,
             "phase6_max_review_iterations": 99,
@@ -264,7 +267,7 @@ def test_materialize_writes_valid_json(tmp_path: Path) -> None:
 
 @pytest.mark.governance
 def test_materialize_does_not_add_schema(tmp_path: Path) -> None:
-    """Materialized config does NOT include $schema (not resolvable at fp-scoped path)."""
+    """Materialized config includes $schema (now resolvable at fp-scoped path)."""
     workspace_root = tmp_path / "workspace"
     workspace_root.mkdir(parents=True)
     fs = MockFileSystem()
@@ -281,4 +284,4 @@ def test_materialize_does_not_add_schema(tmp_path: Path) -> None:
     content = fs.written[str(config_path)]
 
     data = json.loads(content)
-    assert "$schema" not in data
+    assert "$schema" in data

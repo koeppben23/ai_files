@@ -42,11 +42,11 @@ class TestInstallerTopologyConformance:
         assert (spec_dir / "rulesets").is_dir(), "governance_spec/rulesets/ must exist"
 
     def test_opencode_commands_surface_exists(self):
-        """Happy: opencode/commands/ contains 8 canonical Rails."""
+        """Happy: opencode/commands/ contains 9 canonical Rails."""
         commands_dir = REPO_ROOT / "opencode" / "commands"
         assert commands_dir.is_dir(), "opencode/commands/ must exist"
         md_files = list(commands_dir.glob("*.md"))
-        assert len(md_files) == 8, f"Expected 8 Rails, found {len(md_files)}"
+        assert len(md_files) == 9, f"Expected 9 Rails, found {len(md_files)}"
 
     def test_opencode_plugins_surface_not_present(self):
         """Happy: opencode/plugins/ pseudo-structure does not exist."""

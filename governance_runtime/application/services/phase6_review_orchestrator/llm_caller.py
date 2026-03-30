@@ -12,15 +12,63 @@ The caller does NOT validate the response - that's the ResponseValidator's job.
 
 from __future__ import annotations
 
-import shlex
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+
+
+def _invoke_llm_via_server(
+    prompt_text: str,
+    model_info: dict | None = None,
+    output_schema: dict | None = None,
+    required: bool = False,
+) -> str:
+    """Invoke LLM via direct server API.
+
+    This replaces subprocess("opencode run --session ...") with direct HTTP calls.
+    Session ID must be set via OPENCODE_SESSION_ID environment variable.
+
+    Args:
+        prompt_text: The prompt to send
+        model_info: Optional model specification from resolve_active_opencode_model()
+        output_schema: Optional JSON schema for structured output
+        required: If True, fail-closed when server not available
+
+    Returns:
+        LLM response text
+
+    Raises:
+        ServerNotAvailableError: If server method fails
+        APIError: If OPENCODE_SESSION_ID is not set
+    """
+    try:
+        response = send_session_prompt(
+            text=prompt_text,
+            model=model_info,
+            output_schema=output_schema,
+            required=required,
+        )
+        return extract_session_response(response)
+    except ServerNotAvailableError:
+        raise
+    except Exception as exc:
+        raise ServerNotAvailableError(f"Server client failed: {exc}") from exc
+
 
 from governance_runtime.infrastructure.governance_binding_resolver import (
     GovernanceBindingResolutionError,
     resolve_governance_binding,
 )
+from governance_runtime.infrastructure.opencode_model_binding import resolve_active_opencode_model
+from governance_runtime.infrastructure.opencode_server_client import (
+    APIError,
+    send_session_prompt,
+    extract_session_response,
+    ServerNotAvailableError,
+    resolve_opencode_server_base_url,
+)
+from governance_runtime.application.services.phase6_review_orchestrator.response_validator import ResponseValidator
 
 
 @dataclass(frozen=True)
@@ -43,6 +91,9 @@ class LLMResponse:
     pipeline_mode: bool | None = None
     binding_role: str = "review"
     binding_source: str = ""
+    invoke_backend: str = ""
+    invoke_backend_url: str = ""
+    invoke_backend_error: str = ""
 
     @property
     def has_output(self) -> bool:
@@ -63,6 +114,7 @@ class LLMCaller:
         executor_cmd: str | None = None,
         env_reader: Callable[[str], str | None] | None = None,
         subprocess_runner: Callable[[str], SubprocessResult] | None = None,
+        bridge_env_factory: Callable[[], dict[str, str] | None] | None = None,
         workspace_root: Path | None = None,
     ) -> None:
         """Initialize the LLM caller.
@@ -76,19 +128,8 @@ class LLMCaller:
         if subprocess_runner is not None:
             self._subprocess_runner = subprocess_runner
         else:
-            import subprocess
-            def _default_runner(cmd: str) -> SubprocessResult:
-                result = subprocess.run(
-                    cmd,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                )
-                return SubprocessResult(
-                    stdout=result.stdout or "",
-                    stderr=result.stderr or "",
-                    returncode=result.returncode,
-                )
+            def _default_runner(cmd: str, env: dict[str, str] | None = None) -> SubprocessResult:
+                raise RuntimeError("Legacy subprocess execution is disabled; use server client path")
             self._subprocess_runner = _default_runner
 
         if env_reader is not None:
@@ -96,6 +137,7 @@ class LLMCaller:
         else:
             self._env_reader = lambda key: None
 
+        self._bridge_env_factory = bridge_env_factory
         self._workspace_root = workspace_root
         self._executor_cmd = str(executor_cmd or "").strip()
 
@@ -230,49 +272,95 @@ class LLMCaller:
                 binding_source="",
             )
 
-        if not pipeline_mode:
-            return LLMResponse(
-                invoked=True,
-                stdout='{"verdict":"approve","findings":[]}',
-                stderr="",
-                return_code=0,
-                pipeline_mode=False,
-                binding_role="review",
-                binding_source=binding_source,
+        session_id = str(self._env_reader("OPENCODE_SESSION_ID") or "").strip()
+        if not session_id:
+            raise APIError(
+                "OPENCODE_SESSION_ID environment variable is required for production LLM calls. "
+                "No heuristic fallback allowed. Set OPENCODE_SESSION_ID to a valid session ID."
             )
 
-        if context_writer is None:
-            raise ValueError("context_writer is required for invoke (inject write_json_atomic from infrastructure)")
+        model_info = resolve_active_opencode_model(env_reader=self._env_reader)
+        model_dict = None
+        if model_info and isinstance(model_info, dict):
+            provider = model_info.get("provider", "")
+            model_id = model_info.get("model_id", "")
+            if provider and model_id:
+                model_dict = {"providerID": provider, "modelID": model_id}
 
-        # Write context to file
-        context_file.parent.mkdir(parents=True, exist_ok=True)
-        context_writer(context_file, context)
-
-        # Build the command
-        final_cmd = binding_value
-        if "{context_file}" in final_cmd:
-            final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
-
-        # Execute command
         try:
-            result = self._subprocess_runner(final_cmd)
+            context_json = json.dumps(context, ensure_ascii=True, indent=2)
+            output_schema_text = context.get("output_schema_text", "")
+            output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
+
+            instruction = "Review the implementation and produce valid JSON conforming to the output schema."
+            if output_schema:
+                instruction += f"\n\nOutput schema:\n{json.dumps(output_schema, ensure_ascii=True)}"
+
+            prompt_text = instruction + "\n\nContext:\n" + context_json
+            response_text = _invoke_llm_via_server(
+                prompt_text=prompt_text,
+                model_info=model_dict,
+                output_schema=output_schema,
+                required=True,
+            )
+
+            validator = ResponseValidator()
+            validation_result = validator.validate(response_text)
+            if not validation_result.valid:
+                return LLMResponse(
+                    invoked=True,
+                    stdout=response_text,
+                    stderr="[server_client] invalid review response",
+                    return_code=1,
+                    error=f"Response validation failed: {validation_result.findings}",
+                    pipeline_mode=pipeline_mode,
+                    binding_role="review",
+                    binding_source=binding_source,
+                    invoke_backend="server_client",
+                    invoke_backend_error="invalid-review-response",
+                )
+
+            server_url = ""
+            try:
+                server_url = resolve_opencode_server_base_url()
+            except ServerNotAvailableError:
+                pass
             return LLMResponse(
                 invoked=True,
-                stdout=result.stdout or "",
-                stderr=result.stderr or "",
-                return_code=result.returncode,
-                pipeline_mode=True,
+                stdout=response_text,
+                stderr="[server_client] Phase6 review via direct HTTP",
+                return_code=0,
+                pipeline_mode=pipeline_mode,
                 binding_role="review",
                 binding_source=binding_source,
+                invoke_backend="server_client",
+                invoke_backend_url=server_url,
             )
-        except Exception as exc:
+        except ServerNotAvailableError as exc:
+            server_error = f"ServerNotAvailableError: {exc}"
             return LLMResponse(
                 invoked=True,
                 stdout="",
-                stderr=str(exc),
-                return_code=-1,
-                error=f"LLM executor failed: {exc}",
-                pipeline_mode=True,
+                stderr=f"[server_required_fail_closed] {server_error}",
+                return_code=1,
+                error=f"Server required but failed: {server_error}",
+                pipeline_mode=pipeline_mode,
                 binding_role="review",
                 binding_source=binding_source,
+                invoke_backend="server_client",
+                invoke_backend_error=server_error,
+            )
+        except Exception as exc:
+            server_error = f"Server client exception: {exc}"
+            return LLMResponse(
+                invoked=True,
+                stdout="",
+                stderr=f"[server_required_fail_closed] {server_error}",
+                return_code=1,
+                error=f"Server required but failed: {server_error}",
+                pipeline_mode=pipeline_mode,
+                binding_role="review",
+                binding_source=binding_source,
+                invoke_backend="server_client",
+                invoke_backend_error=server_error,
             )

@@ -8,10 +8,12 @@ using importlib.resources, which works for both filesystem and frozen package co
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from importlib import resources
 from typing import Final
 
 
+@lru_cache(maxsize=1)
 def _load_schema() -> dict[str, object]:
     """Load schema from JSON resource, with hardcoded fallback."""
     try:

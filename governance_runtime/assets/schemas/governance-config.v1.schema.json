@@ -11,6 +11,22 @@
       "type": "string",
       "description": "Schema identifier. Optional but recommended for IDE support."
     },
+    "pipeline_mode": {
+      "type": "boolean",
+      "description": "Enable pipeline mode for governance automation"
+    },
+    "presentation": {
+      "type": "object",
+      "description": "Presentation configuration",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["narrative", "concise"],
+          "description": "Presentation mode"
+        }
+      }
+    },
     "review": {
       "type": "object",
       "description": "Review iteration configuration",
@@ -28,6 +44,17 @@
           "minimum": 1,
           "maximum": 100,
           "description": "Maximum review iterations for Phase 6 (Implementation Review)"
+        }
+      }
+    },
+    "opencode_server": {
+      "type": "object",
+      "description": "OpenCode server configuration for direct server-client LLM execution",
+      "additionalProperties": false,
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "description": "Base URL for OpenCode server (e.g., http://127.0.0.1:4096). Set AI_GOVERNANCE_WORKSPACE_DIR to enable reading from governance-config.json."
         }
       }
     }

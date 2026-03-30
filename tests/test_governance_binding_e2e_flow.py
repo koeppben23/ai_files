@@ -64,6 +64,17 @@ def test_e2e_pipeline_flow_persists_binding_evidence_across_plan_implement_and_p
         execution=execution_binding_cmd,
         review=review_binding_cmd,
     )
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("OPENCODE_SESSION_ID", "sess_test")
+    monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5")
+
+    def _fake_server_invoke(**kwargs):  # type: ignore[no-untyped-def]
+        prompt = str(kwargs.get("prompt_text") or "")
+        if "review context JSON" in prompt:
+            return review_result
+        return generated_plan
+
+    monkeypatch.setattr(phase5, "_invoke_llm_via_server", _fake_server_invoke)
 
     def _fake_subprocess_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
         token = str(cmd)

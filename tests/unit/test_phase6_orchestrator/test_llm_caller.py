@@ -18,6 +18,9 @@ from governance_runtime.application.services.phase6_review_orchestrator.llm_call
 def _write_governance_config(workspace_dir: Path, *, pipeline_mode: bool) -> None:
     payload = {
         "pipeline_mode": pipeline_mode,
+        "presentation": {
+            "mode": "standard",
+        },
         "review": {
             "phase5_max_review_iterations": 3,
             "phase6_max_review_iterations": 3,
@@ -66,59 +69,6 @@ class TestLLMCaller:
         )
         assert result.invoked is False
         assert "active OpenCode chat binding is required in direct mode" in str(result.error)
-
-    def test_desktop_binding_used_when_no_explicit_executor(self):
-        """Active OpenCode desktop binding acts as default LLM executor."""
-        caller = LLMCaller(
-            executor_cmd="",
-            env_reader=lambda key: "openai/gpt-5-codex" if key == "OPENCODE_MODEL" else None,
-            subprocess_runner=lambda cmd: SubprocessResult(stdout="", stderr="", returncode=0),
-        )
-        assert caller.is_configured is True
-        result = caller.invoke(
-            context={"test": "data"},
-            context_file=Path("/tmp/context.json"),
-            context_writer=lambda _p, _d: None,
-        )
-        assert result.invoked is True
-        assert result.return_code == 0
-        assert '"verdict":"approve"' in result.stdout
-        assert result.pipeline_mode is False
-        assert result.binding_role == "review"
-        assert result.binding_source == "active_chat_binding"
-
-    def test_pipeline_mode_uses_review_binding(self, tmp_path: Path):
-        """Pipeline mode uses AI_GOVERNANCE_REVIEW_BINDING command."""
-        _write_governance_config(tmp_path, pipeline_mode=True)
-        observed: list[str] = []
-        env = {
-            "AI_GOVERNANCE_EXECUTION_BINDING": "python3 -c \"print('execution-binding-should-not-be-used')\"",
-            "AI_GOVERNANCE_REVIEW_BINDING": "python3 -c \"print('review-binding-invoked')\"",
-        }
-        caller = LLMCaller(
-            env_reader=lambda key: env.get(key),
-            subprocess_runner=lambda cmd: (
-                observed.append(cmd),
-                SubprocessResult(stdout='{"verdict":"approve","findings":[]}', stderr="", returncode=0),
-            )[1],
-            workspace_root=tmp_path,
-        )
-
-        result = caller.invoke(
-            context={"test": "data"},
-            context_file=tmp_path / "ctx.json",
-            context_writer=lambda _p, _d: None,
-        )
-
-        assert caller.is_configured is True
-        assert result.invoked is True
-        assert result.return_code == 0
-        assert result.pipeline_mode is True
-        assert result.binding_role == "review"
-        assert result.binding_source == "env:AI_GOVERNANCE_REVIEW_BINDING"
-        assert observed
-        assert "review-binding-invoked" in observed[0]
-        assert "execution-binding-should-not-be-used" not in observed[0]
 
     def test_pipeline_mode_missing_review_binding_not_configured(self, tmp_path: Path):
         """Pipeline mode fails closed when review binding is missing."""
@@ -176,32 +126,121 @@ class TestLLMCaller:
         assert "review_mandate" not in context
         assert "effective_review_policy" not in context
 
-    def test_invoke_success(self, caller_with_executor):
-        """invoke returns success when subprocess succeeds."""
-        # Create caller with mock subprocess_runner
-        mock_runner = lambda cmd: SubprocessResult(
-            stdout='{"verdict": "approve"}',
-            stderr="",
-            returncode=0,
-        )
+    def test_invoke_server_required_fail_closed_no_fallback(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """Server-required mode must fail closed without legacy fallback."""
+        monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "1")
+        env = {
+            "OPENCODE": "1",
+            "OPENCODE_SESSION_ID": "sess_phase6",
+            "OPENCODE_MODEL": "openai/gpt-5",
+        }
         caller = LLMCaller(
-            executor_cmd="mock-command {context_file}",
-            env_reader=lambda key: None,
-            subprocess_runner=mock_runner,
+            env_reader=lambda key: env.get(key),
+            subprocess_runner=lambda cmd: (_ for _ in ()).throw(AssertionError("subprocess must not run")),
+            workspace_root=tmp_path,
         )
 
-        # Mock context_writer
-        def mock_context_writer(path, data):
-            pass
+        with patch.object(caller, "_resolve_review_binding", return_value=(False, "", "active_chat_binding")):
+            with patch(
+                "governance_runtime.application.services.phase6_review_orchestrator.llm_caller._invoke_llm_via_server",
+                side_effect=Exception("server down"),
+            ):
+                result = caller.invoke(
+                    context={"task": "x", "output_schema_text": "{}"},
+                    context_file=tmp_path / "ctx.json",
+                    context_writer=lambda _p, _d: None,
+                )
 
-        result = caller.invoke(
-            context={"test": "data"},
-            context_file=Path("/tmp/context.json"),
-            context_writer=mock_context_writer,
+        assert result.return_code != 0
+        assert result.invoke_backend == "server_client"
+        assert "Server required but failed" in str(result.error)
+
+    def test_invoke_fails_without_opencode_session_id(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """LLMCaller must fail when OPENCODE_SESSION_ID is not set."""
+        from governance_runtime.infrastructure.opencode_server_client import APIError
+
+        monkeypatch.delenv("OPENCODE_SESSION_ID", raising=False)
+        monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "1")
+        env = {
+            "OPENCODE": "1",
+            "OPENCODE_MODEL": "openai/gpt-5",
+        }
+        caller = LLMCaller(
+            env_reader=lambda key: env.get(key),
+            subprocess_runner=lambda cmd: (_ for _ in ()).throw(AssertionError("subprocess must not run")),
+            workspace_root=tmp_path,
         )
 
-        assert result.invoked is True
-        assert result.stdout == '{"verdict": "approve"}'
+        with pytest.raises(APIError) as exc_info:
+            caller.invoke(
+                context={"task": "x", "output_schema_text": "{}"},
+                context_file=tmp_path / "ctx.json",
+                context_writer=lambda _p, _d: None,
+            )
+
+        assert "OPENCODE_SESSION_ID" in str(exc_info.value)
+
+    def test_invoke_uses_server_client_with_session_id(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """With OPENCODE_SESSION_ID set, LLMCaller uses server client (not subprocess)."""
+        import os
+        test_session_id = "sess-phase6-test"
+
+        monkeypatch.setenv("OPENCODE_SESSION_ID", test_session_id)
+        monkeypatch.setenv("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "1")
+        env = {
+            "OPENCODE": "1",
+            "OPENCODE_MODEL": "openai/gpt-5",
+        }
+
+        subprocess_called = False
+
+        def _mock_subprocess_runner(cmd):
+            nonlocal subprocess_called
+            subprocess_called = True
+            return SubprocessResult(stdout="", stderr="", returncode=0)
+
+        def _mock_env_reader(key: str):
+            val = env.get(key)
+            if val is not None:
+                return val
+            return os.environ.get(key)
+
+        caller = LLMCaller(
+            env_reader=_mock_env_reader,
+            subprocess_runner=_mock_subprocess_runner,
+            workspace_root=tmp_path,
+        )
+
+        from unittest.mock import patch
+
+        class MockValidationResult:
+            valid = True
+            findings = []
+
+        class MockResponseValidator:
+            def validate(self, response_text, mandates_schema=None):
+                return MockValidationResult()
+
+        with patch(
+            "governance_runtime.application.services.phase6_review_orchestrator.llm_caller.send_session_prompt",
+            return_value={
+                "info": {"parts": [{"type": "text", "text": '{"review": "ok"}'}]},
+                "resolved_session_id": test_session_id,
+                "session_evidence": {"session_id_source": "OPENCODE_SESSION_ID"}
+            },
+        ):
+            with patch(
+                "governance_runtime.application.services.phase6_review_orchestrator.llm_caller.ResponseValidator",
+                return_value=MockResponseValidator(),
+            ):
+                result = caller.invoke(
+                    context={"task": "x", "output_schema_text": "{}"},
+                    context_file=tmp_path / "ctx.json",
+                    context_writer=lambda _p, _d: None,
+                )
+
+        assert subprocess_called is False, "subprocess.run must NOT be called when using server client"
+        assert result.invoke_backend == "server_client"
         assert result.return_code == 0
 
 

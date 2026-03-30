@@ -114,6 +114,161 @@ def _validate_without_library(data: Any, schema: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _resolve_schema_type(schema: dict[str, Any]) -> str:
+    raw_type = schema.get("type")
+    if isinstance(raw_type, str):
+        return raw_type
+    if isinstance(raw_type, list):
+        for candidate in raw_type:
+            if candidate == "null":
+                continue
+            if isinstance(candidate, str):
+                return candidate
+    return ""
+
+
+def _coerce_string(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+    return str(value)
+
+
+def _resolve_ref_schema(schema: dict[str, Any], root_schema: dict[str, Any] | None) -> dict[str, Any] | None:
+    ref = schema.get("$ref")
+    if not isinstance(ref, str) or not ref.startswith("#/"):
+        return None
+    if not isinstance(root_schema, dict):
+        return None
+    node: Any = root_schema
+    for token in ref[2:].split("/"):
+        if not isinstance(node, dict) or token not in node:
+            return None
+        node = node[token]
+    if isinstance(node, dict):
+        return node
+    return None
+
+
+def _coerce_against_schema(value: Any, schema: dict[str, Any], *, root_schema: dict[str, Any] | None = None) -> Any:
+    resolved_ref = _resolve_ref_schema(schema, root_schema)
+    if isinstance(resolved_ref, dict):
+        return _coerce_against_schema(value, resolved_ref, root_schema=root_schema)
+
+    for combiner in ("allOf", "anyOf", "oneOf"):
+        branch = schema.get(combiner)
+        if isinstance(branch, list) and branch:
+            for candidate in branch:
+                if not isinstance(candidate, dict):
+                    continue
+                coerced = _coerce_against_schema(value, candidate, root_schema=root_schema)
+                if coerced is not value:
+                    return coerced
+
+    schema_type = _resolve_schema_type(schema)
+
+    if schema_type == "string":
+        return _coerce_string(value)
+
+    if schema_type == "number":
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                return value
+        return value
+
+    if schema_type == "integer":
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            try:
+                return int(value)
+            except ValueError:
+                return value
+        return value
+
+    if schema_type == "boolean":
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "yes", "1"}:
+                return True
+            if lowered in {"false", "no", "0"}:
+                return False
+        return value
+
+    if schema_type == "array":
+        items_schema = schema.get("items")
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                value = parsed
+            except json.JSONDecodeError:
+                return value
+        if not isinstance(value, list):
+            return value
+        if isinstance(items_schema, dict):
+            return [_coerce_against_schema(item, items_schema, root_schema=root_schema) for item in value]
+        return value
+
+    if schema_type == "object":
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                value = parsed
+            except json.JSONDecodeError:
+                return value
+        if not isinstance(value, dict):
+            return value
+
+        properties = schema.get("properties")
+        additional = schema.get("additionalProperties")
+        normalized: dict[str, Any] = {}
+        for key, item in value.items():
+            if isinstance(properties, dict) and key in properties and isinstance(properties[key], dict):
+                normalized[key] = _coerce_against_schema(item, properties[key], root_schema=root_schema)
+                continue
+            if isinstance(additional, dict):
+                normalized[key] = _coerce_against_schema(item, additional, root_schema=root_schema)
+                continue
+            normalized[key] = item
+        return normalized
+
+    return value
+
+
+def coerce_output_against_schema(data: Any, output_schema: dict[str, Any] | None) -> Any:
+    """Normalize response payload toward a target output schema.
+
+    This performs loss-minimizing coercion to reduce transport-level type mismatches,
+    then leaves semantic validation to JSON Schema and decision-rule validators.
+    """
+    if not isinstance(output_schema, dict):
+        return data
+    return _coerce_against_schema(data, output_schema, root_schema=output_schema)
+
+
+def coerce_output_against_mandates_schema(
+    data: Any,
+    mandates_schema: dict[str, Any] | None,
+    output_schema_name: str,
+) -> Any:
+    """Normalize response payload using a named schema from mandates $defs."""
+    if not isinstance(mandates_schema, dict):
+        return data
+    output_schema = _extract_output_schema(mandates_schema, output_schema_name)
+    if not isinstance(output_schema, dict):
+        return data
+    return _coerce_against_schema(data, output_schema, root_schema=mandates_schema)
+
+
 def _validate_review_decision_rules(data: dict[str, Any]) -> list[str]:
     """Apply decision rules from the Review mandate."""
     errors: list[str] = []

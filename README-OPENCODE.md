@@ -26,32 +26,49 @@ Primary operator bootstrap path is `opencode-governance-bootstrap init ...`.
 7. `changes_requested` enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
 8. `reject` routes back to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
 9. After `approve`, run `/implement` to start authorized implementation execution.
-   - Direct mode (`pipeline_mode=false`, default): uses the active OpenCode Desktop LLM binding and ignores governance env bindings.
-   - Pipeline mode (`pipeline_mode=true`): requires `AI_GOVERNANCE_EXECUTION_BINDING` for execution/planning and `AI_GOVERNANCE_REVIEW_BINDING` for review flows; missing/empty binding fails closed.
-   - No mixing: direct mode does not consume env bindings; pipeline mode does not fall back to active chat binding.
+   - Direct mode (`pipeline_mode=false`, default): uses the active OpenCode Desktop LLM binding.
+   - Pipeline mode (`pipeline_mode=true`): requires `AI_GOVERNANCE_EXECUTION_BINDING` and `AI_GOVERNANCE_REVIEW_BINDING`.
 10. Use `/audit-readout` for a read-only audit snapshot.
 
-Runtime persistence is repo-scoped under `${WORKSPACES_HOME}/<repo_fingerprint>/...` with global pointer `${SESSION_STATE_POINTER_FILE}`.
-Path-binding bootstrap depends on `${CONFIG_ROOT}/governance.paths.json`.
+Runtime persistence: `${WORKSPACE_HOME}/<repo_fingerprint>/...` with pointer `${SESSION_STATE_POINTER_FILE}`.
+Path-binding: `${CONFIG_ROOT}/governance.paths.json`.
 
 Install/layout truth:
-
-- `${CONFIG_ROOT}` (default `~/.config/opencode`) contains `commands/`, `plugins/`, `workspaces/`, and `bin/`.
-- `${LOCAL_ROOT}` (default `~/.local/share/opencode`) contains `governance_runtime/`, `governance_content/`, `governance_spec/`, and `VERSION`.
-- Canonical launcher directory: `${CONFIG_ROOT}/bin` (default `~/.config/opencode/bin`).
+- `${CONFIG_ROOT}` (`~/.config/opencode`) contains `commands/`, `plugins/`, `workspaces/`, `bin/`.
+- `${LOCAL_ROOT}` (`~/.local/share/opencode`) contains `governance_runtime/`, `governance_content/`, `governance_spec/`, `VERSION`.
+- Launcher: `${CONFIG_ROOT}/bin`.
 
 ## If execution is unavailable
 
-If command execution is unavailable, ask the user to run the command locally and paste the output.
+If command execution is unavailable, ask the user to run the command locally and paste output.
 
 ## Minimal troubleshooting
 
-- `BLOCKED-MISSING-BINDING-FILE`: rerun installer and verify with `--status`.
+- `BLOCKED-MISSING-BINDING-FILE`: rerun installer with `--status`.
 - `BLOCKED-VARIABLE-RESOLUTION`: validate binding resolution (`docs/install-layout.md`).
 - `BLOCKED-REPO-IDENTITY-RESOLUTION`: ensure repo is a git checkout and `git` is in `PATH`.
 - `NOT_VERIFIED-MISSING-EVIDENCE`: refresh evidence and rerun.
 
+## Server/Client Configuration
+
+Production LLM calls use OpenCode HTTP server API (https://opencode.ai/docs/server).
+
+Configure in `~/.config/opencode/opencode.json`:
+```json
+{"server": {"hostname": "127.0.0.1", "port": 4096}}
+```
+Start server: `opencode serve --hostname 127.0.0.1 --port 4096`
+
+**OPENCODE_SESSION_ID** (required): Set via environment. Session ID must correspond to an existing session.
+Verify with `GET /session/:id/message`.
+
+Optional auth:
+```bash
+export OPENCODE_SERVER_PASSWORD=your-password
+export OPENCODE_SERVER_USERNAME=opencode  # optional, default
+```
+
 ## Links
 
-- Quickstart flow: `QUICKSTART.md`
-- Bundle/install/uninstall surface: `README.md`
+- Quickstart: `QUICKSTART.md`
+- Bundle/install/uninstall: `README.md`

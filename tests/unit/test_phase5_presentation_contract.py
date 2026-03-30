@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 
 from governance_runtime.application.services.phase5_presentation_contract import NEXT_ACTIONS
+from governance_runtime.application.services.phase5_presentation_contract import build_machine_requirements
 from governance_runtime.application.services.phase5_presentation_contract import build_presentation_contract
 from governance_runtime.application.services.phase5_presentation_contract import english_violations
 
@@ -69,7 +70,21 @@ def test_build_presentation_contract_clamps_lengths_and_limits_lists() -> None:
     assert len(contract["open_decisions"]) <= 5
     assert len(contract["scope"]) <= 400
     assert len(contract["release_gates"]) <= 400
+    assert all(len(item) <= 180 for item in contract["risks_and_mitigations"])
     assert contract["next_actions"] == list(NEXT_ACTIONS)
+
+
+def test_build_presentation_contract_keeps_risk_mitigation_items_schema_safe() -> None:
+    plan = _base_plan()
+    plan["risks"] = (
+        "If command contracts or provenance metadata are not currently exposed, additional instrumentation may be needed, "
+        "increasing scope and delivery risk."
+    )
+
+    contract = build_presentation_contract(plan)
+
+    assert contract["risks_and_mitigations"]
+    assert all(len(item) <= 180 for item in contract["risks_and_mitigations"])
 
 
 def test_build_presentation_contract_performance_is_stable() -> None:
@@ -79,3 +94,27 @@ def test_build_presentation_contract_performance_is_stable() -> None:
         build_presentation_contract(plan)
     elapsed = time.perf_counter() - start
     assert elapsed < 2.0
+
+
+def test_build_machine_requirements_emits_authoritative_requirement_objects() -> None:
+    plan = _base_plan()
+    plan["presentation_contract"] = {
+        "delivery_scope": ["[ ] Happy-path behavior", "[ ] Edge-case boundaries"],
+    }
+    requirements = build_machine_requirements(plan)
+    assert requirements
+    first = requirements[0]
+    assert first["required_behavior"]
+    assert first["forbidden_behavior"]
+    assert isinstance(first["code_hotspots"], list)
+    assert isinstance(first["verification_methods"], list)
+
+
+def test_build_machine_requirements_deduplicates_titles() -> None:
+    plan = _base_plan()
+    plan["presentation_contract"] = {
+        "delivery_scope": ["[ ] Happy-path behavior", "[ ] Happy-path behavior"],
+    }
+    requirements = build_machine_requirements(plan)
+    titles = [str(item.get("title") or "") for item in requirements]
+    assert len(titles) == len(set(t.lower() for t in titles))

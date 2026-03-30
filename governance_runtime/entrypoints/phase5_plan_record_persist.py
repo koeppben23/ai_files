@@ -9,6 +9,7 @@ import os
 import re
 import sys
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -22,6 +23,7 @@ from governance_runtime.application.services.state_accessor import get_phase
 from governance_runtime.application.services.phase5_presentation_contract import (
     TITLE as PHASE5_PRESENTATION_TITLE,
     build_presentation_contract,
+    build_machine_requirements,
     english_violations,
 )
 from governance_runtime.contracts.compiler import compile_plan_to_requirements
@@ -31,23 +33,44 @@ from governance_runtime.domain.phase_state_machine import normalize_phase_token
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.opencode_model_binding import (
     has_active_desktop_llm_binding as _has_desktop_llm_binding,
+    resolve_active_opencode_model,
 )
 from governance_runtime.infrastructure.governance_binding_resolver import (
     GovernanceBindingResolutionError,
     resolve_governance_binding,
 )
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.governance_context_materializer import (
+    GovernanceContextMaterializationError,
+    materialize_governance_artifacts,
+    validate_materialized_artifacts,
+)
 from governance_runtime.infrastructure.plan_record_repository import PlanRecordRepository
+from governance_runtime.infrastructure.workspace_paths import (
+    governance_plan_dir,
+    governance_review_dir,
+    governance_runtime_state_dir,
+)
+from governance_runtime.infrastructure.opencode_server_client import (
+    send_session_prompt,
+    extract_session_response,
+    ServerNotAvailableError,
+    resolve_opencode_server_base_url,
+    is_server_required_mode,
+)
 from governance_runtime.infrastructure.workspace_paths import plan_record_archive_dir, plan_record_path
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
 from governance_runtime.infrastructure.json_store import load_json as _load_json
+from governance_runtime.shared.next_action import NextAction, NextActions, render_next_action_line
 from governance_runtime.infrastructure.json_store import append_jsonl as _append_jsonl
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
+from governance_runtime.infrastructure.session_hydration import is_session_hydrated
 
 
 BLOCKED_P5_PLAN_RECORD_PERSIST = reason_codes.BLOCKED_P5_PLAN_RECORD_PERSIST
 BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE = "BLOCKED-EFFECTIVE-POLICY-UNAVAILABLE"
+BLOCKED_P5_NOT_HYDRATED = "BLOCKED-P5-NOT-HYDRATED"
 
 # Canonical mandate schema error types (Python exceptions, not reason codes)
 class MandateSchemaMissingError(Exception):
@@ -59,6 +82,61 @@ class MandateSchemaInvalidStructureError(Exception):
 class MandateSchemaUnavailableError(Exception):
     pass
 _PHASE5_REVIEW_MIN_ITERATIONS = 1
+
+
+def _resolve_active_opencode_session_id() -> str:
+    """Resolve OpenCode session ID - DEPRECATED.
+
+    Use resolve_session_id() from opencode_server_client instead.
+    This function exists for backward compatibility.
+
+    Returns:
+        Session ID from OPENCODE_SESSION_ID env var
+
+    Raises:
+        APIError: If session ID is not set
+    """
+    from governance_runtime.infrastructure.opencode_server_client import resolve_session_id
+    session_id, _ = resolve_session_id()
+    return session_id
+
+
+def _invoke_llm_via_server(
+    prompt_text: str,
+    model_info: dict | None = None,
+    output_schema: dict | None = None,
+    required: bool = False,
+) -> str:
+    """Invoke LLM via direct server API.
+
+    This replaces subprocess("opencode run --session ...") with direct HTTP calls.
+    Session ID must be set via OPENCODE_SESSION_ID environment variable.
+
+    Args:
+        prompt_text: The prompt to send
+        model_info: Optional model specification from resolve_active_opencode_model()
+        output_schema: Optional JSON schema for structured output
+        required: If True, fail-closed when server not available
+
+    Returns:
+        LLM response text
+
+    Raises:
+        ServerNotAvailableError: If server method fails
+        APIError: If OPENCODE_SESSION_ID is not set
+    """
+    try:
+        response = send_session_prompt(
+            text=prompt_text,
+            model=model_info,
+            output_schema=output_schema,
+            required=required,
+        )
+        return extract_session_response(response)
+    except ServerNotAvailableError:
+        raise
+    except Exception as exc:
+        raise ServerNotAvailableError(f"Server client failed: {exc}") from exc
 
 
 def _get_phase5_max_review_iterations(workspace_root: Path | None = None) -> int:
@@ -87,6 +165,7 @@ def _clear_phase5_max_iterations_cache() -> None:
 _MANDATE_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 
 
+@lru_cache(maxsize=1)
 def _load_mandates_schema() -> dict[str, object] | None:
     """Load the compiled governance mandates schema (JSON).
     Canonical path only; no fallbacks allowed."""
@@ -259,6 +338,7 @@ def _build_plan_mandate_text(schema: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+@lru_cache(maxsize=1)
 def _get_plan_output_schema_text() -> str:
     """Extract planOutputSchema text from mandates schema."""
     try:
@@ -348,6 +428,7 @@ def _load_effective_review_policy_text(
         return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
 
 
+@lru_cache(maxsize=1)
 def _get_review_output_schema_text() -> str:
     """Return the review output schema as a JSON string for LLM context."""
     try:
@@ -364,6 +445,32 @@ def _get_review_output_schema_text() -> str:
 
 BLOCKED_PLAN_GENERATION_FAILED = "BLOCKED-PLAN-GENERATION-FAILED"
 BLOCKED_PLAN_EXECUTOR_UNAVAILABLE = "BLOCKED-PLAN-EXECUTOR-UNAVAILABLE"
+BLOCKED_REVIEW_EXECUTOR_TIMEOUT = "BLOCKED-REVIEW-EXECUTOR-TIMEOUT"
+BLOCKED_REVIEW_TOOL_USE_DISALLOWED = "BLOCKED-REVIEW-TOOL-USE-DISALLOWED"
+
+
+def _mandate_schema_reason_code(exc: Exception) -> str:
+    if isinstance(exc, MandateSchemaMissingError):
+        return "MANDATE-SCHEMA-MISSING"
+    if isinstance(exc, MandateSchemaInvalidJsonError):
+        return "MANDATE-SCHEMA-INVALID-JSON"
+    if isinstance(exc, MandateSchemaInvalidStructureError):
+        return "MANDATE-SCHEMA-INVALID-STRUCTURE"
+    if isinstance(exc, MandateSchemaUnavailableError):
+        return "MANDATE-SCHEMA-UNAVAILABLE"
+    return "MANDATE-SCHEMA-ERROR"
+
+NEXT_ACTION_FIX_PLAN_VALIDATOR = NextAction(
+    code="FIX_PLAN_VALIDATOR",
+    text="Fix plan validator configuration/imports, then rerun /plan.",
+    command=None,
+)
+
+NEXT_ACTION_FIX_MANDATE_SCHEMA = NextAction(
+    code="FIX_MANDATE_SCHEMA",
+    text="Fix governance mandate schema availability/structure, then rerun /plan.",
+    command=None,
+)
 
 
 def _resolve_plan_execution_binding(*, workspace_dir: Path | None) -> tuple[bool, str, str]:
@@ -399,6 +506,98 @@ def _has_active_desktop_llm_binding() -> bool:
     return _has_desktop_llm_binding()
 
 
+class _ParseResult:
+    """Result of parsing OpenCode JSON events."""
+
+    __slots__ = ("text", "source")
+
+    def __init__(self, text: str, *, source: str) -> None:
+        self.text = text
+        # "primary" = direct text event, "fallback" = tool output extraction
+        self.source = source
+
+
+def _parse_json_events_to_text(response_text: str) -> str:
+    """Parse OpenCode JSON events and extract assistant text response.
+
+    OpenCode CLI with ``--format json`` emits NDJSON event streams
+    (``step_start``, ``text``, ``tool_use``, ``step_finish``, …).
+    The official CLI contract guarantees the *stream*, not a single
+    assistant payload.
+
+    Our runtime contract requires a single JSON payload from the LLM.
+    This function implements two extraction paths:
+
+    **Primary path (preferred)**
+        Returns the first ``text`` event content verbatim.  This is the
+        expected response when the LLM honours the "NO TOOLS. JSON ONLY"
+        instruction.
+
+    **Fallback path (degraded / tolerated)**
+        If no ``text`` event is present we collect completed
+        ``tool_use`` outputs and concatenate them.  This is a pragmatic
+        compatibility layer because:
+        - ``OPENCODE_CONFIG_CONTENT`` permission overlays are documented
+          but do NOT deterministically prevent tool usage.
+        - The LLM may emit tool outputs instead of direct text.
+        - Without this fallback the bridge would reject valid responses.
+
+    Neither path is guaranteed by the official OpenCode CLI contract.
+    They are local robustness heuristics.
+
+    Args:
+        response_text: Raw stdout from ``opencode run --format json``
+
+    Returns:
+        Extracted text content, or the original ``response_text`` on
+        complete parse failure.
+    """
+    if not response_text.strip():
+        return response_text
+
+    try:
+        lines = response_text.strip().split("\n")
+        collected_tool_outputs: list[str] = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            event_type = event.get("type", "")
+
+            # PRIMARY: direct text response
+            if event_type == "text":
+                part = event.get("part", {})
+                text_content = part.get("text", "")
+                if text_content:
+                    return text_content
+
+            # FALLBACK: completed tool outputs (degraded, tolerated path)
+            elif event_type == "tool_use":
+                part = event.get("part", {})
+                tool_state = part.get("state", {})
+                if tool_state.get("status") == "completed":
+                    tool_output = tool_state.get("output", "")
+                    if tool_output:
+                        collected_tool_outputs.append(tool_output)
+
+        # Fallback: combine collected tool outputs
+        if collected_tool_outputs:
+            combined = "\n".join(collected_tool_outputs)
+            if combined.strip().startswith("{"):
+                return combined
+
+    except Exception:
+        pass
+
+    return response_text
+
+
 def _call_llm_generate_plan(
     ticket_text: str,
     task_text: str,
@@ -406,6 +605,9 @@ def _call_llm_generate_plan(
     effective_authoring_policy: str = "",
     re_review: bool = False,
     workspace_dir: Path | None = None,
+    config_root: Path | None = None,
+    workspaces_home: Path | None = None,
+    repo_fingerprint: str | None = None,
 ) -> dict[str, object]:
     """Call LLM to generate a plan from ticket/task context.
 
@@ -416,141 +618,211 @@ def _call_llm_generate_plan(
             workspace_dir=workspace_dir
         )
     except GovernanceBindingResolutionError as exc:
-        return {
-            "blocked": True,
-            "reason": "plan-executor-unavailable",
-            "reason_code": BLOCKED_PLAN_EXECUTOR_UNAVAILABLE,
-            "recovery_action": str(exc),
-            "binding_role": "execution",
-        }
+        return _blocked_payload(
+            reason="plan-executor-unavailable",
+            reason_code=BLOCKED_PLAN_EXECUTOR_UNAVAILABLE,
+            recovery_action=str(exc),
+            next_action=NextActions.CONTINUE,
+            binding_role="execution",
+        )
 
     binding_source = str(_binding_source or "").strip()
 
     executor_cmd = binding_value if pipeline_mode else ""
 
-    plan_dir = Path.home() / ".governance" / "plan"
+    resolved_workspaces_home = workspaces_home
+    resolved_repo_fingerprint = str(repo_fingerprint or "").strip()
+    if resolved_workspaces_home is None or not resolved_repo_fingerprint:
+        scope_root = workspace_dir or config_root or (Path.home() / ".governance")
+        resolved_workspaces_home = scope_root / "workspaces"
+        candidate = str(scope_root.name or "").strip()
+        if re.fullmatch(r"[0-9a-f]{24}", candidate):
+            resolved_repo_fingerprint = candidate
+        else:
+            resolved_repo_fingerprint = hashlib.sha256(str(scope_root).encode("utf-8")).hexdigest()[:24]
+
+    plan_dir = governance_plan_dir(resolved_workspaces_home, resolved_repo_fingerprint)
+    runtime_state_dir = governance_runtime_state_dir(resolved_workspaces_home, resolved_repo_fingerprint)
+    governance_root = resolved_workspaces_home
     plan_dir.mkdir(parents=True, exist_ok=True)
     context_file = plan_dir / "llm_plan_context.json"
     stdout_file = plan_dir / "llm_plan_stdout.log"
     stderr_file = plan_dir / "llm_plan_stderr.log"
 
+    runtime_state_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        materialization = materialize_governance_artifacts(
+            output_dir=runtime_state_dir,
+            config_root=governance_root,
+            plan_mandate=plan_mandate if plan_mandate else None,
+            effective_policy=effective_authoring_policy if effective_authoring_policy else None,
+        )
+    except GovernanceContextMaterializationError as e:
+        return _blocked_payload(
+            reason=f"governance-context-materialization-failed: {e.reason}",
+            reason_code=e.reason_code,
+            recovery_action="Failed to materialize governance artifacts.",
+            next_action=NextActions.CONTINUE,
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=binding_source,
+        )
+
     output_schema_text = _get_plan_output_schema_text()
     instruction_parts = [
-        "You are a governance planner. Generate a structured plan from the ticket and task below.",
+        "NO TOOLS. JSON ONLY. Respond with raw JSON only, no text before or after.",
+        "Fields: objective, target_state, target_flow, state_machine, blocker_taxonomy, audit, go_no_go, test_strategy, reason_code, language, presentation_contract.",
+        "CRITICAL field constraints:",
+        "- objective: string, min 10 chars, one precise sentence",
+        "- target_state: string, min 20 chars, describes desired end state",
+        "- target_flow: string, min 20 chars, ordered steps to achieve target",
+        "- state_machine: string, min 20 chars, state transitions",
+        "- blocker_taxonomy: string, min 10 chars, expected blockers",
+        "- audit: string, min 10 chars, evidence trail",
+        "- go_no_go: string, min 10 chars, criteria that must be true to proceed",
+        "- test_strategy: string, min 10 chars, how to verify correctness",
+        "- reason_code: non-empty string",
+        "- language: must be 'en'",
+        "- presentation_contract: string, min 10 chars, presentation format",
+        "Return language='en'. Do not call tools. Do not emit markdown or explanations.",
     ]
-    if plan_mandate:
-        instruction_parts.append("Apply the plan mandate below.")
-    if effective_authoring_policy:
-        instruction_parts.append("Apply the effective authoring policy below for active profile and addons.")
-    instruction_parts.append(
-        "You MUST respond with valid JSON that conforms to the output schema below.\n"
-        "All textual output MUST be in English only (language='en').\n"
-        "Do NOT include any text outside the JSON object.\n\n"
-        "Output schema:\n" + output_schema_text
-    )
 
     context = {
         "schema": "opencode.plan.llm-context.v1",
         "ticket": ticket_text,
         "task": task_text,
     }
-    if plan_mandate:
-        context["plan_mandate"] = plan_mandate
-    if effective_authoring_policy:
-        context["effective_authoring_policy"] = effective_authoring_policy
-        context["effective_policy_loaded"] = True
+    if materialization.plan_mandate_file:
+        context["plan_mandate_file"] = str(materialization.plan_mandate_file)
+        context["plan_mandate_sha256"] = materialization.plan_mandate_sha256
+        context["plan_mandate_label"] = materialization.plan_mandate_label
+    if materialization.effective_policy_file:
+        context["effective_policy_file"] = str(materialization.effective_policy_file)
+        context["effective_policy_sha256"] = materialization.effective_policy_sha256
+        context["effective_policy_label"] = materialization.effective_policy_label
+    context["effective_policy_loaded"] = materialization.has_materialized()
+    if materialization.has_materialized():
+        context["context_materialization_complete"] = True
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
-    if not pipeline_mode and _has_active_desktop_llm_binding():
-        fallback_structured = {
-            "language": "en",
-            "objective": f"Plan for ticket/task: {(ticket_text or task_text)[:140]}",
-            "scope": "Analyze the repository and produce actionable findings with priority and owners.",
-            "constraints": [
-                "Use canonical paths and naming.",
-                "Do not introduce destructive changes.",
-                "Preserve governance invariants and fail-closed semantics.",
-            ],
-            "deliverables": [
-                "List of detected legacy paths and naming aliases.",
-                "Validated remediations with tests.",
-                "Verification output and follow-up actions.",
-            ],
-            "steps": [
-                "Collect canonical and legacy path usages across runtime, entrypoints, and install flow.",
-                "Classify findings into defects, intentional compatibility bridges, and cleanup candidates.",
-                "Implement safe fixes and validate with targeted + full test runs.",
-            ],
-            "risks": [
-                "Breaking backward compatibility for existing workspaces.",
-                "Inconsistent state transitions if aliases are removed too early.",
-            ],
-        }
-        fallback_structured["presentation_contract"] = build_presentation_contract(
-            fallback_structured,
-            re_review=re_review,
-        )
-        plan_text = _structured_plan_to_markdown(fallback_structured)
-        atomic_write_text(
-            stdout_file,
-            json.dumps(fallback_structured, ensure_ascii=True, indent=2) + "\n",
-        )
-        atomic_write_text(
-            stderr_file,
-            "Using active OpenCode Desktop chat binding as default planning binding.\n",
-        )
-        return {
-            "blocked": False,
-            "plan_text": plan_text,
-            "structured_plan": fallback_structured,
-            "pipeline_mode": pipeline_mode,
-            "binding_role": "execution",
-            "binding_source": binding_source,
-        }
-
-    final_cmd = executor_cmd
-    if "{context_file}" in final_cmd:
-        final_cmd = final_cmd.replace("{context_file}", str(context_file))
     try:
-        import subprocess
-        result = subprocess.run(
-            final_cmd,
-            shell=True,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=120,
+        validate_materialized_artifacts(materialization)
+    except GovernanceContextMaterializationError as e:
+        return _blocked_payload(
+            reason=f"governance-context-validation-failed: {e.reason}",
+            reason_code=e.reason_code,
+            recovery_action="Materialized artifacts failed validation.",
+            next_action=NextActions.CONTINUE,
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=binding_source,
         )
-        atomic_write_text(stdout_file, str(result.stdout or ""))
-        atomic_write_text(stderr_file, str(result.stderr or ""))
-        response_text = result.stdout or ""
-        if not response_text.strip():
-            return {
-                "blocked": True,
-                "reason": "plan-llm-empty-response",
-                "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
-                "recovery_action": "LLM returned empty response for plan generation.",
-                "pipeline_mode": pipeline_mode,
-                "binding_role": "execution",
-                "binding_source": binding_source,
-            }
+
+    use_server_client = False
+    session_id = _resolve_active_opencode_session_id()
+    model_info = resolve_active_opencode_model()
+    model_dict = None
+    if model_info and isinstance(model_info, dict):
+        provider = model_info.get("provider", "")
+        model_id = model_info.get("model_id", "")
+        if provider and model_id:
+            model_dict = {"providerID": provider, "modelID": model_id}
+
+    if not session_id:
+        return _blocked_payload(
+            reason="plan-server-session-unavailable",
+            reason_code="BLOCKED-PLAN-SERVER-SESSION-UNAVAILABLE",
+            recovery_action="Configure OPENCODE_SESSION_ID (or active OpenCode desktop binding), then rerun /plan.",
+            next_action=NextActions.CONTINUE,
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=binding_source,
+            binding_resolved=True,
+            invoke_backend_available=False,
+            invoke_backend="server_client",
+            invoke_backend_error="missing-session-id",
+        )
+
+    try:
+        context_json = context_file.read_text(encoding="utf-8")
+        output_schema_text = _get_plan_output_schema_text()
+        output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
+
+        prompt_text = "Read the following planning context JSON and produce only valid JSON conforming to the provided output schema.\n\n" + context_json
+
+        response_text = _invoke_llm_via_server(
+            prompt_text=prompt_text,
+            model_info=model_dict,
+            output_schema=output_schema,
+            required=True,
+        )
+
+        response_text = _parse_json_events_to_text(response_text)
         parsed = _parse_plan_generation_response(response_text, re_review=re_review)
+
+        use_server_client = True
+        server_url = ""
+        try:
+            server_url = resolve_opencode_server_base_url()
+        except ServerNotAvailableError:
+            pass
+        atomic_write_text(stdout_file, response_text)
+        atomic_write_text(stderr_file, "")
+        atomic_write_text(stderr_file, f"[server_client] Plan generated via direct HTTP (url: {server_url})")
+    except ServerNotAvailableError as exc:
+        server_error = str(exc)
+        atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+        return _blocked_payload(
+            reason="server-required-but-unavailable",
+            reason_code="BLOCKED-SERVER-REQUIRED-UNAVAILABLE",
+            recovery_action="OpenCode server is not available for /plan.",
+            next_action=NextActions.CONTINUE,
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=binding_source,
+            binding_resolved=True,
+            invoke_backend_available=False,
+            invoke_backend="server_client",
+            invoke_backend_error=server_error,
+        )
+    except Exception as exc:
+        server_error = str(exc)
+        atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+        return _blocked_payload(
+            reason="server-required-but-failed",
+            reason_code="BLOCKED-SERVER-REQUIRED-FAILED",
+            recovery_action="OpenCode server call failed during /plan.",
+            next_action=NextActions.CONTINUE,
+            pipeline_mode=pipeline_mode,
+            binding_role="execution",
+            binding_source=binding_source,
+            binding_resolved=True,
+            invoke_backend_available=False,
+            invoke_backend="server_client",
+            invoke_backend_error=server_error,
+        )
+
+    if use_server_client:
         parsed["pipeline_mode"] = pipeline_mode
         parsed["binding_role"] = "execution"
         parsed["binding_source"] = binding_source
+        parsed["invoke_backend"] = "server_client"
         return parsed
-    except Exception as exc:
-        atomic_write_text(stderr_file, str(exc))
-        return {
-            "blocked": True,
-            "reason": f"plan-llm-error: {exc}",
-            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
-            "recovery_action": "Check LLM executor configuration and retry /plan.",
-            "pipeline_mode": pipeline_mode,
-            "binding_role": "execution",
-            "binding_source": binding_source,
-        }
+
+    return _blocked_payload(
+        reason="plan-server-invocation-failed",
+        reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+        recovery_action="OpenCode server invocation failed.",
+        next_action=NextActions.CONTINUE,
+        pipeline_mode=pipeline_mode,
+        binding_role="execution",
+        binding_source=binding_source,
+        binding_resolved=True,
+        invoke_backend_available=False,
+        invoke_backend="server_client",
+    )
 
 
 def _parse_plan_generation_response(response_text: str, *, re_review: bool = False) -> dict[str, object]:
@@ -562,24 +834,24 @@ def _parse_plan_generation_response(response_text: str, *, re_review: bool = Fal
     """
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
     try:
-        from llm_response_validator import validate_plan_response
+        from llm_response_validator import coerce_output_against_schema, validate_plan_response
     except Exception as exc:
-        return {
-            "blocked": True,
-            "reason": f"plan-validator-unavailable: {exc}",
-            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
-            "recovery_action": "Ensure llm_response_validator module is importable for plan validation.",
-        }
+        return _blocked_payload(
+            reason=f"plan-validator-unavailable: {exc}",
+            reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+            recovery_action="Ensure llm_response_validator module is importable for plan validation.",
+            next_action=NEXT_ACTION_FIX_PLAN_VALIDATOR,
+        )
 
     raw_text = response_text.strip()
 
     if not raw_text:
-        return {
-            "blocked": True,
-            "reason": "plan-llm-empty-response",
-            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
-            "recovery_action": "LLM returned empty response for plan generation.",
-        }
+        return _blocked_payload(
+            reason="plan-llm-empty-response",
+            reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+            recovery_action="LLM returned empty response for plan generation.",
+            next_action=NextActions.CONTINUE,
+        )
 
     parsed_data: dict[str, object] | None = None
 
@@ -590,29 +862,22 @@ def _parse_plan_generation_response(response_text: str, *, re_review: bool = Fal
             pass
 
     if parsed_data is None:
-        return {
-            "blocked": True,
-            "reason": f"plan-response-not-json: received {len(raw_text)} chars starting with: {raw_text[:80]!r}",
-            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
-            "recovery_action": "LLM did not return valid JSON for plan generation.",
-        }
+        first_brace = raw_text.find("{")
+        last_brace = raw_text.rfind("}")
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            candidate = raw_text[first_brace : last_brace + 1]
+            try:
+                parsed_data = json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
 
-    violations = english_violations(parsed_data)
-    if violations:
-        return {
-            "blocked": True,
-            "reason": f"plan-language-violation: {violations}",
-            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
-            "recovery_action": "Plan output must be English-only across required fields.",
-            "validation_violations": violations,
-        }
-
-    normalized_data = dict(parsed_data)
-    normalized_data["language"] = "en"
-    normalized_data["presentation_contract"] = build_presentation_contract(
-        normalized_data,
-        re_review=re_review,
-    )
+    if parsed_data is None:
+        return _blocked_payload(
+            reason=f"plan-response-not-json: received {len(raw_text)} chars starting with: {raw_text[:80]!r}",
+            reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+            recovery_action="LLM did not return valid JSON for plan generation.",
+            next_action=NextActions.CONTINUE,
+        )
 
     # Load planOutputSchema — must be present and non-empty
     try:
@@ -620,36 +885,62 @@ def _parse_plan_generation_response(response_text: str, *, re_review: bool = Fal
         defs = mandates_schema.get("$defs", {})
         plan_schema = defs.get("planOutputSchema")
         if not plan_schema or not isinstance(plan_schema, dict):
-            return {
-                "blocked": True,
-                "reason": "plan-output-schema-missing: planOutputSchema not found in mandates schema",
-                "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
-                "recovery_action": "Ensure planOutputSchema is defined in governance_mandates.v1.schema.json.",
-            }
+            return _blocked_payload(
+                reason="plan-output-schema-missing: planOutputSchema not found in mandates schema",
+                reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+                recovery_action="Ensure planOutputSchema is defined in governance_mandates.v1.schema.json.",
+                next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
+            )
     except (
         MandateSchemaMissingError,
         MandateSchemaInvalidJsonError,
         MandateSchemaInvalidStructureError,
         MandateSchemaUnavailableError,
     ):
-        return {
-            "blocked": True,
-            "reason": "plan-mandate-schema-unavailable",
-            "reason_code": "MANDATE-SCHEMA-UNAVAILABLE",
-            "recovery_action": "Ensure governance_mandates.v1.schema.json is loadable.",
-        }
+        return _blocked_payload(
+            reason="plan-mandate-schema-unavailable",
+            reason_code="MANDATE-SCHEMA-UNAVAILABLE",
+            recovery_action="Ensure governance_mandates.v1.schema.json is loadable.",
+            next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
+        )
+
+    normalized_payload = coerce_output_against_schema(parsed_data, plan_schema)
+    if not isinstance(normalized_payload, dict):
+        return _blocked_payload(
+            reason="plan-response-normalization-failed",
+            reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+            recovery_action="LLM plan output could not be normalized to object form.",
+            next_action=NextActions.CONTINUE,
+        )
+
+    violations = english_violations(normalized_payload)
+    if violations:
+        return _blocked_payload(
+            reason=f"plan-language-violation: {violations}",
+            reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+            recovery_action="Plan output must be English-only across required fields.",
+            next_action=NextActions.CONTINUE,
+            validation_violations=violations,
+        )
+
+    normalized_data = dict(normalized_payload)
+    normalized_data["language"] = "en"
+    normalized_data["presentation_contract"] = build_presentation_contract(
+        normalized_data,
+        re_review=re_review,
+    )
 
     # Validate against planOutputSchema — fail-closed, no fallback
     validation = validate_plan_response(normalized_data, plan_schema=plan_schema)
     if not validation.valid:
         validation_rules = [v.rule for v in validation.violations]
-        return {
-            "blocked": True,
-            "reason": f"plan-schema-violation: {validation_rules}",
-            "reason_code": BLOCKED_PLAN_GENERATION_FAILED,
-            "recovery_action": "LLM response did not conform to planOutputSchema.",
-            "validation_violations": validation_rules,
-        }
+        return _blocked_payload(
+            reason=f"plan-schema-violation: {validation_rules}",
+            reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+            recovery_action="LLM response did not conform to planOutputSchema.",
+            next_action=NextActions.CONTINUE,
+            validation_violations=validation_rules,
+        )
 
     # Convert structured plan to markdown plan text for the existing review/persist chain
     plan_text = _structured_plan_to_markdown(normalized_data)
@@ -787,11 +1078,86 @@ def _structured_plan_to_markdown(plan: dict[str, object]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _extract_markdown_section(plan_text: str, heading: str) -> str:
+    lines = [line.rstrip("\n") for line in str(plan_text or "").splitlines()]
+    marker = f"## {heading}".lower()
+    start = -1
+    for idx, line in enumerate(lines):
+        if line.strip().lower() == marker:
+            start = idx + 1
+            break
+    if start == -1:
+        return ""
+    collected: list[str] = []
+    for line in lines[start:]:
+        if line.startswith("## "):
+            break
+        collected.append(line)
+    return "\n".join(collected).strip()
+
+
+def _parse_bullets(text: str) -> list[str]:
+    out: list[str] = []
+    for raw in str(text or "").splitlines():
+        line = raw.strip()
+        if not line.startswith("-"):
+            continue
+        token = line.lstrip("-").strip()
+        if token.startswith("[ ]"):
+            token = token[3:].strip()
+        if token:
+            out.append(token)
+    return out
+
+
+def _machine_requirements_from_markdown(*, raw_source: str = "") -> list[dict[str, object]]:
+    """Extract compilable machine requirements from allowlisted markdown sections only."""
+    source = str(raw_source or "").strip()
+    if not source:
+        return []
+    first_line = ""
+    for raw in source.splitlines():
+        line = re.sub(r"\s+", " ", raw.strip())
+        if not line:
+            continue
+        if line.startswith("#"):
+            continue
+        first_line = line
+        break
+    if not first_line:
+        return []
+    return [
+        {
+            "title": first_line,
+            "kind": "required_behavior",
+            "required_behavior": f"Implement: {first_line}",
+            "forbidden_behavior": f"forbid state: {first_line} not satisfied",
+            "code_hotspots": [
+                "governance_runtime/entrypoints/session_reader.py",
+                "governance_runtime/entrypoints/implement_start.py",
+            ],
+            "verification_methods": [
+                "behavioral_verification",
+                "live_flow_verification",
+                "static_verification",
+            ],
+        }
+    ]
+
+
+def _legacy_markdown_requirements_enabled() -> bool:
+    token = str(os.environ.get("GOVERNANCE_ALLOW_LEGACY_MARKDOWN_REQUIREMENTS") or "").strip().lower()
+    return token in {"1", "true", "yes", "on"}
+
+
 def _call_llm_review(
     content: str,
     mandate: str,
     effective_review_policy: str = "",
     workspace_dir: Path | None = None,
+    config_root: Path | None = None,
+    workspaces_home: Path | None = None,
+    repo_fingerprint: str | None = None,
 ) -> dict[str, object]:
     """Call LLM for review with structured output enforcement."""
     try:
@@ -810,20 +1176,60 @@ def _call_llm_review(
 
     executor_cmd = binding_value if pipeline_mode else ""
 
-    review_dir = Path.home() / ".governance" / "review"
+    resolved_workspaces_home = workspaces_home
+    resolved_repo_fingerprint = str(repo_fingerprint or "").strip()
+    if resolved_workspaces_home is None or not resolved_repo_fingerprint:
+        scope_root = workspace_dir or config_root or (Path.home() / ".governance")
+        resolved_workspaces_home = scope_root / "workspaces"
+        candidate = str(scope_root.name or "").strip()
+        if re.fullmatch(r"[0-9a-f]{24}", candidate):
+            resolved_repo_fingerprint = candidate
+        else:
+            resolved_repo_fingerprint = hashlib.sha256(str(scope_root).encode("utf-8")).hexdigest()[:24]
+
+    governance_root = resolved_workspaces_home
+    review_dir = governance_review_dir(resolved_workspaces_home, resolved_repo_fingerprint)
+    runtime_state_dir = governance_runtime_state_dir(resolved_workspaces_home, resolved_repo_fingerprint)
     review_dir.mkdir(parents=True, exist_ok=True)
     context_file = review_dir / "llm_review_context.json"
     stdout_file = review_dir / "llm_review_stdout.log"
     stderr_file = review_dir / "llm_review_stderr.log"
 
+    runtime_state_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        materialization = materialize_governance_artifacts(
+            output_dir=runtime_state_dir,
+            config_root=governance_root,
+            review_mandate=mandate if mandate else None,
+            effective_policy=effective_review_policy if effective_review_policy else None,
+        )
+    except GovernanceContextMaterializationError as e:
+        return {
+            "llm_invoked": False,
+            "verdict": "changes_requested",
+            "findings": [f"governance-context-materialization-failed: {e.reason}"],
+            "reason_code": e.reason_code,
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+        }
+
     output_schema_text = _get_review_output_schema_text()
     instruction_parts = []
-    if mandate:
-        instruction_parts.append("Apply the review mandate to review the provided plan.")
-    if effective_review_policy:
-        instruction_parts.append("Apply the effective review policy below for active profile and addons.")
+    if materialization.review_mandate_file:
+        instruction_parts.append(
+            f"Load the review mandate from file: {materialization.review_mandate_file} "
+            f"(SHA256: {materialization.review_mandate_sha256})"
+        )
+    if materialization.effective_policy_file:
+        instruction_parts.append(
+            f"Load the effective policy from file: {materialization.effective_policy_file} "
+            f"(SHA256: {materialization.effective_policy_sha256})"
+        )
     instruction_parts.append(
         "You MUST respond with valid JSON that conforms to the output schema below.\n"
+        "All textual output MUST be in English only (language='en').\n"
         "Do NOT include any text outside the JSON object.\n\n"
         "Output schema:\n" + output_schema_text
     )
@@ -832,99 +1238,137 @@ def _call_llm_review(
         "schema": "opencode.review.llm-context.v3",
         "content_to_review": content,
     }
-    if mandate:
-        context["review_mandate"] = mandate
-    if effective_review_policy:
-        context["effective_review_policy"] = effective_review_policy
-        context["effective_policy_loaded"] = True
+    if materialization.review_mandate_file:
+        context["review_mandate_file"] = str(materialization.review_mandate_file)
+        context["review_mandate_sha256"] = materialization.review_mandate_sha256
+        context["review_mandate_label"] = materialization.review_mandate_label
+    if materialization.effective_policy_file:
+        context["effective_policy_file"] = str(materialization.effective_policy_file)
+        context["effective_policy_sha256"] = materialization.effective_policy_sha256
+        context["effective_policy_label"] = materialization.effective_policy_label
+    context["effective_policy_loaded"] = materialization.has_materialized()
+    if materialization.has_materialized():
+        context["context_materialization_complete"] = True
     context["instruction"] = "\n".join(instruction_parts)
     atomic_write_text(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
-    if not pipeline_mode and _has_active_desktop_llm_binding():
-        atomic_write_text(stdout_file, "Using active OpenCode Desktop chat binding as review binding.\n")
-        atomic_write_text(stderr_file, "")
+    try:
+        validate_materialized_artifacts(materialization)
+    except GovernanceContextMaterializationError as e:
         return {
-            "llm_invoked": True,
+            "llm_invoked": False,
             "verdict": "changes_requested",
-            "findings": [],
-            "raw_response": "{\"verdict\": \"changes_requested\", \"findings\": []}",
-            "validation_valid": True,
+            "findings": [f"governance-context-validation-failed: {e.reason}"],
+            "reason_code": e.reason_code,
             "pipeline_mode": pipeline_mode,
             "binding_role": "review",
             "binding_source": binding_source,
         }
 
-    final_cmd = executor_cmd
-    if "{context_file}" in final_cmd:
-        final_cmd = final_cmd.replace("{context_file}", str(context_file))
+    use_server_client = False
+    bridge_mode = False
+    server_required = is_server_required_mode()
+    server_error: str | None = None
+
+    session_id = _resolve_active_opencode_session_id()
+    model_info = resolve_active_opencode_model()
+    model_dict = None
+    if model_info and isinstance(model_info, dict):
+        provider = model_info.get("provider", "")
+        model_id = model_info.get("model_id", "")
+        if provider and model_id:
+            model_dict = {"providerID": provider, "modelID": model_id}
+
+    if not session_id:
+        return {
+            "llm_invoked": False,
+            "verdict": "changes_requested",
+            "findings": ["server-session-unavailable"],
+            "reason_code": "BLOCKED-REVIEW-SERVER-SESSION-UNAVAILABLE",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+            "binding_resolved": True,
+            "invoke_backend_available": False,
+            "invoke_backend": "server_client",
+            "invoke_backend_error": "missing-session-id",
+        }
+
     try:
-        import subprocess
-        result = subprocess.run(
-            final_cmd,
-            shell=True,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=120,
+        context_json = context_file.read_text(encoding="utf-8")
+        output_schema_text = _get_review_output_schema_text()
+        output_schema = json.loads(output_schema_text) if output_schema_text.strip() else None
+
+        prompt_text = "Read the following review context JSON and produce only valid JSON conforming to the provided output schema.\n\n" + context_json
+
+        response_text = _invoke_llm_via_server(
+            prompt_text=prompt_text,
+            model_info=model_dict,
+            output_schema=output_schema,
+            required=True,
         )
-        atomic_write_text(stdout_file, str(result.stdout or ""))
-        atomic_write_text(stderr_file, str(result.stderr or ""))
-        response_text = result.stdout or ""
-        if not response_text.strip():
-            return {
-                "llm_invoked": False,
-                "verdict": "changes_requested",
-                "findings": ["LLM executor returned empty response"],
-                "pipeline_mode": pipeline_mode,
-                "binding_role": "review",
-                "binding_source": binding_source,
-            }
-        # Fail-closed: mandate schema MUST be available for response validation
-        try:
-            mandates_schema = _load_mandates_schema()
-        except MandateSchemaMissingError as exc:
-            return {
-                "llm_invoked": False,
-                "verdict": "changes_requested",
-                "findings": [f"mandate-schema-missing: {exc}"],
-                "reason_code": "MANDATE-SCHEMA-MISSING",
-            }
-        except MandateSchemaInvalidJsonError as exc:
-            return {
-                "llm_invoked": False,
-                "verdict": "changes_requested",
-                "findings": [f"mandate-schema-invalid-json: {exc}"],
-                "reason_code": "MANDATE-SCHEMA-INVALID-JSON",
-            }
-        except MandateSchemaInvalidStructureError as exc:
-            return {
-                "llm_invoked": False,
-                "verdict": "changes_requested",
-                "findings": [f"mandate-schema-invalid-structure: {exc}"],
-                "reason_code": "MANDATE-SCHEMA-INVALID-STRUCTURE",
-            }
-        except MandateSchemaUnavailableError as exc:
-            return {
-                "llm_invoked": False,
-                "verdict": "changes_requested",
-                "findings": [f"mandate-schema-unavailable: {exc}"],
-                "reason_code": "MANDATE-SCHEMA-UNAVAILABLE",
-            }
+
+        mandates_schema = _load_mandates_schema()
         parsed = _parse_llm_review_response(response_text, mandates_schema=mandates_schema)
         parsed["pipeline_mode"] = pipeline_mode
         parsed["binding_role"] = "review"
         parsed["binding_source"] = binding_source
+        parsed["invoke_backend"] = "server_client"
+        server_url = ""
+        try:
+            server_url = resolve_opencode_server_base_url()
+        except ServerNotAvailableError:
+            pass
+        parsed["invoke_backend_url"] = server_url
+
+        use_server_client = True
+        atomic_write_text(stdout_file, response_text)
+        atomic_write_text(stderr_file, f"[server_client] Review via direct HTTP (url: {server_url})")
         return parsed
-    except Exception as exc:
-        atomic_write_text(stderr_file, str(exc))
+    except (MandateSchemaMissingError, MandateSchemaInvalidJsonError,
+            MandateSchemaInvalidStructureError, MandateSchemaUnavailableError) as exc:
+        reason_code = _mandate_schema_reason_code(exc)
         return {
             "llm_invoked": False,
-            "error": str(exc),
             "verdict": "changes_requested",
-            "findings": [f"LLM review failed: {exc}"],
+            "findings": [f"{reason_code.lower()}: {exc}"],
+            "reason_code": reason_code,
             "pipeline_mode": pipeline_mode,
             "binding_role": "review",
             "binding_source": binding_source,
+            "invoke_backend": "server_client",
+        }
+    except ServerNotAvailableError as exc:
+        server_error = str(exc)
+        atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": [f"Server required but unavailable: {server_error}"],
+            "reason_code": "BLOCKED-SERVER-REQUIRED-UNAVAILABLE",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+            "binding_resolved": True,
+            "invoke_backend_available": False,
+            "invoke_backend": "server_client",
+            "invoke_backend_error": server_error,
+        }
+    except Exception as exc:
+        server_error = str(exc)
+        atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
+        return {
+            "llm_invoked": True,
+            "verdict": "changes_requested",
+            "findings": [f"Server required but failed: {server_error}"],
+            "reason_code": "BLOCKED-SERVER-REQUIRED-FAILED",
+            "pipeline_mode": pipeline_mode,
+            "binding_role": "review",
+            "binding_source": binding_source,
+            "binding_resolved": True,
+            "invoke_backend_available": False,
+            "invoke_backend": "server_client",
+            "invoke_backend_error": server_error,
         }
 
 
@@ -939,9 +1383,13 @@ def _parse_llm_review_response(
     """
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
     try:
-        from llm_response_validator import validate_review_response
-    except Exception:
+        from llm_response_validator import (
+            coerce_output_against_mandates_schema,
+            validate_review_response,
+        )
+    except (ImportError, ModuleNotFoundError):
         validate_review_response = None
+        coerce_output_against_mandates_schema = None
 
     raw_text = response_text.strip()
 
@@ -972,6 +1420,15 @@ def _parse_llm_review_response(
             "validation_violations": ["response-not-structured-json"],
             "raw_response": raw_text[:1000],
         }
+
+    if coerce_output_against_mandates_schema is not None:
+        normalized = coerce_output_against_mandates_schema(
+            parsed_data,
+            mandates_schema,
+            "reviewOutputSchema",
+        )
+        if isinstance(normalized, dict):
+            parsed_data = normalized
 
     if validate_review_response is not None:
         validation = validate_review_response(parsed_data, mandates_schema=mandates_schema)
@@ -1038,10 +1495,14 @@ def _persist_compiled_contracts(
     verification_seed: list[dict[str, object]],
     completion_seed: list[dict[str, object]],
     generated_at: str,
+    source_authority: str,
+    compiler_notes: list[str],
 ) -> tuple[str, int]:
     payload = {
         "schema": "governance-compiled-requirements.v1",
         "generated_at": generated_at,
+        "source_authority": source_authority,
+        "compiler_notes": compiler_notes,
         "requirements": compiled,
         "negative_contracts": negative_contracts,
         "verification_seed": verification_seed,
@@ -1058,6 +1519,28 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     out: dict[str, object] = {"status": status}
     out.update(kwargs)
     return out
+
+
+def _blocked_payload(
+    reason: str,
+    reason_code: str,
+    recovery_action: str,
+    *,
+    next_action: NextAction | None = None,
+    **extra: object,
+) -> dict[str, object]:
+    """Create a blocked payload with canonical Next Action fields."""
+    payload: dict[str, object] = {
+        "blocked": True,
+        "status": "blocked",
+        "reason": reason,
+        "reason_code": reason_code,
+        "recovery_action": recovery_action,
+    }
+    if next_action:
+        payload.update(next_action.to_dict())
+    payload.update(extra)
+    return payload
 
 
 def _as_int(value: object, fallback: int) -> int:
@@ -1108,6 +1591,24 @@ def _normalize_label(label: str) -> str:
     lowered = label.lower()
     lowered = re.sub(r"\s+", " ", lowered).strip()
     return lowered
+
+
+def _normalize_plan_preview(raw: str) -> str:
+    lines = raw.split("\n")
+    cleaned = []
+    for line in lines:
+        line = line.strip()
+        line = re.sub(r"^#+\s*", "", line)
+        line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+        line = re.sub(r"[*_`]+", "", line)
+        if line:
+            cleaned.append(line)
+    if len(cleaned) > 6:
+        cleaned = cleaned[:6]
+    result = "\n".join(cleaned)
+    if len(result) > 800:
+        result = result[:797] + "..."
+    return result
 
 
 def _collect_findings(plan_text: str) -> list[str]:
@@ -1180,18 +1681,21 @@ def _run_internal_phase5_self_review(
     state: Mapping[str, object] | None = None,
     commands_home: Path | None = None,
     workspace_dir: Path | None = None,
+    config_root: Path | None = None,
+    workspaces_home: Path | None = None,
+    repo_fingerprint: str | None = None,
     max_iterations: int | None = None,
 ) -> dict[str, object]:
     if max_iterations is None:
         max_iterations = _get_phase5_max_review_iterations(None)
     current_text = _canonicalize_text(plan_text)
     if not current_text:
-        return {
-            "blocked": True,
-            "reason": "empty-plan-after-canonicalization",
-            "reason_code": reason_codes.BLOCKED_P5_PLAN_EMPTY,
-            "recovery_action": "provide non-empty plan text via --plan-text or --plan-file",
-        }
+        return _blocked_payload(
+            reason="empty-plan-after-canonicalization",
+            reason_code=reason_codes.BLOCKED_P5_PLAN_EMPTY,
+            recovery_action="provide non-empty plan text via --plan-text or --plan-file",
+            next_action=NextActions.CONTINUE,
+        )
 
     mandate_text = ""
     try:
@@ -1201,40 +1705,40 @@ def _run_internal_phase5_self_review(
         else:
             mandate_text = ""
     except MandateSchemaMissingError:
-        return {
-            "blocked": True,
-            "reason": "mandate-schema-missing",
-            "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
-            "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
-        }
+        return _blocked_payload(
+            reason="mandate-schema-missing",
+            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+            recovery_action="Provide governance_mandates.v1.schema.json at the canonical runtime location.",
+            next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
+        )
     except MandateSchemaInvalidJsonError:
-        return {
-            "blocked": True,
-            "reason": "mandate-schema-invalid-json",
-            "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
-            "recovery_action": "Validate the JSON syntax of governance_mandates.v1.schema.json at the canonical runtime location.",
-        }
+        return _blocked_payload(
+            reason="mandate-schema-invalid-json",
+            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+            recovery_action="Validate the JSON syntax of governance_mandates.v1.schema.json at the canonical runtime location.",
+            next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
+        )
     except MandateSchemaInvalidStructureError:
-        return {
-            "blocked": True,
-            "reason": "mandate-schema-invalid-structure",
-            "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
-            "recovery_action": "Regenerate the compiled mandate schema from rules.md or ensure correct structure.",
-        }
+        return _blocked_payload(
+            reason="mandate-schema-invalid-structure",
+            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+            recovery_action="Regenerate the compiled mandate schema from rules.md or ensure correct structure.",
+            next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
+        )
     except MandateSchemaUnavailableError:
-        return {
-            "blocked": True,
-            "reason": "mandate-schema-unavailable",
-            "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
-            "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
-        }
-    except Exception:
-        return {
-            "blocked": True,
-            "reason": "mandate-schema-unavailable",
-            "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
-            "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
-        }
+        return _blocked_payload(
+            reason="mandate-schema-unavailable",
+            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+            recovery_action="Provide governance_mandates.v1.schema.json at the canonical runtime location.",
+            next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
+        )
+    except (OSError, IOError, PermissionError) as e:
+        return _blocked_payload(
+            reason="mandate-schema-io-error",
+            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+            recovery_action=f"Cannot read mandate schema: {e}",
+            next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
+        )
 
     iteration = 0
     prev_digest = _digest(current_text)
@@ -1267,12 +1771,12 @@ def _run_internal_phase5_self_review(
                     effective_review_policy = ""
                     effective_policy_error = ""
                 else:
-                    return {
-                        "blocked": True,
-                        "reason": "effective-review-policy-unavailable",
-                        "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
-                        "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
-                    }
+                    return _blocked_payload(
+                        reason="effective-review-policy-unavailable",
+                        reason_code=BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+                        recovery_action="Ensure rulebooks and addons are loadable and contain valid policy content.",
+                        next_action=NextActions.CONTINUE,
+                    )
 
         if has_executor:
             llm_result = _call_llm_review(
@@ -1280,8 +1784,25 @@ def _run_internal_phase5_self_review(
                 mandate_text,
                 effective_review_policy,
                 workspace_dir=workspace_dir,
+                config_root=config_root,
+                workspaces_home=workspaces_home,
+                repo_fingerprint=repo_fingerprint,
             )
             llm_review_results.append(llm_result)
+            if llm_result.get("reason_code") in {
+                BLOCKED_REVIEW_EXECUTOR_TIMEOUT,
+                BLOCKED_REVIEW_TOOL_USE_DISALLOWED,
+            }:
+                finding = "review-executor-blocked"
+                raw_findings = llm_result.get("findings")
+                if isinstance(raw_findings, list) and raw_findings:
+                    finding = str(raw_findings[0])
+                return _blocked_payload(
+                    reason=finding,
+                    reason_code=str(llm_result.get("reason_code") or BLOCKED_P5_PLAN_RECORD_PERSIST),
+                    recovery_action="Retry /plan after ensuring review returns direct JSON text and session remains responsive.",
+                    next_action=NextActions.CONTINUE,
+                )
             if "pipeline_mode" in llm_result:
                 review_pipeline_mode = bool(llm_result.get("pipeline_mode"))
             if llm_result.get("binding_source"):
@@ -1372,46 +1893,68 @@ def main(argv: list[str] | None = None) -> int:
         if args.plan_file:
             plan_source = _read_text(Path(args.plan_file))
     except Exception as exc:
-        payload = _payload(
-            "blocked",
-            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+        payload = _blocked_payload(
             reason="plan-source-unreadable",
-            observed=str(exc),
+            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
             recovery_action="provide readable --plan-text or valid --plan-file",
+            next_action=NextActions.CONTINUE,
+            observed=str(exc),
         )
         print(json.dumps(payload, ensure_ascii=True))
         return 2
 
     plan_text = _canonicalize_text(plan_source)
+    raw_plan_source = plan_text
 
     # ── Load session state early (needed for auto-generation) ──
     try:
-        session_path, repo_fingerprint, _, workspace_dir = resolve_active_session_paths()
+        session_path, repo_fingerprint, workspaces_home, workspace_dir = resolve_active_session_paths()
         document = _load_json(session_path)
         state = document.get("SESSION_STATE")
         if not isinstance(state, dict):
             raise RuntimeError("SESSION_STATE root missing")
     except Exception as exc:
-        payload = _payload(
-            "blocked",
-            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+        payload = _blocked_payload(
             reason="session-state-unreadable",
-            observed=str(exc),
+            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
             recovery_action="ensure session state is loadable",
+            next_action=NextActions.CONTINUE,
+            observed=str(exc),
         )
         print(json.dumps(payload, ensure_ascii=True))
         return 2
+
+    if not is_session_hydrated(state):
+        payload = _blocked_payload(
+            reason="session-not-hydrated",
+            reason_code="BLOCKED-P5-NOT-HYDRATED",
+            recovery_action="run /hydrate first to bind governance session to OpenCode session",
+            next_action=NextActions.HYDRATE_REQUIRED,
+        )
+        print(json.dumps(payload, ensure_ascii=True))
+        return 2
+
+    structured_plan: dict[str, object] | None = None
+
+    # ── Optional structured explicit input parse (JSON planOutputSchema) ──
+    if plan_text and plan_text.lstrip().startswith("{"):
+        parsed_input = _parse_plan_generation_response(plan_text, re_review=False)
+        if parsed_input.get("blocked") is False:
+            parsed_structured = parsed_input.get("structured_plan")
+            if isinstance(parsed_structured, Mapping):
+                structured_plan = dict(parsed_structured)
+                plan_text = _canonicalize_text(str(parsed_input.get("plan_text") or plan_text))
 
     # ── Auto-generate plan if none provided ──
     if not plan_text:
         ticket_text = str(state.get("Ticket") or "").strip()
         task_text = str(state.get("Task") or "").strip()
         if not ticket_text and not task_text:
-            payload = _payload(
-                "blocked",
-                reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+            payload = _blocked_payload(
                 reason="missing-plan-record-evidence",
+                reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
                 recovery_action="provide non-empty plan text via --plan-text or --plan-file, or persist ticket via /ticket first",
+                next_action=NextActions.CONTINUE,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
@@ -1427,48 +1970,48 @@ def main(argv: list[str] | None = None) -> int:
             mandates_schema = _load_mandates_schema()
             plan_mandate = _build_plan_mandate_text(mandates_schema)
         except MandateSchemaMissingError as exc:
-            payload = _payload(
-                "blocked",
-                reason_code="MANDATE-SCHEMA-MISSING",
+            payload = _blocked_payload(
                 reason=f"plan-mandate-schema-missing: {exc}",
+                reason_code="MANDATE-SCHEMA-MISSING",
                 recovery_action="Ensure governance_mandates.v1.schema.json exists at canonical path.",
+                next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
         except MandateSchemaInvalidJsonError as exc:
-            payload = _payload(
-                "blocked",
-                reason_code="MANDATE-SCHEMA-INVALID-JSON",
+            payload = _blocked_payload(
                 reason=f"plan-mandate-schema-invalid-json: {exc}",
+                reason_code="MANDATE-SCHEMA-INVALID-JSON",
                 recovery_action="Fix JSON syntax in governance_mandates.v1.schema.json.",
+                next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
         except MandateSchemaInvalidStructureError as exc:
-            payload = _payload(
-                "blocked",
-                reason_code="MANDATE-SCHEMA-INVALID-STRUCTURE",
+            payload = _blocked_payload(
                 reason=f"plan-mandate-schema-invalid-structure: {exc}",
+                reason_code="MANDATE-SCHEMA-INVALID-STRUCTURE",
                 recovery_action="Ensure mandate schema has valid plan_mandate block.",
+                next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
         except MandateSchemaUnavailableError as exc:
-            payload = _payload(
-                "blocked",
-                reason_code="MANDATE-SCHEMA-UNAVAILABLE",
+            payload = _blocked_payload(
                 reason=f"plan-mandate-schema-unavailable: {exc}",
+                reason_code="MANDATE-SCHEMA-UNAVAILABLE",
                 recovery_action="Check file permissions for governance_mandates.v1.schema.json.",
+                next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
 
         if not plan_mandate:
-            payload = _payload(
-                "blocked",
-                reason_code="PLAN-MANDATE-EMPTY",
+            payload = _blocked_payload(
                 reason="plan-mandate-empty: mandate schema loaded but plan_mandate block produced no text",
+                reason_code="PLAN-MANDATE-EMPTY",
                 recovery_action="Ensure plan_mandate block in governance_mandates.v1.schema.json has content.",
+                next_action=NEXT_ACTION_FIX_MANDATE_SCHEMA,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
@@ -1485,11 +2028,11 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:
             effective_policy_error = str(exc)
         if effective_policy_error:
-            payload = _payload(
-                "blocked",
-                reason_code=BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+            payload = _blocked_payload(
                 reason=f"effective-policy-unavailable: {effective_policy_error}",
+                reason_code=BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
                 recovery_action="Ensure rulebooks and addons are loadable and contain valid policy content.",
+                next_action=NextActions.CONTINUE,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
@@ -1501,13 +2044,16 @@ def main(argv: list[str] | None = None) -> int:
             effective_authoring_policy=effective_policy_text,
             re_review=bool(state.get("plan_record_version") or state.get("PlanRecordVersion")),
             workspace_dir=workspace_dir,
+            config_root=evidence.config_root,
+            workspaces_home=workspaces_home,
+            repo_fingerprint=repo_fingerprint,
         )
         if gen_result.get("blocked") is True:
-            payload = _payload(
-                "blocked",
-                reason_code=str(gen_result.get("reason_code") or BLOCKED_PLAN_GENERATION_FAILED),
+            payload = _blocked_payload(
                 reason=str(gen_result.get("reason") or "plan-generation-failed"),
+                reason_code=str(gen_result.get("reason_code") or BLOCKED_PLAN_GENERATION_FAILED),
                 recovery_action=str(gen_result.get("recovery_action") or "provide plan text via --plan-text or check LLM executor"),
+                next_action=NextActions.CONTINUE,
                 pipeline_mode=gen_result.get("pipeline_mode"),
                 binding_role=gen_result.get("binding_role"),
                 binding_source=gen_result.get("binding_source"),
@@ -1516,12 +2062,15 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
         plan_text = _canonicalize_text(str(gen_result.get("plan_text") or ""))
+        candidate_structured = gen_result.get("structured_plan")
+        if isinstance(candidate_structured, Mapping):
+            structured_plan = dict(candidate_structured)
         if not plan_text:
-            payload = _payload(
-                "blocked",
-                reason_code=BLOCKED_PLAN_GENERATION_FAILED,
+            payload = _blocked_payload(
                 reason="plan-generation-empty-result",
+                reason_code=BLOCKED_PLAN_GENERATION_FAILED,
                 recovery_action="LLM generated an empty plan. Provide plan text via --plan-text.",
+                next_action=NextActions.CONTINUE,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
@@ -1551,22 +2100,22 @@ def main(argv: list[str] | None = None) -> int:
 
         token_before = _phase_token(str(get_phase(state) or phase_before))
         if token_before != "5":
-            payload = _payload(
-                "blocked",
-                reason_code=reason_codes.BLOCKED_P5_PHASE_MISMATCH,
+            payload = _blocked_payload(
                 reason="phase5-plan-persist-not-allowed-outside-phase5",
-                observed=phase_before,
+                reason_code=reason_codes.BLOCKED_P5_PHASE_MISMATCH,
                 recovery_action="run /ticket to enter Phase 5 first, then retry /plan",
+                next_action=NextActions.CONTINUE,
+                observed=phase_before,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
 
         if not _contains_ticket_or_task_evidence(state):
-            payload = _payload(
-                "blocked",
-                reason_code=reason_codes.BLOCKED_P5_TICKET_EVIDENCE_MISSING,
+            payload = _blocked_payload(
                 reason="missing-ticket-intake-evidence",
+                reason_code=reason_codes.BLOCKED_P5_TICKET_EVIDENCE_MISSING,
                 recovery_action="persist ticket/task evidence via /ticket before /plan",
+                next_action=NextActions.CONTINUE,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
@@ -1581,14 +2130,17 @@ def main(argv: list[str] | None = None) -> int:
             state=state,
             commands_home=commands_home,
             workspace_dir=workspace_dir,
+            config_root=evidence.config_root,
+            workspaces_home=workspaces_home,
+            repo_fingerprint=repo_fingerprint,
             max_iterations=max_iterations,
         )
         if review_result.get("blocked") is True:
-            payload = _payload(
-                "blocked",
-                reason_code=str(review_result.get("reason_code") or BLOCKED_P5_PLAN_RECORD_PERSIST),
+            payload = _blocked_payload(
                 reason=str(review_result.get("reason") or "phase5-self-review-blocked"),
+                reason_code=str(review_result.get("reason_code") or BLOCKED_P5_PLAN_RECORD_PERSIST),
                 recovery_action=str(review_result.get("recovery_action") or "revise plan input and rerun /plan"),
+                next_action=NextActions.CONTINUE,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
@@ -1596,24 +2148,60 @@ def main(argv: list[str] | None = None) -> int:
         final_plan_text = str(review_result.get("final_plan_text") or plan_text)
         review_digest = _digest(final_plan_text)
 
+        machine_requirements: list[dict[str, object]] = []
+        source_authority = "machine_requirements"
+        if isinstance(structured_plan, Mapping):
+            machine_requirements = build_machine_requirements(structured_plan)
+        if not machine_requirements and _legacy_markdown_requirements_enabled():
+            machine_requirements = _machine_requirements_from_markdown(raw_source=raw_plan_source)
+            if machine_requirements:
+                source_authority = "legacy_markdown_requirements"
+
+        if not machine_requirements:
+            payload = _blocked_payload(
+                reason="machine-requirements-missing",
+                reason_code="REQUIREMENT_SOURCE_INVALID",
+                recovery_action=(
+                    "Provide structured machine requirements via structured plan input, "
+                    "or explicitly enable GOVERNANCE_ALLOW_LEGACY_MARKDOWN_REQUIREMENTS=1 for migration runs."
+                ),
+                next_action=NextActions.CONTINUE,
+                observed=[
+                    "structured_plan_missing_or_invalid",
+                    "legacy_markdown_mode_disabled_or_unusable",
+                ],
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+
         compiled = compile_plan_to_requirements(
             plan_text=final_plan_text,
             scope_prefix="PLAN",
-            ticket_text=str(state.get("Ticket") or ""),
-            task_text=str(state.get("Task") or ""),
+            machine_requirements=machine_requirements,
+            strict_source="machine_requirements",
         )
+        if not compiled.requirements:
+            payload = _blocked_payload(
+                reason="compiled-requirements-source-invalid",
+                reason_code="REQUIREMENT_SOURCE_INVALID",
+                recovery_action="Provide structured machine requirements and rerun /plan.",
+                next_action=NextActions.CONTINUE,
+                observed=list(compiled.notes),
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
         compiled_requirements = [dict(item) for item in compiled.requirements]
         negative_contracts = [dict(item) for item in compiled.negative_contracts]
         verification_seed = [dict(item) for item in compiled.verification_seed]
         completion_seed = [dict(item) for item in compiled.completion_seed]
         contract_validation = validate_requirement_contracts(compiled_requirements)
         if not contract_validation.ok:
-            payload = _payload(
-                "blocked",
-                reason_code=reason_codes.BLOCKED_P5_PLAN_RECORD_PERSIST,
+            payload = _blocked_payload(
                 reason="plan-contract-compilation-failed",
-                observed=list(contract_validation.errors),
+                reason_code=reason_codes.BLOCKED_P5_PLAN_RECORD_PERSIST,
                 recovery_action="revise plan text so atomic requirement contracts validate, then rerun /plan",
+                next_action=NextActions.CONTINUE,
+                observed=list(contract_validation.errors),
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
@@ -1624,6 +2212,8 @@ def main(argv: list[str] | None = None) -> int:
             verification_seed=verification_seed,
             completion_seed=completion_seed,
             generated_at=_now_iso(),
+            source_authority=source_authority,
+            compiler_notes=list(compiled.notes),
         )
 
         workspace_home = session_path.parent
@@ -1636,11 +2226,11 @@ def main(argv: list[str] | None = None) -> int:
         payload_validation = validate_plan_payload(plan_payload)
         if not payload_validation.valid:
             error_messages = [e.message for e in payload_validation.errors]
-            payload = _payload(
-                "blocked",
-                reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+            payload = _blocked_payload(
                 reason=f"Plan payload validation failed: {'; '.join(error_messages)}",
+                reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
                 recovery_action="verify plan has non-empty body and valid status",
+                next_action=NextActions.CONTINUE,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
@@ -1657,17 +2247,19 @@ def main(argv: list[str] | None = None) -> int:
                     "trigger": "phase5-plan-record-rail",
                     "plan_record_text": plan_text,
                     "plan_record_digest": f"sha256:{plan_digest}",
+                    "machine_requirements": machine_requirements,
+                    "machine_requirements_source_authority": source_authority,
                 },
                 phase=phase_for_write,
                 mode=mode,
                 repo_fingerprint=repo_fingerprint,
             )
         if not write_result.ok:
-            payload = _payload(
-                "blocked",
-                reason_code=write_result.reason_code,
+            payload = _blocked_payload(
                 reason=write_result.reason,
+                reason_code=write_result.reason_code,
                 recovery_action="verify active phase is 4/5 and rerun with valid plan evidence",
+                next_action=NextActions.CONTINUE,
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
@@ -1682,6 +2274,8 @@ def main(argv: list[str] | None = None) -> int:
                     "trigger": "phase5-self-review-loop",
                     "plan_record_text": final_plan_text,
                     "plan_record_digest": f"sha256:{review_digest}",
+                    "machine_requirements": machine_requirements,
+                    "machine_requirements_source_authority": source_authority,
                     "review": {
                         "iterations": _as_int(review_result.get("iterations"), 0),
                         "max_iterations": _as_int(review_result.get("max_iterations"), max_iterations),
@@ -1695,11 +2289,11 @@ def main(argv: list[str] | None = None) -> int:
                 repo_fingerprint=repo_fingerprint,
             )
             if not revised_write.ok:
-                payload = _payload(
-                    "blocked",
-                    reason_code=reason_codes.BLOCKED_P5_REVIEW_PERSIST_FAILED,
+                payload = _blocked_payload(
                     reason=revised_write.reason,
+                    reason_code=reason_codes.BLOCKED_P5_REVIEW_PERSIST_FAILED,
                     recovery_action="review loop could not persist revised plan-record evidence; rerun /plan",
+                    next_action=NextActions.CONTINUE,
                 )
                 print(json.dumps(payload, ensure_ascii=True))
                 return 2
@@ -1723,6 +2317,9 @@ def main(argv: list[str] | None = None) -> int:
         state["requirement_contracts_count"] = contracts_count
         state["requirement_contracts_digest"] = f"sha256:{contracts_digest}"
         state["requirement_contracts_source"] = str(_contracts_path(session_path))
+        state["requirement_contracts_source_authority"] = source_authority
+        state["machine_requirements_count"] = len(machine_requirements)
+        state["requirement_compiler_notes"] = list(compiled.notes)
         state["Phase5Review"] = {
             "iteration": _as_int(review_result.get("iterations"), 0),
             "max_iterations": _as_int(review_result.get("max_iterations"), max_iterations),
@@ -1797,7 +2394,6 @@ def main(argv: list[str] | None = None) -> int:
                 state_after["phase5_state"] = "phase5-in-progress"
                 state_after["Phase5State"] = "phase5-in-progress"
                 state_after["phase5_completion_status"] = "phase5-in-progress"
-                document["SESSION_STATE"] = state_after
         _write_json_atomic(session_path, document)
         _append_jsonl(
             session_path.parent / "logs" / "events.jsonl",
@@ -1816,6 +2412,9 @@ def main(argv: list[str] | None = None) -> int:
                 "phase5_revision_delta": str(review_result.get("revision_delta") or "changed"),
                 "requirement_contracts_count": contracts_count,
                 "requirement_contracts_digest": f"sha256:{contracts_digest}",
+                "requirement_contracts_source_authority": source_authority,
+                "machine_requirements_count": len(machine_requirements),
+                "requirement_compiler_notes": list(compiled.notes),
                 "plan_execution_pipeline_mode": state.get("phase5_plan_execution_pipeline_mode"),
                 "plan_execution_binding_source": state.get("phase5_plan_execution_binding_source", ""),
                 "review_pipeline_mode": state.get("phase5_review_pipeline_mode"),
@@ -1823,15 +2422,37 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
     except Exception as exc:
-        payload = _payload(
-            "blocked",
-            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+        payload = _blocked_payload(
             reason="plan-record-persist-failed",
-            observed=str(exc),
+            reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
             recovery_action="verify active workspace pointer/session and rerun plan persist command",
+            next_action=NextActions.CONTINUE,
+            observed=str(exc),
         )
         print(json.dumps(payload, ensure_ascii=True))
         return 2
+
+    plan_summary = ""
+    if isinstance(structured_plan, Mapping):
+        presentation = structured_plan.get("presentation_contract")
+        if isinstance(presentation, Mapping):
+            exec_summary = presentation.get("executive_summary")
+            if isinstance(exec_summary, list) and exec_summary:
+                raw_summary = "\n".join(str(item).strip() for item in exec_summary if str(item).strip())
+                plan_summary = _normalize_plan_preview(raw_summary)
+            elif isinstance(exec_summary, str) and exec_summary.strip():
+                plan_summary = _normalize_plan_preview(str(exec_summary).strip())
+        if not plan_summary:
+            objective = structured_plan.get("objective")
+            if isinstance(objective, str) and objective.strip():
+                plan_summary = _normalize_plan_preview(str(objective).strip())
+
+        document = _load_json(session_path)
+        state_for_summary = document.get("SESSION_STATE")
+        if isinstance(state_for_summary, dict):
+            state_for_summary["plan_under_review_summary"] = plan_summary
+            document["SESSION_STATE"] = state_for_summary
+            _write_json_atomic(session_path, document)
 
     payload = _payload(
         "ok",
@@ -1842,7 +2463,6 @@ def main(argv: list[str] | None = None) -> int:
         phase_after=routed.phase,
         next_phase=str(routed.phase or ""),
         next_gate=routed.active_gate,
-        next_action="run /continue.",
         active_gate=routed.active_gate,
         plan_record_version=latest_version,
         phase5_completed=bool(review_result.get("phase5_completed")),
@@ -1850,11 +2470,15 @@ def main(argv: list[str] | None = None) -> int:
         max_iterations=_as_int(review_result.get("max_iterations"), max_iterations),
         revision_delta=str(review_result.get("revision_delta") or "changed"),
         self_review_iterations_met=bool(review_result.get("self_review_iterations_met")),
+        plan_under_review_summary=plan_summary,
+        **NextActions.CONTINUE.to_dict(),
     )
-    if args.quiet:
-        print(json.dumps(payload, ensure_ascii=True))
-    else:
-        print(json.dumps(payload, ensure_ascii=True))
+    # Print JSON payload
+    print(json.dumps(payload, ensure_ascii=True))
+    if not args.quiet:
+        next_action_line = render_next_action_line(payload)
+        if next_action_line:
+            print(next_action_line)
     return 0
 
 

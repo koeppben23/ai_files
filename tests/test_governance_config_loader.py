@@ -31,6 +31,8 @@ from governance_runtime.infrastructure.governance_config_loader import (
     validate_classification_config,
     validate_config_structure,
     validate_governance_config,
+    get_presentation_mode,
+    resolve_presentation_mode,
     validate_policy_metadata,
     validate_retention_config,
     validate_operating_mode_policy_matrix_config,
@@ -321,6 +323,9 @@ class TestValidationBad:
 
 def _valid_config() -> dict:
     return {
+        "presentation": {
+            "mode": "standard",
+        },
         "review": {
             "phase5_max_review_iterations": 3,
             "phase6_max_review_iterations": 3,
@@ -409,6 +414,9 @@ class TestGovernanceConfigJsonInvalid:
     def test_optional_schema_key(self, tmp_path: Path):
         """Missing $schema key is allowed (optional field)."""
         config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 3,
@@ -580,3 +588,49 @@ class TestGetReviewIterations:
         phase5, phase6 = get_review_iterations(tmp_path)
         assert phase5 == 5
         assert phase6 == 7
+
+
+class TestPresentationModeResolution:
+    def test_default_mode_is_narrative(self, tmp_path: Path):
+        mode = get_presentation_mode(tmp_path)
+        assert mode == "narrative"
+
+    def test_debug_mode_from_config(self, tmp_path: Path):
+        config = _valid_config()
+        config["presentation"]["mode"] = "debug"
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        mode = get_presentation_mode(tmp_path)
+        assert mode == "debug"
+
+    def test_standard_alias_is_normalized_to_narrative(self, tmp_path: Path):
+        config = _valid_config()
+        config["presentation"]["mode"] = "standard"
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        mode = get_presentation_mode(tmp_path)
+        assert mode == "narrative"
+
+    def test_quiet_override_wins_over_debug(self, tmp_path: Path):
+        config = _valid_config()
+        config["presentation"]["mode"] = "debug"
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        mode = resolve_presentation_mode(
+            cli_quiet=True,
+            cli_debug=True,
+            workspace_root=tmp_path,
+        )
+        assert mode == "quiet"
+
+    def test_debug_override_wins_over_config(self, tmp_path: Path):
+        config = _valid_config()
+        config["presentation"]["mode"] = "narrative"
+        (tmp_path / "governance-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        mode = resolve_presentation_mode(
+            cli_quiet=False,
+            cli_debug=True,
+            workspace_root=tmp_path,
+        )
+        assert mode == "debug"

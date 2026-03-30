@@ -73,6 +73,9 @@ def _call_llm_review_with_response(content: str, stdout: str, stderr: str = "", 
     import os
     old_exec = os.environ.get("AI_GOVERNANCE_EXECUTION_BINDING")
     old_review = os.environ.get("AI_GOVERNANCE_REVIEW_BINDING")
+    old_session = os.environ.get("OPENCODE_SESSION_ID")
+    old_opencode = os.environ.get("OPENCODE")
+    old_model = os.environ.get("OPENCODE_MODEL")
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace_dir = Path(tmpdir)
@@ -80,6 +83,9 @@ def _call_llm_review_with_response(content: str, stdout: str, stderr: str = "", 
                 json.dumps(
                     {
                         "pipeline_mode": True,
+                        "presentation": {
+                            "mode": "standard",
+                        },
                         "review": {
                             "phase5_max_review_iterations": 3,
                             "phase6_max_review_iterations": 3,
@@ -93,8 +99,18 @@ def _call_llm_review_with_response(content: str, stdout: str, stderr: str = "", 
             )
             os.environ["AI_GOVERNANCE_EXECUTION_BINDING"] = "mock-executor"
             os.environ["AI_GOVERNANCE_REVIEW_BINDING"] = "mock-executor"
-            with patch.object(subprocess, "run", side_effect=_make_mock_run(stdout, stderr, returncode)):
-                return module._call_llm_review(content, "mock mandate", workspace_dir=workspace_dir)
+            os.environ["OPENCODE"] = "1"
+            os.environ["OPENCODE_SESSION_ID"] = "sess_review_eval"
+            os.environ["OPENCODE_MODEL"] = "openai/gpt-5"
+
+            if returncode != 0:
+                def _raise_server(**kwargs):  # type: ignore[no-untyped-def]
+                    raise module.ServerNotAvailableError(stderr or f"server error ({returncode})")
+                module._invoke_llm_via_server = _raise_server
+            else:
+                module._invoke_llm_via_server = lambda **kwargs: stdout
+
+            return module._call_llm_review(content, "mock mandate", workspace_dir=workspace_dir)
     finally:
         if old_exec is None:
             os.environ.pop("AI_GOVERNANCE_EXECUTION_BINDING", None)
@@ -104,6 +120,18 @@ def _call_llm_review_with_response(content: str, stdout: str, stderr: str = "", 
             os.environ.pop("AI_GOVERNANCE_REVIEW_BINDING", None)
         else:
             os.environ["AI_GOVERNANCE_REVIEW_BINDING"] = old_review
+        if old_session is None:
+            os.environ.pop("OPENCODE_SESSION_ID", None)
+        else:
+            os.environ["OPENCODE_SESSION_ID"] = old_session
+        if old_opencode is None:
+            os.environ.pop("OPENCODE", None)
+        else:
+            os.environ["OPENCODE"] = old_opencode
+        if old_model is None:
+            os.environ.pop("OPENCODE_MODEL", None)
+        else:
+            os.environ["OPENCODE_MODEL"] = old_model
 
 
 class TestReviewIntegrationChainE2E:

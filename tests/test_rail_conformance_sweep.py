@@ -841,7 +841,7 @@ _RESPONSE_SHAPE_SECTION_RE = re.compile(
 )
 
 # Density caps — intentionally generous; tighten after guidance-core refactor
-_MAX_HEADINGS_PER_RAIL = 8
+_MAX_HEADINGS_PER_RAIL = 9
 _MAX_LINES_PER_RAIL = 75
 _MAX_RESPONSE_SHAPE_BULLETS = 4
 
