@@ -205,8 +205,7 @@ def resolve_session_id() -> tuple[str, dict]:
 
 
 def send_session_prompt(
-    session_id: str | None = None,
-    text: str = "",
+    text: str,
     *,
     model: dict[str, str] | None = None,
     output_schema: dict | None = None,
@@ -225,7 +224,6 @@ def send_session_prompt(
     Set AI_GOVERNANCE_USE_OUTPUTFORMAT=1 to use "outputFormat" instead.
 
     Args:
-        session_id: Deprecated - ignored. Use OPENCODE_SESSION_ID env var instead.
         text: Prompt text to send
         model: Optional model specification (e.g., {"providerID": "openai", "modelID": "gpt-5"})
                If None, uses the session's default model
