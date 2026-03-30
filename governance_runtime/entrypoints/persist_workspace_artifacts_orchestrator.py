@@ -71,6 +71,9 @@ from governance_runtime.engine.business_rules_hydration import (
     has_br_signal,
     hydrate_business_rules_state_from_artifacts,
 )
+
+# Flag to indicate if the loaded render_repo_cache supports discovery parameter
+_REPO_CACHE_SUPPORTS_DISCOVERY = True
 from governance_runtime.engine.business_rules_validation import (
     ORIGIN_CODE,
     ORIGIN_DOC,
@@ -107,7 +110,13 @@ try:
         render_decision_pack_create,
     )
     from artifacts.writers.workspace_memory import render_workspace_memory
+    from governance_runtime.infrastructure.repo_discovery import (
+        discover_structural_facts,
+        StructuralFacts as _StructuralFacts,
+    )
 except ImportError:
+    # Set flag to indicate we're using fallback implementations without discovery support
+    _REPO_CACHE_SUPPORTS_DISCOVERY = False
     from dataclasses import dataclass
     from typing import Callable
 
@@ -958,23 +967,46 @@ def _render_repo_cache(
     repo_name: str,
     profile: str,
     profile_evidence: str,
-    repository_type: str,
+    discovery: _StructuralFacts | None = None,
+    repository_type: str | None = None,
 ) -> str:
-    return render_repo_cache(
-        date=date,
-        repo_name=repo_name,
-        profile=profile,
-        profile_evidence=profile_evidence,
-        repository_type=repository_type,
-    )
+    # Use discovery-based rendering only if discovery is available AND the loaded
+    # render_repo_cache function supports it (i.e., not using fallback implementations)
+    if discovery is not None and _REPO_CACHE_SUPPORTS_DISCOVERY:
+        return render_repo_cache(
+            date=date,
+            repo_name=repo_name,
+            profile=profile,
+            profile_evidence=profile_evidence,
+            discovery=discovery,
+        )
+    else:
+        # Legacy fallback - either no discovery facts, or fallback mode without discovery support
+        # When in fallback mode, render_repo_cache has the old signature with repository_type
+        effective_repo_type = repository_type or (discovery.repository_type if discovery else "unknown")
+        return render_repo_cache(
+            date=date,
+            repo_name=repo_name,
+            profile=profile,
+            profile_evidence=profile_evidence,
+            repository_type=effective_repo_type,
+        )
 
 
-def _repo_map_digest_section(date: str, repository_type: str) -> str:
-    return repo_map_digest_section(date, repository_type)
+def _repo_map_digest_section(date: str, discovery: _StructuralFacts | None = None, repository_type: str | None = None) -> str:
+    if discovery is not None and _REPO_CACHE_SUPPORTS_DISCOVERY:
+        return repo_map_digest_section(date, discovery)
+    else:
+        effective_repo_type = repository_type or (discovery.repository_type if discovery else "unknown")
+        return repo_map_digest_section(date, effective_repo_type)
 
 
-def _render_repo_map_digest_create(*, date: str, repo_name: str, repository_type: str) -> str:
-    return render_repo_map_digest_create(date=date, repo_name=repo_name, repository_type=repository_type)
+def _render_repo_map_digest_create(*, date: str, repo_name: str, discovery: _StructuralFacts | None = None, repository_type: str | None = None) -> str:
+    if discovery is not None and _REPO_CACHE_SUPPORTS_DISCOVERY:
+        return render_repo_map_digest_create(date=date, repo_name=repo_name, discovery=discovery)
+    else:
+        effective_repo_type = repository_type or (discovery.repository_type if discovery else "unknown")
+        return render_repo_map_digest_create(date=date, repo_name=repo_name, repository_type=effective_repo_type)
 
 
 def _decision_pack_section(date: str, date_compact: str) -> str:
@@ -1889,17 +1921,42 @@ def main() -> int:
     business_rules_path = repo_home / "business-rules.md"
     business_rules_status_path = repo_home / "business-rules-status.md"
 
-    cache_content = _render_repo_cache(
-        date=today,
-        repo_name=repo_name,
-        profile=profile,
-        profile_evidence=profile_evidence_text,
-        repository_type=repository_type_text,
-    )
-    digest_create = _render_repo_map_digest_create(
-        date=today, repo_name=repo_name, repository_type=repository_type_text
-    )
-    digest_append = _repo_map_digest_section(today, repository_type_text)
+    # Run structural discovery - use minimal facts on any error
+    try:
+        from governance_runtime.infrastructure.repo_discovery import discover_structural_facts
+        structural_facts = discover_structural_facts(
+            repo_root,
+            profile=profile,
+            repo_fingerprint=repo_fingerprint,
+        )
+    except Exception:
+        structural_facts = None  # Will use legacy rendering
+
+    if structural_facts is not None:
+        cache_content = _render_repo_cache(
+            date=today,
+            repo_name=repo_name,
+            profile=profile,
+            profile_evidence=profile_evidence_text,
+            discovery=structural_facts,
+        )
+        digest_create = _render_repo_map_digest_create(
+            date=today, repo_name=repo_name, discovery=structural_facts
+        )
+        digest_append = _repo_map_digest_section(today, structural_facts)
+    else:
+        # Fallback to legacy rendering
+        cache_content = _render_repo_cache(
+            date=today,
+            repo_name=repo_name,
+            profile=profile,
+            profile_evidence=profile_evidence_text,
+            repository_type=repository_type_text,
+        )
+        digest_create = _render_repo_map_digest_create(
+            date=today, repo_name=repo_name, repository_type=repository_type_text
+        )
+        digest_append = _repo_map_digest_section(today, repository_type_text)
     decision_create = _render_decision_pack_create(
         date=today, date_compact=today_compact, repo_name=repo_name
     )
