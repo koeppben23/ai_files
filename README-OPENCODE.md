@@ -17,18 +17,19 @@ Primary operator bootstrap path is `opencode-governance-bootstrap init ...`.
    - optional alias (same semantics): `--set-operating-mode <solo|team|regulated>`
 2. Open OpenCode Desktop in the same repository.
 3. Run `/continue`.
-4. If `/continue` lands at Phase 4, run `/ticket`, then `/plan`.
+4. If `/continue` shows `Next action: run /hydrate.`, run `/hydrate` first.
+5. After successful hydration, if Phase 4 is active, run `/ticket`, then `/plan`.
    Alternative path: run `/review` for read-only review feedback (no state change).
    `/ticket` is Plan Mode intake and persists Phase-4 ticket/plan evidence.
-5. Use `/review` as the read-only rail entrypoint for quality review.
-6. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>`.
+6. Use `/review` as the read-only rail entrypoint for quality review.
+7. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>`.
    Example: `/review-decision approve`.
-7. `changes_requested` enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
-8. `reject` routes back to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
-9. After `approve`, run `/implement` to start authorized implementation execution.
-   - Direct mode (`pipeline_mode=false`, default): uses the active OpenCode Desktop LLM binding.
-   - Pipeline mode (`pipeline_mode=true`): requires `AI_GOVERNANCE_EXECUTION_BINDING` and `AI_GOVERNANCE_REVIEW_BINDING`.
-10. Use `/audit-readout` for a read-only audit snapshot.
+8. `changes_requested` enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
+9. `reject` routes back to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
+10. After `approve`, run `/implement` to start authorized implementation execution.
+    - Direct mode (`pipeline_mode=false`, default): uses the active OpenCode Desktop LLM binding.
+    - Pipeline mode (`pipeline_mode=true`): requires `AI_GOVERNANCE_EXECUTION_BINDING` and `AI_GOVERNANCE_REVIEW_BINDING`.
+11. Use `/audit-readout` for a read-only audit snapshot.
 
 Runtime persistence: `${WORKSPACE_HOME}/<repo_fingerprint>/...` with pointer `${SESSION_STATE_POINTER_FILE}`.
 Path-binding: `${CONFIG_ROOT}/governance.paths.json`.
@@ -57,10 +58,14 @@ Configure in `~/.config/opencode/opencode.json`:
 ```json
 {"server": {"hostname": "127.0.0.1", "port": 4096}}
 ```
-Start server: `opencode serve --hostname 127.0.0.1 --port 4096`
+OpenCode Desktop usually starts the server automatically.
+If needed for diagnostics: `opencode serve --hostname 127.0.0.1 --port 4096`
 
-**OPENCODE_SESSION_ID** (required): Set via environment. Session ID must correspond to an existing session.
-Verify with `GET /session/:id/message`.
+`OPENCODE_PORT` controls how governance resolves the server URL. If Desktop is already
+running on a non-default port, export `OPENCODE_PORT=<port>` before running `/hydrate`.
+
+`OPENCODE_SESSION_ID` can be used for direct session-targeted API operations.
+Hydration resolves the active session via `GET /session` and project path matching.
 
 Optional auth:
 ```bash

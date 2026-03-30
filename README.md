@@ -39,6 +39,9 @@ cd customer-install-bundle-v1
 
 For operator lifecycle and mode-aware rail behavior, see `README-OPENCODE.md`.
 
+Hydration note: after bootstrap and Desktop start, run `/continue` and follow the
+next action. If prompted, run `/hydrate` before Phase-4 rails (`/ticket`, `/review`).
+
 ## Repository Layout
 
 ```

@@ -9,6 +9,9 @@ The command below prints the current session state as guided governance output a
 It reads materialized review/session state and does not perform implementation changes.
 It does not reroute phase state and does not replace `/review-decision`.
 
+`/review` is hydration-gated: session context must be hydrated first (`/hydrate`).
+Fail closed: if `session_hydrated` is not true, do not perform review work and direct to `/hydrate`.
+
 ## Commands by platform
 
 ```bash
@@ -28,6 +31,7 @@ If no snapshot is available, proceed using only the context visible in the curre
 ## Interpretation scope
 
 Use the rendered output as governance context for the response below. Do not infer or mutate any session state.
+Before review work, verify `session_hydrated=true` in the snapshot.
 
 Read the current review gate from the materialized session output. Gate definitions and Phase 5 output class restrictions are in `phase_api.yaml`.
 

@@ -69,12 +69,13 @@ opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
 
 After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/continue`.
 
-If `/continue` lands in Phase 4, choose:
+If `/continue` shows `Next action: run /hydrate.`, run `/hydrate` first.
+After hydration succeeds, if Phase 4 is active, choose:
 
 | Command | Purpose |
 |---------|---------|
-| `/ticket` | Persist ticket/task intake, then run `/plan` |
-| `/review <target>` | Independent PR/file/directory review (parallel to `/ticket`) |
+| `/ticket` | Persist ticket/task intake, then run `/plan` (requires hydration) |
+| `/review <target>` | Independent PR/file/directory review (parallel to `/ticket`, requires hydration context) |
 
 At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` for the final decision.
 
@@ -352,7 +353,7 @@ phase = get_phase(state)
 - **Phase 1.5 (Business Rules Discovery, optional)** extracts business rules; once executed, Phase 5.4 becomes mandatory.
 - **Phase 3A (API Inventory)** inventories external API artifacts — always executed, may record `not-applicable`.
 - **Phase 3B-1 / 3B-2 (API Validation)** run only when APIs are detected.
-- **Phase 4 (Ticket Intake)** produces the concrete implementation plan; `/review` is a read-only rail entrypoint for feedback.
+- **Phase 4 (Ticket Intake)** opens after `/hydrate`; `/ticket` is mutating (hard-gated) and `/review` is read-only (soft fail-closed guard).
 - **Phase 5 - Lead Architect Review** — `/plan` auto-generates a plan from the persisted ticket/task via Desktop LLM, runs self-review (min 1, max 3 iterations), compiles requirement contracts, and persists plan-record evidence.
 - **Phase 5.3 / 5.4 / 5.5 / 5.6** are conditional gates following Phase 5.
 - **Phase 6 (Implementation)** runs internal review loop, then presents evidence. Final decision via `/review-decision` (approve | changes_requested | reject).
@@ -431,16 +432,17 @@ Kernel routing follows one deterministic priority chain:
 | Entrypoint | Module | Purpose |
 |-----------|--------|---------|
 | Bootstrap | `cli.bootstrap init` | Initializes workspace, runs persistence hook |
+| `/hydrate` | `governance_runtime.entrypoints.session_hydration` | Binds governance to active OpenCode session and writes hydration evidence |
 | `/continue` | `governance_runtime.entrypoints.session_reader --materialize` | Advances routing, runs Phase 6 internal loop |
 | `/ticket` | `governance_runtime.entrypoints.phase4_intake_persist` | Persists ticket/task intake evidence |
 | `/plan` | `governance_runtime.entrypoints.phase5_plan_record_persist` | Auto-generates plan from Ticket/Task via LLM, runs self-review, persists plan-record evidence |
 | `/implement` | `governance_runtime.entrypoints.implement_start` | Starts implementation execution (Phase 6) |
 | `/review-decision` | `governance_runtime.entrypoints.review_decision_persist --decision <approve\|changes_requested\|reject>` | Final review decision at Evidence Presentation Gate |
-| `/review` | `opencode/commands/review.md` (read-only rail) | Independent PR/file/directory review — runs parallel to `/ticket` in Phase 4, returns verdict + findings without changing state |
+| `/review` | `opencode/commands/review.md` (read-only rail) | Independent PR/file/directory review — runs parallel to `/ticket` in Phase 4, requires hydrated context, returns verdict + findings without changing state |
 
 ### `/review` — Independent Review Rail (Phase 4)
 
-`/review` is an independent, parallel review command for Phase 4. It lives alongside `/ticket` as its own workflow — it does not require ticket intake and does not depend on `/ticket` having been run.
+`/review` is an independent, parallel review command for Phase 4 and a read-only rail entrypoint. It lives alongside `/ticket` as its own workflow — it does not require ticket intake and does not depend on `/ticket` having been run. It does require successful `/hydrate` context binding.
 
 **Syntax:**
 ```
@@ -465,6 +467,7 @@ Where `<target>` is:
 - Does NOT advance the phase
 - Does NOT persist any state changes
 - Does NOT mutate session state
+- If session is not hydrated, it must fail closed and direct to `/hydrate`
 
 **When to use:**
 - Review a PR before implementing
@@ -496,6 +499,8 @@ The operator must run `/review-decision`:
 > [Translated from German source document: `governance_runtime/TRANSITION_INVENTUR.md`]
 
 ### Phase 4: Ticket Intake
+
+Precondition: `SessionHydration.status=hydrated` (hard gate for `/ticket`; soft fail-closed gate for `/review`).
 
 | Start Gate | Event/Condition | Guard | Target Phase | Target Gate | next_action |
 |------------|-----------------|-------|--------------|-------------|-------------|
@@ -580,6 +585,7 @@ Implementation Accepted
 
 | Command | Kind | Description |
 |---------|------|-------------|
+| `/hydrate` | normal | Session binding + hydration evidence |
 | `/ticket` | normal | Ticket/Task intake |
 | `/plan` | normal | Plan creation |
 | `/continue` | normal | Phase progress |
