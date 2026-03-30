@@ -177,9 +177,36 @@ def post_json(
         raise ServerNotAvailableError(f"Request timeout to {url}") from e
 
 
+def resolve_session_id() -> tuple[str, dict]:
+    """Resolve OpenCode session ID from environment.
+
+    This is the ONLY supported method for production LLM paths.
+    No heuristic fallback - session_id must be explicitly provided.
+
+    Returns:
+        Tuple of (session_id, evidence_dict with resolved_session_id source)
+
+    Raises:
+        APIError: If session_id is not set in environment
+    """
+    session_id = os.environ.get("OPENCODE_SESSION_ID", "").strip()
+
+    evidence: dict = {
+        "session_id_source": "OPENCODE_SESSION_ID",
+    }
+
+    if not session_id:
+        raise APIError(
+            "OPENCODE_SESSION_ID environment variable is required for production LLM calls. "
+            "No heuristic fallback allowed. Set OPENCODE_SESSION_ID to a valid session ID."
+        )
+
+    return session_id, evidence
+
+
 def send_session_prompt(
-    session_id: str,
-    text: str,
+    session_id: str | None = None,
+    text: str = "",
     *,
     model: dict[str, str] | None = None,
     output_schema: dict | None = None,
@@ -190,12 +217,15 @@ def send_session_prompt(
     This is the documented programmatic way to access the OpenCode session LLM,
     replacing the legacy subprocess("opencode run --session ...") approach.
 
+    Session ID: Must be provided via OPENCODE_SESSION_ID environment variable.
+    No heuristic fallback is allowed for production paths.
+
     Note: The server API documentation is inconsistent between format (SDK examples)
     and outputFormat (API overview). Default uses "format" per SDK examples.
     Set AI_GOVERNANCE_USE_OUTPUTFORMAT=1 to use "outputFormat" instead.
 
     Args:
-        session_id: Session ID to continue
+        session_id: Deprecated - ignored. Use OPENCODE_SESSION_ID env var instead.
         text: Prompt text to send
         model: Optional model specification (e.g., {"providerID": "openai", "modelID": "gpt-5"})
                If None, uses the session's default model
@@ -204,15 +234,14 @@ def send_session_prompt(
         required: If True, fail-closed when server not available (respects AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER)
 
     Returns:
-        Session response dict with info and parts
+        Session response dict with info and parts, plus resolved_session_id in response
 
     Raises:
         ServerNotAvailableError: If server is not reachable (or in required mode)
         AuthenticationError: If auth fails
-        APIError: For API errors
+        APIError: For API errors or missing OPENCODE_SESSION_ID
     """
-    if not session_id:
-        raise APIError("session_id is required")
+    resolved_session_id, session_evidence = resolve_session_id()
 
     server_required = required or is_server_required_mode()
 
@@ -246,7 +275,12 @@ def send_session_prompt(
                 "schema": output_schema,
             }
 
-    return post_json(f"/session/{session_id}/message", body, base_url=server_url)
+    response = post_json(f"/session/{resolved_session_id}/message", body, base_url=server_url)
+
+    response["resolved_session_id"] = resolved_session_id
+    response["session_evidence"] = session_evidence
+
+    return response
 
 
 def extract_session_response(payload: dict) -> str:
@@ -410,3 +444,45 @@ def is_bootstrap_server_health_check_skipped() -> bool:
         True if health check should be skipped
     """
     return os.environ.get("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "").strip().lower() in {"1", "true", "yes"}
+
+
+def get_session_messages(session_id: str | None = None) -> dict:
+    """Get message history for a session.
+
+    Uses GET /session/:id/message per official server API documentation.
+    This can be used to verify session continuity.
+
+    Args:
+        session_id: Session ID (optional, uses OPENCODE_SESSION_ID if not provided)
+
+    Returns:
+        Dict with info and parts arrays
+
+    Raises:
+        ServerNotAvailableError: If server is not reachable
+        APIError: For API errors or missing session ID
+    """
+    if session_id is None:
+        session_id, _ = resolve_session_id()
+
+    try:
+        server_url = resolve_opencode_server_base_url()
+    except ServerNotAvailableError as exc:
+        raise APIError(f"Server not available: {exc}") from exc
+
+    headers = {}
+    auth_headers = _resolve_auth()
+    if auth_headers:
+        headers.update(auth_headers)
+
+    url = f"{server_url}/session/{session_id}/message"
+    import urllib.request
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            import json
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise APIError(f"HTTP {e.code}: {e.reason}") from e
+    except Exception as e:
+        raise APIError(f"Failed to get session messages: {e}") from e

@@ -234,11 +234,12 @@ class TestSendSessionPrompt:
     """
 
     def test_happy_minimal_request(self, monkeypatch: pytest.MonkeyPatch):
-        """Happy: Minimal request with just session_id and text."""
+        """Happy: Minimal request with session_id from env and text."""
         monkeypatch.setenv("OPENCODE_PORT", "4096")
+        monkeypatch.setenv("OPENCODE_SESSION_ID", "session-123")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {"parts": [{"type": "text", "text": "Response"}]}}
-            result = send_session_prompt("session-123", "Hello")
+            result = send_session_prompt(text="Hello")
             assert result["info"]["parts"][0]["text"] == "Response"
             mock.assert_called_once()
             call_args = mock.call_args
@@ -250,10 +251,11 @@ class TestSendSessionPrompt:
     def test_happy_with_model(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Model specification is included in request."""
         monkeypatch.setenv("OPENCODE_PORT", "4096")
+        monkeypatch.setenv("OPENCODE_SESSION_ID", "session-123")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {}}
             model = {"providerID": "openai", "modelID": "gpt-5"}
-            send_session_prompt("session-123", "Hello", model=model)
+            send_session_prompt(text="Hello", model=model)
             call_args = mock.call_args
             body = call_args[0][1]
             assert body["model"] == model
@@ -261,10 +263,11 @@ class TestSendSessionPrompt:
     def test_happy_with_output_schema(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Output schema is included for structured output."""
         monkeypatch.setenv("OPENCODE_PORT", "4096")
+        monkeypatch.setenv("OPENCODE_SESSION_ID", "session-123")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {}}
             schema = {"type": "object", "properties": {"key": {"type": "string"}}}
-            send_session_prompt("session-123", "Hello", output_schema=schema)
+            send_session_prompt(text="Hello", output_schema=schema)
             call_args = mock.call_args
             body = call_args[0][1]
             assert "format" in body
@@ -274,24 +277,29 @@ class TestSendSessionPrompt:
     def test_happy_uses_server_url(self, monkeypatch: pytest.MonkeyPatch):
         """Happy: Server URL is resolved and used."""
         monkeypatch.setenv("OPENCODE_PORT", "4096")
+        monkeypatch.setenv("OPENCODE_SESSION_ID", "session-123")
         with patch("governance_runtime.infrastructure.opencode_server_client.post_json") as mock:
             mock.return_value = {"info": {}}
-            send_session_prompt("session-123", "Hello")
+            send_session_prompt(text="Hello")
             mock.assert_called_once()
             call_url = mock.call_args[0][0]
             assert "/session/session-123/message" in call_url
 
-    def test_bad_empty_session_id(self):
-        """Bad: Empty session_id raises APIError."""
+    def test_bad_missing_session_id(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: Missing OPENCODE_SESSION_ID raises APIError."""
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+        monkeypatch.delenv("OPENCODE_SESSION_ID", raising=False)
         with pytest.raises(APIError) as exc_info:
-            send_session_prompt("", "Hello")
-        assert "session_id" in str(exc_info.value).lower()
+            send_session_prompt(text="Hello")
+        assert "OPENCODE_SESSION_ID" in str(exc_info.value)
 
-    def test_bad_none_session_id(self):
-        """Bad: None session_id raises APIError."""
+    def test_bad_empty_session_id(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: Empty OPENCODE_SESSION_ID raises APIError."""
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+        monkeypatch.setenv("OPENCODE_SESSION_ID", "")
         with pytest.raises(APIError) as exc_info:
-            send_session_prompt(None, "Hello")  # type: ignore
-        assert "session_id" in str(exc_info.value).lower()
+            send_session_prompt(text="Hello")
+        assert "OPENCODE_SESSION_ID" in str(exc_info.value)
 
 
 class TestSendSessionCommand:
