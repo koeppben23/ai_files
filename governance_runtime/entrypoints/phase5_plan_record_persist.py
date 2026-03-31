@@ -1913,7 +1913,7 @@ def main(argv: list[str] | None = None) -> int:
         state = document.get("SESSION_STATE")
         if not isinstance(state, dict):
             raise RuntimeError("SESSION_STATE root missing")
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
+    except (OSError, json.JSONDecodeError, ValueError, RuntimeError) as exc:
         payload = _blocked_payload(
             reason="session-state-unreadable",
             reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
