@@ -299,7 +299,7 @@ def discover_invariants(repo_root: Path) -> list[InvariantFact]:
                 for subentry in _safe_list_dir(entry, max_items=30):
                     if subentry.is_file() and subentry.suffix == ".py":
                         python_files.append(subentry)
-    except Exception:
+    except OSError:
         pass
     
     # Scan code for invariant enforcement patterns
@@ -341,7 +341,7 @@ def discover_invariants(repo_root: Path) -> list[InvariantFact]:
             if "verify_pointer" in content or "POINTER_VERIFY" in content:
                 code_invariants["pointer-verification"].append(rel_path)
                 
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             pass
     
     # Create invariant facts from code evidence
@@ -503,7 +503,7 @@ def discover_patterns(repo_root: Path) -> list[PatternFact]:
             for pattern_name in error_pattern_locations:
                 if pattern_name in content:
                     error_pattern_locations[pattern_name].append(rel_path)
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
     
     for pattern_name, locations in error_pattern_locations.items():
@@ -531,7 +531,7 @@ def discover_patterns(repo_root: Path) -> list[PatternFact]:
                 import_pattern_locations["type-checking-import"].append(rel_path)
             if "from __future__ import annotations" in content:
                 import_pattern_locations["future-annotations"].append(rel_path)
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
     
     for pattern_name, locations in import_pattern_locations.items():
@@ -570,7 +570,7 @@ def discover_defaults(repo_root: Path) -> list[DefaultFact]:
                     evidence=Evidence("file_content", str(policy_files[0]), Confidence.MEDIUM),
                     override_path=str(policy_files[0]),
                 ))
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
     
     # Default fingerprint format
@@ -627,7 +627,7 @@ def _run_discovery_with_error_handling(
     """Run a discovery function and capture errors as deviations."""
     try:
         return discovery_fn(repo_root)
-    except Exception as exc:
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
         errors.append(DeviationFact(
             description=f"Discovery failed: {name}",
             expected=f"{name} to complete successfully",
