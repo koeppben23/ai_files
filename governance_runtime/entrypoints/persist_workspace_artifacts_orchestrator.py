@@ -395,11 +395,15 @@ def _read_only() -> bool:
 
 try:
     from governance_runtime.infrastructure.path_contract import (
+        PathContractError,
         canonical_config_root,
         normalize_absolute_path,
         normalize_for_fingerprint,
     )
 except (ImportError, AttributeError):
+    class PathContractError(Exception):  # type: ignore[no-redef]
+        pass
+
     class NotAbsoluteError(Exception):
         pass
 
@@ -770,12 +774,15 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any],
             pass
 
     if explicit is not None:
-        root = normalize_absolute_path(str(explicit), purpose="explicit_config_root")
-        candidate = root / "governance.paths.json"
-        if not candidate.exists():
-            candidate = root / "commands" / "governance.paths.json"
-        config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
-        return config_root, paths, candidate
+        try:
+            root = normalize_absolute_path(str(explicit), purpose="explicit_config_root")
+            candidate = root / "governance.paths.json"
+            if not candidate.exists():
+                candidate = root / "commands" / "governance.paths.json"
+            config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
+            return config_root, paths, candidate
+        except (ValueError, OSError, PathContractError) as exc:
+            raise ValueError(f"Path traversal blocked: {exc}") from exc
 
     env_value = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_value:

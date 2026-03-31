@@ -761,7 +761,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                 expected_constraint="bootstrap_session_state.py must exit with code 0",
                 remediation="Inspect stdout/stderr and fix bootstrap issues.",
             )
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         emit_gate_failure(
             gate="PERSISTENCE",
             code="BOOTSTRAP_EXCEPTION",
