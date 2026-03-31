@@ -59,7 +59,7 @@ def _parse_json_lines(text: str) -> list[dict[str, object]]:
             continue
         try:
             payload = json.loads(token)
-        except Exception:
+        except json.JSONDecodeError:
             continue
         if isinstance(payload, dict):
             parsed.append(payload)
@@ -215,7 +215,7 @@ def main() -> int:
 
     try:
         repo_root = _validate_repo_root(args.repo_root)
-    except Exception as exc:
+    except ValueError as exc:
         print(f"invalid --repo-root: {exc}", file=sys.stderr)
         return 2
 
@@ -223,7 +223,7 @@ def main() -> int:
     if args.config_root:
         try:
             config_root = _validate_config_root(args.config_root)
-        except Exception as exc:
+        except ValueError as exc:
             print(f"invalid --config-root: {exc}", file=sys.stderr)
             return 2
         env["OPENCODE_CONFIG_ROOT"] = str(config_root)
@@ -239,7 +239,7 @@ def main() -> int:
                 profile=selected_profile,
                 now_utc=now_utc,
             )
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             print(f"failed to set repo operating mode: {exc}", file=sys.stderr)
             return 2
         print(f"repoOperatingMode = {selected_profile}")
@@ -257,7 +257,7 @@ def main() -> int:
                 if mode_path:
                     print(f"governanceModeState = active")
                     print(f"governanceModePath = {mode_path}")
-            except Exception as exc:
+            except (OSError, ValueError) as exc:
                 print(f"failed to set regulated mode: {exc}", file=sys.stderr)
                 return 2
 
