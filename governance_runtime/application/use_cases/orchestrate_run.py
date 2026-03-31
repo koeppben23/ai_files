@@ -268,7 +268,7 @@ def run_engine_orchestrator(
                         session_id=(session_id or hashlib.sha256(str(live_repo_root).encode("utf-8")).hexdigest()[:16]),
                         discovery_method=repo_context.source,
                     )
-                except Exception:
+                except (OSError, ValueError, RuntimeError):
                     gate_blocked = True
                     gate_reason_code = BLOCKED_WORKSPACE_PERSISTENCE
                     gate = None
@@ -774,7 +774,7 @@ def run_engine_orchestrator(
                 recovery_steps=(),
                 context=reason_context,
             ).to_dict()
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError) as exc:
         failure_class, failure_detail = canonicalize_reason_payload_failure(exc)
         reason_payload = {
             "status": "BLOCKED",

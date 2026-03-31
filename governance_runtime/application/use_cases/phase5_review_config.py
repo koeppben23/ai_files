@@ -201,7 +201,7 @@ def load_phase5_review_config(*, force_reload: bool = False) -> Phase5ReviewConf
     if _default_resolver is not None and hasattr(_default_resolver, "operating_mode"):
         try:
             effective_mode = str(_default_resolver.operating_mode()).strip().lower() or "user"
-        except Exception:
+        except (ValueError, AttributeError):
             effective_mode = "user"
 
     if config_path is None:
@@ -229,7 +229,7 @@ def load_phase5_review_config(*, force_reload: bool = False) -> Phase5ReviewConf
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             data = yaml_loader.safe_load(f)
-    except Exception as exc:
+    except (OSError, ValueError, yaml_loader.YAMLError) as exc:
         raise PolicyConfigError(
             f"Policy-bound config not parseable: {exc}. "
             "Reason: BLOCKED-ENGINE-SELFCHECK"

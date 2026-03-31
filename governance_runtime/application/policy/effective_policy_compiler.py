@@ -212,7 +212,7 @@ def _extract_yaml_blocks(sections: dict[str, list[str]]) -> list[dict[str, Any]]
                     data = _yaml.safe_load(yaml_text)
                     if isinstance(data, dict):
                         blocks.append(data)
-                except Exception:
+                except (ValueError, _yaml.YAMLError):
                     pass
     return blocks
 

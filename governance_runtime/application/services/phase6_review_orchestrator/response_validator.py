@@ -75,7 +75,7 @@ class ResponseValidator:
             )
 
             return validate_review_response, coerce_output_against_mandates_schema
-        except Exception:
+        except (ImportError, AttributeError):
             return None, None
 
     def validate(

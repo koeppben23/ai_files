@@ -96,7 +96,7 @@ def _load_repo_operating_mode_from_policy(repo_root: str | None) -> tuple[str | 
         return None, "missing-policy-file"
     try:
         payload = json.loads(candidate.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return None, "invalid-policy-json"
     if not isinstance(payload, dict):
         return None, "invalid-policy-root"
@@ -228,7 +228,7 @@ def resolve_operating_mode_result(
     if break_glass_json:
         try:
             parsed = json.loads(break_glass_json)
-        except Exception:
+        except json.JSONDecodeError:
             parsed = {}
         if isinstance(parsed, dict):
             break_glass = parsed

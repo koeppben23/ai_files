@@ -53,6 +53,8 @@ def _invoke_llm_via_server(
     except ServerNotAvailableError:
         raise
     except Exception as exc:
+        # Convert any server error to ServerNotAvailableError for consistent handling
+        raise ServerNotAvailableError(f"Server client failed: {exc}") from exc
         raise ServerNotAvailableError(f"Server client failed: {exc}") from exc
 
 
@@ -351,7 +353,7 @@ class LLMCaller:
                 invoke_backend_error=server_error,
             )
         except Exception as exc:
-            server_error = f"Server client exception: {exc}"
+            server_error = f"{type(exc).__name__}: {exc}"
             return LLMResponse(
                 invoked=True,
                 stdout="",
