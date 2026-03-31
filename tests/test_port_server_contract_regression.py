@@ -17,6 +17,12 @@ def _setup_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     config_root = home / ".config" / "opencode"
     config_root.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("HOME", str(home))
+    # Windows expanduser("~") prefers USERPROFILE / HOMEDRIVE+HOMEPATH.
+    # Set all common variables so resolver path discovery is cross-platform.
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("HOMEDRIVE", str(home.drive or "C:"))
+    home_tail = str(home).replace(str(home.drive), "", 1) if home.drive else str(home)
+    monkeypatch.setenv("HOMEPATH", home_tail or "\\")
     return config_root
 
 
