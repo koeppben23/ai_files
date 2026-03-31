@@ -86,7 +86,7 @@ def _derive_commands_home() -> Path:
     if env_commands:
         try:
             return Path(env_commands).expanduser().resolve()
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             pass
 
     env_config = os.environ.get("OPENCODE_CONFIG_ROOT", "").strip()
@@ -95,7 +95,7 @@ def _derive_commands_home() -> Path:
             candidate = (Path(env_config).expanduser().resolve() / "commands").resolve()
             if candidate.exists():
                 return candidate
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             pass
 
     try:
@@ -104,7 +104,7 @@ def _derive_commands_home() -> Path:
         evidence = BindingEvidenceResolver(env=os.environ).resolve(mode="kernel")
         if evidence.commands_home is not None:
             return evidence.commands_home
-    except (ImportError, OSError):
+    except (ImportError, OSError, RuntimeError):
         pass
 
     return (Path.home() / ".config" / "opencode" / "commands").resolve()
@@ -893,7 +893,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
                 session_state_doc=state,
                 runtime_ctx=ctx,
             )
-        except (ImportError, OSError, ValueError):
+        except (ImportError, OSError, ValueError, RuntimeError):
             # Graceful degradation -- fall back to persisted state.
             kernel_result = None
 

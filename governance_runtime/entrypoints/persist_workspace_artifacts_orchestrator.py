@@ -1945,11 +1945,12 @@ def main() -> int:
         policy_path = repo_root / ".opencode" / "governance-repo-policy.json"
         try:
             policy_payload = _load_json(policy_path)
-            inferred = str(policy_payload.get("operatingMode") or "").strip()
-            if inferred in {"solo", "team", "regulated"}:
-                profile = inferred
-                if not profile_evidence_text:
-                    profile_evidence_text = "repo-policy.operatingMode"
+            if policy_payload is not None:
+                inferred = str(policy_payload.get("operatingMode") or "").strip()
+                if inferred in {"solo", "team", "regulated"}:
+                    profile = inferred
+                    if not profile_evidence_text:
+                        profile_evidence_text = "repo-policy.operatingMode"
         except (ValueError, TypeError):
             pass
 
