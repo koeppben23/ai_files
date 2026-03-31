@@ -160,7 +160,7 @@ def _append_event(path: Path, event: dict[str, object]) -> bool:
         path.parent.mkdir(parents=True, exist_ok=True)
         write_jsonl_event(path, event, append=True)
         return True
-    except Exception:
+    except OSError:
         return False
 
 
@@ -245,7 +245,7 @@ def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
             if isinstance(value, int):
                 return value
             return int(str(value).strip())
-        except Exception:
+        except (ValueError, TypeError):
             return fallback
 
     pkg = canonical.get("review_package", {})
@@ -623,7 +623,7 @@ def main(argv: list[str] | None = None) -> int:
             events_path=events_path,
             rationale=str(args.note),
         )
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         payload = _payload(
             "error",
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,

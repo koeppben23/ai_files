@@ -30,7 +30,7 @@ from governance_runtime.infrastructure.session_locator import resolve_active_ses
 
 try:
     from governance_runtime.entrypoints.workspace_lock import acquire_workspace_lock
-except Exception:
+except (ImportError, AttributeError):
     from workspace_lock import acquire_workspace_lock  # type: ignore
 
 
@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         session_path, repo_fingerprint, workspaces_home, _ = resolve_active_session_paths()
-    except Exception as exc:
+    except (OSError, RuntimeError) as exc:
         print(
             json.dumps(
                 _payload(
@@ -135,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         archived_doc, archived_plan_doc, archived_session_path, archived_session_run_id = _read_run_archive(run_root=run_root)
-    except Exception as exc:
+    except (OSError, RuntimeError) as exc:
         print(
             json.dumps(
                 _payload(
@@ -226,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
                 "snapshot_digest": archived_digest,
             },
         )
-    except Exception as exc:
+    except (OSError, RuntimeError) as exc:
         print(
             json.dumps(
                 _payload(
@@ -243,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
         if lock is not None:
             try:
                 lock.release()
-            except Exception:
+            except (OSError, RuntimeError):
                 pass
 
     payload = _payload(

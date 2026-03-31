@@ -207,7 +207,7 @@ def _load_phase5_decision_brief_template() -> str:
         template = PHASE5_DECISION_BRIEF_TEMPLATE_PATH.read_text(encoding="utf-8")
         if template.strip():
             return template
-    except Exception:
+    except (OSError, UnicodeDecodeError):
         pass
     return (
         "# {title}\n"
@@ -324,7 +324,7 @@ def _render_phase5_decision_brief_from_plan_body(plan_body: str) -> str:
             technical_appendix=technical_appendix,
         )
         return rendered.rstrip()
-    except Exception:
+    except (ValueError, TypeError, KeyError):
         return sanitized
 
 
