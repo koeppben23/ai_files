@@ -517,8 +517,12 @@ def check_server_health() -> dict:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         raise ServerNotAvailableError(f"Server health check failed: HTTP {e.code}") from e
-    except (urllib.error.URLError, OSError, ValueError) as e:
+    except urllib.error.URLError as e:
+        raise ServerNotAvailableError(f"Cannot connect to server: {e.reason}") from e
+    except (OSError, ValueError) as e:
         raise ServerNotAvailableError(f"Cannot connect to server: {e}") from e
+    except Exception as e:
+        raise ServerNotAvailableError(f"Server health check failed: {e}") from e
 
 
 def get_sessions() -> list[dict]:
