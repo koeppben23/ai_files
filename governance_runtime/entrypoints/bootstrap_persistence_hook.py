@@ -314,7 +314,7 @@ def _resolve_git_repo_root(start_dir: Path) -> Path | None:
             root = result.stdout.strip()
             if root:
                 return Path(root).absolute()
-    except (OSError, json.JSONDecodeError):
+    except (OSError, subprocess.TimeoutExpired, RuntimeError):
         pass
     return None
 
@@ -472,7 +472,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                         repo_fingerprint=repo_fingerprint,
                     )
                 )
-            except (OSError, ValueError):
+            except (OSError, ValueError, RuntimeError):
                 payload["log_path"] = ""
         return payload
 

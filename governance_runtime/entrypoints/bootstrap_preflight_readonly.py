@@ -665,7 +665,7 @@ def _emit_persistence_gate_failure(
             workspaces_home=WORKSPACES_HOME,
             repo_fingerprint=repo_fingerprint,
         )
-    except OSError:
+    except (OSError, RuntimeError):
         return Path("error.log.jsonl")
 
 
