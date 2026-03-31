@@ -58,7 +58,7 @@ from typing import Any
 
 try:
     from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
-except Exception:
+except (ImportError, AttributeError):
     GitCliClient = None
 
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
@@ -340,7 +340,7 @@ from governance_runtime.entrypoints.error_handler_bridge import (
 )
 try:
     from governance_runtime.infrastructure.logging.global_error_handler import resolve_log_path
-except Exception:
+except (ImportError, AttributeError):
     from governance_runtime.paths import get_workspace_logs_root
     def resolve_log_path(*, config_root=None, commands_home=None, workspaces_home=None, repo_fingerprint=None):
         _ = config_root
@@ -350,7 +350,7 @@ except Exception:
 
 try:
     from governance_runtime.domain.phase_state_machine import normalize_phase_token, phase_rank
-except Exception:
+except (ImportError, AttributeError):
     def normalize_phase_token(value: object) -> str:
         token = str(value or "").strip().upper()
         if token.startswith("1.1"):
@@ -399,7 +399,7 @@ try:
         normalize_absolute_path,
         normalize_for_fingerprint,
     )
-except Exception:
+except (ImportError, AttributeError):
     class NotAbsoluteError(Exception):
         pass
 
@@ -429,7 +429,7 @@ except Exception:
 
 try:
     from error_logs import safe_log_error
-except Exception:  # pragma: no cover
+except (ImportError, AttributeError):  # pragma: no cover
     def safe_log_error(**kwargs):  # type: ignore[no-redef]
         return {"status": "log-disabled"}
 
@@ -437,7 +437,7 @@ from workspace_lock import acquire_workspace_lock
 from command_profiles import render_command_profiles
 try:
     from governance_runtime.infrastructure.fs_atomic import atomic_write_text
-except Exception:
+except (ImportError, AttributeError):
     def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = text.replace("\r\n", "\n") if newline_lf else text
@@ -466,7 +466,7 @@ try:
     from governance_runtime.infrastructure.plan_record_repository import PlanRecordRepository
     from governance_runtime.infrastructure.workspace_paths import plan_record_path, plan_record_archive_dir
     _PLAN_RECORD_AVAILABLE = True
-except Exception:
+except (ImportError, AttributeError):
     PlanRecordRepository = None  # type: ignore[assignment]
     plan_record_path = None  # type: ignore[assignment]
     plan_record_archive_dir = None  # type: ignore[assignment]
@@ -474,7 +474,7 @@ except Exception:
 
 try:
     from governance_runtime.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
-except Exception:
+except (ImportError, AttributeError):
     import hashlib
     from urllib.parse import urlsplit
 
@@ -495,7 +495,7 @@ except Exception:
             raw = f"ssh://{scp_style.group('user')}@{scp_style.group('host')}/{scp_style.group('path')}"
         try:
             parsed = urlsplit(raw)
-        except Exception:
+        except ValueError:
             return None
         if not parsed.scheme or not parsed.netloc:
             return None
@@ -530,7 +530,7 @@ def default_config_root() -> Path:
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
 
@@ -578,7 +578,7 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
         config_root = normalize_absolute_path(config_root_raw, purpose="paths.configRoot")
         commands_home = normalize_absolute_path(commands_raw, purpose="paths.commandsHome")
         workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
-    except Exception as exc:
+    except (ValueError, OSError) as exc:
         raise ValueError(f"binding evidence invalid: {exc}") from exc
     
     if expected_config_root is not None:
@@ -609,7 +609,7 @@ def _python_argv_from_command(python_cmd: str) -> list[str]:
     if token:
         try:
             parts = [part for part in shlex.split(token, posix=False) if part]
-        except Exception:
+        except (ValueError, TypeError):
             parts = [token]
         head = parts[0]
         if os.path.isabs(head):
@@ -644,7 +644,7 @@ def _resolve_repo_root_strict(
             if has_git_marker or not require_git_marker:
                 return normalized, "explicit", {"ok": True, "source": "explicit", "path": str(normalized)}
             return None, "explicit-invalid", {"ok": False, "source": "explicit", "path": str(normalized), "reason": "missing-.git"}
-        except Exception as exc:
+        except (ValueError, OSError) as exc:
             return None, "explicit-invalid", {"ok": False, "source": "explicit", "error": str(exc)[:200]}
 
     env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
@@ -654,7 +654,7 @@ def _resolve_repo_root_strict(
             if (normalized / ".git").exists() or (normalized / ".git").is_file():
                 return normalized, "env", {"ok": True, "source": "env", "path": str(normalized)}
             return None, "env-invalid", {"ok": False, "source": "env", "path": str(normalized), "reason": "missing-.git"}
-        except Exception as exc:
+        except (ValueError, OSError) as exc:
             return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "error": str(exc)[:200]}
 
     # Try GitCliClient first if available
@@ -669,7 +669,7 @@ def _resolve_repo_root_strict(
                     "stdout": str(git_root),
                     "returncode": 0,
                 }
-            except Exception as exc:
+            except (ValueError, OSError) as exc:
                 return None, "git-invalid", {
                     "ok": False,
                     "source": "git",
@@ -693,7 +693,7 @@ def _resolve_repo_root_strict(
             check=False,
             timeout=5,
         )
-    except Exception as exc:
+    except (OSError, subprocess.TimeoutExpired) as exc:
         return None, "git-probe-failed", {"ok": False, "source": "git", "error": str(exc)[:200]}
 
     root = (result.stdout or "").strip()
@@ -705,7 +705,7 @@ def _resolve_repo_root_strict(
                 "stdout": root,
                 "returncode": result.returncode,
             }
-        except Exception as exc:
+        except (ValueError, OSError) as exc:
             return None, "git-invalid", {
                 "ok": False,
                 "source": "git",
@@ -766,7 +766,7 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any],
             if candidate.exists():
                 config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
                 return config_root, paths, candidate
-        except Exception:
+        except (ValueError, OSError):
             pass
 
     if explicit is not None:
@@ -1591,7 +1591,7 @@ def main() -> int:
     args = parse_args()
     try:
         config_root, binding_paths, binding_file = resolve_binding_config(args.config_root)
-    except Exception as exc:
+    except (ValueError, OSError) as exc:
         emit_gate_failure(
             gate="PERSISTENCE",
             code="MISSING_BINDING_FILE",
@@ -1950,7 +1950,7 @@ def main() -> int:
                 profile = inferred
                 if not profile_evidence_text:
                     profile_evidence_text = "repo-policy.operatingMode"
-        except Exception:
+        except (ValueError, TypeError):
             pass
 
     if not profile:
@@ -1979,7 +1979,7 @@ def main() -> int:
             profile=profile,
             repo_fingerprint=repo_fingerprint,
         )
-    except Exception:
+    except (ImportError, OSError):
         structural_facts = None  # Will use legacy rendering
 
     # Run semantic discovery (Phase 2b) - SSOTs, Invariants, Conventions, Patterns
@@ -1993,7 +1993,7 @@ def main() -> int:
             profile=profile,
             repo_fingerprint=repo_fingerprint,
         )
-    except Exception as exc:
+    except (ImportError, OSError) as exc:
         # Create empty SemanticFacts with error recorded as deviation
         try:
             from governance_runtime.infrastructure.repo_discovery import (
@@ -2018,7 +2018,7 @@ def main() -> int:
                 )],
                 discovered_at=today,
             )
-        except Exception:
+        except (ImportError, AttributeError):
             semantic_facts = None  # Ultimate fallback if even error creation fails
 
     if structural_facts is not None:
@@ -2332,7 +2332,7 @@ def main() -> int:
                 if not args.dry_run and not read_only:
                     business_rules_path.unlink(missing_ok=True)
                 business_rules_action = "withheld-invalid"
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             business_rules_action = "withheld-invalid"
 
     business_rules_sha256 = ""
@@ -2534,7 +2534,7 @@ def main() -> int:
                     session_run_id=run_id,
                 )
                 plan_record_action = "backfilled" if result.ok else f"skipped:{result.reason}"
-            except Exception as exc:
+            except (ImportError, OSError, RuntimeError) as exc:
                 plan_record_action = f"backfill-error:{str(exc)[:120]}"
                 safe_log_error(
                     reason_key="ERR-PLAN-RECORD-BACKFILL-FAILED",

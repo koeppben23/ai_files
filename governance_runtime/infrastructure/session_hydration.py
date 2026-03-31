@@ -87,7 +87,7 @@ def resolve_session_state() -> Mapping[str, Any]:
         session_path, _, _, _ = resolve_active_session_paths()
         document = load_json(session_path)
         return document.get("SESSION_STATE", {})
-    except Exception:
+    except (ImportError, OSError, json.JSONDecodeError):
         return {}
 
 

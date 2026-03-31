@@ -123,7 +123,7 @@ def _compute_artifact_digest(
                 hasher.update(b"\0")
                 hasher.update(content.encode("utf-8"))
                 hasher.update(b"\0")
-            except Exception:
+            except (OSError, UnicodeDecodeError):
                 pass
 
     return hasher.hexdigest()
@@ -151,7 +151,7 @@ def _validate_knowledge_base(workspaces_home: Path, repo_fingerprint: str) -> tu
         try:
             if not path.read_text(encoding="utf-8").strip():
                 missing_or_empty.append(name)
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             missing_or_empty.append(name)
 
     optional_path = artifact_paths["business-rules.md"]
@@ -194,7 +194,7 @@ def _build_hydration_brief(
             parts.append("\n".join(lines))
             if len(content.split("\n")) > 30:
                 parts.append("\n... (truncated)")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             parts.append(f"[Error reading repo-map: {e}]")
     else:
         parts.append("*No architecture summary available. Run bootstrap or persistence.*\n")
@@ -209,7 +209,7 @@ def _build_hydration_brief(
             parts.append("\n".join(lines))
             if len(content.split("\n")) > 20:
                 parts.append("\n... (truncated)")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             parts.append(f"[Error reading workspace memory: {e}]")
     else:
         parts.append("*No workspace memory available.*\n")
@@ -224,7 +224,7 @@ def _build_hydration_brief(
             parts.append("\n".join(lines))
             if len(content.split("\n")) > 30:
                 parts.append("\n... (truncated)")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             parts.append(f"[Error reading decision pack: {e}]")
     else:
         parts.append("*No decision pack available.*\n")
@@ -239,7 +239,7 @@ def _build_hydration_brief(
             parts.append("\n".join(lines))
             if len(content.split("\n")) > 30:
                 parts.append("\n... (truncated)")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             parts.append(f"[Error reading business rules: {e}]")
     else:
         parts.append("*Business rules inventory not available (optional in some profiles).*\n")
@@ -253,7 +253,7 @@ def _build_hydration_brief(
             config = json.loads(config_path.read_text(encoding="utf-8"))
             mode = config.get("governance", {}).get("mode", "unknown")
             parts.append(f"**Governance Mode:** {mode}\n")
-        except Exception:
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             parts.append("*Governance mode unknown.*\n")
     else:
         parts.append("*No governance config found.*\n")
@@ -331,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         session_path, repo_fingerprint, workspaces_home, workspace_dir = resolve_active_session_paths()
-    except Exception as exc:
+    except (ImportError, OSError, RuntimeError) as exc:
         payload = _blocked_payload(
             reason=f"session-state-unreadable: {exc}",
             reason_code="HYDRATION-SESSION-UNAVAILABLE",
@@ -344,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         document = load_json(session_path)
         state = document.get("SESSION_STATE", {})
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError) as exc:
         payload = _blocked_payload(
             reason=f"session-state-corrupt: {exc}",
             reason_code="HYDRATION-SESSION-CORRUPT",
@@ -402,7 +402,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
-        except Exception as exc:
+        except (OSError, RuntimeError) as exc:
             payload = _blocked_payload(
                 reason=f"server-error: {exc}",
                 reason_code="HYDRATION-SERVER-ERROR",
@@ -448,13 +448,13 @@ def main(argv: list[str] | None = None) -> int:
     if state.get("repo_root"):
         try:
             repo_root = Path(str(state["repo_root"]))
-        except Exception:
+        except (ValueError, TypeError):
             pass
 
     if not repo_root:
         try:
             repo_root = Path(os.getcwd())
-        except Exception:
+        except (OSError, ValueError):
             pass
 
     artifact_digest = ""
@@ -462,12 +462,12 @@ def main(argv: list[str] | None = None) -> int:
     if repo_root and workspaces_home and repo_fingerprint:
         try:
             artifact_digest = _compute_artifact_digest(repo_fingerprint, workspaces_home)
-        except Exception:
+        except (OSError, ValueError):
             artifact_digest = ""
 
         try:
             hydration_brief = _build_hydration_brief(repo_root, workspaces_home, repo_fingerprint)
-        except Exception:
+        except (OSError, ValueError):
             hydration_brief = "# Governance Hydration Brief\n\n(No artifacts available)"
 
     try:
@@ -494,7 +494,7 @@ def main(argv: list[str] | None = None) -> int:
             artifact_digest=artifact_digest,
             project_path=project_path,
         )
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError) as exc:
         payload = _blocked_payload(
             reason=f"receipt-persist-failed: {exc}",
             reason_code="HYDRATION-RECEIPT-FAILED",
@@ -512,7 +512,7 @@ def main(argv: list[str] | None = None) -> int:
             digest=digest,
             artifact_digest=artifact_digest,
         )
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError) as exc:
         payload = _blocked_payload(
             reason=f"state-update-failed: {exc}",
             reason_code="HYDRATION-STATE-UPDATE-FAILED",

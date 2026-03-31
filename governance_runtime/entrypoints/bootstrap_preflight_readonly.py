@@ -24,7 +24,7 @@ from typing import Any, Mapping, cast
 
 try:
     from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
-except Exception:
+except (ImportError, AttributeError):
     GitCliClient = None
 
 
@@ -45,7 +45,7 @@ from governance_runtime.infrastructure.binding_evidence_resolver import BindingE
 
 try:
     from bootstrap.repo_identity import derive_fingerprint as _derive_fingerprint_ssot
-except Exception:
+except (ImportError, AttributeError):
     _derive_fingerprint_ssot = None
 
 from governance_runtime.infrastructure.logging.global_error_handler import (
@@ -59,7 +59,7 @@ def _install_global_error_handler() -> None:
     try:
         from governance_runtime.infrastructure.logging.global_error_handler import install_global_handlers
         install_global_handlers()
-    except Exception:
+    except (ImportError, AttributeError, OSError):
         pass
 
 _install_global_error_handler()
@@ -130,7 +130,7 @@ def _normalize_abs_path(raw: str, *, purpose: str) -> Path:
 def derive_repo_fingerprint(repo_root: Path) -> str | None:
     try:
         normalized_repo_root = _normalize_abs_path(str(repo_root), purpose="repo_root")
-    except Exception:
+    except (ValueError, OSError):
         return None
 
     git_marker = normalized_repo_root / ".git"
@@ -149,7 +149,7 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
                 candidate = str(_derive_fingerprint_ssot(normalized_repo_root) or "").strip()
                 if re.fullmatch(r"[0-9a-f]{24}", candidate):
                     return candidate
-            except Exception:
+            except (ValueError, OSError, TypeError):
                 pass
         
         # Fallback to origin remote
@@ -172,7 +172,7 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
                 candidate = str(_derive_fingerprint_ssot(normalized_repo_root) or "").strip()
                 if re.fullmatch(r"[0-9a-f]{24}", candidate):
                     return candidate
-            except Exception:
+            except (ValueError, OSError, TypeError):
                 pass
 
         try:
@@ -184,7 +184,7 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
                 timeout=5,
             )
             material = (remote.stdout or "").strip()
-        except Exception:
+        except (OSError, subprocess.TimeoutExpired):
             material = ""
 
     if not material:
@@ -260,7 +260,7 @@ def _load_tool_catalog() -> dict[str, object]:
         payload = json.loads(TOOL_CATALOG.read_text(encoding="utf-8"))
         if isinstance(payload, dict):
             return payload
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return {}
     return {}
 
@@ -368,7 +368,7 @@ def _probe_tool_version(verify_command: str) -> str | None:
             check=False,
             timeout=5,
         )
-    except Exception:
+    except (OSError, subprocess.TimeoutExpired):
         return None
     output = (proc.stdout or "") + "\n" + (proc.stderr or "")
     for line in output.splitlines():
@@ -517,7 +517,7 @@ def _resolve_repo_root_for_hook() -> tuple[Path | None, str, dict[str, object]]:
             if (resolved_env_root / ".git").exists() or (resolved_env_root / ".git").is_file():
                 return resolved_env_root, "env", {"ok": True, "source": "env", "raw": env_root}
             return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "reason": "missing-.git"}
-        except Exception as exc:
+        except (ValueError, OSError) as exc:
             return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "error": str(exc)[:200]}
 
     # Try GitCliClient first if available
@@ -533,7 +533,7 @@ def _resolve_repo_root_for_hook() -> tuple[Path | None, str, dict[str, object]]:
                     "returncode": 0,
                     "stdout": str(resolved),
                 }
-            except Exception as exc:
+            except (ValueError, OSError) as exc:
                 return None, "git-invalid", {
                     "ok": False,
                     "source": "git",
@@ -567,7 +567,7 @@ def _resolve_repo_root_for_hook() -> tuple[Path | None, str, dict[str, object]]:
                 "returncode": probe.returncode,
                 "stdout": root_text,
             }
-        except Exception as exc:
+        except (OSError, subprocess.TimeoutExpired) as exc:
             return None, "git-invalid", {
                 "ok": False,
                 "source": "git",
@@ -588,7 +588,7 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
     try:
         from governance_runtime.engine.adapters import OpenCodeDesktopAdapter
         from governance_runtime.engine.orchestrator import run_engine_orchestrator
-    except Exception as exc:  # pragma: no cover
+    except (ImportError, AttributeError) as exc:  # pragma: no cover
         return {"available": False, "reason": "engine-runtime-module-unavailable", "error": str(exc)}
 
     output = run_engine_orchestrator(
@@ -665,7 +665,7 @@ def _emit_persistence_gate_failure(
             workspaces_home=WORKSPACES_HOME,
             repo_fingerprint=repo_fingerprint,
         )
-    except Exception:
+    except OSError:
         return Path("error.log.jsonl")
 
 
@@ -801,7 +801,7 @@ def run_persistence_hook() -> dict[str, object]:
     for candidate in reversed(stdout_lines):
         try:
             loaded = json.loads(candidate)
-        except Exception:
+        except json.JSONDecodeError:
             continue
         if isinstance(loaded, dict):
             parsed_payload = loaded
@@ -911,7 +911,7 @@ def _session_state_file_path(repo_fingerprint: str) -> Path | None:
 def _read_json_document(path: Path) -> dict[str, object] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     if isinstance(payload, dict):
         return payload
@@ -926,7 +926,7 @@ def _write_json_document(path: Path, payload: Mapping[str, object]) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(text)
         os.replace(temp_path, str(path))
-    except Exception:
+    except OSError:
         if os.path.exists(temp_path):
             os.unlink(temp_path)
         raise
@@ -958,7 +958,7 @@ def _phase_ready_value(phase_value: object) -> int | None:
         return None
     try:
         return int(match.group(1))
-    except Exception:
+    except (ValueError, AttributeError):
         return None
 
 
@@ -1015,7 +1015,7 @@ def _activation_intent_evidence() -> tuple[str, str, str]:
     try:
         raw_text = intent_path.read_text(encoding="utf-8")
         payload = json.loads(raw_text)
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return canonical_path, "", "unknown"
 
     if not isinstance(payload, dict):
@@ -1039,7 +1039,7 @@ def _canonical_profile_id(raw: object) -> str:
 def _safe_read(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
-    except Exception:
+    except (OSError, UnicodeDecodeError):
         return ""
 
 

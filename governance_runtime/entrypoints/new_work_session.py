@@ -34,12 +34,12 @@ from governance_runtime.application.services.state_accessor import get_next, get
 try:
     from governance_runtime.infrastructure.governance_hooks import run_post_archive_governance as _run_post_archive_governance
     _GOVERNANCE_AVAILABLE = True
-except Exception:
+except (ImportError, AttributeError):
     _run_post_archive_governance = None  # type: ignore[assignment]
     _GOVERNANCE_AVAILABLE = False
 try:
     from governance_runtime.entrypoints.workspace_lock import acquire_workspace_lock
-except Exception:
+except (ImportError, AttributeError):
     from workspace_lock import acquire_workspace_lock  # type: ignore
 
 
@@ -135,7 +135,7 @@ def _check_recent_duplicate(
         return False, {}
     try:
         guard_doc = _load_json(guard_path)
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return False, {}
 
     last = guard_doc.get("last")
@@ -227,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         session_path, repo_fingerprint, workspaces_home, workspace_dir = resolve_active_session_paths()
-    except Exception as exc:
+    except (ImportError, OSError, RuntimeError) as exc:
         payload = _payload(
             "blocked",
             reason="new-work-session-init-failed",
@@ -323,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
                     workspace_root=session_path.parent,
                     events_path=session_path.parent / "logs" / "events.jsonl",
                 )
-            except Exception:
+            except (ImportError, OSError):
                 pass  # governance hook is fail-open — never blocks session
 
         purged_runtime_files = purge_runtime_artifacts(session_path.parent)
@@ -364,7 +364,7 @@ def main(argv: list[str] | None = None) -> int:
             run_id=new_run_id,
             observed_at=observed_at,
         )
-    except Exception as exc:
+    except (ImportError, OSError, RuntimeError) as exc:
         try:
             _append_jsonl(
                 session_path.parent / "logs" / "events.jsonl",
@@ -379,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
                     "error": str(exc),
                 },
             )
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
         payload = _payload(
             "blocked",
@@ -393,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
         if lock is not None:
             try:
                 lock.release()
-            except Exception:
+            except (OSError, RuntimeError):
                 pass
 
     payload = _payload(
