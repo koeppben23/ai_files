@@ -38,8 +38,11 @@ except ImportError:  # pragma: no cover - unavailable on Windows
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Iterable
+
+
+DEFAULT_OPENCODE_PORT = 4096
 
 def get_governance_docs_root(base: Path) -> Path:
     new_path = base / "governance_content" / "docs"
@@ -418,7 +421,13 @@ def ensure_dirs(config_root: Path, local_root: Path | None = None, dry_run: bool
             print(f"  ✅ {d}")
 
 
-def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]:
+def create_launcher(
+    plan: InstallPlan,
+    dry_run: bool,
+    force: bool,
+    *,
+    opencode_port: int = DEFAULT_OPENCODE_PORT,
+) -> list[dict]:
     """Create local bootstrap launcher scripts. Returns list of created file entries for manifest."""
     import sys
     import json
@@ -454,6 +463,7 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
                 python_exe=python_exe,
                 dest_unix=launcher_unix,
                 dest_win=launcher_win,
+                opencode_port=opencode_port,
             )
             created_entries.extend(launcher_entries)
         except RuntimeError as exc:
@@ -531,7 +541,13 @@ def _resolve_python_executable(binding_path: Path, *, fallback: str, strict: boo
     return fallback
 
 
-def _launcher_template_unix(*, python_exe: str, config_root: Path, local_root: Path | None = None) -> str:
+def _launcher_template_unix(
+    *,
+    python_exe: str,
+    config_root: Path,
+    local_root: Path | None = None,
+    opencode_port: int = DEFAULT_OPENCODE_PORT,
+) -> str:
     if local_root is None:
         local_root = get_local_root()
     """Generate Unix launcher with fail-closed Python resolution and subcommand routing.
@@ -565,6 +581,8 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path, local_root: P
             "export OPENCODE_REPO_ROOT",
             "export COMMANDS_HOME",
             "export PYTHONPATH",
+            f"OPENCODE_PORT=\"${{OPENCODE_PORT:-{opencode_port}}}\"",
+            "export OPENCODE_PORT",
             "",
             "# --- Python resolution cascade (python-binding-contract.v1 §3) ---",
             f"PYTHON_BIN=\"{python_exe}\"",
@@ -618,7 +636,13 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path, local_root: P
     )
 
 
-def _launcher_template_windows(*, python_exe: str, config_root: Path, local_root: Path | None = None) -> str:
+def _launcher_template_windows(
+    *,
+    python_exe: str,
+    config_root: Path,
+    local_root: Path | None = None,
+    opencode_port: int = DEFAULT_OPENCODE_PORT,
+) -> str:
     if local_root is None:
         local_root = get_local_root()
     """Generate Windows launcher with fail-closed Python resolution and subcommand routing.
@@ -653,6 +677,9 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path, local_root
             "set \"COMMANDS_HOME=%OPENCODE_CONFIG_ROOT%\\commands\"",
             "set \"OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%\"",
             "set \"PYTHONPATH=%COMMANDS_HOME%;%OPENCODE_LOCAL_ROOT%;!PYTHONPATH!\"",
+            "if not defined OPENCODE_PORT (",
+            f"    set \"OPENCODE_PORT={opencode_port}\"",
+            ")",
             "set \"OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
             "set \"OPENCODE_BOOTSTRAP_BINDING_PATH=%OPENCODE_CONFIG_ROOT%\\governance.paths.json\"",
             "if defined OPENCODE_REPO_ROOT (",
@@ -749,6 +776,7 @@ def _write_launcher_wrappers(
     python_exe: str,
     dest_unix: Path,
     dest_win: Path,
+    opencode_port: int,
 ) -> list[dict]:
     created: list[dict] = []
     binding_path = plan.governance_paths_path
@@ -769,8 +797,18 @@ def _write_launcher_wrappers(
         "status": "generated",
     })
 
-    unix_payload = _launcher_template_unix(python_exe=python_exec, config_root=plan.config_root, local_root=plan.local_root)
-    win_payload = _launcher_template_windows(python_exe=python_exec, config_root=plan.config_root, local_root=plan.local_root)
+    unix_payload = _launcher_template_unix(
+        python_exe=python_exec,
+        config_root=plan.config_root,
+        local_root=plan.local_root,
+        opencode_port=opencode_port,
+    )
+    win_payload = _launcher_template_windows(
+        python_exe=python_exec,
+        config_root=plan.config_root,
+        local_root=plan.local_root,
+        opencode_port=opencode_port,
+    )
 
     dest_unix.write_text(unix_payload, encoding="utf-8")
     dest_unix.chmod(0o755)
@@ -1780,10 +1818,48 @@ PYTHON_COMMAND_PLACEHOLDER = "{{PYTHON_COMMAND}}"
 BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
 
+def _parse_opencode_port(raw: str | int, *, purpose: str) -> int:
+    token = str(raw).strip()
+    if not token:
+        raise ValueError(f"{purpose}: empty port")
+    try:
+        value = int(token)
+    except ValueError as exc:
+        raise ValueError(f"{purpose}: port must be an integer") from exc
+    if value < 1 or value > 65535:
+        raise ValueError(f"{purpose}: port must be between 1 and 65535")
+    return value
+
+
+def resolve_effective_opencode_port(
+    *,
+    cli_opencode_port: str | int | None,
+    env: Mapping[str, str] | None = None,
+    default_port: int = DEFAULT_OPENCODE_PORT,
+) -> int:
+    """Resolve the effective OpenCode port from a single contract.
+
+    Priority:
+      1) explicit CLI argument (--opencode-port)
+      2) OPENCODE_PORT environment value
+      3) default 4096
+    """
+    if cli_opencode_port is not None and str(cli_opencode_port).strip():
+        return _parse_opencode_port(cli_opencode_port, purpose="--opencode-port")
+
+    env_map = env if env is not None else os.environ
+    env_port = str(env_map.get("OPENCODE_PORT", "")).strip()
+    if env_port:
+        return _parse_opencode_port(env_port, purpose="OPENCODE_PORT")
+
+    return _parse_opencode_port(default_port, purpose="default OPENCODE port")
+
+
 def ensure_opencode_json(
     config_root: Path,
     *,
     dry_run: bool,
+    effective_opencode_port: int = DEFAULT_OPENCODE_PORT,
     include_legacy_command_files: bool = False,
 ) -> dict:
     """Generate or merge ``opencode.json`` with governance instructions for Desktop.
@@ -1844,12 +1920,13 @@ def ensure_opencode_json(
             plugins_merged.append(plugin_uri)
         existing[OPENCODE_PLUGIN_KEY] = plugins_merged
 
-        # Ensure server configuration exists (SSOT for server connection)
-        if "server" not in existing:
-            existing["server"] = {
-                "hostname": "127.0.0.1",
-                "port": 4096,
-            }
+        # Ensure deterministic server configuration (SSOT for server connection)
+        server_block = existing.get("server")
+        if not isinstance(server_block, dict):
+            server_block = {}
+        server_block["hostname"] = "127.0.0.1"
+        server_block["port"] = effective_opencode_port
+        existing["server"] = server_block
 
         if dry_run:
             print(f"  [DRY-RUN] merge instructions into {target}")
@@ -1866,7 +1943,7 @@ def ensure_opencode_json(
         OPENCODE_PLUGIN_KEY: [plugin_uri],
         "server": {
             "hostname": "127.0.0.1",
-            "port": 4096,
+            "port": effective_opencode_port,
         },
     }
     if include_legacy_command_files:
@@ -2060,6 +2137,7 @@ def install(
     force: bool,
     backup_enabled: bool,
     *,
+    opencode_port: int = DEFAULT_OPENCODE_PORT,
     include_legacy_command_files: bool = False,
 ) -> int:
     ok, missing, unsafe_symlinks = precheck_source(plan.source_dir)
@@ -2135,7 +2213,7 @@ def install(
             copied_entries.append(paths_entry)
 
     print("\nCreating local bootstrap launcher...")
-    launcher_entries = create_launcher(plan, dry_run=dry_run, force=force)
+    launcher_entries = create_launcher(plan, dry_run=dry_run, force=force, opencode_port=opencode_port)
 
     # determine governance version from kernel-owned metadata
     # Version may live in root VERSION or governance_runtime/VERSION
@@ -2334,6 +2412,7 @@ def install(
     ojs = ensure_opencode_json(
         plan.config_root,
         dry_run=dry_run,
+        effective_opencode_port=opencode_port,
         include_legacy_command_files=include_legacy_command_files,
     )
     print(f"  opencode.json: {ojs['status']}")
@@ -3733,6 +3812,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="Override local payload root (default: ~/.local/share/opencode).",
     )
+    p.add_argument(
+        "--opencode-port",
+        default=None,
+        help="OpenCode Desktop server port (priority: CLI > OPENCODE_PORT > 4096).",
+    )
     p.add_argument("--dry-run", action="store_true", help="Show what would happen without writing anything.")
     p.add_argument("--force", action="store_true", help="Overwrite without prompting / uninstall without prompt.")
     p.add_argument("--no-backup", action="store_true", help="Disable backup on overwrite (install only).")
@@ -3803,6 +3887,13 @@ def main(argv: list[str]) -> int:
 
     config_root = args.config_root if args.config_root is not None else get_config_root()
     local_root = args.local_root if args.local_root is not None else get_local_root()
+    try:
+        effective_opencode_port = resolve_effective_opencode_port(cli_opencode_port=args.opencode_port)
+    except ValueError as exc:
+        eprint(f"❌ Invalid OpenCode port: {exc}")
+        return 2
+    os.environ["OPENCODE_PORT"] = str(effective_opencode_port)
+
     plan = build_plan(
         args.source_dir,
         config_root,
@@ -3831,6 +3922,7 @@ def main(argv: list[str]) -> int:
     print(f"Source dir:  {plan.source_dir}")
     print(f"Config root: {plan.config_root}")
     print(f"Local root:  {plan.local_root}")
+    print(f"OpenCode port: {effective_opencode_port}")
 
     # prompt only if interactive and not forced and not dry-run
     if not args.force and not args.dry_run and is_interactive():
@@ -3845,6 +3937,7 @@ def main(argv: list[str]) -> int:
         dry_run=args.dry_run,
         force=args.force,
         backup_enabled=backup_enabled,
+        opencode_port=effective_opencode_port,
     )
 
 

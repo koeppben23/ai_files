@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import urllib.request
+import warnings
 from pathlib import Path
 from typing import Mapping
 
@@ -37,19 +38,26 @@ def is_server_required_mode() -> bool:
     return os.environ.get("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _resolve_base_url_from_opencode_json() -> str | None:
-    """Resolve base_url from opencode.json (SSOT for server config).
+def _parse_port(raw: object, *, purpose: str) -> int:
+    token = str(raw).strip()
+    if not token:
+        raise ValueError(f"{purpose}: empty port")
+    try:
+        value = int(token)
+    except ValueError as exc:
+        raise ValueError(f"{purpose}: port must be an integer") from exc
+    if value < 1 or value > 65535:
+        raise ValueError(f"{purpose}: port must be between 1 and 65535")
+    return value
 
-    Reads ~/.config/opencode/opencode.json or opencode.jsonc for:
-    - server.hostname
-    - server.port
 
-    Returns:
-        base_url if found in config, None otherwise
+def _resolve_server_endpoint_from_opencode_json() -> tuple[str, int] | None:
+    """Resolve (hostname, port) from opencode.json/opencode.jsonc.
+
+    Invalid/malformed files are ignored (best-effort config discovery).
     """
-    import json
     import re
-    import os
+
 
     home = os.path.expanduser("~")
     config_root = Path(home) / ".config" / "opencode"
@@ -65,13 +73,34 @@ def _resolve_base_url_from_opencode_json() -> str | None:
                 content = re.sub(r"//.*$", "", content, flags=re.MULTILINE)
             config = json.loads(content)
             server = config.get("server", {})
-            hostname = server.get("hostname", "").strip() or "127.0.0.1"
-            port = server.get("port")
-            if port:
-                return f"http://{hostname}:{port}"
-        except (OSError, json.JSONDecodeError):
+            if not isinstance(server, dict):
+                continue
+            hostname = str(server.get("hostname", "")).strip() or "127.0.0.1"
+            raw_port = server.get("port")
+            if raw_port is None:
+                continue
+            port = _parse_port(raw_port, purpose="opencode.json server.port")
+            return hostname, port
+        except (OSError, json.JSONDecodeError, ValueError):
             continue
     return None
+
+
+def _resolve_base_url_from_opencode_json() -> str | None:
+    """Resolve base_url from opencode.json (SSOT for server config).
+
+    Reads ~/.config/opencode/opencode.json or opencode.jsonc for:
+    - server.hostname
+    - server.port
+
+    Returns:
+        base_url if found in config, None otherwise
+    """
+    endpoint = _resolve_server_endpoint_from_opencode_json()
+    if endpoint is None:
+        return None
+    hostname, port = endpoint
+    return f"http://{hostname}:{port}"
 
 
 def resolve_opencode_server_base_url() -> str:
@@ -88,13 +117,40 @@ def resolve_opencode_server_base_url() -> str:
     Raises:
         ServerNotAvailableError: If no server URL can be resolved
     """
-    config_url = _resolve_base_url_from_opencode_json()
-    if config_url:
-        return config_url
+    endpoint = _resolve_server_endpoint_from_opencode_json()
+    env_port_token = os.environ.get("OPENCODE_PORT", "").strip()
 
-    port = os.environ.get("OPENCODE_PORT", "").strip()
-    if port:
-        return f"http://127.0.0.1:{port}"
+    if endpoint is not None:
+        hostname, json_port = endpoint
+        if env_port_token:
+            try:
+                env_port = _parse_port(env_port_token, purpose="OPENCODE_PORT")
+                if env_port != json_port:
+                    warnings.warn(
+                        (
+                            "Server port drift detected: opencode.json server.port "
+                            f"({json_port}) != OPENCODE_PORT ({env_port}). "
+                            "Using opencode.json as authoritative source."
+                        ),
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+            except ValueError:
+                warnings.warn(
+                    "OPENCODE_PORT is invalid and ignored because opencode.json is authoritative.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+        return f"http://{hostname}:{json_port}"
+
+    if env_port_token:
+        try:
+            env_port = _parse_port(env_port_token, purpose="OPENCODE_PORT")
+        except ValueError as exc:
+            raise ServerNotAvailableError(
+                f"OpenCode server URL not resolvable: {exc}"
+            ) from exc
+        return f"http://127.0.0.1:{env_port}"
 
     raise ServerNotAvailableError(
         "OpenCode server URL not resolvable. "

@@ -317,6 +317,16 @@ def _update_session_state_for_hydration(
     write_json_atomic(session_path, document)
 
 
+def _is_server_healthy(payload: object) -> bool:
+    """Return True only for explicit healthy server responses.
+
+    Expected shape: {"healthy": true, ...}
+    """
+    if not isinstance(payload, Mapping):
+        return False
+    return payload.get("healthy") is True
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Hydrate governance session - bind to OpenCode session and validate knowledge base"
@@ -393,6 +403,15 @@ def main(argv: list[str] | None = None) -> int:
     if health_check_skipped not in ("1", "true", "yes"):
         try:
             health = check_server_health()
+            if not _is_server_healthy(health):
+                payload = _blocked_payload(
+                    reason="server-unhealthy",
+                    reason_code="HYDRATION-SERVER-UNHEALTHY",
+                    recovery_action="Ensure OpenCode Desktop server is healthy at /global/health before running /hydrate",
+                    observed=json.dumps(health if isinstance(health, Mapping) else {"health": str(health)}, ensure_ascii=True),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
         except ServerNotAvailableError as exc:
             payload = _blocked_payload(
                 reason=f"server-unreachable: {exc}",

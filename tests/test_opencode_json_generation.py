@@ -20,12 +20,14 @@ from pathlib import Path
 import pytest
 
 from install import (
+    DEFAULT_OPENCODE_PORT,
     OPENCODE_JSON_NAME,
     OPENCODE_INSTRUCTIONS,
     OPENCODE_PLUGIN_KEY,
     OPENCODE_PLUGIN_RELATIVE,
     ensure_opencode_json,
     remove_installer_plugin_from_opencode_json,
+    resolve_effective_opencode_port,
 )
 
 
@@ -315,3 +317,51 @@ class TestPluginCleanup:
         expected_plugin_uri = (config_root / OPENCODE_PLUGIN_RELATIVE).resolve().as_uri()
         assert "file:///custom/keep.mjs" in data[OPENCODE_PLUGIN_KEY]
         assert expected_plugin_uri not in data[OPENCODE_PLUGIN_KEY]
+
+
+class TestOpenCodePortResolution:
+    def test_happy_cli_port_overrides_env(self) -> None:
+        result = resolve_effective_opencode_port(
+            cli_opencode_port="5001",
+            env={"OPENCODE_PORT": "6001"},
+        )
+        assert result == 5001
+
+    def test_happy_env_port_used_when_cli_missing(self) -> None:
+        result = resolve_effective_opencode_port(
+            cli_opencode_port=None,
+            env={"OPENCODE_PORT": "6001"},
+        )
+        assert result == 6001
+
+    def test_corner_default_when_no_cli_or_env(self) -> None:
+        result = resolve_effective_opencode_port(cli_opencode_port=None, env={})
+        assert result == DEFAULT_OPENCODE_PORT
+
+    def test_bad_non_numeric_cli_port_rejected(self) -> None:
+        with pytest.raises(ValueError, match="--opencode-port"):
+            resolve_effective_opencode_port(cli_opencode_port="abc", env={})
+
+    def test_bad_out_of_range_env_port_rejected(self) -> None:
+        with pytest.raises(ValueError, match="OPENCODE_PORT"):
+            resolve_effective_opencode_port(cli_opencode_port=None, env={"OPENCODE_PORT": "70000"})
+
+
+class TestOpenCodeJsonServerPort:
+    def test_happy_create_writes_effective_port(self, config_root: Path) -> None:
+        ensure_opencode_json(config_root, dry_run=False, effective_opencode_port=5001)
+        data = _read_opencode_json(config_root)
+        assert data["server"]["hostname"] == "127.0.0.1"
+        assert data["server"]["port"] == 5001
+
+    def test_edge_merge_overwrites_server_port_to_effective_value(self, config_root: Path) -> None:
+        target = config_root / OPENCODE_JSON_NAME
+        target.write_text(
+            json.dumps({"server": {"hostname": "localhost", "port": 4096, "tls": False}}),
+            encoding="utf-8",
+        )
+        ensure_opencode_json(config_root, dry_run=False, effective_opencode_port=5100)
+        data = _read_opencode_json(config_root)
+        assert data["server"]["hostname"] == "127.0.0.1"
+        assert data["server"]["port"] == 5100
+        assert data["server"]["tls"] is False

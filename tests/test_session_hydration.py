@@ -232,6 +232,60 @@ class TestSessionHydrationBad:
 
         assert result == 2
 
+    def test_hydration_blocks_when_server_health_is_unhealthy(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+    ):
+        """Hydration fails closed when /global/health reports unhealthy."""
+        from governance_runtime.entrypoints import session_hydration as module
+
+        session_path = _write_session_state(tmp_path, {"phase": "3", "repo_root": str(tmp_path / "repo")})
+        _write_core_hydration_artifacts(tmp_path / "workspaces" / "testrepo")
+
+        def mock_resolve_paths():
+            return (session_path, "testrepo", tmp_path / "workspaces", tmp_path / "workspaces" / "testrepo")
+
+        def mock_health_unhealthy():
+            return {"healthy": False, "version": "1.3.7"}
+
+        monkeypatch.setattr(module, "resolve_active_session_paths", mock_resolve_paths)
+        monkeypatch.setattr(module, "check_server_health", mock_health_unhealthy)
+
+        rc = module.main(["--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["reason_code"] == "HYDRATION-SERVER-UNHEALTHY"
+        assert payload["reason"] == "server-unhealthy"
+
+    def test_hydration_blocks_when_server_health_payload_is_malformed(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+    ):
+        """Hydration fails closed when /global/health payload is malformed."""
+        from governance_runtime.entrypoints import session_hydration as module
+
+        session_path = _write_session_state(tmp_path, {"phase": "3", "repo_root": str(tmp_path / "repo")})
+        _write_core_hydration_artifacts(tmp_path / "workspaces" / "testrepo")
+
+        def mock_resolve_paths():
+            return (session_path, "testrepo", tmp_path / "workspaces", tmp_path / "workspaces" / "testrepo")
+
+        def mock_health_malformed():
+            return {"status": "ok"}
+
+        monkeypatch.setattr(module, "resolve_active_session_paths", mock_resolve_paths)
+        monkeypatch.setattr(module, "check_server_health", mock_health_malformed)
+
+        rc = module.main(["--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["reason_code"] == "HYDRATION-SERVER-UNHEALTHY"
+        assert payload["reason"] == "server-unhealthy"
+
 
 class TestSessionHydrationEdge:
     """Edge case tests for session hydration."""

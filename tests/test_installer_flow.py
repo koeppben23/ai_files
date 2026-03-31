@@ -1232,6 +1232,52 @@ class TestPythonBindingArtifact:
             f"pythonCommand contains backslash: {python_cmd}"
         )
 
+    def test_happy_opencode_port_cli_wires_launcher_and_opencode_json(self, tmp_path: Path) -> None:
+        """Happy: --opencode-port is the single effective port for install outputs."""
+        config_root = tmp_path / "config-port"
+        result = run_install([
+            "--force",
+            "--no-backup",
+            "--config-root",
+            str(config_root),
+            "--opencode-port",
+            "5001",
+        ])
+        assert result.returncode == 0, f"Install failed:\n{result.stdout}\n{result.stderr}"
+
+        opencode_json = json.loads((config_root / "opencode.json").read_text(encoding="utf-8"))
+        assert opencode_json["server"]["port"] == 5001
+
+        unix_launcher = (config_root / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
+        win_launcher = (config_root / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
+        assert "OPENCODE_PORT=\"${OPENCODE_PORT:-5001}\"" in unix_launcher
+        assert "set \"OPENCODE_PORT=5001\"" in win_launcher
+
+    def test_corner_opencode_port_env_used_when_cli_missing(self, tmp_path: Path) -> None:
+        """Corner: installer uses OPENCODE_PORT env when --opencode-port is omitted."""
+        config_root = tmp_path / "config-port-env"
+        result = run_install(
+            ["--force", "--no-backup", "--config-root", str(config_root)],
+            env={"OPENCODE_PORT": "5102"},
+        )
+        assert result.returncode == 0, f"Install failed:\n{result.stdout}\n{result.stderr}"
+        opencode_json = json.loads((config_root / "opencode.json").read_text(encoding="utf-8"))
+        assert opencode_json["server"]["port"] == 5102
+
+    def test_bad_invalid_opencode_port_fails_closed(self, tmp_path: Path) -> None:
+        """Bad: invalid --opencode-port is rejected with non-zero exit code."""
+        config_root = tmp_path / "config-port-bad"
+        result = run_install([
+            "--force",
+            "--no-backup",
+            "--config-root",
+            str(config_root),
+            "--opencode-port",
+            "not-a-port",
+        ])
+        assert result.returncode == 2
+        assert "Invalid OpenCode port" in (result.stdout + result.stderr)
+
     def test_corner_binding_file_trailing_newline(self, tmp_path: Path) -> None:
         """Corner: PYTHON_BINDING file ends with newline for POSIX compliance."""
         import sys

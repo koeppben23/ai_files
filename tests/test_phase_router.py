@@ -21,16 +21,19 @@ from tests.util import get_phase_api_path
 def _kernel_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     cfg = home / ".config" / "opencode"
+    local_root = home / ".local" / "share" / "opencode"
     commands_home = cfg / "commands"
     workspaces_home = cfg / "workspaces"
-    spec_home = cfg / "governance_spec"
+    spec_home = local_root / "governance_spec"
     commands_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
+    local_root.mkdir(parents=True, exist_ok=True)
     spec_home.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
+            "localRoot": str(local_root),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
             "specHome": str(spec_home),
@@ -39,7 +42,18 @@ def _kernel_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     }
     (cfg / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
 
-    (spec_home / "phase_api.yaml").write_text(get_phase_api_path().read_text(encoding="utf-8"), encoding="utf-8")
+    source_spec_home = get_phase_api_path().parent
+    for name in (
+        "phase_api.yaml",
+        "topology.yaml",
+        "command_policy.yaml",
+        "guards.yaml",
+        "messages.yaml",
+    ):
+        (spec_home / name).write_text(
+            (source_spec_home / name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
 

@@ -76,7 +76,8 @@ class TestResolveServerBaseUrl:
         config = {"server": {"hostname": "config-host", "port": 9000}}
         (config_dir / "opencode.json").write_text(json.dumps(config))
         monkeypatch.setenv("OPENCODE_PORT", "5000")
-        result = resolve_opencode_server_base_url()
+        with pytest.warns(RuntimeWarning, match="drift detected"):
+            result = resolve_opencode_server_base_url()
         assert result == "http://config-host:9000"
 
     def test_bad_no_config(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -94,6 +95,30 @@ class TestResolveServerBaseUrl:
         monkeypatch.setenv("OPENCODE_PORT", "   ")
         with pytest.raises(ServerNotAvailableError):
             resolve_opencode_server_base_url()
+
+    def test_bad_invalid_opencode_port_env(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Bad: invalid OPENCODE_PORT fails closed when no opencode.json is usable."""
+        self._clear_env(monkeypatch)
+        self._mock_home(monkeypatch, tmp_path)
+        monkeypatch.setenv("OPENCODE_PORT", "70000")
+        with pytest.raises(ServerNotAvailableError, match="OPENCODE_PORT"):
+            resolve_opencode_server_base_url()
+
+    def test_corner_invalid_env_ignored_when_json_authoritative(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ):
+        """Corner: invalid OPENCODE_PORT is warned and ignored if opencode.json is valid."""
+        self._clear_env(monkeypatch)
+        config_dir = self._mock_home(monkeypatch, tmp_path)
+        (config_dir / "opencode.json").write_text(
+            json.dumps({"server": {"hostname": "127.0.0.1", "port": 4096}})
+        )
+        monkeypatch.setenv("OPENCODE_PORT", "invalid")
+        with pytest.warns(RuntimeWarning, match="invalid and ignored"):
+            result = resolve_opencode_server_base_url()
+        assert result == "http://127.0.0.1:4096"
 
     def test_corner_config_missing_opencode_json(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         """Corner: opencode.json missing server config."""

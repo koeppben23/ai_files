@@ -1209,6 +1209,8 @@ class TestMain:
                         "commandsHome": str(commands_home),
                         "workspacesHome": str(fake_config / "workspaces"),
                         "configRoot": str(fake_config),
+                        "localRoot": str(spec_home.parent),
+                        "specHome": str(spec_home),
                         "pythonCommand": "python3",
                     },
                 }
@@ -1303,6 +1305,8 @@ class TestMain:
                         "commandsHome": str(commands_home),
                         "workspacesHome": str(fake_config / "workspaces"),
                         "configRoot": str(fake_config),
+                        "localRoot": str(spec_home.parent),
+                        "specHome": str(spec_home),
                         "pythonCommand": "python3",
                     },
                 }
@@ -1384,6 +1388,8 @@ class TestMain:
                         "commandsHome": str(commands_home),
                         "workspacesHome": str(fake_config / "workspaces"),
                         "configRoot": str(fake_config),
+                        "localRoot": str(spec_home.parent),
+                        "specHome": str(spec_home),
                         "pythonCommand": "python3",
                     },
                 }
@@ -1529,7 +1535,7 @@ class TestMain:
         )
 
         commands_home = fake_config / "commands"
-        spec_home = fake_config / "governance_spec"
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
         _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
@@ -1771,7 +1777,7 @@ class TestMain:
         )
 
         commands_home = fake_config / "commands"
-        spec_home = fake_config / "governance_spec"
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
         _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
@@ -3706,7 +3712,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
             },
         )
         commands_home = fake_config / "commands"
-        spec_home = fake_config / "governance_spec"
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
         _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
@@ -3810,7 +3816,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
             },
         )
         commands_home = fake_config / "commands"
-        spec_home = fake_config / "governance_spec"
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
         _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
@@ -3919,7 +3925,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
             },
         )
         commands_home = fake_config / "commands"
-        spec_home = fake_config / "governance_spec"
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
         (spec_home / "phase_api.yaml").write_text(
             get_phase_api_path().read_text(encoding="utf-8"),

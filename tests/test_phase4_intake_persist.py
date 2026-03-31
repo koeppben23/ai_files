@@ -21,13 +21,15 @@ def _load_module():
 
 def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     config_root = tmp_path / "cfg"
+    local_root = tmp_path / "local"
     commands_home = config_root / "commands"
-    spec_home = config_root / "governance_spec"
+    spec_home = local_root / "governance_spec"
     workspaces_home = config_root / "workspaces"
     repo_fp = "abc123def456abc123def456"
     workspace = workspaces_home / repo_fp
     workspace.mkdir(parents=True, exist_ok=True)
     commands_home.mkdir(parents=True, exist_ok=True)
+    local_root.mkdir(parents=True, exist_ok=True)
     spec_home.mkdir(parents=True, exist_ok=True)
 
     # Copy required governance specs used by runtime routing and validation.
@@ -56,6 +58,7 @@ def _write_fixture_state(tmp_path: Path) -> tuple[Path, Path, Path, str]:
             "specHome": str(spec_home),
             "workspacesHome": str(workspaces_home),
             "configRoot": str(config_root),
+            "localRoot": str(local_root),
             "pythonCommand": "python3",
         },
     }
