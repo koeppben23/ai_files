@@ -33,7 +33,7 @@ import subprocess
 import sys
 try:
     import pwd
-except Exception:  # pragma: no cover - unavailable on Windows
+except ImportError:  # pragma: no cover - unavailable on Windows
     pwd = None
 from dataclasses import dataclass
 from datetime import datetime
@@ -174,7 +174,7 @@ def _ensure_utf8_stdio() -> None:
             reconfigure = getattr(stream, "reconfigure", None)
             if callable(reconfigure):
                 reconfigure(encoding="utf-8", errors="replace")
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
 
@@ -211,7 +211,7 @@ def _load_error_logger() -> Callable[..., object]:
         spec.loader.exec_module(mod)
         fn = getattr(mod, "safe_log_error", None)
         return fn if callable(fn) else (lambda **kwargs: {"status": "log-disabled"})
-    except Exception:
+    except (ImportError, AttributeError, OSError):
         return lambda **kwargs: {"status": "log-disabled"}
 
 
@@ -349,7 +349,7 @@ def get_config_root() -> Path:
                 home = getattr(pw_entry, "pw_dir", None)
                 if home:
                     return Path(home).resolve() / ".config" / "opencode"
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
     return (Path.home().resolve() / ".config" / "opencode").resolve()
 
@@ -463,7 +463,7 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
         try:
             data = json.loads(binding_path.read_text(encoding="utf-8"))
             binding_ok = data.get("schema") == "opencode-governance.paths.v1"
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
     git_available = shutil.which("git") is not None
@@ -510,7 +510,7 @@ def _resolve_python_executable(binding_path: Path, *, fallback: str, strict: boo
         return fallback
     try:
         data = json.loads(binding_path.read_text(encoding="utf-8"))
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError) as exc:
         raise RuntimeError(f"Invalid governance.paths.json: {exc}")
     paths = data.get("paths")
     if not isinstance(paths, dict):
@@ -824,7 +824,7 @@ def read_governance_version_metadata(version_file: Path) -> str | None:
         mm = semverish.search(raw)
         if mm:
             return mm.group(0)
-    except Exception:
+    except (OSError, UnicodeDecodeError):
         return None
     return None
 
@@ -1005,7 +1005,7 @@ def _is_forbidden_installed_path(path: Path, commands_dir: Path) -> bool:
 
     try:
         rel = path.resolve().relative_to(commands_dir.resolve())
-    except Exception:
+    except ValueError:
         return False
     if any(part == "_backup" for part in rel.parts):
         return True
@@ -1047,8 +1047,8 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
             else:
                 try:
                     path.unlink()
-                except Exception:
-                    pass
+    except (OSError, json.JSONDecodeError):
+        pass
             continue
         if path.is_dir():
             removed.append(rel)
@@ -1058,8 +1058,8 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
                 if path.is_symlink():
                     try:
                         path.unlink()
-                    except Exception:
-                        pass
+    except (OSError, json.JSONDecodeError, ValueError):
+        pass
                 else:
                     shutil.rmtree(path, ignore_errors=True)
 
@@ -1101,8 +1101,8 @@ def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[l
                 else:
                     try:
                         path.unlink()
-                    except Exception:
-                        pass
+    except (OSError, json.JSONDecodeError, ValueError):
+        pass
                 continue
             if path.name in governance_dirs:
                 continue
@@ -1628,7 +1628,7 @@ def confirm_relative(path: Path, *, base_root: Path) -> Path:
     base = base_root.resolve()
     try:
         return p.relative_to(base)
-    except Exception:
+    except ValueError:
         return Path("external") / p.name
 
 
@@ -1732,7 +1732,7 @@ def _load_json(path: Path) -> dict | None:
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
 
@@ -1752,7 +1752,7 @@ def load_manifest(manifest_path: Path) -> dict | None:
         return None
     try:
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict):
         return None
@@ -1809,7 +1809,7 @@ def ensure_opencode_json(
             if not isinstance(existing, dict):
                 corrupt = True
                 existing = {}
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             corrupt = True
             existing = {}
 
@@ -1818,7 +1818,7 @@ def ensure_opencode_json(
             backup_name = target.with_suffix(".json.corrupt-backup")
             try:
                 backup_name.write_text(raw_text, encoding="utf-8")
-            except Exception:
+            except OSError:
                 pass  # best-effort backup
 
         # Keep legacy command_files only when explicitly requested for
@@ -2448,7 +2448,7 @@ def install(
                 dst_path = Path(e["dst"]).resolve()
                 try:
                     rel_value = str(dst_path.relative_to(base_dir.resolve()))
-                except Exception:
+                except ValueError:
                     if dst_path.is_relative_to(plan.config_root.resolve()):
                         rel_base = "config"
                         rel_value = str(dst_path.relative_to(plan.config_root.resolve()))
@@ -2610,7 +2610,7 @@ def uninstall(
             for src in collect_customer_script_files(plan.source_dir, strict=False):
                 rel = src.relative_to(plan.source_dir)
                 targets.append(plan.commands_dir / rel)
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
         try:
@@ -2622,7 +2622,7 @@ def uninstall(
             for src in collect_workflow_template_files(plan.source_dir, strict=False):
                 rel = src.relative_to(templates_root)
                 targets.append(plan.commands_dir / "templates" / rel)
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
         # OpenCode plugins copied under config_root/plugins
@@ -2766,7 +2766,7 @@ def uninstall(
             try:
                 plan.manifest_path.unlink()
                 print(f"  ✅ Removed manifest: {plan.manifest_path.name}")
-            except Exception as e:
+            except OSError as e:
                 eprint(f"  ⚠️  Could not remove manifest: {e}")
 
     # cleanup empty dirs (leaf -> parent)
@@ -2802,7 +2802,7 @@ def uninstall(
             if f.is_file():
                 f.unlink()
                 print(f"  🧹 Removed placeholder: {f}")
-    except Exception:
+    except OSError:
         pass
 
     opencode_cleanup = remove_installer_plugin_from_opencode_json(plan.config_root, dry_run=dry_run)
@@ -2836,7 +2836,7 @@ def purge_manifest_leftover_trees(commands_dir: Path, local_root: Path, dry_run:
                     try:
                         item.unlink()
                         print(f"  ✅ Removed stale file: {item}")
-                    except Exception as e:
+                    except OSError as e:
                         eprint(f"  ❌ Failed removing stale file {item}: {e}")
                         errors += 1
             elif item.is_dir():
@@ -2862,7 +2862,7 @@ def purge_tree_contents(root: Path, dry_run: bool) -> int:
                 try:
                     item.unlink()
                     print(f"  ✅ Removed residual: {item}")
-                except Exception as e:
+                except OSError as e:
                     eprint(f"  ❌ Failed removing residual file {item}: {e}")
                     errors += 1
         elif item.is_dir():
@@ -2908,7 +2908,7 @@ def purge_governance_local_payload(local_root: Path, dry_run: bool) -> int:
                 try:
                     item.unlink()
                     print(f"  ✅ Removed symlink: {item.name}")
-                except Exception as e:
+                except OSError as e:
                     eprint(f"  ❌ Failed removing symlink {item.name}: {e}")
                     errors += 1
             continue
@@ -2920,7 +2920,7 @@ def purge_governance_local_payload(local_root: Path, dry_run: bool) -> int:
                 try:
                     item.unlink()
                     print(f"  ✅ Removed: {item.name}")
-                except Exception as e:
+                except OSError as e:
                     eprint(f"  ❌ Failed removing {item.name}: {e}")
                     errors += 1
             continue
@@ -2940,7 +2940,7 @@ def purge_governance_local_payload(local_root: Path, dry_run: bool) -> int:
                     try:
                         subitem.unlink()
                         print(f"  ✅ Removed: {subitem.relative_to(local_root)}")
-                    except Exception as e:
+                    except OSError as e:
                         eprint(f"  ❌ Failed removing {subitem.relative_to(local_root)}: {e}")
                         errors += 1
             elif subitem.is_dir():
@@ -3001,7 +3001,7 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
                 eprint(f"  ❌ Refusing to delete outside allowed dirs: {t}")
                 errors += 1
                 continue
-        except Exception:
+        except OSError:
             # If resolution fails, refuse deletion
             safe_log_error(
                 reason_key="ERR-UNINSTALL-PATH-RESOLUTION-FAILED",
@@ -3039,7 +3039,7 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
             try:
                 t.unlink()
                 print(f"  ✅ Removed: {t.name}")
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 safe_log_error(
                     reason_key="ERR-UNINSTALL-DELETE-FAILED",
                     message="Failed to delete uninstall target.",
@@ -3109,7 +3109,7 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
             try:
                 t.unlink()
                 print(f"  ✅ Removed runtime log: {t}")
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 safe_log_error(
                     reason_key="ERR-UNINSTALL-ERROR-LOG-PURGE-FAILED",
                     message="Failed to remove runtime error log file during uninstall purge.",
@@ -3194,7 +3194,7 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
             try:
                 activation_intent.unlink()
                 print(f"  ✅ Removed: {activation_intent.name}")
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 eprint(f"  ❌ Failed removing {activation_intent}: {e}")
                 errors += 1
 
@@ -3207,7 +3207,7 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
             try:
                 global_pointer.unlink()
                 print(f"  ✅ Removed: {global_pointer.name}")
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 eprint(f"  ❌ Failed removing {global_pointer}: {e}")
                 errors += 1
 
@@ -3258,7 +3258,7 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
                     try:
                         artifact.unlink()
                         print(f"  ✅ Removed: {ws_dir.name}/{name}")
-                    except Exception as e:
+                    except OSError as e:
                         eprint(f"  ❌ Failed removing {artifact}: {e}")
                         errors += 1
 
@@ -3275,7 +3275,7 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
                     try:
                         shutil.rmtree(subtree)
                         print(f"  ✅ Removed tree: {ws_dir.name}/{subtree_name}/")
-                    except Exception as e:
+                    except OSError as e:
                         eprint(f"  ❌ Failed removing tree {subtree}: {e}")
                         errors += 1
 
@@ -3301,7 +3301,7 @@ def try_remove_empty_dir(d: Path, dry_run: bool) -> None:
         else:
             d.rmdir()
             print(f"  ✅ Removed empty dir: {d}")
-    except Exception:
+    except (OSError, ValueError):
         return
 
 
@@ -3370,7 +3370,7 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
     # Resolve config root
     try:
         config_root = config_root_arg if config_root_arg is not None else get_config_root()
-    except Exception as e:
+    except (OSError, ValueError) as e:
         print(f"❌ Failed to resolve config root: {e}")
         return 1
 
@@ -3465,7 +3465,7 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
     try:
         config_root = config_root_arg if config_root_arg is not None else get_config_root()
         print(f"\n✅ Config root: {config_root}")
-    except Exception as e:
+    except (OSError, ValueError) as e:
         print(f"\n❌ Config root: failed to resolve ({e})")
         issues_found.append("config-root-resolution")
         return 1
