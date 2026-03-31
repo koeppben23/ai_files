@@ -1047,8 +1047,8 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
             else:
                 try:
                     path.unlink()
-    except (OSError, json.JSONDecodeError):
-        pass
+                except OSError:
+                    pass
             continue
         if path.is_dir():
             removed.append(rel)
@@ -1058,8 +1058,8 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
                 if path.is_symlink():
                     try:
                         path.unlink()
-    except (OSError, json.JSONDecodeError, ValueError):
-        pass
+                    except OSError:
+                        pass
                 else:
                     shutil.rmtree(path, ignore_errors=True)
 
@@ -1101,10 +1101,9 @@ def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[l
                 else:
                     try:
                         path.unlink()
-    except (OSError, json.JSONDecodeError, ValueError):
-        pass
-                continue
-            if path.name in governance_dirs:
+                    except OSError:
+                        pass
+            elif path.name in governance_dirs:
                 continue
             print(f"  🛡️  PRESERVED (non-governance): {path.name}/")
 
