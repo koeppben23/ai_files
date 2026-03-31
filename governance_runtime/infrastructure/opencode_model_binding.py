@@ -154,7 +154,7 @@ def resolve_active_opencode_model(
                 "model_id": model_id,
                 "source": "opencode.db",
             }
-    except Exception:
+    except (sqlite3.OperationalError, OSError):
         return None
     finally:
         conn.close()
