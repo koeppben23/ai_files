@@ -54,7 +54,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple, Protocol
 
 try:
     from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
@@ -393,43 +393,15 @@ except (ImportError, AttributeError):
 def _read_only() -> bool:
     return not writes_allowed()
 
-try:
-    from governance_runtime.infrastructure.path_contract import (
-        PathContractError,
-        canonical_config_root,
-        normalize_absolute_path,
-        normalize_for_fingerprint,
-    )
-except (ImportError, AttributeError):
-    class PathContractError(Exception):  # type: ignore[no-redef]
-        pass
-
-    class NotAbsoluteError(Exception):
-        pass
-
-    class WindowsDriveRelativeError(Exception):
-        pass
-
-    def canonical_config_root() -> Path:
-        return Path(os.path.normpath(os.path.abspath(str(Path.home().expanduser() / ".config" / "opencode"))))
-
-    def normalize_absolute_path(raw: str, *, purpose: str) -> Path:
-        token = str(raw or "").strip()
-        if not token:
-            raise NotAbsoluteError(f"{purpose}: empty path")
-        candidate = Path(token).expanduser()
-        if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
-            raise WindowsDriveRelativeError(f"{purpose}: drive-relative path is not allowed")
-        if not candidate.is_absolute():
-            raise NotAbsoluteError(f"{purpose}: path must be absolute")
-        return Path(os.path.normpath(os.path.abspath(str(candidate))))
-
-    def normalize_for_fingerprint(path: Path) -> str:
-        normalized = os.path.normpath(os.path.abspath(str(path.expanduser())))
-        normalized = normalized.replace("\\", "/")
-        if os.name == "nt":
-            return normalized.casefold()
-        return normalized
+from governance_runtime.infrastructure.path_contract import (
+    NotAbsoluteError,
+    PathContractError,
+    PathTraversalError,
+    WindowsDriveRelativeError,
+    canonical_config_root,
+    normalize_absolute_path,
+    normalize_for_fingerprint,
+)
 
 try:
     from error_logs import safe_log_error
@@ -1592,9 +1564,37 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def main() -> int:
-    install_global_handlers()
-    read_only = _read_only()
+class _ResolvedMainInputs(NamedTuple):
+    args: argparse.Namespace
+    config_root: Path
+    binding_paths: dict[str, str]
+    binding_file: Path
+    python_cmd: str
+    repo_root: Path
+    repo_root_source: str
+    git_probe: str
+    repo_fingerprint: str
+    fp_source: str
+    fp_evidence: str
+
+
+class _WorkspaceLockHandle(Protocol):
+    lock_id: str
+
+    def release(self) -> None:
+        ...
+
+
+class _PreparedWorkspace(NamedTuple):
+    workspaces_home: Path
+    repo_home: Path
+    session_path: Path
+    bootstrap_status: str
+    workspace_lock: _WorkspaceLockHandle | None
+    session: dict[str, object]
+
+
+def _resolve_inputs() -> tuple[_ResolvedMainInputs | None, int]:
     args = parse_args()
     try:
         config_root, binding_paths, binding_file = resolve_binding_config(args.config_root)
@@ -1632,10 +1632,9 @@ def main() -> int:
             print(json.dumps(payload, ensure_ascii=True))
         else:
             print(f"ERROR: {exc}")
-        return 2
+        return None, 2
 
     python_cmd = _resolve_python_command(binding_paths)
-    
     repo_root, repo_root_source, git_probe = _resolve_repo_root_strict(
         args.repo_root,
         require_git_marker=not bool(args.no_session_update),
@@ -1694,50 +1693,7 @@ def main() -> int:
             print(json.dumps(payload, ensure_ascii=True))
         else:
             print("ERROR: repository root is not deterministically detectable")
-        return 2
-
-    if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
-        emit_gate_failure(
-            gate="PERSISTENCE",
-            code="CONFIG_ROOT_INSIDE_REPO",
-            message="Config root resolves inside repository root (blocked).",
-            expected="configRoot must be outside repoRoot",
-            observed={"configRoot": str(config_root), "repoRoot": str(repo_root)},
-            remediation="Set OPENCODE_CONFIG_ROOT to an absolute location outside the repository and rerun.",
-        )
-        cmd_profiles = render_command_profiles(
-            [
-                python_cmd,
-                "governance_runtime/entrypoints/persist_workspace_artifacts.py",
-                "--config-root",
-                "<outside_repo_config_root>",
-                "--repo-root",
-                "<repo_root>",
-            ]
-        )
-        payload = {
-            "status": "blocked",
-            "reason": "config root resolves inside repository root",
-            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
-            "missing_evidence": [
-                "valid config root outside repository working tree",
-            ],
-            "recovery_steps": [
-                "set OPENCODE_CONFIG_ROOT to a user config location outside the repository",
-                "or pass --config-root to an absolute path outside the repository",
-            ],
-            "required_operator_action": "rerun with a config root outside the repo working tree",
-            "feedback_required": "reply with the chosen config root and rerun result",
-            "next_command": _preferred_shell_command(cmd_profiles),
-            "next_command_profiles": cmd_profiles,
-        }
-        if args.quiet:
-            print(json.dumps(payload, ensure_ascii=True))
-        else:
-            print("ERROR: config root resolves inside repository root")
-            print(f"- config_root: {config_root}")
-            print(f"- repo_root: {repo_root}")
-        return 2
+        return None, 2
 
     try:
         repo_fingerprint, fp_source, fp_evidence = _resolve_repo_fingerprint(
@@ -1808,22 +1764,85 @@ def main() -> int:
             )
         else:
             print(f"ERROR: {exc}")
-        return 2
+        return None, 2
 
-    if read_only:
+    return _ResolvedMainInputs(
+        args=args,
+        config_root=config_root,
+        binding_paths=binding_paths,
+        binding_file=binding_file,
+        python_cmd=python_cmd,
+        repo_root=repo_root,
+        repo_root_source=repo_root_source,
+        git_probe=git_probe,
+        repo_fingerprint=repo_fingerprint,
+        fp_source=fp_source,
+        fp_evidence=fp_evidence,
+    ), 0
+
+
+def _validate_path_constraints(
+    *,
+    config_root: Path,
+    repo_root: Path,
+    python_cmd: str,
+    quiet: bool,
+) -> bool:
+    if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="CONFIG_ROOT_INSIDE_REPO",
+            message="Config root resolves inside repository root (blocked).",
+            expected="configRoot must be outside repoRoot",
+            observed={"configRoot": str(config_root), "repoRoot": str(repo_root)},
+            remediation="Set OPENCODE_CONFIG_ROOT to an absolute location outside the repository and rerun.",
+        )
+        cmd_profiles = render_command_profiles(
+            [
+                python_cmd,
+                "governance_runtime/entrypoints/persist_workspace_artifacts.py",
+                "--config-root",
+                "<outside_repo_config_root>",
+                "--repo-root",
+                "<repo_root>",
+            ]
+        )
         payload = {
-            "status": "ok",
-            "workspacePersistenceHook": "skipped",
-            "reason": "governance-read-only",
-            "impact": "workspace/index/session persistence is kernel-owned only",
-            "repoFingerprint": repo_fingerprint,
-            "repoFingerprintSource": fp_source,
-            "repoFingerprintEvidence": fp_evidence,
-            "read_only": read_only,
+            "status": "blocked",
+            "reason": "config root resolves inside repository root",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "missing_evidence": [
+                "valid config root outside repository working tree",
+            ],
+            "recovery_steps": [
+                "set OPENCODE_CONFIG_ROOT to a user config location outside the repository",
+                "or pass --config-root to an absolute path outside the repository",
+            ],
+            "required_operator_action": "rerun with a config root outside the repo working tree",
+            "feedback_required": "reply with the chosen config root and rerun result",
+            "next_command": _preferred_shell_command(cmd_profiles),
+            "next_command_profiles": cmd_profiles,
         }
-        print(json.dumps(payload, ensure_ascii=True))
-        return 0
+        if quiet:
+            print(json.dumps(payload, ensure_ascii=True))
+        else:
+            print("ERROR: config root resolves inside repository root")
+            print(f"- config_root: {config_root}")
+            print(f"- repo_root: {repo_root}")
+        return False
+    return True
 
+
+def _prepare_workspace(
+    *,
+    binding_paths: dict[str, str],
+    repo_fingerprint: str,
+    config_root: Path,
+    repo_root: Path,
+    python_cmd: str,
+    args: argparse.Namespace,
+    read_only: bool,
+) -> tuple[_PreparedWorkspace | None, int]:
     workspaces_home = normalize_absolute_path(
         str(binding_paths.get("workspacesHome", "")),
         purpose="paths.workspacesHome",
@@ -1831,6 +1850,7 @@ def main() -> int:
     repo_home = workspaces_home / repo_fingerprint
     session_path = repo_home / "SESSION_STATE.json"
     bootstrap_status = "not-required"
+
     if not args.no_session_update and not session_path.exists():
         bootstrap_ok, bootstrap_status = _bootstrap_missing_session_state(
             config_root=config_root,
@@ -1880,7 +1900,7 @@ def main() -> int:
                 print("ERROR: repo session state bootstrap failed")
                 print(f"- bootstrap_status: {bootstrap_status}")
                 print(f"- repo_fingerprint: {repo_fingerprint}")
-            return 2
+            return None, 2
 
     workspace_lock = None
     if not args.skip_lock:
@@ -1926,9 +1946,251 @@ def main() -> int:
                 print(json.dumps(payload, ensure_ascii=True))
             else:
                 print("ERROR: workspace lock timeout")
-            return 2
+            return None, 2
 
     session = _read_repo_session(session_path)
+    return (
+        _PreparedWorkspace(
+            workspaces_home=workspaces_home,
+            repo_home=repo_home,
+            session_path=session_path,
+            bootstrap_status=bootstrap_status,
+            workspace_lock=workspace_lock,
+            session=session,
+        ),
+        0,
+    )
+
+
+def _persist_and_report(
+    *,
+    args: argparse.Namespace,
+    config_root: Path,
+    binding_file: Path,
+    repo_fingerprint: str,
+    fp_source: str,
+    fp_evidence: str,
+    repo_home: Path,
+    repo_root: Path,
+    repo_root_source: str,
+    git_probe: str,
+    read_only: bool,
+    workspace_lock: _WorkspaceLockHandle | None,
+    session_path: Path,
+    extractor_ran: bool,
+    extracted_rule_count: int,
+    extraction_evidence: bool,
+    business_rules_action: str,
+    actions: dict[str, str],
+    business_rules_sha256: str,
+    business_rules_rules: list[str],
+    extracted_evidence_paths: list[str],
+    final_snapshot: dict[str, object],
+    bootstrap_status: str,
+) -> int:
+    session_update = "skipped"
+    if not args.no_session_update:
+        session_update = _update_session_state(
+            session_path=session_path,
+            dry_run=args.dry_run,
+            extractor_ran=extractor_ran,
+            extracted_rule_count=extracted_rule_count,
+            extraction_evidence=extraction_evidence,
+            business_rules_inventory_action=business_rules_action,
+            repo_cache_action=actions["repoCache"],
+            repo_map_digest_action=actions["repoMapDigest"],
+            decision_pack_action=actions["decisionPack"],
+            workspace_memory_action=actions["workspaceMemory"],
+            business_rules_inventory_sha256=business_rules_sha256,
+            business_rules_rules=business_rules_rules,
+            business_rules_source_phase="1.5-BusinessRules" if extractor_ran else "2.1-DecisionPack",
+            business_rules_extractor_version=_BUSINESS_RULES_EXTRACTOR_VERSION,
+            business_rules_evidence_paths=extracted_evidence_paths,
+            read_only=read_only,
+            business_rules_snapshot=final_snapshot,
+        )
+        if session_update == "invalid-session-shape":
+            emit_gate_failure(
+                gate="PERSISTENCE",
+                code="SESSION_STATE_INVALID_SHAPE",
+                message="Repo SESSION_STATE file exists but has invalid shape.",
+                expected="SESSION_STATE root object must contain SESSION_STATE dict",
+                observed={"sessionPath": str(session_path), "sessionUpdate": session_update},
+                remediation="Repair repo-scoped SESSION_STATE and rerun backfill helper.",
+            )
+            safe_log_error(
+                reason_key="ERR-SESSION-STATE-INVALID-SHAPE",
+                message="Repo SESSION_STATE file exists but has invalid shape.",
+                config_root=config_root,
+                phase="2",
+                gate="PERSISTENCE",
+                mode="repo-aware",
+                repo_fingerprint=repo_fingerprint,
+                command="persist_workspace_artifacts.py",
+                component="session-state-update",
+                observed_value={"sessionPath": str(session_path), "sessionUpdate": session_update},
+                expected_constraint="SESSION_STATE root object must contain SESSION_STATE dict",
+                remediation="Repair repo-scoped SESSION_STATE and rerun backfill helper.",
+            )
+
+    phase2_artifacts_ok, phase2_missing = _verify_phase2_artifacts_exist(repo_home)
+
+    if not phase2_artifacts_ok and not args.dry_run and not read_only:
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="PHASE2_ARTIFACTS_MISSING_DETECTED",
+            message="Phase 2 discovery did not write required artifacts.",
+            expected="repo-cache.yaml, repo-map-digest.md, workspace-memory.yaml must exist",
+            observed={"missing": phase2_missing, "repo_home": str(repo_home)},
+            remediation="Re-run persist_workspace_artifacts.py with --force to recreate missing artifacts.",
+        )
+        safe_log_error(
+            reason_key="ERR-PHASE2-ARTIFACTS-MISSING",
+            message="Phase 2 discovery did not write required artifacts.",
+            config_root=config_root,
+            phase="2",
+            gate="PERSISTENCE",
+            mode="repo-aware",
+            repo_fingerprint=repo_fingerprint,
+            command="persist_workspace_artifacts.py",
+            component="phase2-artifacts-verification",
+            observed_value={"missing": phase2_missing, "repo_home": str(repo_home)},
+            expected_constraint="repo-cache.yaml, repo-map-digest.md, workspace-memory.yaml must exist",
+            remediation="Re-run persist_workspace_artifacts.py with --force to recreate missing artifacts.",
+        )
+
+    summary = {
+        "status": "ok" if phase2_artifacts_ok else "degraded",
+        "configRoot": str(config_root),
+        "bindingEvidence": str(binding_file),
+        "repoFingerprint": repo_fingerprint,
+        "fingerprintSource": fp_source,
+        "fingerprintEvidence": fp_evidence,
+        "runId": workspace_lock.lock_id if workspace_lock is not None else "none",
+        "repoHome": str(repo_home),
+        "actions": actions,
+        "sessionUpdate": session_update,
+        "bootstrapSessionState": bootstrap_status,
+        "phase2Artifacts": {
+            "ok": phase2_artifacts_ok,
+            "missing": phase2_missing,
+        },
+        "repo_root_detected": str(repo_root),
+        "repo_root_source": repo_root_source,
+        "git_probe": git_probe,
+        "cwd": str(Path.cwd()),
+    }
+
+    if args.quiet:
+        print(json.dumps(summary, ensure_ascii=True))
+    else:
+        print(f"Config root: {config_root}")
+        print(f"Repo root: {repo_root}")
+        print(f"Repo fingerprint: {repo_fingerprint}")
+        print(f"Fingerprint source: {fp_source}")
+        print(f"Fingerprint evidence: {fp_evidence}")
+        print(f"Repo home: {repo_home}")
+        for key, action in actions.items():
+            print(f"- {key}: {action}")
+        print(f"- sessionUpdate: {session_update}")
+
+    if workspace_lock is not None:
+        workspace_lock.release()
+
+    if args.require_phase2 and not phase2_artifacts_ok and not args.dry_run:
+        if read_only:
+            emit_gate_failure(
+                gate="PERSISTENCE",
+                code="PERSISTENCE_READ_ONLY",
+                message="Required Phase 2/2.1 artifacts missing but writes are blocked (READ_ONLY).",
+                expected="writes allowed and artifacts created/updated",
+                observed={"read_only": True, "missing": phase2_missing},
+                remediation="Remove OPENCODE_FORCE_READ_ONLY or allow governance writes in user mode.",
+            )
+            return 2
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="PHASE2_ARTIFACTS_MISSING",
+            message="Required Phase 2/2.1 artifacts missing after backfill.",
+            expected="repo-cache.yaml, repo-map-digest.md, workspace-memory.yaml, decision-pack.md must exist under workspace home",
+            observed={"missing": phase2_missing},
+            remediation="Inspect artifact actions and fix write/paths/permissions.",
+        )
+        return 7
+
+    if not phase2_artifacts_ok and not args.dry_run and not read_only:
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="PHASE2_ARTIFACTS_INCOMPLETE",
+            message="Phase 2 artifacts incomplete after persistence run.",
+            expected="Required Phase 2 artifacts exist",
+            observed={"missing": phase2_missing},
+            remediation="Run persistence backfill with writes enabled and inspect artifact actions.",
+        )
+        return 7
+
+    return 0
+
+
+def main() -> int:
+    install_global_handlers()
+    read_only = _read_only()
+    resolved, exit_code = _resolve_inputs()
+    if resolved is None:
+        return exit_code
+
+    args = resolved.args
+    config_root = resolved.config_root
+    binding_paths = resolved.binding_paths
+    binding_file = resolved.binding_file
+    python_cmd = resolved.python_cmd
+    repo_root = resolved.repo_root
+    repo_root_source = resolved.repo_root_source
+    git_probe = resolved.git_probe
+    repo_fingerprint = resolved.repo_fingerprint
+    fp_source = resolved.fp_source
+    fp_evidence = resolved.fp_evidence
+
+    if not _validate_path_constraints(
+        config_root=config_root,
+        repo_root=repo_root,
+        python_cmd=python_cmd,
+        quiet=args.quiet,
+    ):
+        return 2
+
+    if read_only:
+        payload = {
+            "status": "ok",
+            "workspacePersistenceHook": "skipped",
+            "reason": "governance-read-only",
+            "impact": "workspace/index/session persistence is kernel-owned only",
+            "repoFingerprint": repo_fingerprint,
+            "repoFingerprintSource": fp_source,
+            "repoFingerprintEvidence": fp_evidence,
+            "read_only": read_only,
+        }
+        print(json.dumps(payload, ensure_ascii=True))
+        return 0
+
+    prepared, exit_code = _prepare_workspace(
+        binding_paths=binding_paths,
+        repo_fingerprint=repo_fingerprint,
+        config_root=config_root,
+        repo_root=repo_root,
+        python_cmd=python_cmd,
+        args=args,
+        read_only=read_only,
+    )
+    if prepared is None:
+        return exit_code
+
+    workspaces_home = prepared.workspaces_home
+    repo_home = prepared.repo_home
+    session_path = prepared.session_path
+    bootstrap_status = prepared.bootstrap_status
+    workspace_lock = prepared.workspace_lock
+    session = prepared.session
 
     scope_obj = session.get("Scope") if isinstance(session, dict) else {}
     scope: dict[str, object] = dict(scope_obj) if isinstance(scope_obj, dict) else {}
@@ -2625,148 +2887,31 @@ def main() -> int:
                 print("ERROR: legacy decision-pack format detected before phase 4")
             return 2
 
-    session_update = "skipped"
-    if not args.no_session_update:
-        session_update = _update_session_state(
-            session_path=session_path,
-            dry_run=args.dry_run,
-            extractor_ran=extractor_ran,
-            extracted_rule_count=extracted_rule_count,
-            extraction_evidence=extraction_evidence,
-            business_rules_inventory_action=business_rules_action,
-            repo_cache_action=actions["repoCache"],
-            repo_map_digest_action=actions["repoMapDigest"],
-            decision_pack_action=actions["decisionPack"],
-            workspace_memory_action=actions["workspaceMemory"],
-            business_rules_inventory_sha256=business_rules_sha256,
-            business_rules_rules=business_rules_rules,
-            business_rules_source_phase="1.5-BusinessRules" if extractor_ran else "2.1-DecisionPack",
-            business_rules_extractor_version=_BUSINESS_RULES_EXTRACTOR_VERSION,
-            business_rules_evidence_paths=extracted_evidence_paths,
-            read_only=read_only,
-            business_rules_snapshot=final_snapshot,
-        )
-        if session_update == "invalid-session-shape":
-            emit_gate_failure(
-                gate="PERSISTENCE",
-                code="SESSION_STATE_INVALID_SHAPE",
-                message="Repo SESSION_STATE file exists but has invalid shape.",
-                expected="SESSION_STATE root object must contain SESSION_STATE dict",
-                observed={"sessionPath": str(session_path), "sessionUpdate": session_update},
-                remediation="Repair repo-scoped SESSION_STATE and rerun backfill helper.",
-            )
-            safe_log_error(
-                reason_key="ERR-SESSION-STATE-INVALID-SHAPE",
-                message="Repo SESSION_STATE file exists but has invalid shape.",
-                config_root=config_root,
-                phase="2",
-                gate="PERSISTENCE",
-                mode="repo-aware",
-                repo_fingerprint=repo_fingerprint,
-                command="persist_workspace_artifacts.py",
-                component="session-state-update",
-                observed_value={"sessionPath": str(session_path), "sessionUpdate": session_update},
-                expected_constraint="SESSION_STATE root object must contain SESSION_STATE dict",
-                remediation="Repair repo-scoped SESSION_STATE and rerun backfill helper.",
-            )
-
-    phase2_artifacts_ok, phase2_missing = _verify_phase2_artifacts_exist(repo_home)
-
-    if not phase2_artifacts_ok and not args.dry_run and not read_only:
-        emit_gate_failure(
-            gate="PERSISTENCE",
-            code="PHASE2_ARTIFACTS_MISSING_DETECTED",
-            message="Phase 2 discovery did not write required artifacts.",
-            expected="repo-cache.yaml, repo-map-digest.md, workspace-memory.yaml must exist",
-            observed={"missing": phase2_missing, "repo_home": str(repo_home)},
-            remediation="Re-run persist_workspace_artifacts.py with --force to recreate missing artifacts.",
-        )
-        safe_log_error(
-            reason_key="ERR-PHASE2-ARTIFACTS-MISSING",
-            message="Phase 2 discovery did not write required artifacts.",
-            config_root=config_root,
-            phase="2",
-            gate="PERSISTENCE",
-            mode="repo-aware",
-            repo_fingerprint=repo_fingerprint,
-            command="persist_workspace_artifacts.py",
-            component="phase2-artifacts-verification",
-            observed_value={"missing": phase2_missing, "repo_home": str(repo_home)},
-            expected_constraint="repo-cache.yaml, repo-map-digest.md, workspace-memory.yaml must exist",
-            remediation="Re-run persist_workspace_artifacts.py with --force to recreate missing artifacts.",
-        )
-
-    summary = {
-        "status": "ok" if phase2_artifacts_ok else "degraded",
-        "configRoot": str(config_root),
-        "bindingEvidence": str(binding_file),
-        "repoFingerprint": repo_fingerprint,
-        "fingerprintSource": fp_source,
-        "fingerprintEvidence": fp_evidence,
-        "runId": workspace_lock.lock_id if workspace_lock is not None else "none",
-        "repoHome": str(repo_home),
-        "actions": actions,
-        "sessionUpdate": session_update,
-        "bootstrapSessionState": bootstrap_status,
-        "phase2Artifacts": {
-            "ok": phase2_artifacts_ok,
-            "missing": phase2_missing,
-        },
-        "repo_root_detected": str(repo_root),
-        "repo_root_source": repo_root_source,
-        "git_probe": git_probe,
-        "cwd": str(Path.cwd()),
-    }
-
-    if args.quiet:
-        print(json.dumps(summary, ensure_ascii=True))
-    else:
-        print(f"Config root: {config_root}")
-        print(f"Repo root: {repo_root}")
-        print(f"Repo fingerprint: {repo_fingerprint}")
-        print(f"Fingerprint source: {fp_source}")
-        print(f"Fingerprint evidence: {fp_evidence}")
-        print(f"Repo home: {repo_home}")
-        for key, action in actions.items():
-            print(f"- {key}: {action}")
-        print(f"- sessionUpdate: {session_update}")
-
-    if workspace_lock is not None:
-        workspace_lock.release()
-    
-    if args.require_phase2 and not phase2_artifacts_ok and not args.dry_run:
-        if read_only:
-            emit_gate_failure(
-                gate="PERSISTENCE",
-                code="PERSISTENCE_READ_ONLY",
-                message="Required Phase 2/2.1 artifacts missing but writes are blocked (READ_ONLY).",
-                expected="writes allowed and artifacts created/updated",
-                observed={"read_only": True, "missing": phase2_missing},
-                remediation="Remove OPENCODE_FORCE_READ_ONLY or allow governance writes in user mode.",
-            )
-            return 2
-        emit_gate_failure(
-            gate="PERSISTENCE",
-            code="PHASE2_ARTIFACTS_MISSING",
-            message="Required Phase 2/2.1 artifacts missing after backfill.",
-            expected="repo-cache.yaml, repo-map-digest.md, workspace-memory.yaml, decision-pack.md must exist under workspace home",
-            observed={"missing": phase2_missing},
-            remediation="Inspect artifact actions and fix write/paths/permissions.",
-        )
-        return 7
-    
-    if not phase2_artifacts_ok and not args.dry_run and not read_only:
-        emit_gate_failure(
-            gate="PERSISTENCE",
-            code="PHASE2_ARTIFACTS_INCOMPLETE",
-            message="Phase 2 artifacts incomplete after persistence run.",
-            expected="Required Phase 2 artifacts exist",
-            observed={"missing": phase2_missing},
-            remediation="Run persistence backfill with writes enabled and inspect artifact actions.",
-        )
-        return 7
-    
-    return 0
+    return _persist_and_report(
+        args=args,
+        config_root=config_root,
+        binding_file=binding_file,
+        repo_fingerprint=repo_fingerprint,
+        fp_source=fp_source,
+        fp_evidence=fp_evidence,
+        repo_home=repo_home,
+        repo_root=repo_root,
+        repo_root_source=repo_root_source,
+        git_probe=git_probe,
+        read_only=read_only,
+        workspace_lock=workspace_lock,
+        session_path=session_path,
+        extractor_ran=extractor_ran,
+        extracted_rule_count=extracted_rule_count,
+        extraction_evidence=extraction_evidence,
+        business_rules_action=business_rules_action,
+        actions=actions,
+        business_rules_sha256=business_rules_sha256,
+        business_rules_rules=business_rules_rules,
+        extracted_evidence_paths=extracted_evidence_paths,
+        final_snapshot=final_snapshot,
+        bootstrap_status=bootstrap_status,
+    )
 
 
 if __name__ == "__main__":
