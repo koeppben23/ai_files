@@ -425,8 +425,8 @@ def _repo_root(session_path: Path, state: Mapping[str, object]) -> Path:
             mapped_root = Path(str(payload.get("repoRoot") or "").strip())
             if mapped_root.is_absolute() and mapped_root.exists() and mapped_root.is_dir():
                 return mapped_root
-    except (OSError, json.JSONDecodeError):
-        pass
+        except (OSError, json.JSONDecodeError):
+            pass
 
     if session_path.parent.exists() and session_path.parent.is_dir():
         return session_path.parent
