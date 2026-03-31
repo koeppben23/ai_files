@@ -1,7 +1,7 @@
 {
-  "status": "PASS",
-  "merge_allowed": true,
-  "merge_reason": "merge_allowed",
+  "status": "FAIL",
+  "merge_allowed": false,
+  "merge_reason": "overall_status=FAIL",
   "matrix": {
     "completion_matrix": [
       {
@@ -62,14 +62,16 @@
         "id": "R-REVIEW-PR-001",
         "static_verification": "PASS",
         "behavioral_verification": "PASS",
-        "user_surface_verification": "PASS",
+        "user_surface_verification": "FAIL",
         "live_flow_verification": "PASS",
         "receipts_verification": "PASS",
-        "overall": "PASS"
+        "overall": "FAIL"
       }
     ],
-    "overall_status": "PASS",
-    "release_blocking_requirements_failed": [],
+    "overall_status": "FAIL",
+    "release_blocking_requirements_failed": [
+      "R-REVIEW-PR-001"
+    ],
     "release_blocking_requirements_unverified": []
   }
 }

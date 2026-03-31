@@ -179,3 +179,50 @@ def test_review_pr_happy_isolated_local_fallback(monkeypatch, tmp_path: Path) ->
     assert result.status == "ok"
     assert result.mode == "isolated-local"
     assert result.files_changed == 3
+
+
+def test_review_pr_main_happy(monkeypatch, tmp_path: Path, capsys) -> None:
+    """User surface: main() outputs valid JSON payload with status and mode."""
+    monkeypatch.setattr(review_pr, "require_complete_contracts", lambda repo_root, required_ids: _EnforcementOk())
+    
+    def fake_remote_available(*, repo_root: Path, remote: str) -> bool:
+        return True
+    
+    def fake_resolve_ref(*, repo_root: Path, ref: str) -> str:
+        if "refs/remotes/origin/main" in ref:
+            return "a" * 40
+        if "_review_head_" in ref:
+            return "b" * 40
+        return ""
+    
+    def fake_get_merge_base(*, repo_root: Path, base_sha: str, head_sha: str) -> str:
+        return "c" * 40
+    
+    def fake_count_changed_files(*, repo_root: Path, base_sha: str, head_sha: str) -> int:
+        return 5
+    
+    def fake_run_git_command(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+        return _cp(0)
+    
+    monkeypatch.setattr(review_pr, "_remote_available", fake_remote_available)
+    monkeypatch.setattr(review_pr, "_resolve_ref", fake_resolve_ref)
+    monkeypatch.setattr(review_pr, "_get_merge_base", fake_get_merge_base)
+    monkeypatch.setattr(review_pr, "_count_changed_files", fake_count_changed_files)
+    monkeypatch.setattr(review_pr, "_run_git_command", fake_run_git_command)
+    
+    returncode = review_pr.main([
+        "--repo-root", str(tmp_path),
+        "--base-branch", "main",
+        "--head-ref", "refs/heads/feat/x",
+    ])
+    
+    assert returncode == 0
+    
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert output["status"] == "ok"
+    assert output["mode"] == "remote"
+    assert output["files_changed"] == 5
+    assert output["base_sha"] == "a" * 40
+    assert output["head_sha"] == "b" * 40
+    assert output["merge_base_sha"] == "c" * 40
