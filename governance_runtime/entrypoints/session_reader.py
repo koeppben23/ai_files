@@ -1107,7 +1107,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             snapshot["next_action"] = str(resolved_action.label)
         if resolved_action.reason:
             snapshot["next_action_code"] = str(resolved_action.reason).upper().replace("-", "_")
-    except (ValueError, AttributeError, TypeError):
+    except (ValueError, AttributeError, TypeError, RuntimeError):
         snapshot["next_action_code"] = "NEXT_ACTION_UNAVAILABLE"
         snapshot["next_action"] = "Next action unavailable: resolve snapshot computation error and rerun /continue."
     if transition_evidence_hint:
