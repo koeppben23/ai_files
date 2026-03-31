@@ -42,9 +42,10 @@ _APPLICATION_INFRASTRUCTURE_IMPORT_ALLOWLIST: set[str] = {
 # All application→infrastructure side effects must be injected via dependency injection
 _SIDE_EFFECT_CALLS_ALLOWLIST: dict[str, set[str]] = {
     # orchestrator.py: Composition-Root reads env for default dependencies
+    # Note: Line numbers shifted after removing _run_subprocess function
     "governance_runtime/application/services/phase6_review_orchestrator/orchestrator.py": {
-        "L86:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
-        "L288:datetime.now",    # Composition-Root: default clock for load_effective_review_policy
+        "L72:os.environ",       # Composition-Root: env_reader=lambda key: os.environ.get(key)
+        "L273:datetime.now",   # Composition-Root: default clock for load_effective_review_policy
     },
     # llm_caller.py: Composition-Root uses injected env_reader
     "governance_runtime/application/services/phase6_review_orchestrator/llm_caller.py": {

@@ -48,6 +48,11 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except Exception:
+    GitCliClient = None
+
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -73,6 +78,17 @@ except Exception:
             except Exception:
                 pass
 
+        # Try GitCliClient first if available
+        if GitCliClient is not None:
+            git_client = GitCliClient()
+            git_root = git_client.resolve_repo_root()
+            if git_root:
+                try:
+                    return normalize_absolute_path(str(git_root), purpose="repo_root"), "git-metadata"
+                except Exception:
+                    pass
+        
+        # Fallback to subprocess
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "--show-toplevel"],

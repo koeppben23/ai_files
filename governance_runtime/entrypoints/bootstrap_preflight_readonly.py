@@ -22,6 +22,10 @@ import sys
 import tempfile
 from typing import Any, Mapping, cast
 
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except Exception:
+    GitCliClient = None
 
 
 from governance_runtime.entrypoints.command_profiles import render_command_profiles
@@ -133,35 +137,56 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     if not (git_marker.is_dir() or git_marker.is_file()):
         return None
 
-    probe = subprocess.run(
-        ["git", "-C", str(normalized_repo_root), "rev-parse", "--is-inside-work-tree"],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=5,
-    )
-    if probe.returncode != 0 or (probe.stdout or "").strip().lower() != "true":
-        return None
-
-    if callable(_derive_fingerprint_ssot):
-        try:
-            candidate = str(_derive_fingerprint_ssot(normalized_repo_root) or "").strip()
-            if re.fullmatch(r"[0-9a-f]{24}", candidate):
-                return candidate
-        except Exception:
-            pass
-
-    try:
-        remote = subprocess.run(
-            ["git", "-C", str(normalized_repo_root), "remote", "get-url", "origin"],
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        if not git_client.is_inside_work_tree(normalized_repo_root):
+            return None
+        
+        # Try SSOT fingerprint derivation first
+        if callable(_derive_fingerprint_ssot):
+            try:
+                candidate = str(_derive_fingerprint_ssot(normalized_repo_root) or "").strip()
+                if re.fullmatch(r"[0-9a-f]{24}", candidate):
+                    return candidate
+            except Exception:
+                pass
+        
+        # Fallback to origin remote
+        remote = git_client.get_origin_remote(normalized_repo_root)
+        material = (remote or "").strip()
+    else:
+        # Fallback to direct subprocess calls (backwards compatibility)
+        probe = subprocess.run(
+            ["git", "-C", str(normalized_repo_root), "rev-parse", "--is-inside-work-tree"],
             capture_output=True,
             text=True,
             check=False,
             timeout=5,
         )
-        material = (remote.stdout or "").strip()
-    except Exception:
-        material = ""
+        if probe.returncode != 0 or (probe.stdout or "").strip().lower() != "true":
+            return None
+
+        if callable(_derive_fingerprint_ssot):
+            try:
+                candidate = str(_derive_fingerprint_ssot(normalized_repo_root) or "").strip()
+                if re.fullmatch(r"[0-9a-f]{24}", candidate):
+                    return candidate
+            except Exception:
+                pass
+
+        try:
+            remote = subprocess.run(
+                ["git", "-C", str(normalized_repo_root), "remote", "get-url", "origin"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            material = (remote.stdout or "").strip()
+        except Exception:
+            material = ""
+
     if not material:
         material = f"repo:local:{normalized_repo_root}"
     fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
@@ -189,6 +214,17 @@ def _command_available(command: str) -> bool:
 def _windows_longpaths_enabled() -> bool | None:
     if platform.system() != "Windows":
         return None
+    
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        for scope in ("global", "system"):
+            value = git_client.get_config("core.longpaths", scope=scope)
+            if value and value.strip().lower() in {"true", "1", "yes", "on"}:
+                return True
+        return False
+    
+    # Fallback to subprocess
     for scope in ("--system", "--global"):
         proc = subprocess.run(
             ["git", "config", scope, "--get", "core.longpaths"],
@@ -202,6 +238,12 @@ def _windows_longpaths_enabled() -> bool | None:
 
 
 def _git_safe_directory_issue() -> bool:
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        return not git_client.is_safe_directory()
+    
+    # Fallback to subprocess
     proc = subprocess.run(
         ["git", "rev-parse", "--is-inside-work-tree"],
         text=True,
@@ -478,6 +520,36 @@ def _resolve_repo_root_for_hook() -> tuple[Path | None, str, dict[str, object]]:
         except Exception as exc:
             return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "error": str(exc)[:200]}
 
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        resolved = git_client.resolve_repo_root()
+        if resolved:
+            try:
+                normalized = _normalize_abs_path(str(resolved), purpose="git-rev-parse")
+                return normalized, "git", {
+                    "ok": True,
+                    "source": "git",
+                    "returncode": 0,
+                    "stdout": str(resolved),
+                }
+            except Exception as exc:
+                return None, "git-invalid", {
+                    "ok": False,
+                    "source": "git",
+                    "returncode": 0,
+                    "stdout": str(resolved),
+                    "error": str(exc)[:200],
+                }
+        return None, "git-miss", {
+            "ok": False,
+            "source": "git",
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "no git repository found",
+        }
+    
+    # Fallback to subprocess
     probe = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,

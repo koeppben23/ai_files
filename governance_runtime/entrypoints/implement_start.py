@@ -23,6 +23,16 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Mapping
 
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except Exception:
+    GitCliClient = None
+
+try:
+    from governance_runtime.infrastructure.adapters.process.subprocess_runner import SubprocessRunner
+except Exception:
+    SubprocessRunner = None
+
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
@@ -430,6 +440,20 @@ def _repo_root(session_path: Path, state: Mapping[str, object]) -> Path:
 
 
 def _parse_changed_files_from_git_status(repo_root: Path) -> list[str]:
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        status_lines = git_client.status_porcelain(repo_root)
+        if status_lines:
+            changed_files = []
+            for raw in status_lines:
+                if len(raw) < 4:
+                    continue
+                changed_files.append(raw[3:].strip().replace("\\", "/"))
+            return sorted(set(changed_files))
+        return []
+    
+    # Fallback to subprocess
     try:
         probe = subprocess.run(
             ["git", "-C", str(repo_root), "status", "--porcelain"],
@@ -450,6 +474,36 @@ def _parse_changed_files_from_git_status(repo_root: Path) -> list[str]:
 
 
 def _capture_repo_change_baseline(repo_root: Path) -> dict[str, object]:
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        status_lines = git_client.status_porcelain(repo_root)
+        if not status_lines:
+            return {
+                "repo_dirty_before": False,
+                "tracked_changes_before": [],
+                "untracked_before": [],
+            }
+        tracked: list[str] = []
+        untracked: list[str] = []
+        for raw in status_lines:
+            if len(raw) < 4:
+                continue
+            status = raw[:2]
+            path = raw[3:].strip().replace("\\", "/")
+            if not path:
+                continue
+            if status[0] in ("?", "A") or (status[0] == "A"):
+                untracked.append(path)
+            else:
+                tracked.append(path)
+        return {
+            "repo_dirty_before": bool(tracked or untracked),
+            "tracked_changes_before": sorted(tracked),
+            "untracked_before": sorted(untracked),
+        }
+    
+    # Fallback to subprocess
     try:
         probe = subprocess.run(
             ["git", "-C", str(repo_root), "status", "--porcelain"],
@@ -1074,9 +1128,23 @@ def _run_targeted_checks(repo_root: Path, requirements: list[dict[str, object]])
         return (), False
 
     command = ["python3", "-m", "pytest", "-q", *executed_tests]
-    result = subprocess.run(command, cwd=str(repo_root), capture_output=True, text=True, check=False)
+    
+    # Try SubprocessRunner first if available
+    if SubprocessRunner is not None:
+        runner = SubprocessRunner()
+        proc_result = runner.run(command, cwd=repo_root)
+        result_stdout = proc_result.stdout
+        result_stderr = proc_result.stderr
+        result_returncode = proc_result.returncode
+    else:
+        # Fallback to subprocess
+        result = subprocess.run(command, cwd=str(repo_root), capture_output=True, text=True, check=False)
+        result_stdout = result.stdout or ""
+        result_stderr = result.stderr or ""
+        result_returncode = result.returncode
+    
     output_file = repo_root / ".governance" / "implementation" / "targeted_checks.log"
-    output = (result.stdout or "") + ("\n" if result.stdout and result.stderr else "") + (result.stderr or "")
+    output = result_stdout + ("\n" if result_stdout and result_stderr else "") + result_stderr
     if len(valid_tests) != len(tests):
         ignored = sorted(set(tests) - set(valid_tests))
         if ignored:
@@ -1094,12 +1162,12 @@ def _run_targeted_checks(repo_root: Path, requirements: list[dict[str, object]])
             + output
         )
     _write_text_atomic(output_file, output)
-    failure_kind = _classify_check_failure_kind(int(result.returncode), output)
+    failure_kind = _classify_check_failure_kind(result_returncode, output)
     check_results = tuple(
         CheckResult(
             name=test,
-            passed=result.returncode == 0,
-            exit_code=int(result.returncode),
+            passed=result_returncode == 0,
+            exit_code=int(result_returncode),
             output_path=str(output_file),
             failure_kind=failure_kind,
         )

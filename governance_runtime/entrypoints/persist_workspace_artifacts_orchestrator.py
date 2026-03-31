@@ -56,6 +56,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except Exception:
+    GitCliClient = None
+
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -652,6 +657,34 @@ def _resolve_repo_root_strict(
         except Exception as exc:
             return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "error": str(exc)[:200]}
 
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        git_root = git_client.resolve_repo_root()
+        if git_root:
+            try:
+                return normalize_absolute_path(str(git_root), purpose="git-rev-parse"), "git", {
+                    "ok": True,
+                    "source": "git",
+                    "stdout": str(git_root),
+                    "returncode": 0,
+                }
+            except Exception as exc:
+                return None, "git-invalid", {
+                    "ok": False,
+                    "source": "git",
+                    "stdout": str(git_root),
+                    "returncode": 0,
+                    "error": str(exc)[:200],
+                }
+        return None, "git-miss", {
+            "ok": False,
+            "source": "git",
+            "stdout": "",
+            "stderr": "no git repository found",
+        }
+    
+    # Fallback to subprocess
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],

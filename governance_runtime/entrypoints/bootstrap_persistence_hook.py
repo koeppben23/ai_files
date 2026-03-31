@@ -28,6 +28,11 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except Exception:
+    GitCliClient = None
+
 from governance_runtime.entrypoints.write_policy import EFFECTIVE_MODE, writes_allowed
 
 
@@ -287,7 +292,15 @@ def _resolve_git_repo_root(start_dir: Path) -> Path | None:
     Returns:
         Path to the git repository root, or None if not in a git repo.
     """
-    import subprocess
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        root = git_client.resolve_repo_root(start_dir)
+        if root:
+            return root.absolute()
+        return None
+    
+    # Fallback to subprocess
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
