@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
                 else "resolve failing or unverified requirements, then run /verify-contracts."
             ),
         )
-    except Exception as exc:
+    except Exception as exc:  # Fail-closed: verification errors must surface
         payload = _payload(
             "error",
             reason_code="BLOCKED-UNSPECIFIED",

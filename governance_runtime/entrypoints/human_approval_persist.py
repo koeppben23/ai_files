@@ -40,7 +40,7 @@ def _append_event(path: Path, event: dict[str, object]) -> bool:
         path.parent.mkdir(parents=True, exist_ok=True)
         write_jsonl_event(path, event, append=True)
         return True
-    except Exception:
+    except OSError:
         return False
 
 
@@ -168,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
             events_path=events_path,
             rationale=str(args.note),
         )
-    except Exception as exc:
+    except Exception as exc:  # Fail-closed: approval errors must surface
         payload = _payload(
             "error",
             reason_code=reason_codes.BLOCKED_PERMISSION_DENIED,

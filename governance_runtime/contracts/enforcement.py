@@ -26,7 +26,7 @@ def require_complete_contracts(
 ) -> EnforcementResult:
     try:
         loaded = load_and_validate_contracts(repo_root)
-    except Exception as exc:
+    except Exception as exc:  # Fail-closed: contracts must load
         return EnforcementResult(
             ok=False,
             reason=FAIL_CLOSED_MISSING_CONTRACT,

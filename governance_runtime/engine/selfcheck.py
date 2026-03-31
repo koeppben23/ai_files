@@ -74,7 +74,7 @@ def _check_yaml_reason_refs(repo_root: Path) -> tuple[bool, str | None]:
         for yaml_path in sorted(yaml_root.glob("*.yaml")):
             try:
                 text = yaml_path.read_text(encoding="utf-8")
-            except Exception:
+            except OSError:
                 continue
             for code in re.findall(r"BLOCKED-[A-Z0-9-]+", text):
                 if not is_registered_reason_code(code, allow_none=False):
@@ -90,6 +90,7 @@ def _check_policy_bundle_selfcheck(mode: str) -> tuple[bool, str | None]:
     try:
         ensure_policy_bundle_loaded(mode=mode)
     except Exception:
+        # fail-closed: any policy bundle load failure is a selfcheck failure
         return False, "policy_bundle_load_failed"
     return True, None
 

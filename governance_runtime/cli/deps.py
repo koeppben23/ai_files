@@ -41,4 +41,5 @@ class GlobalErrorLogger:
                 context=event.context,
             )
         except Exception:
+            # best-effort: emit failure should not crash the CLI
             return

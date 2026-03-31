@@ -22,7 +22,8 @@ from governance_runtime.verification.static_verifier import run_static_verificat
 try:
     from governance_runtime.infrastructure.adapters.process.subprocess_runner import SubprocessRunner
 except Exception:
-    SubprocessRunner = None
+    # import fallback: use direct subprocess if SubprocessRunner unavailable
+    SubprocessRunner = None  # pragma: no cover
 
 
 def _load_verification_registry(repo_root: Path) -> dict[str, object]:
