@@ -120,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         task_source = args.task_text
         if args.task_file:
             task_source = _read_text(Path(args.task_file))
-    except Exception as exc:
+    except OSError as exc:
         payload = _blocked_payload(
             reason="intake-source-unreadable",
             reason_code=BLOCKED_P4_INTAKE_MISSING_EVIDENCE,
@@ -252,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
                 "ticket_record_path": str(ticket_record_path),
             },
         )
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         payload = _blocked_payload(
             reason="intake-persist-failed",
             reason_code=BLOCKED_P4_INTAKE_MISSING_EVIDENCE,

@@ -69,7 +69,7 @@ def _resolve_base_url_from_opencode_json() -> str | None:
             port = server.get("port")
             if port:
                 return f"http://{hostname}:{port}"
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             continue
     return None
 
@@ -393,7 +393,7 @@ def check_server_health(*, base_url: str | None = None) -> bool:
             import json
             data = json.loads(resp.read().decode("utf-8"))
             return data.get("healthy", False) is True
-    except Exception:
+    except (OSError, ValueError):
         return False
 
 
@@ -431,7 +431,7 @@ def bootstrap_check_server_reachable(config_root: Path | None = None) -> tuple[b
         return False, f"HTTP {e.code}: {e.reason}"
     except urllib.error.URLError as e:
         return False, f"Connection failed: {e.reason}"
-    except Exception as e:
+    except (OSError, ValueError) as e:
         return False, f"Health check error: {e}"
 
 
@@ -482,7 +482,7 @@ def get_session_messages(session_id: str | None = None) -> dict:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         raise APIError(f"HTTP {e.code}: {e.reason}") from e
-    except Exception as e:
+    except (OSError, ValueError) as e:
         raise APIError(f"Failed to get session messages: {e}") from e
 
 
@@ -517,7 +517,7 @@ def check_server_health() -> dict:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         raise ServerNotAvailableError(f"Server health check failed: HTTP {e.code}") from e
-    except Exception as e:
+    except (OSError, ValueError) as e:
         raise ServerNotAvailableError(f"Cannot connect to server: {e}") from e
 
 
@@ -553,7 +553,7 @@ def get_sessions() -> list[dict]:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         raise APIError(f"Failed to get sessions: HTTP {e.code}: {e.reason}") from e
-    except Exception as e:
+    except (OSError, ValueError) as e:
         raise APIError(f"Failed to get sessions: {e}") from e
 
 
@@ -662,5 +662,5 @@ def send_session_message(
             return {}
     except urllib.error.HTTPError as e:
         raise APIError(f"HTTP {e.code}: {e.reason}") from e
-    except Exception as e:
+    except (OSError, ValueError) as e:
         raise APIError(f"Failed to send session message: {e}") from e
