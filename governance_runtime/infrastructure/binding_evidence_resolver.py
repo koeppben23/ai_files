@@ -6,7 +6,11 @@ import json
 from pathlib import Path
 from typing import Any, Callable, Literal, Mapping
 
-from governance_runtime.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
+from governance_runtime.infrastructure.path_contract import (
+    PathContractError,
+    canonical_config_root,
+    normalize_absolute_path,
+)
 
 
 _SUPPORTED_BINDING_SCHEMAS: tuple[str, ...] = (
@@ -106,7 +110,7 @@ class BindingEvidenceResolver:
                         audit_marker=None,
                         audit_event=None,
                     )
-            except Exception as e:
+            except (OSError, ValueError, PathContractError) as e:
                 return BindingEvidence(
                     python_command="",
                     cmd_profiles={},
@@ -221,7 +225,7 @@ class BindingEvidenceResolver:
             if not isinstance(raw_python, str) or not raw_python.strip():
                 raise ValueError("paths.pythonCommand missing")
             python_command = raw_python.strip()
-        except Exception:
+        except (OSError, ValueError, json.JSONDecodeError, PathContractError):
             return BindingEvidence(
                 python_command=python_command,
                 cmd_profiles={},

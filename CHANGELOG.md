@@ -5,7 +5,30 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 
 ## [Unreleased]
 
-> **This release contains 414 commits since [1.1.0-RC.2]** (2026-02-09). The following is a thematic summary of major changes; see individual commit history for full detail.
+> **This release contains 271 commits since [1.1.0-RC.2]** (2026-02-09). The following is a thematic summary of major changes; see individual commit history for full detail.
+
+### Governance Runtime — Direct Mode & Performance
+
+- **Direct Mode Session Binding Fixed**: Changed CLI invocation from `--agent build` (starts new session) to `--continue` (uses existing session) in phase5_plan_record_persist.py and implement_start.py. This ensures `/plan` and `/implement` use the same LLM session as the active OpenCode Desktop chat.
+- **Execute Real Direct-Mode LLM Calls**: Governance runtime now executes real LLM review and plan calls in direct mode instead of falling back to pipeline bindings.
+- **Timeout Fixes**: Removed LLM timeouts for `--continue` mode (uses existing session indefinitely). Previously increased timeouts from 120s to 300s.
+- **Workspace-Scoped Governance Artifacts**: Governance artifacts (mandates, policies) now materialized to workspace-scoped paths (`workspaces/<fingerprint>/runtime_state/`) instead of config_root level. Added `repo_fingerprint` parameter to `governance_*_dir()` functions for backward compatibility. Config_root parameter now properly passed through all LLM call chains.
+- **Context Materialization with SHA256**: Implemented `governance_context_materializer.py` to materialize mandates/policies to files with SHA256 digests for auditability, avoiding ~8000+ char inline context. Uses atomic writes and validates digest integrity.
+- **Path Resolution Hardening**: Allowlisted materializer Path.resolve usage and normalized CRLF before context digest validation.
+- **Shell Escaping Fixed**: Added `shlex.quote()` when substituting `{context_file}` placeholder in executor commands to prevent shell injection vulnerabilities.
+- **Performance Caching**: Added `@lru_cache(maxsize=1)` to frequently-called schema loading functions (`_load_mandates_schema()`, `_get_plan_output_schema_text()`, `_get_review_output_schema_text()`, `_get_developer_output_schema_text()`) eliminating repeated file I/O and JSON parsing.
+
+### Governance — Requirement Authority & Implementation Forensics
+
+- **Hardened Requirement Authority**: Enforce strict machine requirement authority by default; removed markdown fallback from default requirement authority.
+- **Isolated Legacy Plan Fallback**: Plan fallback logic isolated and blocked state semantics enforced.
+- **Phase5 Schema Compliance**: Risk/mitigation items now stay within schema maxLength.
+- **Hardened Implement Checks**: Implement checks and Phase6 environment boundaries hardened.
+
+### OpenCode Desktop Integration
+
+- **Desktop Session Env Sanitization**: Sanitized desktop session environment for bridge execution.
+- **Invalid Continue Flag Dropped**: Removed invalid desktop continue flag in bridge invocation.
 
 ### Architecture — Governance Layer Separation
 

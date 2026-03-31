@@ -47,6 +47,7 @@ def _append_event(path: Path, event: dict[str, object]) -> bool:
         write_jsonl_event(path, event, append=True)
         return True
     except Exception:
+        # fail-closed: best-effort write, return False on any error
         return False
 
 

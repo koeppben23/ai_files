@@ -55,9 +55,10 @@ Directed rail selection after clarification:
 
 ## Response shape
 
-- report current `phase`, `next`, `active_gate`, and `next_gate_condition` after persist
-- if the persist command succeeded, confirm the review decision evidence was written
-- if validation fails, render the exact invalid decision and expected values
+- report `phase`, `next`, `active_gate`, `next_gate_condition` after persist; confirm review decision evidence written on success
+- if session contains plan data, render **Plan under review** section (prefer `plan_under_review_summary` normalized to max 6 lines/800 chars; fallback to `review_package_plan_body`)
+- if validation fails, render exact invalid decision and expected values
+- **always** end with exactly one `Next action:` line as the final output line
 
 ---
 

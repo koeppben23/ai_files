@@ -76,7 +76,7 @@ def load_binding_paths_strict(
     
     try:
         config_root = normalize_absolute_path(raw_config_root, purpose="paths.configRoot")
-    except Exception as e:
+    except (ValueError, OSError) as e:
         raise BindingLoadError(f"Invalid paths.configRoot: {e}")
     
     if expected_config_root is not None:
@@ -96,12 +96,12 @@ def load_binding_paths_strict(
     
     try:
         commands_home = normalize_absolute_path(raw_commands, purpose="paths.commandsHome")
-    except Exception as e:
+    except (ValueError, OSError) as e:
         raise BindingLoadError(f"Invalid paths.commandsHome: {e}")
     
     try:
         workspaces_home = normalize_absolute_path(raw_workspaces, purpose="paths.workspacesHome")
-    except Exception as e:
+    except (ValueError, OSError) as e:
         raise BindingLoadError(f"Invalid paths.workspacesHome: {e}")
     
     raw_python = paths.get("pythonCommand")

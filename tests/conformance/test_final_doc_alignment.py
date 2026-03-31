@@ -60,4 +60,4 @@ class TestFinalDocAlignment:
         assert commands_dir.is_dir(), "opencode/commands/ should exist"
         
         md_files = list(commands_dir.glob("*.md"))
-        assert len(md_files) == 8, f"Expected 8 Rails, found {len(md_files)}"
+        assert len(md_files) == 9, f"Expected 9 Rails, found {len(md_files)}"

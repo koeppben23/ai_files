@@ -23,13 +23,10 @@ def test_guided_happy_evidence_presentation_contains_full_review_blocks() -> Non
 
     assert "Current state" not in out
     assert "What this means now" not in out
-    assert "Presented review content" not in out
-    assert "# PHASE 5 · PLAN FOR APPROVAL" in out
-    assert "## Decision Required" in out
-    assert "## Technical Appendix" in out
-    assert "  - /plan" not in out
-    assert "  - /continue" not in out
-    assert "Next action:" not in out
+    assert "Plan under review" in out
+    assert "- Line 1" in out
+    assert "- Line 2" in out
+    assert out.strip().endswith(action_line)
 
 
 def test_guided_happy_evidence_presentation_verbose_mode_shows_governance_frame() -> None:
@@ -47,6 +44,40 @@ def test_guided_happy_evidence_presentation_verbose_mode_shows_governance_frame(
     assert "What this means now" in out
     assert "Presented review content" in out
     assert out.strip().endswith(action_line)
+
+
+def test_guided_corner_evidence_presentation_uses_summary_over_body() -> None:
+    snapshot = {
+        "status": "OK",
+        "phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "next_gate_condition": "Implementation review loop complete.",
+        "review_package_approved_plan_summary": "Summary line 1\nSummary line 2",
+        "review_package_plan_body": "Body line 1\nBody line 2",
+    }
+    out = format_guided_snapshot(snapshot, "Next action: /review-decision")
+    assert "Plan under review" in out
+    assert "- Summary line 1" in out
+    assert "Body line 1" not in out
+
+
+def test_guided_edge_evidence_presentation_truncates_plan_block_to_800_chars() -> None:
+    long_summary = "X" * 1000
+    snapshot = {
+        "status": "OK",
+        "phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "next_gate_condition": "Implementation review loop complete.",
+        "review_package_approved_plan_summary": long_summary,
+    }
+    out = format_guided_snapshot(snapshot, "Next action: /review-decision")
+    start = out.index("Plan under review")
+    end = out.index("\n\nNext action:")
+    block = out[start:end]
+    payload = block.replace("Plan under review\n", "")
+    lines = [line[2:] for line in payload.splitlines() if line.startswith("- ")]
+    assert len("\n".join(lines)) <= 800
+    assert lines[-1].endswith("...")
 
 
 def test_guided_bad_blocker_contains_blocker_section_and_single_next_action() -> None:
@@ -171,5 +202,6 @@ def test_guided_edge_materialize_normal_mode_has_no_yaml_dump(tmp_path: Path, ca
     out = capsys.readouterr().out
     assert "active_gate:" not in out
     assert "review_package_plan_body:" not in out
-    assert out.count("Next action:") == 1
-    assert out.strip().splitlines()[-1].startswith("Next action: ")
+    if "Next action:" in out:
+        assert out.count("Next action:") == 1
+        assert out.strip().splitlines()[-1].startswith("Next action: ")

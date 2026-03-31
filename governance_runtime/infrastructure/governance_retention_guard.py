@@ -188,7 +188,7 @@ def load_legal_holds_from_dir(holds_dir: Path) -> list[LegalHold]:
                 released_by=str(payload.get("released_by", "")),
             )
             holds.append(hold)
-        except Exception:
+        except (ValueError, TypeError):
             continue
 
     return holds

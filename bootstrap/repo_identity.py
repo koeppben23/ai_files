@@ -11,6 +11,11 @@ from governance_runtime.engine.adapters import LocalHostAdapter
 from governance_runtime.infrastructure.path_contract import normalize_absolute_path, normalize_for_fingerprint
 from governance_runtime.infrastructure.wiring import configure_gateway_registry
 
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except Exception:
+    GitCliClient = None
+
 
 @dataclass(frozen=True)
 class RepoIdentity:
@@ -43,6 +48,19 @@ def _is_canonical_fingerprint(value: str) -> bool:
 def derive_repo_root(start_path: Optional[Path] = None) -> Optional[Path]:
     if start_path is None:
         start_path = Path.cwd()
+    
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        root = git_client.resolve_repo_root(start_path)
+        if root:
+            try:
+                return normalize_absolute_path(str(root), purpose="repo_root")
+            except Exception:
+                return None
+        return None
+    
+    # Fallback to subprocess
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],

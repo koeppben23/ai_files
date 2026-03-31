@@ -77,7 +77,7 @@ class PolicyResolver:
 
         try:
             raw_schema = json.loads(self._schema_path.read_text(encoding="utf-8"))
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             return None
 
         review_output_schema_text = self._extract_review_output_schema(raw_schema)
@@ -100,7 +100,7 @@ class PolicyResolver:
                         {"$schema": "https://json-schema.org/draft/2020-12/schema", **defs[key]},
                         indent=2,
                     )
-        except Exception:
+        except (KeyError, TypeError, ValueError):
             pass
         return ""
 
@@ -254,7 +254,7 @@ class PolicyResolver:
                 is_available=False,
                 error_code=BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
             )
-        except Exception:
+        except (OSError, ValueError, BLOCKED_EFFECTIVE_POLICY_SCHEMA_INVALID):
             return ReviewPolicy(
                 policy_text="",
                 is_available=False,

@@ -303,7 +303,7 @@ def extract_candidates_from_repo(repo_root: Path) -> tuple[list[RuleCandidate], 
                     continue
                 try:
                     text = file_path.read_text(encoding="utf-8")
-                except Exception:
+                except OSError:
                     continue
                 lines = text.splitlines()
                 for line_no, raw_line in enumerate(lines, start=1):
@@ -321,6 +321,7 @@ def extract_candidates_from_repo(repo_root: Path) -> tuple[list[RuleCandidate], 
                         )
                     )
     except Exception:
+        # fail-closed: any error during repo walk/scan returns empty candidates
         return [], False
     return candidates, True
 

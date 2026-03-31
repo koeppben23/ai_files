@@ -56,6 +56,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except (ImportError, AttributeError):
+    GitCliClient = None
+
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -71,6 +76,9 @@ from governance_runtime.engine.business_rules_hydration import (
     has_br_signal,
     hydrate_business_rules_state_from_artifacts,
 )
+
+# Flag to indicate if the loaded render_repo_cache supports discovery parameter
+_REPO_CACHE_SUPPORTS_DISCOVERY = True
 from governance_runtime.engine.business_rules_validation import (
     ORIGIN_CODE,
     ORIGIN_DOC,
@@ -107,7 +115,13 @@ try:
         render_decision_pack_create,
     )
     from artifacts.writers.workspace_memory import render_workspace_memory
+    from governance_runtime.infrastructure.repo_discovery import (
+        discover_structural_facts,
+        StructuralFacts as _StructuralFacts,
+    )
 except ImportError:
+    # Set flag to indicate we're using fallback implementations without discovery support
+    _REPO_CACHE_SUPPORTS_DISCOVERY = False
     from dataclasses import dataclass
     from typing import Callable
 
@@ -267,7 +281,7 @@ except ImportError:
         section = repo_map_digest_section(date, repository_type)
         return "# Repo Map Digest\n" f"Repo: {repo_name}\n" f"LastUpdated: {date}\n\n" f"{section}"
 
-    def decision_pack_section(date: str, date_compact: str) -> str:
+    def decision_pack_section(date: str, date_compact: str, semantic=None) -> str:
         return "\n".join(
             [
                 f"## Decision Pack — {date}",
@@ -281,11 +295,11 @@ except ImportError:
             ]
         )
 
-    def render_decision_pack_create(*, date: str, date_compact: str, repo_name: str) -> str:
+    def render_decision_pack_create(*, date: str, date_compact: str, repo_name: str, semantic=None) -> str:
         section = decision_pack_section(date, date_compact)
         return "# Decision Pack\n" f"Repo: {repo_name}\n" f"LastUpdated: {date}\n\n" f"{section}"
 
-    def render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str) -> str:
+    def render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str, semantic=None) -> str:
         return "\n".join(
             [
                 "WorkspaceMemory:",
@@ -326,7 +340,7 @@ from governance_runtime.entrypoints.error_handler_bridge import (
 )
 try:
     from governance_runtime.infrastructure.logging.global_error_handler import resolve_log_path
-except Exception:
+except (ImportError, AttributeError):
     from governance_runtime.paths import get_workspace_logs_root
     def resolve_log_path(*, config_root=None, commands_home=None, workspaces_home=None, repo_fingerprint=None):
         _ = config_root
@@ -336,7 +350,7 @@ except Exception:
 
 try:
     from governance_runtime.domain.phase_state_machine import normalize_phase_token, phase_rank
-except Exception:
+except (ImportError, AttributeError):
     def normalize_phase_token(value: object) -> str:
         token = str(value or "").strip().upper()
         if token.startswith("1.1"):
@@ -381,11 +395,15 @@ def _read_only() -> bool:
 
 try:
     from governance_runtime.infrastructure.path_contract import (
+        PathContractError,
         canonical_config_root,
         normalize_absolute_path,
         normalize_for_fingerprint,
     )
-except Exception:
+except (ImportError, AttributeError):
+    class PathContractError(Exception):  # type: ignore[no-redef]
+        pass
+
     class NotAbsoluteError(Exception):
         pass
 
@@ -415,7 +433,7 @@ except Exception:
 
 try:
     from error_logs import safe_log_error
-except Exception:  # pragma: no cover
+except (ImportError, AttributeError):  # pragma: no cover
     def safe_log_error(**kwargs):  # type: ignore[no-redef]
         return {"status": "log-disabled"}
 
@@ -423,7 +441,7 @@ from workspace_lock import acquire_workspace_lock
 from command_profiles import render_command_profiles
 try:
     from governance_runtime.infrastructure.fs_atomic import atomic_write_text
-except Exception:
+except (ImportError, AttributeError):
     def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = text.replace("\r\n", "\n") if newline_lf else text
@@ -452,7 +470,7 @@ try:
     from governance_runtime.infrastructure.plan_record_repository import PlanRecordRepository
     from governance_runtime.infrastructure.workspace_paths import plan_record_path, plan_record_archive_dir
     _PLAN_RECORD_AVAILABLE = True
-except Exception:
+except (ImportError, AttributeError):
     PlanRecordRepository = None  # type: ignore[assignment]
     plan_record_path = None  # type: ignore[assignment]
     plan_record_archive_dir = None  # type: ignore[assignment]
@@ -460,7 +478,7 @@ except Exception:
 
 try:
     from governance_runtime.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
-except Exception:
+except (ImportError, AttributeError):
     import hashlib
     from urllib.parse import urlsplit
 
@@ -481,7 +499,7 @@ except Exception:
             raw = f"ssh://{scp_style.group('user')}@{scp_style.group('host')}/{scp_style.group('path')}"
         try:
             parsed = urlsplit(raw)
-        except Exception:
+        except ValueError:
             return None
         if not parsed.scheme or not parsed.netloc:
             return None
@@ -516,7 +534,7 @@ def default_config_root() -> Path:
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
 
@@ -564,7 +582,7 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
         config_root = normalize_absolute_path(config_root_raw, purpose="paths.configRoot")
         commands_home = normalize_absolute_path(commands_raw, purpose="paths.commandsHome")
         workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
-    except Exception as exc:
+    except (ValueError, OSError) as exc:
         raise ValueError(f"binding evidence invalid: {exc}") from exc
     
     if expected_config_root is not None:
@@ -595,7 +613,7 @@ def _python_argv_from_command(python_cmd: str) -> list[str]:
     if token:
         try:
             parts = [part for part in shlex.split(token, posix=False) if part]
-        except Exception:
+        except (ValueError, TypeError):
             parts = [token]
         head = parts[0]
         if os.path.isabs(head):
@@ -630,7 +648,7 @@ def _resolve_repo_root_strict(
             if has_git_marker or not require_git_marker:
                 return normalized, "explicit", {"ok": True, "source": "explicit", "path": str(normalized)}
             return None, "explicit-invalid", {"ok": False, "source": "explicit", "path": str(normalized), "reason": "missing-.git"}
-        except Exception as exc:
+        except (ValueError, OSError) as exc:
             return None, "explicit-invalid", {"ok": False, "source": "explicit", "error": str(exc)[:200]}
 
     env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
@@ -640,9 +658,37 @@ def _resolve_repo_root_strict(
             if (normalized / ".git").exists() or (normalized / ".git").is_file():
                 return normalized, "env", {"ok": True, "source": "env", "path": str(normalized)}
             return None, "env-invalid", {"ok": False, "source": "env", "path": str(normalized), "reason": "missing-.git"}
-        except Exception as exc:
+        except (ValueError, OSError) as exc:
             return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "error": str(exc)[:200]}
 
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        git_root = git_client.resolve_repo_root()
+        if git_root:
+            try:
+                return normalize_absolute_path(str(git_root), purpose="git-rev-parse"), "git", {
+                    "ok": True,
+                    "source": "git",
+                    "stdout": str(git_root),
+                    "returncode": 0,
+                }
+            except (ValueError, OSError) as exc:
+                return None, "git-invalid", {
+                    "ok": False,
+                    "source": "git",
+                    "stdout": str(git_root),
+                    "returncode": 0,
+                    "error": str(exc)[:200],
+                }
+        return None, "git-miss", {
+            "ok": False,
+            "source": "git",
+            "stdout": "",
+            "stderr": "no git repository found",
+        }
+    
+    # Fallback to subprocess
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -651,7 +697,7 @@ def _resolve_repo_root_strict(
             check=False,
             timeout=5,
         )
-    except Exception as exc:
+    except (OSError, subprocess.TimeoutExpired) as exc:
         return None, "git-probe-failed", {"ok": False, "source": "git", "error": str(exc)[:200]}
 
     root = (result.stdout or "").strip()
@@ -663,7 +709,7 @@ def _resolve_repo_root_strict(
                 "stdout": root,
                 "returncode": result.returncode,
             }
-        except Exception as exc:
+        except (ValueError, OSError) as exc:
             return None, "git-invalid", {
                 "ok": False,
                 "source": "git",
@@ -724,16 +770,19 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any],
             if candidate.exists():
                 config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
                 return config_root, paths, candidate
-        except Exception:
+        except (ValueError, OSError):
             pass
 
     if explicit is not None:
-        root = normalize_absolute_path(str(explicit), purpose="explicit_config_root")
-        candidate = root / "governance.paths.json"
-        if not candidate.exists():
-            candidate = root / "commands" / "governance.paths.json"
-        config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
-        return config_root, paths, candidate
+        try:
+            root = normalize_absolute_path(str(explicit), purpose="explicit_config_root")
+            candidate = root / "governance.paths.json"
+            if not candidate.exists():
+                candidate = root / "commands" / "governance.paths.json"
+            config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
+            return config_root, paths, candidate
+        except (ValueError, OSError, PathContractError) as exc:
+            raise ValueError(f"Path traversal blocked: {exc}") from exc
 
     env_value = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_value:
@@ -958,35 +1007,58 @@ def _render_repo_cache(
     repo_name: str,
     profile: str,
     profile_evidence: str,
-    repository_type: str,
+    discovery: _StructuralFacts | None = None,
+    repository_type: str | None = None,
 ) -> str:
-    return render_repo_cache(
-        date=date,
-        repo_name=repo_name,
-        profile=profile,
-        profile_evidence=profile_evidence,
-        repository_type=repository_type,
-    )
+    # Use discovery-based rendering only if discovery is available AND the loaded
+    # render_repo_cache function supports it (i.e., not using fallback implementations)
+    if discovery is not None and _REPO_CACHE_SUPPORTS_DISCOVERY:
+        return render_repo_cache(
+            date=date,
+            repo_name=repo_name,
+            profile=profile,
+            profile_evidence=profile_evidence,
+            discovery=discovery,
+        )
+    else:
+        # Legacy fallback - either no discovery facts, or fallback mode without discovery support
+        # When in fallback mode, render_repo_cache has the old signature with repository_type
+        effective_repo_type = repository_type or (discovery.repository_type if discovery else "unknown")
+        return render_repo_cache(
+            date=date,
+            repo_name=repo_name,
+            profile=profile,
+            profile_evidence=profile_evidence,
+            repository_type=effective_repo_type,
+        )
 
 
-def _repo_map_digest_section(date: str, repository_type: str) -> str:
-    return repo_map_digest_section(date, repository_type)
+def _repo_map_digest_section(date: str, discovery: _StructuralFacts | None = None, repository_type: str | None = None) -> str:
+    if discovery is not None and _REPO_CACHE_SUPPORTS_DISCOVERY:
+        return repo_map_digest_section(date, discovery)
+    else:
+        effective_repo_type = repository_type or (discovery.repository_type if discovery else "unknown")
+        return repo_map_digest_section(date, effective_repo_type)
 
 
-def _render_repo_map_digest_create(*, date: str, repo_name: str, repository_type: str) -> str:
-    return render_repo_map_digest_create(date=date, repo_name=repo_name, repository_type=repository_type)
+def _render_repo_map_digest_create(*, date: str, repo_name: str, discovery: _StructuralFacts | None = None, repository_type: str | None = None) -> str:
+    if discovery is not None and _REPO_CACHE_SUPPORTS_DISCOVERY:
+        return render_repo_map_digest_create(date=date, repo_name=repo_name, discovery=discovery)
+    else:
+        effective_repo_type = repository_type or (discovery.repository_type if discovery else "unknown")
+        return render_repo_map_digest_create(date=date, repo_name=repo_name, repository_type=effective_repo_type)
 
 
-def _decision_pack_section(date: str, date_compact: str) -> str:
-    return decision_pack_section(date, date_compact)
+def _decision_pack_section(date: str, date_compact: str, semantic: Any = None) -> str:
+    return decision_pack_section(date, date_compact, semantic=semantic)
 
 
-def _render_decision_pack_create(*, date: str, date_compact: str, repo_name: str) -> str:
-    return render_decision_pack_create(date=date, date_compact=date_compact, repo_name=repo_name)
+def _render_decision_pack_create(*, date: str, date_compact: str, repo_name: str, semantic: Any = None) -> str:
+    return render_decision_pack_create(date=date, date_compact=date_compact, repo_name=repo_name, semantic=semantic)
 
 
-def _render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str) -> str:
-    return render_workspace_memory(date=date, repo_name=repo_name, repo_fingerprint=repo_fingerprint)
+def _render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str, semantic: Any = None) -> str:
+    return render_workspace_memory(date=date, repo_name=repo_name, repo_fingerprint=repo_fingerprint, semantic=semantic)
 
 
 def _business_rules_extraction_evidence(session: dict[str, Any] | None) -> bool:
@@ -1526,7 +1598,7 @@ def main() -> int:
     args = parse_args()
     try:
         config_root, binding_paths, binding_file = resolve_binding_config(args.config_root)
-    except Exception as exc:
+    except (ValueError, OSError) as exc:
         emit_gate_failure(
             gate="PERSISTENCE",
             code="MISSING_BINDING_FILE",
@@ -1871,10 +1943,28 @@ def main() -> int:
         or repo_root.name
     )
     repo_name = _sanitize_repo_name(repo_name_raw, repo_fingerprint)
-    profile = active_profile if isinstance(active_profile, str) and active_profile else "unknown"
-    profile_evidence_text = (
-        profile_evidence if isinstance(profile_evidence, str) and profile_evidence else "unknown"
-    )
+    profile = active_profile if isinstance(active_profile, str) and active_profile else ""
+    profile_evidence_text = profile_evidence if isinstance(profile_evidence, str) and profile_evidence else ""
+
+    # Harmonize profile signals across artifacts and SESSION_STATE:
+    # if ActiveProfile is absent, infer from repo policy as fallback.
+    if not profile:
+        policy_path = repo_root / ".opencode" / "governance-repo-policy.json"
+        try:
+            policy_payload = _load_json(policy_path)
+            if policy_payload is not None:
+                inferred = str(policy_payload.get("operatingMode") or "").strip()
+                if inferred in {"solo", "team", "regulated"}:
+                    profile = inferred
+                    if not profile_evidence_text:
+                        profile_evidence_text = "repo-policy.operatingMode"
+        except (ValueError, TypeError):
+            pass
+
+    if not profile:
+        profile = "unknown"
+    if not profile_evidence_text:
+        profile_evidence_text = "unknown"
     repository_type_text = (
         repository_type if isinstance(repository_type, str) and repository_type else "unknown"
     )
@@ -1889,23 +1979,87 @@ def main() -> int:
     business_rules_path = repo_home / "business-rules.md"
     business_rules_status_path = repo_home / "business-rules-status.md"
 
-    cache_content = _render_repo_cache(
-        date=today,
-        repo_name=repo_name,
-        profile=profile,
-        profile_evidence=profile_evidence_text,
-        repository_type=repository_type_text,
-    )
-    digest_create = _render_repo_map_digest_create(
-        date=today, repo_name=repo_name, repository_type=repository_type_text
-    )
-    digest_append = _repo_map_digest_section(today, repository_type_text)
+    # Run structural discovery - use minimal facts on any error
+    try:
+        from governance_runtime.infrastructure.repo_discovery import discover_structural_facts
+        structural_facts = discover_structural_facts(
+            repo_root,
+            profile=profile,
+            repo_fingerprint=repo_fingerprint,
+        )
+    except (ImportError, OSError):
+        structural_facts = None  # Will use legacy rendering
+
+    # Run semantic discovery (Phase 2b) - SSOTs, Invariants, Conventions, Patterns
+    # Never silently swallow errors - report as deviations in the facts
+    semantic_facts = None
+    try:
+        from governance_runtime.infrastructure.repo_discovery import discover_semantic_facts
+        from governance_runtime.infrastructure.repo_discovery import DeviationFact, Evidence, Confidence
+        semantic_facts = discover_semantic_facts(
+            repo_root,
+            profile=profile,
+            repo_fingerprint=repo_fingerprint,
+        )
+    except (ImportError, OSError) as exc:
+        # Create empty SemanticFacts with error recorded as deviation
+        try:
+            from governance_runtime.infrastructure.repo_discovery import (
+                SemanticFacts as _SemanticFacts,
+                DeviationFact as _DeviationFact,
+                Evidence as _Evidence,
+                Confidence as _Confidence,
+            )
+            semantic_facts = _SemanticFacts(
+                ssots=[],
+                invariants=[],
+                conventions=[],
+                patterns=[],
+                defaults=[],
+                deviations=[_DeviationFact(
+                    description="Semantic discovery failed completely",
+                    expected="discover_semantic_facts() to succeed",
+                    observed=f"{type(exc).__name__}: {str(exc)[:200]}",
+                    severity="warning",
+                    evidence=_Evidence("discovery-error", "discover_semantic_facts", _Confidence.LOW),
+                    recommendation="Check repo_discovery imports and dependencies",
+                )],
+                discovered_at=today,
+            )
+        except (ImportError, AttributeError):
+            semantic_facts = None  # Ultimate fallback if even error creation fails
+
+    if structural_facts is not None:
+        cache_content = _render_repo_cache(
+            date=today,
+            repo_name=repo_name,
+            profile=profile,
+            profile_evidence=profile_evidence_text,
+            discovery=structural_facts,
+        )
+        digest_create = _render_repo_map_digest_create(
+            date=today, repo_name=repo_name, discovery=structural_facts
+        )
+        digest_append = _repo_map_digest_section(today, structural_facts)
+    else:
+        # Fallback to legacy rendering
+        cache_content = _render_repo_cache(
+            date=today,
+            repo_name=repo_name,
+            profile=profile,
+            profile_evidence=profile_evidence_text,
+            repository_type=repository_type_text,
+        )
+        digest_create = _render_repo_map_digest_create(
+            date=today, repo_name=repo_name, repository_type=repository_type_text
+        )
+        digest_append = _repo_map_digest_section(today, repository_type_text)
     decision_create = _render_decision_pack_create(
-        date=today, date_compact=today_compact, repo_name=repo_name
+        date=today, date_compact=today_compact, repo_name=repo_name, semantic=semantic_facts
     )
-    decision_append = _decision_pack_section(today, today_compact)
+    decision_append = _decision_pack_section(today, today_compact, semantic=semantic_facts)
     memory_content = _render_workspace_memory(
-        date=today, repo_name=repo_name, repo_fingerprint=repo_fingerprint
+        date=today, repo_name=repo_name, repo_fingerprint=repo_fingerprint, semantic=semantic_facts
     )
     extraction_report, extraction_diagnostics, extractor_ran = extract_validated_business_rules_with_diagnostics(repo_root)
 
@@ -2186,7 +2340,7 @@ def main() -> int:
                 if not args.dry_run and not read_only:
                     business_rules_path.unlink(missing_ok=True)
                 business_rules_action = "withheld-invalid"
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             business_rules_action = "withheld-invalid"
 
     business_rules_sha256 = ""
@@ -2388,7 +2542,7 @@ def main() -> int:
                     session_run_id=run_id,
                 )
                 plan_record_action = "backfilled" if result.ok else f"skipped:{result.reason}"
-            except Exception as exc:
+            except (ImportError, OSError, RuntimeError) as exc:
                 plan_record_action = f"backfill-error:{str(exc)[:120]}"
                 safe_log_error(
                     reason_key="ERR-PLAN-RECORD-BACKFILL-FAILED",

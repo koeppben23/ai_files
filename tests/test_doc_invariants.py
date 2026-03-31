@@ -65,7 +65,6 @@ def _exists_repo_path(relpath: str) -> bool:
 # Files that describe the /review command and must use canonical framing
 _REVIEW_FRAMING_FILES = [
     "QUICKSTART.md",
-    "README.md",
     "README-OPENCODE.md",
     "docs/phases.md",
     "review.md",

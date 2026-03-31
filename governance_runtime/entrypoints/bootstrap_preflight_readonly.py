@@ -22,6 +22,10 @@ import sys
 import tempfile
 from typing import Any, Mapping, cast
 
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except (ImportError, AttributeError):
+    GitCliClient = None
 
 
 from governance_runtime.entrypoints.command_profiles import render_command_profiles
@@ -41,7 +45,7 @@ from governance_runtime.infrastructure.binding_evidence_resolver import BindingE
 
 try:
     from bootstrap.repo_identity import derive_fingerprint as _derive_fingerprint_ssot
-except Exception:
+except (ImportError, AttributeError):
     _derive_fingerprint_ssot = None
 
 from governance_runtime.infrastructure.logging.global_error_handler import (
@@ -55,7 +59,7 @@ def _install_global_error_handler() -> None:
     try:
         from governance_runtime.infrastructure.logging.global_error_handler import install_global_handlers
         install_global_handlers()
-    except Exception:
+    except (ImportError, AttributeError, OSError):
         pass
 
 _install_global_error_handler()
@@ -126,42 +130,63 @@ def _normalize_abs_path(raw: str, *, purpose: str) -> Path:
 def derive_repo_fingerprint(repo_root: Path) -> str | None:
     try:
         normalized_repo_root = _normalize_abs_path(str(repo_root), purpose="repo_root")
-    except Exception:
+    except (ValueError, OSError):
         return None
 
     git_marker = normalized_repo_root / ".git"
     if not (git_marker.is_dir() or git_marker.is_file()):
         return None
 
-    probe = subprocess.run(
-        ["git", "-C", str(normalized_repo_root), "rev-parse", "--is-inside-work-tree"],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=5,
-    )
-    if probe.returncode != 0 or (probe.stdout or "").strip().lower() != "true":
-        return None
-
-    if callable(_derive_fingerprint_ssot):
-        try:
-            candidate = str(_derive_fingerprint_ssot(normalized_repo_root) or "").strip()
-            if re.fullmatch(r"[0-9a-f]{24}", candidate):
-                return candidate
-        except Exception:
-            pass
-
-    try:
-        remote = subprocess.run(
-            ["git", "-C", str(normalized_repo_root), "remote", "get-url", "origin"],
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        if not git_client.is_inside_work_tree(normalized_repo_root):
+            return None
+        
+        # Try SSOT fingerprint derivation first
+        if callable(_derive_fingerprint_ssot):
+            try:
+                candidate = str(_derive_fingerprint_ssot(normalized_repo_root) or "").strip()
+                if re.fullmatch(r"[0-9a-f]{24}", candidate):
+                    return candidate
+            except (ValueError, OSError, TypeError):
+                pass
+        
+        # Fallback to origin remote
+        remote = git_client.get_origin_remote(normalized_repo_root)
+        material = (remote or "").strip()
+    else:
+        # Fallback to direct subprocess calls (backwards compatibility)
+        probe = subprocess.run(
+            ["git", "-C", str(normalized_repo_root), "rev-parse", "--is-inside-work-tree"],
             capture_output=True,
             text=True,
             check=False,
             timeout=5,
         )
-        material = (remote.stdout or "").strip()
-    except Exception:
-        material = ""
+        if probe.returncode != 0 or (probe.stdout or "").strip().lower() != "true":
+            return None
+
+        if callable(_derive_fingerprint_ssot):
+            try:
+                candidate = str(_derive_fingerprint_ssot(normalized_repo_root) or "").strip()
+                if re.fullmatch(r"[0-9a-f]{24}", candidate):
+                    return candidate
+            except (ValueError, OSError, TypeError):
+                pass
+
+        try:
+            remote = subprocess.run(
+                ["git", "-C", str(normalized_repo_root), "remote", "get-url", "origin"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            material = (remote.stdout or "").strip()
+        except (OSError, subprocess.TimeoutExpired):
+            material = ""
+
     if not material:
         material = f"repo:local:{normalized_repo_root}"
     fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
@@ -189,6 +214,17 @@ def _command_available(command: str) -> bool:
 def _windows_longpaths_enabled() -> bool | None:
     if platform.system() != "Windows":
         return None
+    
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        for scope in ("global", "system"):
+            value = git_client.get_config("core.longpaths", scope=scope)
+            if value and value.strip().lower() in {"true", "1", "yes", "on"}:
+                return True
+        return False
+    
+    # Fallback to subprocess
     for scope in ("--system", "--global"):
         proc = subprocess.run(
             ["git", "config", scope, "--get", "core.longpaths"],
@@ -202,6 +238,12 @@ def _windows_longpaths_enabled() -> bool | None:
 
 
 def _git_safe_directory_issue() -> bool:
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        return not git_client.is_safe_directory()
+    
+    # Fallback to subprocess
     proc = subprocess.run(
         ["git", "rev-parse", "--is-inside-work-tree"],
         text=True,
@@ -218,7 +260,7 @@ def _load_tool_catalog() -> dict[str, object]:
         payload = json.loads(TOOL_CATALOG.read_text(encoding="utf-8"))
         if isinstance(payload, dict):
             return payload
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return {}
     return {}
 
@@ -326,7 +368,7 @@ def _probe_tool_version(verify_command: str) -> str | None:
             check=False,
             timeout=5,
         )
-    except Exception:
+    except (OSError, subprocess.TimeoutExpired):
         return None
     output = (proc.stdout or "") + "\n" + (proc.stderr or "")
     for line in output.splitlines():
@@ -475,9 +517,39 @@ def _resolve_repo_root_for_hook() -> tuple[Path | None, str, dict[str, object]]:
             if (resolved_env_root / ".git").exists() or (resolved_env_root / ".git").is_file():
                 return resolved_env_root, "env", {"ok": True, "source": "env", "raw": env_root}
             return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "reason": "missing-.git"}
-        except Exception as exc:
+        except (ValueError, OSError) as exc:
             return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "error": str(exc)[:200]}
 
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        resolved = git_client.resolve_repo_root()
+        if resolved:
+            try:
+                normalized = _normalize_abs_path(str(resolved), purpose="git-rev-parse")
+                return normalized, "git", {
+                    "ok": True,
+                    "source": "git",
+                    "returncode": 0,
+                    "stdout": str(resolved),
+                }
+            except (ValueError, OSError) as exc:
+                return None, "git-invalid", {
+                    "ok": False,
+                    "source": "git",
+                    "returncode": 0,
+                    "stdout": str(resolved),
+                    "error": str(exc)[:200],
+                }
+        return None, "git-miss", {
+            "ok": False,
+            "source": "git",
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "no git repository found",
+        }
+    
+    # Fallback to subprocess
     probe = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
@@ -495,7 +567,7 @@ def _resolve_repo_root_for_hook() -> tuple[Path | None, str, dict[str, object]]:
                 "returncode": probe.returncode,
                 "stdout": root_text,
             }
-        except Exception as exc:
+        except (OSError, subprocess.TimeoutExpired) as exc:
             return None, "git-invalid", {
                 "ok": False,
                 "source": "git",
@@ -516,7 +588,7 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
     try:
         from governance_runtime.engine.adapters import OpenCodeDesktopAdapter
         from governance_runtime.engine.orchestrator import run_engine_orchestrator
-    except Exception as exc:  # pragma: no cover
+    except (ImportError, AttributeError) as exc:  # pragma: no cover
         return {"available": False, "reason": "engine-runtime-module-unavailable", "error": str(exc)}
 
     output = run_engine_orchestrator(
@@ -593,7 +665,7 @@ def _emit_persistence_gate_failure(
             workspaces_home=WORKSPACES_HOME,
             repo_fingerprint=repo_fingerprint,
         )
-    except Exception:
+    except (OSError, RuntimeError):
         return Path("error.log.jsonl")
 
 
@@ -729,7 +801,7 @@ def run_persistence_hook() -> dict[str, object]:
     for candidate in reversed(stdout_lines):
         try:
             loaded = json.loads(candidate)
-        except Exception:
+        except json.JSONDecodeError:
             continue
         if isinstance(loaded, dict):
             parsed_payload = loaded
@@ -839,7 +911,7 @@ def _session_state_file_path(repo_fingerprint: str) -> Path | None:
 def _read_json_document(path: Path) -> dict[str, object] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     if isinstance(payload, dict):
         return payload
@@ -854,7 +926,7 @@ def _write_json_document(path: Path, payload: Mapping[str, object]) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(text)
         os.replace(temp_path, str(path))
-    except Exception:
+    except OSError:
         if os.path.exists(temp_path):
             os.unlink(temp_path)
         raise
@@ -886,7 +958,7 @@ def _phase_ready_value(phase_value: object) -> int | None:
         return None
     try:
         return int(match.group(1))
-    except Exception:
+    except (ValueError, AttributeError):
         return None
 
 
@@ -910,11 +982,19 @@ def _ticket_intake_ready(state: Mapping[str, object], phase_token: str) -> bool:
     return True
 
 
+def _session_hydrated(state: Mapping[str, object]) -> bool:
+    hydration = state.get("SessionHydration")
+    if not isinstance(hydration, Mapping):
+        return False
+    return str(hydration.get("status") or "").strip().lower() == "hydrated"
+
+
 def _apply_ticket_intake_readiness(document: Mapping[str, object], *, phase_token: str) -> dict[str, object]:
     updated = dict(document)
     state = _root_state(updated)
     ready = _ticket_intake_ready(state, phase_token)
     state["ticket_intake_ready"] = ready
+    state["session_hydrated"] = _session_hydrated(state)
     phase_ready = _phase_ready_value(get_phase(state) or phase_token)
     if phase_ready is not None:
         state["phase_ready"] = phase_ready
@@ -935,7 +1015,7 @@ def _activation_intent_evidence() -> tuple[str, str, str]:
     try:
         raw_text = intent_path.read_text(encoding="utf-8")
         payload = json.loads(raw_text)
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return canonical_path, "", "unknown"
 
     if not isinstance(payload, dict):
@@ -959,7 +1039,7 @@ def _canonical_profile_id(raw: object) -> str:
 def _safe_read(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
-    except Exception:
+    except (OSError, UnicodeDecodeError):
         return ""
 
 
@@ -1453,6 +1533,11 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
     if final_phase == "4" and not (has_ticket or has_task or has_ticket_digest or has_task_digest):
         final_state["phase4_intake_source"] = "bootstrap"
         final_state["phase4_intake_evidence"] = False
+        final_state["session_hydrated"] = False
+        final_state["SessionHydration"] = {
+            "status": "not_hydrated",
+            "source": "bootstrap",
+        }
         final_state["phase4_intake_updated_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         final_state["phase_transition_evidence"] = False
         apply_fresh_start_business_rules_neutralization(final_state)
@@ -1469,9 +1554,11 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
         "next_gate_condition": str(last_result.get("next_gate_condition") or ""),
         "source": str(last_result.get("source") or ""),
         "hops": hops,
+        "workspace_ready": bool(_read_bool(final_state, "WorkspaceReadyGateCommitted", "workspace_ready_gate_committed")),
+        "session_hydrated": bool(final_state.get("session_hydrated") is True),
     }
     if phase_rank(resolved_token) >= phase_rank("4"):
-        payload["next_step"] = "Open OpenCode Desktop in this repository and run /continue"
+        payload["next_step"] = "Open OpenCode Desktop in this repository and run /hydrate"
     else:
         payload["next_step"] = "Rerun the local bootstrap launcher until Phase 4 is reached"
     return payload

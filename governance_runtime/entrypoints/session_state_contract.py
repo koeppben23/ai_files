@@ -18,7 +18,7 @@ try:
         session_pointer_path,
         session_state_template,
     )
-except Exception:
+except Exception:  # pragma: no cover - fallback imports
     import re
     from datetime import datetime, timezone
     from pathlib import Path
@@ -89,6 +89,11 @@ except Exception:
                     "addons": {},
                 },
                 "ticket_intake_ready": False,
+                "session_hydrated": False,
+                "SessionHydration": {
+                    "status": "not_hydrated",
+                    "source": "session-state-contract",
+                },
                 "AddonsEvidence": {},
                 "RulebookLoadEvidence": {
                     "top_tier": {

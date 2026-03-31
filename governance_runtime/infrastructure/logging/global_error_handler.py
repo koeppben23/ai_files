@@ -109,7 +109,7 @@ def _emit_jsonl_event(event: dict[str, Any], target_path: Path) -> bool:
         except TypeError:
             getattr(emitter, "__call__")(target_path, event)
         return True
-    except Exception:
+    except OSError:
         return False
 
 
@@ -213,7 +213,7 @@ def install_global_handlers(context_provider: Callable[[], ErrorContext] | None 
     if context_provider:
         try:
             set_error_context(context_provider())
-        except Exception:
+        except (ValueError, TypeError):
             pass
     ERROR_HANDLER_INSTALLED = True
 

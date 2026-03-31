@@ -22,6 +22,15 @@ _ERROR_CONTEXT_DEFAULTS: dict = {
 
 
 @pytest.fixture(autouse=True)
+def _set_opencode_session_id(monkeypatch):
+    """Set OPENCODE_SESSION_ID for tests that use server client.
+
+    This is required for all tests that call send_session_prompt().
+    """
+    monkeypatch.setenv("OPENCODE_SESSION_ID", "test-session-id")
+
+
+@pytest.fixture(autouse=True)
 def _isolate_error_context():
     """Prevent _ERROR_CONTEXT state leaking between tests."""
     import governance_runtime.infrastructure.logging.global_error_handler as geh

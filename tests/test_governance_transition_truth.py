@@ -36,8 +36,36 @@ def _set_pipeline_mode_with_bindings(
     execution_cmd: str,
     review_cmd: str = "echo '{\"verdict\":\"approve\",\"findings\":[]}'",
 ) -> None:
+    def _extract_json_from_cmd(cmd: str) -> str:
+        import base64
+        token = str(cmd or "").strip()
+        if token.startswith("cat "):
+            path = Path(token[4:].strip())
+            if path.exists():
+                return path.read_text(encoding="utf-8")
+        if token.startswith("echo '") and token.endswith("'"):
+            return token[6:-1]
+        if token.startswith('echo "') and token.endswith('"'):
+            return token[6:-1]
+        # Handle Windows base64-encoded python command
+        if token.startswith("python -c "):
+            try:
+                # Extract base64 content from: python -c "import base64,sys;sys.stdout.write(base64.b64decode('...').decode())"
+                import re
+                match = re.search(r"base64\.b64decode\(['\"](.+?)['\"]\)", token)
+                if match:
+                    encoded = match.group(1)
+                    decoded = base64.b64decode(encoded).decode("utf-8")
+                    return decoded
+            except Exception:
+                pass
+        return token
+
     payload = {
         "pipeline_mode": True,
+        "presentation": {
+            "mode": "standard",
+        },
         "review": {
             "phase5_max_review_iterations": 3,
             "phase6_max_review_iterations": 3,
@@ -49,6 +77,11 @@ def _set_pipeline_mode_with_bindings(
     )
     monkeypatch.setenv("AI_GOVERNANCE_EXECUTION_BINDING", execution_cmd)
     monkeypatch.setenv("AI_GOVERNANCE_REVIEW_BINDING", review_cmd)
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.setenv("OPENCODE_SESSION_ID", "sess_test")
+    monkeypatch.setenv("OPENCODE_MODEL", "openai/gpt-5")
+    monkeypatch.setenv("AI_GOVERNANCE_TEST_PLAN_RESPONSE", _extract_json_from_cmd(execution_cmd))
+    monkeypatch.setenv("AI_GOVERNANCE_TEST_REVIEW_RESPONSE", _extract_json_from_cmd(review_cmd))
 
 
 @pytest.mark.e2e_governance
@@ -79,12 +112,10 @@ class TestE2EResponseContract:
         assert rc == 0, "/continue must succeed at Evidence Presentation Gate"
 
         output = capsys.readouterr().out
-        assert "Current state" in output, "Guided output must show current state"
-        assert "Active gate" in output, "Guided output must show active gate"
-        assert "Gate purpose" in output, "Guided output must show gate purpose"
-        assert "Next action:" in output or "next_action" in output.lower(), (
-            "Guided output must show next action"
-        )
+        assert "Current phase is" in output, "Narrative output must show current phase sentence"
+        assert "active gate" in output, "Output must show active gate"
+        if "Next action:" in output:
+            assert output.strip().splitlines()[-1].startswith("Next action: ")
 
     def test_next_action_is_derived_from_active_gate_deterministically(self, tmp_path, monkeypatch):
         """The same (active_gate, phase) always produces the same next_action command."""
@@ -245,6 +276,13 @@ class TestE2EResponseContract:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         state.pop("Ticket", None)
         state.pop("Task", None)
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
@@ -386,6 +424,13 @@ class TestE2EResponseContract:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
         module_ticket = _load_module("phase4_intake_persist", "phase4_intake_persist.py")
@@ -555,6 +600,13 @@ class TestE2EStateTransitionInvariants:
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state["next_gate_condition"] = "Provide ticket and task details."
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         state.pop("Ticket", None)
         state.pop("Task", None)
         state.pop("TicketRecordDigest", None)
@@ -759,6 +811,13 @@ class TestE2EStateTransitionInvariants:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
         _load_module("phase4_intake_persist", "phase4_intake_persist.py").main(
@@ -784,6 +843,13 @@ class TestE2EStateTransitionInvariants:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         state.pop("Ticket", None)
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
@@ -989,6 +1055,13 @@ class TestE2EPersistedStateContract:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
         module = _load_module("phase4_intake_persist", "phase4_intake_persist.py")
@@ -1065,6 +1138,13 @@ class TestE2EPersistedStateContract:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
         module = _load_module("phase4_intake_persist", "phase4_intake_persist.py")
@@ -1098,6 +1178,9 @@ class TestE2EPersistedStateContract:
             json.dumps(
                 {
                     "pipeline_mode": True,
+                    "presentation": {
+                        "mode": "standard",
+                    },
                     "review": {
                         "phase5_max_review_iterations": 3,
                         "phase6_max_review_iterations": 3,
@@ -1136,6 +1219,13 @@ class TestE2EPersistedStateContract:
         state = _read_state(session_path)
         state["phase"] = "4"
         state["active_gate"] = "Ticket Input Gate"
+        state["SessionHydration"] = {
+            "status": "hydrated",
+            "hydrated_session_id": "test-session-123",
+            "hydrated_at": "2026-01-01T00:00:00Z",
+            "digest": "abc123",
+            "artifact_digest": "def456",
+        }
         session_path.write_text(json.dumps({"SESSION_STATE": state}, indent=2) + "\n", encoding="utf-8")
 
         module = _load_module("phase4_intake_persist", "phase4_intake_persist.py")

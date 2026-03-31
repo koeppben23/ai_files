@@ -72,16 +72,22 @@ opencode-governance-bootstrap init --profile <solo|team|regulated>
 
 The system establishes workspace context, profile selection, and persistence prerequisites. If required evidence is missing, execution **blocks** rather than guessing.
 
+Bootstrap UX contract:
+- default output is human-readable summary with a prominent next action
+- `--json` emits one structured JSON document
+- after bootstrap reaches Phase 4, next action is `/hydrate` (not `/continue`)
+
 ### 2. Governed Command Surface
 
-Eight governance rails map to workflow phases:
+Nine governance rails map to workflow phases:
 
 | Command | Purpose |
 |---------|---------|
+| `/hydrate` | Bind governance to active OpenCode session and hydrate working context |
 | `/continue` | Materialize and display current state |
 | `/ticket` | Submit task/ticket for Phase 4 intake |
 | `/plan` | Persist architecture/planning evidence |
-| `/review` | Submit work for human review |
+| `/review` | Read-only review rail (no state mutation) |
 | `/review-decision` | Record approve/changes_requested/reject |
 | `/implement` | Execute implementation with evidence |
 | `/implementation-decision` | Record final implementation decision |
@@ -229,7 +235,7 @@ This gives operators and compliance stakeholders a concrete vocabulary for syste
 - **Supported Languages:** Python, Java, JavaScript/TypeScript (Angular), and growing
 - **Profile System:** 15+ language-specific governance profiles
 - **Phase Count:** 18 explicit workflow phases
-- **Command Surface:** 8 governance rails
+- **Command Surface:** 9 governance rails
 - **Add-on Architecture:** Extensible rules and quality gates
 - **Self-Hosted:** No external dependencies, full data sovereignty
 

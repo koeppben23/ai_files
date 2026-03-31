@@ -207,7 +207,7 @@ def archive_active_run(
         if existing_manifest.exists() and existing_manifest.is_file():
             try:
                 existing_payload = json.loads(existing_manifest.read_text(encoding="utf-8"))
-            except Exception:
+            except (OSError, json.JSONDecodeError):
                 existing_payload = {}
             existing_status = str(existing_payload.get("run_status") or "").strip()
             if existing_status == "failed":
@@ -574,7 +574,7 @@ def archive_active_run(
             raise RuntimeError(
                 f"run archive integrity verify failed after metadata finalization: {integrity_message or 'unknown'}"
             )
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         error_message = str(exc)
         try:
             fail_metadata = {
@@ -651,7 +651,7 @@ def archive_active_run(
                 ),
                 fail_manifest,
             )
-        except Exception:
+        except OSError:
             pass
         raise
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -27,8 +28,50 @@ def _load_module(name: str, filename: str):
     return module
 
 
+def _resolve_test_model_identity() -> dict[str, str]:
+    """Resolve provider/model for tests without pinning vendor.
+
+    Preference:
+    1) OPENCODE_MODEL as provider/model
+    2) AI_GOVERNANCE_TEST_MODEL as provider/model
+    3) generic fallback test-provider/test-model
+    """
+    raw = str(
+        os.environ.get("OPENCODE_MODEL")
+        or os.environ.get("AI_GOVERNANCE_TEST_MODEL")
+        or ""
+    ).strip()
+    if "/" in raw:
+        provider, model_id = raw.split("/", 1)
+        provider = provider.strip()
+        model_id = model_id.strip()
+        if provider and model_id:
+            return {"provider": provider, "model_id": model_id}
+    return {"provider": "test-provider", "model_id": "test-model"}
+
+
 def _load_phase5():
-    return _load_module("phase5_plan_record_persist", "phase5_plan_record_persist.py")
+    module = _load_module("phase5_plan_record_persist", "phase5_plan_record_persist.py")
+    original_invoke = module._invoke_llm_via_server
+
+    def _fake_invoke_llm_via_server(**kwargs):  # type: ignore[no-untyped-def]
+        plan_response = str(os.environ.get("AI_GOVERNANCE_TEST_PLAN_RESPONSE") or "").strip()
+        review_response = str(os.environ.get("AI_GOVERNANCE_TEST_REVIEW_RESPONSE") or "").strip()
+        if plan_response:
+            if not review_response:
+                review_response = json.dumps({"verdict": "approve", "findings": []}, ensure_ascii=True)
+            prompt = str(kwargs.get("prompt_text") or "")
+            if "review context JSON" in prompt:
+                return review_response
+            return plan_response
+        return original_invoke(**kwargs)
+
+    module._invoke_llm_via_server = _fake_invoke_llm_via_server
+    module._resolve_active_opencode_session_id = lambda: str(
+        os.environ.get("OPENCODE_SESSION_ID") or "sess_test"
+    )
+    module.resolve_active_opencode_model = _resolve_test_model_identity
+    return module
 
 
 def _load_session_reader():
@@ -131,6 +174,13 @@ def _write_e2e_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str, Path]:
             "session_run_id": "e2e-workflow-test",
             "active_gate": "Plan Record Preparation Gate",
             "next_gate_condition": "Persist plan record evidence",
+            "SessionHydration": {
+                "status": "hydrated",
+                "hydrated_session_id": "test-session-123",
+                "hydrated_at": "2026-01-01T00:00:00Z",
+                "digest": "abc123",
+                "artifact_digest": "def456",
+            },
             "Ticket": "Implement JWT authentication endpoint",
             "TicketRecordDigest": "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
             "Task": "Add /auth/login route that validates credentials and returns JWT",
@@ -169,6 +219,7 @@ def _write_e2e_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str, Path]:
 def _set_env(monkeypatch: pytest.MonkeyPatch, config_root: Path, commands_home: Path) -> None:
     monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
     monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+    monkeypatch.setenv("GOVERNANCE_ALLOW_LEGACY_MARKDOWN_REQUIREMENTS", "1")
 
 
 def _mock_llm_cmd(json_data: str) -> str:
@@ -216,6 +267,13 @@ def _write_phase6_session(
             "session_run_id": "e2e-workflow-test",
             "active_gate": "Evidence Presentation Gate",
             "next_gate_condition": "Awaiting final review decision.",
+            "SessionHydration": {
+                "status": "hydrated",
+                "hydrated_session_id": "test-session-123",
+                "hydrated_at": "2026-01-01T00:00:00Z",
+                "digest": "abc123",
+                "artifact_digest": "def456",
+            },
             "implementation_review_complete": True,
             "ImplementationReview": {
                 "implementation_review_complete": True,

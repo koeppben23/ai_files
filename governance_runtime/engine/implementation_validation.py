@@ -15,6 +15,9 @@ RC_NO_DOMAIN_DIFFS = "IMPLEMENTATION_NO_DOMAIN_DIFFS"
 RC_PLAN_COVERAGE_MISSING = "IMPLEMENTATION_PLAN_COVERAGE_MISSING"
 RC_TARGETED_CHECKS_MISSING = "IMPLEMENTATION_TARGETED_CHECKS_MISSING"
 RC_TARGETED_CHECKS_FAILED = "IMPLEMENTATION_TARGETED_CHECKS_FAILED"
+RC_CHECK_SELECTOR_INVALID = "IMPLEMENTATION_CHECK_SELECTOR_INVALID"
+RC_CHECK_COLLECTION_FAILED = "IMPLEMENTATION_CHECK_COLLECTION_FAILED"
+RC_CHECK_RUNNER_FAILED = "IMPLEMENTATION_CHECK_RUNNER_FAILED"
 RC_FORBIDDEN_PATH_CHANGED = "IMPLEMENTATION_FORBIDDEN_PATH_CHANGED"
 RC_EMPTY_DIFF = "IMPLEMENTATION_EMPTY_DIFF"
 RC_EXECUTOR_OUTPUT_MISSING = "IMPLEMENTATION_EXECUTOR_OUTPUT_MISSING"
@@ -45,6 +48,7 @@ class CheckResult:
     passed: bool
     exit_code: int | None
     output_path: str | None
+    failure_kind: str | None = None
 
 
 @dataclass(frozen=True)
@@ -57,6 +61,8 @@ class ImplementationValidationReport:
     domain_changed_files: tuple[str, ...]
     plan_coverage: tuple[PlanCoverageItem, ...]
     checks: tuple[CheckResult, ...]
+    primary_reason_code: str
+    secondary_reason_codes: tuple[str, ...]
     reason_codes: tuple[str, ...]
     is_compliant: bool
 
@@ -143,10 +149,19 @@ def validate_implementation(
     if not checks:
         reason_codes.append(RC_TARGETED_CHECKS_MISSING)
     elif any(not check.passed for check in checks):
+        failure_kinds = {str(check.failure_kind or "").strip() for check in checks if not check.passed}
+        if "selector_invalid" in failure_kinds:
+            reason_codes.append(RC_CHECK_SELECTOR_INVALID)
+        elif "collection_failed" in failure_kinds:
+            reason_codes.append(RC_CHECK_COLLECTION_FAILED)
+        elif failure_kinds:
+            reason_codes.append(RC_CHECK_RUNNER_FAILED)
         reason_codes.append(RC_TARGETED_CHECKS_FAILED)
 
     unique_reasons = tuple(dict.fromkeys(reason_codes))
     is_compliant = len(unique_reasons) == 0
+    primary = unique_reasons[0] if unique_reasons else ""
+    secondary = unique_reasons[1:] if len(unique_reasons) > 1 else ()
     return ImplementationValidationReport(
         executor_invoked=executor_result.executor_invoked,
         executor_succeeded=executor_result.executor_invoked and executor_result.exit_code == 0,
@@ -156,6 +171,8 @@ def validate_implementation(
         domain_changed_files=executor_result.domain_changed_files,
         plan_coverage=plan_coverage,
         checks=checks,
+        primary_reason_code=primary,
+        secondary_reason_codes=secondary,
         reason_codes=unique_reasons,
         is_compliant=is_compliant,
     )
@@ -184,9 +201,12 @@ def to_report_payload(report: ImplementationValidationReport) -> dict[str, objec
                 "passed": item.passed,
                 "exit_code": item.exit_code,
                 "output_path": item.output_path,
+                "failure_kind": item.failure_kind,
             }
             for item in report.checks
         ],
+        "primary_reason_code": report.primary_reason_code,
+        "secondary_reason_codes": list(report.secondary_reason_codes),
         "reason_codes": list(report.reason_codes),
         "is_compliant": report.is_compliant,
     }

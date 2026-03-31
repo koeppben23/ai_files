@@ -90,11 +90,11 @@ class TestE2EFixtureCleanliness:
         )
 
     def test_commands_home_has_only_commands(self, tmp_path, monkeypatch):
-        """commands_home must contain ONLY the 8 command files, no rulebooks or other content."""
+        """commands_home must contain ONLY the 9 command files, no rulebooks or other content."""
         config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
         entries = {p.name for p in commands_home.iterdir() if p.is_file()}
         CANONICAL_RAIL_FILENAMES = (
-            "audit-readout.md", "continue.md", "implement.md", "implementation-decision.md",
+            "audit-readout.md", "continue.md", "hydrate.md", "implement.md", "implementation-decision.md",
             "plan.md", "review-decision.md", "review.md", "ticket.md",
         )
         for name in entries:
@@ -399,12 +399,13 @@ class TestE2ELayoutCompleteness:
       governance_content/ = reference/, profiles/, templates/, docs/
     """
 
-    def test_commands_home_has_all_8_canonical_command_files(self, tmp_path, monkeypatch):
-        """commands_home must contain ALL 8 canonical command files, no more, no less."""
+    def test_commands_home_has_all_9_canonical_command_files(self, tmp_path, monkeypatch):
+        """commands_home must contain ALL 9 canonical command files, no more, no less."""
         config_root, commands_home, session_path, repo_fp, workspace = _write_e2e_fixture(tmp_path)
         CANONICAL_RAIL_FILENAMES = frozenset({
             "audit-readout.md",
             "continue.md",
+            "hydrate.md",
             "implement.md",
             "implementation-decision.md",
             "plan.md",
@@ -416,7 +417,7 @@ class TestE2ELayoutCompleteness:
             (commands_home / name).write_text(f"# {name}\n", encoding="utf-8")
         entries = {p.name for p in commands_home.iterdir() if p.is_file()}
         assert entries == CANONICAL_RAIL_FILENAMES, (
-            f"commands_home must contain exactly these 8 files: {sorted(CANONICAL_RAIL_FILENAMES)}, "
+            f"commands_home must contain exactly these 9 files: {sorted(CANONICAL_RAIL_FILENAMES)}, "
             f"found: {sorted(entries)}"
         )
 

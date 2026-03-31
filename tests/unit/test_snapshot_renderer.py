@@ -14,8 +14,10 @@ from governance_runtime.infrastructure.rendering.snapshot_renderer import (
     _render_execution_progress,
     _render_presented_review_content,
     _render_phase5_decision_brief_from_plan_body,
+    _build_plan_under_review_lines,
     _sanitize_phase5_decision_brief,
     _section,
+    format_standard_snapshot,
     format_snapshot,
     format_guided_snapshot,
 )
@@ -179,19 +181,21 @@ class TestFormatGuidedSnapshot:
 
     def test_includes_review_content(self):
         snapshot = _to_snapshot({
+            "phase": "6-PostFlight",
             "active_gate": "Evidence Presentation Gate",
             "review_package_review_object": "Test Review",
             "review_package_ticket": "TICKET-1",
             "review_package_plan_body": "# PHASE 5 · PLAN FOR APPROVAL\nPlan body text",
+            "review_package_approved_plan_summary": "Implement the approved plan in service layer.",
             "review_package_evidence_summary": "All evidence present",
+            "next_gate_condition": "Present the package and submit a decision.",
         })
         output = format_guided_snapshot(snapshot, "Next action: run /review-decision.")
-        assert "Presented review content" not in output
         assert "Current state" not in output
-        assert "# PHASE 5 · PLAN FOR APPROVAL" in output
-        assert "Plan body text" in output
-        assert "Evidence:" not in output
-        assert "Next action:" not in output
+        assert "What this means now" not in output
+        assert "Plan under review" in output
+        assert "Implement the approved plan in service layer." in output
+        assert output.strip().endswith("Next action: run /review-decision.")
 
     def test_includes_execution_progress(self):
         snapshot = _to_snapshot({
@@ -221,6 +225,111 @@ class TestFormatGuidedSnapshot:
         assert "Next action: run /review-decision." in output
 
 
+class TestFormatStandardSnapshot:
+    """Tests for format_standard_snapshot."""
+
+    def test_includes_plan_under_review_when_snapshot_has_plan_data(self):
+        snapshot = _to_snapshot({
+            "phase": "6",
+            "active_gate": "Some Other Gate",
+            "next_gate_condition": "Continue review.",
+            "review_package_approved_plan_summary": "Use canary rollout for deployment.",
+        })
+
+        output = format_standard_snapshot(snapshot, "Next action: run /continue.")
+
+        assert "Current phase is 6 with active gate Some Other Gate." in output
+        assert "Current next is: Continue review." in output
+        assert "Plan under review: Use canary rollout for deployment." in output
+        assert output.strip().endswith("Next action: run /continue.")
+
+    def test_omits_plan_under_review_when_no_plan_data(self):
+        snapshot = _to_snapshot({
+            "phase": "6",
+            "active_gate": "Evidence Presentation Gate",
+            "next_gate_condition": "Continue review.",
+        })
+
+        output = format_standard_snapshot(snapshot, "Next action: run /continue.")
+
+        assert "Plan under review:" not in output
+        assert output.strip().endswith("Next action: run /continue.")
+
+    def test_omits_plan_under_review_when_blocked(self):
+        snapshot = _to_snapshot({
+            "status": "blocked",
+            "phase": "6",
+            "active_gate": "Implementation Presentation Gate",
+            "next_gate_condition": "Address blocker.",
+            "review_package_plan_body": "# Plan\n\n- Step 1",
+        })
+
+        output = format_standard_snapshot(snapshot, "Next action: resolve blocker.")
+
+        assert "Plan under review:" not in output
+        assert "Current blocker is active:" in output
+        assert output.strip().endswith("Next action: resolve blocker.")
+
+    def test_falls_back_to_plan_body_when_summary_missing(self):
+        snapshot = _to_snapshot({
+            "phase": "6",
+            "active_gate": "Architecture Review Gate",
+            "next_gate_condition": "Continue review.",
+            "review_package_plan_body": "# Plan\n\n- Step 1\n- Step 2\n",
+        })
+
+        output = format_standard_snapshot(snapshot, "Next action: run /continue.")
+
+        assert "Plan under review:" in output
+        assert "Plan; - Step 1; - Step 2" in output
+
+    def test_truncation_is_deterministic_in_standard_output(self):
+        long_summary = "A" * 900
+        snapshot = _to_snapshot({
+            "phase": "6",
+            "active_gate": "Any Gate",
+            "next_gate_condition": "Continue review.",
+            "review_package_approved_plan_summary": long_summary,
+        })
+
+        output1 = format_standard_snapshot(snapshot, "Next action: run /continue.")
+        output2 = format_standard_snapshot(snapshot, "Next action: run /continue.")
+
+        assert output1 == output2
+        assert "Plan under review:" in output1
+        assert "..." in output1
+
+        plan_line = [line for line in output1.splitlines() if line.startswith("Plan under review:")][0]
+        assert len(plan_line) <= 850
+
+    def test_standard_and_debug_share_plan_content_for_same_snapshot(self):
+        snapshot = _to_snapshot({
+            "phase": "6",
+            "active_gate": "Evidence Presentation Gate",
+            "next_gate_condition": "Present and decide.",
+            "review_package_approved_plan_summary": "Ship canary rollout first.",
+        })
+
+        standard_output = format_standard_snapshot(snapshot, "Next action: run /review-decision.")
+        debug_output = format_guided_snapshot(snapshot, "Next action: run /review-decision.")
+
+        assert "Plan under review: Ship canary rollout first." in standard_output
+        assert "Plan under review" in debug_output
+        assert "- Ship canary rollout first." in debug_output
+
+    def test_standard_alias_is_narrative_compatible(self):
+        snapshot = _to_snapshot({
+            "phase": "4",
+            "active_gate": "Ticket Input Gate",
+            "next_gate_condition": "Provide task details",
+        })
+
+        output = format_standard_snapshot(snapshot, "Next action: run /ticket.")
+
+        assert "Current phase is 4 with active gate Ticket Input Gate." in output
+        assert "Current next is: Provide task details." in output
+
+
 class TestDecisionBriefSanitizer:
     def test_rewrites_signal_diagnostics_and_python_lists(self):
         body = (
@@ -241,6 +350,36 @@ class TestDecisionBriefSanitizer:
         assert "- Objective: Deliver pipeline mode e2e coverage." in out
         assert "- Risk A" in out
         assert "- Risk B" in out
+
+
+class TestPlanUnderReviewBlock:
+    def test_happy_uses_summary_when_present(self):
+        snapshot = _to_snapshot({
+            "review_package_approved_plan_summary": "Line A\nLine B",
+            "review_package_plan_body": "# Fallback\nLine C",
+        })
+        lines = _build_plan_under_review_lines(snapshot)
+        assert lines == ["Line A", "Line B"]
+
+    def test_bad_returns_empty_when_no_plan_data(self):
+        snapshot = _to_snapshot({})
+        assert _build_plan_under_review_lines(snapshot) == []
+
+    def test_corner_falls_back_to_plan_body_when_summary_missing(self):
+        snapshot = _to_snapshot({
+            "review_package_plan_body": "# Title\n\n- Item 1\n- Item 2\n",
+        })
+        lines = _build_plan_under_review_lines(snapshot)
+        assert lines == ["Title", "- Item 1", "- Item 2"]
+
+    def test_edge_truncates_to_800_char_budget(self):
+        long_line = "A" * 1200
+        snapshot = _to_snapshot({"review_package_approved_plan_summary": long_line})
+        lines = _build_plan_under_review_lines(snapshot)
+        assert lines
+        combined = "\n".join(lines)
+        assert len(combined) <= 800
+        assert combined.endswith("...")
 
 
 def test_decision_brief_renderer_uses_template(monkeypatch: pytest.MonkeyPatch) -> None:

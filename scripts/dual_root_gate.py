@@ -4,7 +4,7 @@
 Validates the installer contract for split roots:
 - config root owns commands/workspaces/bindings only
 - local root owns runtime/content/spec payload
-- canonical rail command surface is exactly the 8 expected commands
+- canonical rail command surface is exactly the 9 expected commands
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ from governance_runtime.install.install import build_governance_paths_payload
 EXPECTED_RAILS: set[str] = {
     "audit-readout.md",
     "continue.md",
+    "hydrate.md",
     "implement.md",
     "implementation-decision.md",
     "plan.md",
@@ -102,8 +103,8 @@ def _check_paths_payload(config_root: Path, local_root: Path) -> tuple[list[str]
 def _check_config_allowlist_contract() -> list[str]:
     allowed = set(EXPECTED_RAILS)
     errors: list[str] = []
-    if len(allowed) != 8:
-        errors.append(f"commands allowlist cardinality mismatch: expected 8, got {len(allowed)}")
+    if len(allowed) != 9:
+        errors.append(f"commands allowlist cardinality mismatch: expected 9, got {len(allowed)}")
     if any("/" in name or "\\" in name for name in allowed):
         errors.append("commands allowlist must contain only command-root filenames (no subpaths)")
     return errors

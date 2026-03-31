@@ -70,7 +70,7 @@ def _resolve_phase_api_path(commands_home: Path, spec_home: Path | None = None) 
             manifest_spec_home = str(paths.get("specHome", "")).strip()
             if manifest_spec_home:
                 candidates.append(Path(manifest_spec_home) / "phase_api.yaml")
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
     for candidate in candidates:
@@ -222,14 +222,14 @@ def _resolve_binding_homes(explicit_commands_home: Path | None) -> tuple[Path, P
                 raw_spec_home = str(paths.get("specHome", "")).strip()
                 if raw_spec_home:
                     return explicit_commands_home, Path(raw_spec_home)
-            except Exception:
+            except (OSError, json.JSONDecodeError):
                 pass
         # 2) Global binding evidence resolver — fallback
         try:
             evidence = getattr(BindingEvidenceResolver(), "resolve")(mode="kernel")
             if evidence.binding_ok and evidence.spec_home is not None:
                 return explicit_commands_home, evidence.spec_home
-        except Exception:
+        except (OSError, ValueError):
             pass
         return explicit_commands_home, None
     resolver = BindingEvidenceResolver()
@@ -258,7 +258,7 @@ def load_phase_api(commands_home: Path | None = None) -> PhaseApiSpec:
 
     try:
         payload = yaml.safe_load(raw_text)
-    except Exception as exc:
+    except (ValueError, yaml.YAMLError) as exc:
         raise PhaseApiSpecError(f"phase_api.yaml invalid yaml at {phase_api_path}: {exc}") from exc
     if not isinstance(payload, Mapping):
         raise PhaseApiSpecError("phase_api.yaml must be a mapping")

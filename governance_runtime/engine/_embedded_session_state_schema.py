@@ -8,19 +8,21 @@ using importlib.resources, which works for both filesystem and frozen package co
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from importlib import resources
 from typing import Final
 
 
+@lru_cache(maxsize=1)
 def _load_schema() -> dict[str, object]:
     """Load schema from JSON resource, with hardcoded fallback."""
     try:
         schema_text = resources.files("governance.assets.schemas").joinpath("session_state.core.v1.schema.json").read_text(encoding="utf-8")
         return json.loads(schema_text)
     except Exception:
-        # Hardcoded fallback for frozen/embedded contexts where resources API fails
+        # import fallback: hardcoded schema for frozen/embedded contexts where resources API fails
         # This MUST be kept in sync with session_state.core.v1.schema.json
-        return _HARDCODED_FALLBACK_SCHEMA
+        return _HARDCODED_FALLBACK_SCHEMA  # pragma: no cover
 
 
 _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
@@ -109,6 +111,10 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
                 "ticket_intake_ready": {
                     "type": "boolean",
                     "description": "Authoritative readiness gate for ticket intake",
+                },
+                "session_hydrated": {
+                    "type": "boolean",
+                    "description": "True only after /hydrate binds governance to an OpenCode session",
                 },
                 "AddonsEvidence": {"type": "object", "additionalProperties": True},
                 "RulebookLoadEvidence": {"type": "object", "additionalProperties": True},

@@ -76,7 +76,7 @@ def _load_reason_remediation(reason_code: str, mode: str = "user") -> dict[str, 
 
     try:
         payload = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, ValueError, yaml.YAMLError):
         return _default_reason_remediation(reason_code)
 
     blocked = payload.get("blocked_reasons") if isinstance(payload, dict) else None

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -50,6 +51,138 @@ def _validate_config_root(raw: str) -> Path:
     return config_root
 
 
+def _parse_json_lines(text: str) -> list[dict[str, object]]:
+    parsed: list[dict[str, object]] = []
+    for line in (text or "").splitlines():
+        token = line.strip()
+        if not token:
+            continue
+        try:
+            payload = json.loads(token)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            parsed.append(payload)
+    return parsed
+
+
+def _first_with_key(items: list[dict[str, object]], key: str) -> dict[str, object] | None:
+    for item in items:
+        if key in item:
+            return item
+    return None
+
+
+def _lookup(mapping: dict[str, object], key: str) -> object:
+    return mapping[key] if key in mapping else None
+
+
+def _combined_payload(*, events: list[dict[str, object]], repo_root: Path, selected_profile: str | None) -> dict[str, object]:
+    hook = _first_with_key(events, "workspacePersistenceHook") or {}
+    continuation = _first_with_key(events, "kernelContinuation") or {}
+    repo_fingerprint = str(
+        _lookup(continuation, "repo_fingerprint") or _lookup(hook, "repo_fingerprint") or ""
+    ).strip()
+    payload = {
+        "result": "bootstrap-completed" if continuation.get("kernelContinuation") == "ok" else "bootstrap-incomplete",
+        "repository": {
+            "name": repo_root.name,
+            "root": str(repo_root),
+            "mode": selected_profile or "unknown",
+            "fingerprint": repo_fingerprint,
+        },
+        "workspace": {
+            "persistence_hook": hook.get("workspacePersistenceHook"),
+            "writes_allowed": hook.get("writes_allowed"),
+            "pointer_verified": hook.get("pointer_verified"),
+            "workspace_session_verified": hook.get("workspace_session_verified"),
+            "session_state": continuation.get("session_state_path"),
+        },
+        "routing": {
+            "phase": _lookup(continuation, "phase"),
+            "active_gate": continuation.get("active_gate"),
+            "source": continuation.get("source"),
+            "hops": continuation.get("hops"),
+            "next_gate_condition": continuation.get("next_gate_condition"),
+        },
+        "next_action": {
+            "command": "/hydrate",
+            "context": "Open OpenCode Desktop in this repository",
+            "text": continuation.get("next_step") or "Open OpenCode Desktop in this repository and run /hydrate",
+        },
+        # Backward compatibility fields used by tooling/tests
+        "workspacePersistenceHook": hook.get("workspacePersistenceHook"),
+        "kernelContinuation": continuation.get("kernelContinuation"),
+        "repo_fingerprint": repo_fingerprint,
+    }
+    # Preserve key flat fields consumed by existing tooling/tests.
+    for key in (
+        "bootstrap_hook_command",
+        "python_executable",
+        "cwd",
+        "repo_root_detected",
+        "repo_root_source",
+        "writes_allowed",
+        "pointer_verified",
+        "workspace_session_verified",
+        "hook_invoked",
+        "failure_stage",
+    ):
+        if key in hook:
+            payload[key] = hook.get(key)
+    for key in (
+        "auto_continuation",
+        "route_phase_invoked",
+        "phase",
+        "next_token",
+        "active_gate",
+        "next_gate_condition",
+        "source",
+        "hops",
+        "session_state_path",
+        "next_step",
+        "workspace_ready",
+        "session_hydrated",
+    ):
+        if key in continuation:
+            payload[key] = continuation.get(key)
+    return payload
+
+
+def _print_human_summary(payload: dict[str, object], *, verbose: bool) -> None:
+    repo = payload.get("repository") if isinstance(payload.get("repository"), dict) else {}
+    workspace = payload.get("workspace") if isinstance(payload.get("workspace"), dict) else {}
+    routing = payload.get("routing") if isinstance(payload.get("routing"), dict) else {}
+    next_action = payload.get("next_action") if isinstance(payload.get("next_action"), dict) else {}
+
+    print("Bootstrap completed" if payload.get("result") == "bootstrap-completed" else "Bootstrap incomplete")
+    print(f"Repo: {repo.get('name') or 'unknown'}")
+    print(f"Mode: {repo.get('mode') or 'unknown'}")
+    print(f"Fingerprint: {repo.get('fingerprint') or 'unknown'}")
+    print(f"Phase: {routing.get('phase') or 'unknown'}")
+    print(f"Next step: {next_action.get('text') or 'Open OpenCode Desktop in this repository and run /hydrate'}")
+
+    print("\nWorkspace")
+    print(f"  Writes allowed: {'yes' if workspace.get('writes_allowed') else 'no'}")
+    print(f"  Pointer verified: {'yes' if workspace.get('pointer_verified') else 'no'}")
+    print(f"  Workspace session verified: {'yes' if workspace.get('workspace_session_verified') else 'no'}")
+    if workspace.get("session_state"):
+        print(f"  Session state: {workspace.get('session_state')}")
+
+    print("\nRouting")
+    print(f"  Active gate: {routing.get('active_gate') or 'unknown'}")
+    print(f"  Source: {routing.get('source') or 'unknown'}")
+    print(f"  Hops: {routing.get('hops') or 0}")
+
+    if verbose:
+        print("\nDiagnostics")
+        print(f"  Kernel continuation: {payload.get('kernelContinuation') or 'unknown'}")
+        print(f"  Persistence hook: {payload.get('workspacePersistenceHook') or 'unknown'}")
+        ngc = routing.get("next_gate_condition")
+        if ngc:
+            print(f"  Next gate condition: {ngc}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="opencode-governance-bootstrap",
@@ -69,6 +202,8 @@ def main() -> int:
         default="DEFAULT",
         help="Compliance framework for regulated mode (default: DEFAULT)",
     )
+    parser.add_argument("--verbose", action="store_true", help="Show additional diagnostics")
+    parser.add_argument("--json", action="store_true", help="Emit one structured JSON document")
     args = parser.parse_args()
 
     if args.profile and args.command != "init":
@@ -80,7 +215,7 @@ def main() -> int:
 
     try:
         repo_root = _validate_repo_root(args.repo_root)
-    except Exception as exc:
+    except ValueError as exc:
         print(f"invalid --repo-root: {exc}", file=sys.stderr)
         return 2
 
@@ -88,7 +223,7 @@ def main() -> int:
     if args.config_root:
         try:
             config_root = _validate_config_root(args.config_root)
-        except Exception as exc:
+        except ValueError as exc:
             print(f"invalid --config-root: {exc}", file=sys.stderr)
             return 2
         env["OPENCODE_CONFIG_ROOT"] = str(config_root)
@@ -104,7 +239,7 @@ def main() -> int:
                 profile=selected_profile,
                 now_utc=now_utc,
             )
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             print(f"failed to set repo operating mode: {exc}", file=sys.stderr)
             return 2
         print(f"repoOperatingMode = {selected_profile}")
@@ -122,7 +257,7 @@ def main() -> int:
                 if mode_path:
                     print(f"governanceModeState = active")
                     print(f"governanceModePath = {mode_path}")
-            except Exception as exc:
+            except (OSError, ValueError) as exc:
                 print(f"failed to set regulated mode: {exc}", file=sys.stderr)
                 return 2
 
@@ -130,7 +265,24 @@ def main() -> int:
         [sys.executable, "-m", "governance_runtime.entrypoints.bootstrap_preflight_readonly"],
         env=env,
         cwd=str(repo_root),
+        text=True,
+        capture_output=True,
     )
+
+    stdout_text = ret.stdout or ""
+    stderr_text = ret.stderr or ""
+    events = _parse_json_lines(stdout_text)
+    if events:
+        combined = _combined_payload(events=events, repo_root=repo_root, selected_profile=selected_profile)
+        if args.json:
+            print(json.dumps(combined, ensure_ascii=True))
+        else:
+            _print_human_summary(combined, verbose=args.verbose)
+    else:
+        print(stdout_text, end="")
+
+    if stderr_text:
+        print(stderr_text, end="", file=sys.stderr)
     return ret.returncode
 
 

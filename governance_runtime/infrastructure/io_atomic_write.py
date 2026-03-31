@@ -36,12 +36,12 @@ def atomic_write_text(path: Path, content: str, dry_run: bool = False) -> Action
                 success=True,
                 bytes_written=len(content.encode("utf-8")),
             )
-        except Exception:
+        except OSError:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
             raise
 
-    except Exception as e:
+    except OSError as e:
         return ActionOutcome(
             action=WriteAction.FAILED,
             path=str(path),

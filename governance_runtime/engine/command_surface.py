@@ -17,6 +17,7 @@ from pathlib import Path
 # All other files in the commands/ directory are content, not commands
 CANONICAL_COMMANDS: frozenset = frozenset({
     "continue.md",
+    "hydrate.md",
     "plan.md",
     "review.md",
     "review-decision.md",

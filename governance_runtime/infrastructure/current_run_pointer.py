@@ -21,7 +21,7 @@ def read_active_run_id(*, workspaces_home: Path, repo_fingerprint: str) -> str:
         return ""
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return ""
     if not isinstance(payload, dict):
         return ""

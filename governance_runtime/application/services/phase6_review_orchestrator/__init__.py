@@ -64,7 +64,10 @@ def _get_llm_caller():
     global _llm_caller_instance
     if _llm_caller_instance is None:
         import os
-        _llm_caller_instance = LLMCaller(env_reader=lambda key: os.environ.get(key))
+
+        _llm_caller_instance = LLMCaller(
+            env_reader=lambda key: os.getenv(key),
+        )
     return _llm_caller_instance
 
 

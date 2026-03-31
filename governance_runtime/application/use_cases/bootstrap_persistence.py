@@ -203,7 +203,7 @@ class BootstrapPersistenceService:
         if self._fs.exists(activation_intent_path):
             try:
                 activation_intent = json.loads(self._fs.read_text(activation_intent_path))
-            except Exception:
+            except (OSError, json.JSONDecodeError):
                 activation_intent = None
             if _is_valid_activation_intent(activation_intent):
                 activation_intent_valid = True
@@ -388,7 +388,7 @@ class BootstrapPersistenceService:
                 expected_repo_fingerprint=payload.repo_identity.fingerprint,
                 expected_session_state_file=payload.layout.session_state_file,
             )
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pointer_verified_final = False
 
         if not pointer_verified_final:
@@ -480,7 +480,7 @@ def _merge_final_session_state(
 ) -> dict[str, object]:
     try:
         parsed = json.loads(existing_text)
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         parsed = None
 
     if not isinstance(parsed, dict):
@@ -643,6 +643,11 @@ def _session_state_payload(
                 "addons": {},
             },
             "ticket_intake_ready": False,
+            "session_hydrated": False,
+            "SessionHydration": {
+                "status": "not_hydrated",
+                "source": "bootstrap-persistence",
+            },
             "AddonsEvidence": {},
             "RulebookLoadEvidence": {
                 "top_tier": {
@@ -696,7 +701,7 @@ def _is_within(path: Path, parent: Path) -> bool:
     try:
         path.relative_to(parent)
         return True
-    except Exception:
+    except ValueError:
         return False
 
 

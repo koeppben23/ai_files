@@ -217,7 +217,7 @@ jobs:
       - name: Run spec guards (pytest)
         shell: bash
         run: |
-          pytest -q -m spec
+          python -m pytest -q -m spec
 
   architecture-guards:
     name: Architecture Guards
@@ -255,7 +255,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install pytest
-          pytest -q tests/architecture/test_import_rules.py
+          python -m pytest -q tests/architecture/test_import_rules.py
 
   ssot-scan:
     name: SSOT Scan
@@ -483,7 +483,7 @@ jobs:
           python -m pip install pytest jsonschema pyyaml
       - name: Run build artifact tests (pytest)
         run: |
-          pytest -q -m build
+          python -m pytest -q -m build
       - name: Build
         run: |
           python scripts/build.py
@@ -636,7 +636,7 @@ jobs:
       - name: Run installer flow tests (pytest)
         shell: bash
         run: |
-          pytest -q -m installer
+          python -m pytest -q -m installer
 
   # ----------------------------------
   # Job 2: Governance Validation
@@ -684,7 +684,7 @@ jobs:
           python -m pip install pytest jsonschema pyyaml
       - name: Run governance validation (pytest)
         run: |
-          pytest -q -m governance
+          python -m pytest -q -m governance
 
   # ----------------------------------
   # Job 2b: Governance E2E Flow
@@ -732,7 +732,7 @@ jobs:
           python -m pip install pytest jsonschema pyyaml
       - name: Run governance end-to-end flow tests (pytest)
         run: |
-          pytest -q -m e2e_governance
+          python -m pytest -q -m e2e_governance
 
   # ----------------------------------
   # Job 2c: Contract Conformance Suites
@@ -780,7 +780,7 @@ jobs:
           python -m pip install pytest jsonschema pyyaml
       - name: Run contract conformance suites (pytest)
         run: |
-          pytest -q -m conformance
+          python -m pytest -q -m conformance
 
   # ----------------------------------
   # Job 3: Release Gate
@@ -846,7 +846,7 @@ jobs:
       - name: Run release readiness gates (pytest)
         shell: bash
         run: |
-          pytest -q -m release
+          python -m pytest -q -m release
 
       - name: Summary
         run: |

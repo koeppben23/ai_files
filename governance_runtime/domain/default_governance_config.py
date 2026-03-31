@@ -5,6 +5,7 @@ preserves backward compatibility when governance-config.json is missing.
 
 Current defaults include:
 - pipeline_mode: false (direct mode default)
+- presentation.mode: narrative (default concise sentence readout)
 - review.phase5_max_review_iterations: 3
 - review.phase6_max_review_iterations: 3
 """
@@ -18,12 +19,26 @@ SCHEMA_ID = "governance-config.v1.schema.json"
 
 
 @dataclass(frozen=True)
+class PresentationDefaults:
+    mode: str = "narrative"
+
+
+DEFAULT_PRESENTATION = PresentationDefaults()
+
+
+@dataclass(frozen=True)
 class ReviewDefaults:
     phase5_max_review_iterations: int = 3
     phase6_max_review_iterations: int = 3
 
 
 DEFAULT_REVIEW = ReviewDefaults()
+
+
+def get_default_presentation_config() -> dict:
+    return {
+        "mode": DEFAULT_PRESENTATION.mode,
+    }
 
 
 def get_default_review_config() -> dict:
@@ -36,14 +51,18 @@ def get_default_review_config() -> dict:
 def get_default_governance_config() -> dict:
     return {
         "pipeline_mode": False,
+        "presentation": get_default_presentation_config(),
         "review": get_default_review_config(),
     }
 
 
 __all__ = [
+    "PresentationDefaults",
+    "DEFAULT_PRESENTATION",
     "ReviewDefaults",
     "DEFAULT_REVIEW",
     "SCHEMA_ID",
+    "get_default_presentation_config",
     "get_default_review_config",
     "get_default_governance_config",
 ]

@@ -101,6 +101,10 @@ def test_main_bad_invalid_decision(monkeypatch, tmp_path: Path, capsys) -> None:
     assert rc == 2
     assert out["status"] == "error"
     assert out["reason_code"] == "BLOCKED-REVIEW-DECISION-INVALID"
+    lines = [line for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    blocked = [json.loads(line) for line in lines if "REVIEW_DECISION_BLOCKED" in line]
+    assert blocked
+    assert blocked[-1]["reason_code"] == "BLOCKED-REVIEW-DECISION-INVALID"
 
 
 def test_main_corner_changes_requested(monkeypatch, tmp_path: Path, capsys) -> None:

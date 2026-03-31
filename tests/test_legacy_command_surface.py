@@ -45,9 +45,9 @@ class TestLegacyCommandSurfaceMigration:
         assert "/audit-readout" in content
         assert "/continue" in content
 
-    def test_edge_phase_api_uses_continue_vocabulary(self) -> None:
+    def test_edge_phase_api_uses_hydrate_vocabulary(self) -> None:
         content = _read("phase_api.yaml")
-        assert "continue via /continue" in content
+        assert "run /hydrate first" in content
         assert "resume via /continue" not in content
 
     def test_happy_audit_catalog_uses_audit_readout_vocabulary(self) -> None:

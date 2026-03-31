@@ -20,7 +20,7 @@ import uuid
 
 try:
     from governance_runtime.infrastructure.fs_atomic import atomic_write_text
-except Exception:
+except Exception:  # pragma: no cover - fallback implementation
     def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = text.replace("\r\n", "\n") if newline_lf else text
@@ -98,7 +98,7 @@ def acquire_workspace_lock(
                         if acquired.tzinfo is None:
                             acquired = acquired.replace(tzinfo=timezone.utc)
                         stale = (_utc_now() - acquired).total_seconds() > ttl_seconds
-                except Exception:
+                except (ValueError, TypeError):
                     stale = True
             else:
                 stale = True

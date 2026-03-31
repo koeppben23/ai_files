@@ -146,7 +146,7 @@ def _run_bootstrap(*, repo: Path, config_root: Path, commands_home: Path, worksp
     checkout_root = Path(__file__).resolve().parents[1]
     launcher = _bootstrap_launcher(checkout_root)
     proc = _run(
-        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
+        launcher + ["--repo-root", str(repo), "--config-root", str(config_root), "--json"],
         cwd=repo,
         env=env,
     )

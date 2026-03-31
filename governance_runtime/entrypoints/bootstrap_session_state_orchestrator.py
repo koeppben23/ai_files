@@ -48,6 +48,11 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except (ImportError, AttributeError):
+    GitCliClient = None
+
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -58,21 +63,32 @@ from governance_runtime.entrypoints.write_policy import EFFECTIVE_MODE, is_write
 
 try:
     from bootstrap.repo_identity import resolve_repo_root_ssot
-except Exception:
+except (ImportError, AttributeError):
     def resolve_repo_root_ssot(explicit_root: Path | None = None) -> tuple[Path | None, str]:
         if explicit_root is not None:
             try:
                 return normalize_absolute_path(str(explicit_root), purpose="explicit_repo_root"), "explicit"
-            except Exception:
+            except (ValueError, OSError):
                 return None, "invalid-explicit"
 
         env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
         if env_root:
             try:
                 return normalize_absolute_path(env_root, purpose="OPENCODE_REPO_ROOT"), "env"
-            except Exception:
+            except (ValueError, OSError):
                 pass
 
+        # Try GitCliClient first if available
+        if GitCliClient is not None:
+            git_client = GitCliClient()
+            git_root = git_client.resolve_repo_root()
+            if git_root:
+                try:
+                    return normalize_absolute_path(str(git_root), purpose="repo_root"), "git-metadata"
+                except (ValueError, OSError):
+                    pass
+        
+        # Fallback to subprocess
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "--show-toplevel"],
@@ -85,7 +101,7 @@ except Exception:
                 git_root = result.stdout.strip()
                 if git_root:
                     return normalize_absolute_path(git_root, purpose="repo_root"), "git-metadata"
-        except Exception:
+        except (OSError, subprocess.TimeoutExpired):
             pass
 
         return None, "not-a-git-repo"
@@ -101,7 +117,7 @@ try:
         session_pointer_path,
         session_state_template,
     )
-except Exception:
+except (ImportError, AttributeError):
     from session_state_contract import (  # type: ignore
         _is_canonical_fingerprint,
         _validate_canonical_fingerprint,
@@ -136,7 +152,7 @@ try:
         BootstrapPersistenceService,
     )
     from governance_runtime.domain.errors.events import ErrorEvent as GovernanceErrorEvent
-except Exception:
+except (ImportError, AttributeError):
     BootstrapPersistenceService = None  # type: ignore
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
 
@@ -148,7 +164,7 @@ def default_config_root() -> Path:
 def _load_json(path: Path) -> dict | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
 
@@ -201,7 +217,7 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
         config_root = normalize_absolute_path(config_root_raw, purpose="paths.configRoot")
         commands_home = normalize_absolute_path(commands_raw, purpose="paths.commandsHome")
         workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
-    except Exception as exc:
+    except (ValueError, OSError) as exc:
         raise ValueError(f"binding evidence invalid: {exc}") from exc
     
     if expected_config_root is not None:
@@ -249,7 +265,7 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
             if candidate.exists():
                 config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
                 return config_root, paths, candidate
-        except Exception:
+        except (ValueError, OSError):
             pass
 
     internal_root = os.environ.get("OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT")

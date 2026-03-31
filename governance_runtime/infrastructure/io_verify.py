@@ -152,7 +152,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     try:
         checksums_payload = json.loads(_read_text(run_root / "checksums.json"))
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError) as exc:
         return False, results, f"Failed to parse checksums.json: {exc}"
     if not isinstance(checksums_payload, dict):
         return False, results, "Invalid checksums.json payload"
@@ -193,7 +193,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     try:
         manifest = json.loads(_read_text(run_root / "run-manifest.json"))
-    except Exception as exc:
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
         return False, results, f"Failed to parse run-manifest.json: {exc}"
     if not isinstance(manifest, dict):
         return False, results, "Invalid run-manifest.json payload"
@@ -203,7 +203,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     try:
         metadata = json.loads(_read_text(run_root / "metadata.json"))
-    except Exception as exc:
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
         return False, results, f"Failed to parse metadata.json: {exc}"
     if not isinstance(metadata, dict):
         return False, results, "Invalid metadata.json payload"
@@ -213,7 +213,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     try:
         session_state_document = json.loads(_read_text(run_root / "SESSION_STATE.json"))
-    except Exception as exc:
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
         return False, results, f"Failed to parse SESSION_STATE.json: {exc}"
     if not isinstance(session_state_document, dict):
         return False, results, "Invalid SESSION_STATE.json payload"
@@ -230,7 +230,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     try:
         provenance = json.loads(_read_text(run_root / "provenance-record.json"))
-    except Exception as exc:
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
         return False, results, f"Failed to parse provenance-record.json: {exc}"
     if not isinstance(provenance, dict):
         return False, results, "Invalid provenance-record.json payload"
@@ -251,7 +251,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     ]:
         try:
             artifact_payload = json.loads(_read_text(run_root / filename))
-        except Exception as exc:
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
             return False, results, f"Failed to parse {filename}: {exc}"
         if not isinstance(artifact_payload, dict):
             return False, results, f"Invalid {filename} payload"
@@ -269,7 +269,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     if _is_file(optional_pr_record):
         try:
             parsed_pr_payload = json.loads(_read_text(optional_pr_record))
-        except Exception as exc:
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
             return False, results, f"Failed to parse pr-record.json: {exc}"
         if not isinstance(parsed_pr_payload, dict):
             return False, results, "Invalid pr-record.json payload"
@@ -288,7 +288,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     if _is_file(optional_finalization_record):
         try:
             parsed_finalization_payload = json.loads(_read_text(optional_finalization_record))
-        except Exception as exc:
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
             return False, results, f"Failed to parse finalization-record.json: {exc}"
         if not isinstance(parsed_finalization_payload, dict):
             return False, results, "Invalid finalization-record.json payload"
@@ -694,7 +694,7 @@ def verify_repository_manifest(runs_root: Path, *, expected_repo_fingerprint: Op
 
     try:
         payload = json.loads(_read_text(manifest_path))
-    except Exception as exc:
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
         return False, f"Failed to parse repository-manifest.json: {exc}"
 
     if not isinstance(payload, dict):

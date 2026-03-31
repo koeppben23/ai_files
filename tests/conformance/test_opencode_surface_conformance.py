@@ -1,7 +1,7 @@
 """
 OpenCode Command Surface Conformance Test
 
-Validates that opencode/commands/ contains exactly 8 canonical Rails
+Validates that opencode/commands/ contains exactly 9 canonical Rails
 and that master.md/rules.md remain at root as compatibility surface.
 """
 from __future__ import annotations
@@ -20,6 +20,7 @@ CANONICAL_RAILS = frozenset({
     "implement.md",
     "implementation-decision.md",
     "audit-readout.md",
+    "hydrate.md",
 })
 
 
@@ -32,11 +33,11 @@ class TestOpenCodeCommandSurface:
         commands_dir = REPO_ROOT / "opencode" / "commands"
         assert commands_dir.is_dir(), "opencode/commands/ must exist"
 
-    def test_exactly_8_canonical_rails_in_opencode_commands(self):
-        """Happy: opencode/commands/ contains exactly 8 canonical Rails."""
+    def test_exactly_9_canonical_rails_in_opencode_commands(self):
+        """Happy: opencode/commands/ contains exactly 9 canonical Rails."""
         commands_dir = REPO_ROOT / "opencode" / "commands"
         md_files = {f.name for f in commands_dir.glob("*.md")}
-        assert len(md_files) == 8, f"Expected 8 Rails, found {len(md_files)}: {md_files}"
+        assert len(md_files) == 9, f"Expected 9 Rails, found {len(md_files)}: {md_files}"
         assert md_files == CANONICAL_RAILS, f"Rail set mismatch. Expected {CANONICAL_RAILS}, got {md_files}"
 
     def test_master_md_not_in_opencode_commands(self):

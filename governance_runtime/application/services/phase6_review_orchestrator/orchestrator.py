@@ -26,24 +26,6 @@ from governance_runtime.application.services.phase6_review_orchestrator.llm_call
     LLMResponse,
     SubprocessResult,
 )
-import subprocess as _subprocess
-
-
-def _run_subprocess(cmd: str) -> SubprocessResult:
-    """Execute a subprocess and return SubprocessResult."""
-    result = _subprocess.run(
-        cmd,
-        shell=True,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=120,
-    )
-    return SubprocessResult(
-        stdout=result.stdout or "",
-        stderr=result.stderr or "",
-        returncode=result.returncode,
-    )
 from governance_runtime.application.services.phase6_review_orchestrator.response_validator import (
     ResponseValidator,
     ValidationResult,
@@ -78,13 +60,16 @@ class ReviewDependencies:
 
     @classmethod
     def default(cls) -> ReviewDependencies:
-        """Create default dependencies."""
+        """Create default dependencies.
+        
+        Note: subprocess_runner is intentionally NOT passed - the LLMCaller
+        uses server-based invocation by default and raises if subprocess is used.
+        """
         import os
         return cls(
             policy_resolver=PolicyResolver(),
             llm_caller=LLMCaller(
                 env_reader=lambda key: os.environ.get(key),
-                subprocess_runner=lambda cmd: _run_subprocess(cmd),
             ),
             response_validator=ResponseValidator(),
         )
@@ -365,13 +350,13 @@ def run_review_loop(
 
             if llm_result.is_approve:
                 llm_approve = True
-                if iteration >= config.max_iterations:
-                    complete = True
-                elif iteration >= config.min_iterations and revision_delta == "none":
-                    complete = True
 
-        # Complete if digest is stable and we've met minimum iterations (even without LLM)
-        if not complete and iteration >= config.min_iterations and revision_delta == "none":
+        # Complete if we've reached max iterations (regardless of LLM verdict)
+        if not complete and iteration >= config.max_iterations:
+            complete = True
+            revision_delta = "none"  # Max iterations reached - review is complete
+        # Complete if digest is stable and we've met minimum iterations
+        elif not complete and iteration >= config.min_iterations and revision_delta == "none":
             complete = True
 
         # Create iteration result

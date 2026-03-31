@@ -277,3 +277,32 @@ def test_review_no_infer_or_mutate_statement() -> None:
         "review.md must contain 'Do not infer or mutate any session state' "
         "to prevent models from fabricating state"
     )
+
+
+@pytest.mark.governance
+def test_review_hydration_soft_guard_is_documented() -> None:
+    """review.md must document session_hydrated soft guard and fail-closed behavior."""
+    review_path = get_review_path()
+    content = review_path.read_text(encoding="utf-8").lower()
+    assert "session_hydrated" in content, (
+        "review.md must require checking session_hydrated before review execution"
+    )
+    assert "fail-closed" in content, (
+        "review.md must mark hydration prerequisite as fail-closed"
+    )
+
+
+@pytest.mark.governance
+def test_review_not_hydrated_recovery_message_is_explicit() -> None:
+    """review.md must prescribe blocked recovery to /hydrate when not hydrated."""
+    review_path = get_review_path()
+    content = review_path.read_text(encoding="utf-8").lower()
+    assert "blocked: session-not-hydrated" in content, (
+        "review.md must include blocked response for non-hydrated review"
+    )
+    assert "run /hydrate first" in content, (
+        "review.md must direct recovery via /hydrate"
+    )
+    assert "do no review work" in content, (
+        "review.md must explicitly forbid review execution when not hydrated"
+    )

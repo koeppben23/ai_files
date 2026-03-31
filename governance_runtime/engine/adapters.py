@@ -41,6 +41,7 @@ def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
     try:
         return normalize_absolute_path(raw, purpose=f"env:{key}")
     except Exception:
+        # fail-closed: reject unresolvable paths (e.g., relative paths) for security
         return None
 
 

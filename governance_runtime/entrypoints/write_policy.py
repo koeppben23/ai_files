@@ -40,7 +40,7 @@ import os
 
 try:
     from governance_runtime.domain.policies.write_policy import compute_write_policy
-except Exception:
+except Exception:  # pragma: no cover - fallback implementation
     def compute_write_policy(*, force_read_only: bool, mode: str = "user"):
         normalized_mode = str(mode or "user").strip().lower()
         if normalized_mode not in {"user", "pipeline", "agents_strict"}:

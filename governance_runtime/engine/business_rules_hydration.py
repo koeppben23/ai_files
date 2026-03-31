@@ -794,7 +794,7 @@ def hydrate_business_rules_state_from_artifacts(
         return False
     try:
         status_text = status_path.read_text(encoding="utf-8")
-    except Exception:
+    except (OSError, UnicodeDecodeError):
         return False
 
     status_fields = _parse_status_fields(status_text)
@@ -818,7 +818,7 @@ def hydrate_business_rules_state_from_artifacts(
             inventory_loaded = bool(report.is_compliant or outcome != "extracted")
             normalized = inventory_text if inventory_text.endswith("\n") else inventory_text + "\n"
             inventory_sha = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-        except Exception:
+        except (ValueError, AttributeError, TypeError):
             inventory_loaded = False
             inventory_rules = []
 
