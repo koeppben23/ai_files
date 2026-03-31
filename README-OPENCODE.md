@@ -23,7 +23,7 @@ Primary operator bootstrap path is `opencode-governance-bootstrap init ...`.
 6. Use `/review` as the read-only rail entrypoint for quality review.
 7. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>`.
    Example: `/review-decision approve`.
-7. `changes_requested` enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
+7. `changes_requested` enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket` or `/plan`). Use `/continue` only for clarification-only follow-ups that intentionally stay in Phase 6.
 8. `reject` routes back to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
 9. After `approve`, run `/implement` to start authorized implementation execution.
     - Direct mode (`pipeline_mode=false`, default): uses the active OpenCode Desktop LLM binding.

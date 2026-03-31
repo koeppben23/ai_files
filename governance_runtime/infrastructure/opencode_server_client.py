@@ -365,38 +365,6 @@ def send_session_command(
     return post_json(f"/session/{session_id}/command", body)
 
 
-def check_server_health(*, base_url: str | None = None) -> bool:
-    """Check if OpenCode server is available and healthy.
-
-    Uses GET /global/health per official server API documentation.
-
-    Args:
-        base_url: Base URL override
-
-    Returns:
-        True if server is healthy, False otherwise
-    """
-    import urllib.request
-
-    try:
-        if base_url is None:
-            base_url = resolve_opencode_server_base_url()
-
-        url = f"{base_url}/global/health"
-        headers = {}
-        auth_headers = _resolve_auth()
-        if auth_headers:
-            headers.update(auth_headers)
-
-        req = urllib.request.Request(url, headers=headers, method="GET")
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            import json
-            data = json.loads(resp.read().decode("utf-8"))
-            return data.get("healthy", False) is True
-    except (OSError, ValueError):
-        return False
-
-
 def bootstrap_check_server_reachable(config_root: Path | None = None) -> tuple[bool, str]:
     """Check if configured OpenCode server is reachable.
 

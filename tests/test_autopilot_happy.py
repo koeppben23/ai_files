@@ -1,28 +1,45 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any, Mapping
 
 from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
+from governance_runtime.kernel.guard_evaluator import GuardEvaluator
 from governance_runtime.kernel.phase_kernel import RuntimeContext, execute
+from governance_runtime.kernel.spec_registry import SpecRegistry
 from tests.util import get_phase_api_path
 
 
 def _seed_binding(tmp_path: Path, monkeypatch) -> tuple[Path, str]:
     home = tmp_path / "home"
     cfg = home / ".config" / "opencode"
+    local_root = home / ".local" / "share" / "opencode"
     commands_home = cfg / "commands"
-    spec_home = cfg / "governance_spec"
+    spec_home = local_root / "governance_spec"
     workspaces_home = cfg / "workspaces"
     commands_home.mkdir(parents=True, exist_ok=True)
+    local_root.mkdir(parents=True, exist_ok=True)
     spec_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
+
+    # Copy full authoritative spec bundle (not only phase_api.yaml),
+    # because transition evaluation requires topology/guards/messages too.
+    src_spec_home = get_phase_api_path().parent
+    for item in src_spec_home.iterdir():
+        dest = spec_home / item.name
+        if item.is_dir():
+            shutil.copytree(item, dest, dirs_exist_ok=True)
+        else:
+            shutil.copy2(item, dest)
+
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
+            "localRoot": str(local_root),
             "commandsHome": str(commands_home),
             "specHome": str(spec_home),
             "workspacesHome": str(workspaces_home),
@@ -36,6 +53,9 @@ def _seed_binding(tmp_path: Path, monkeypatch) -> tuple[Path, str]:
 
 
 def test_bootstrap_autopilot_happy_until_phase_2_1(tmp_path: Path, monkeypatch) -> None:
+    # Ensure test isolation from cross-test spec/guard caches.
+    SpecRegistry.reset()
+    GuardEvaluator.reset()
     workspaces_home, fp = _seed_binding(tmp_path, monkeypatch)
     state: dict[str, object] = {
         "SESSION_STATE": {
