@@ -424,7 +424,7 @@ def _load_effective_review_policy_text(
         BLOCKED_EFFECTIVE_POLICY_SCHEMA_INVALID,
     ):
         return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
-    except Exception:
+    except (OSError, json.JSONDecodeError, ValueError):
         return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
 
 
@@ -787,7 +787,7 @@ def _call_llm_generate_plan(
             invoke_backend="server_client",
             invoke_backend_error=server_error,
         )
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         server_error = str(exc)
         atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
         return _blocked_payload(
@@ -835,7 +835,7 @@ def _parse_plan_generation_response(response_text: str, *, re_review: bool = Fal
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
     try:
         from llm_response_validator import coerce_output_against_schema, validate_plan_response
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         return _blocked_payload(
             reason=f"plan-validator-unavailable: {exc}",
             reason_code=BLOCKED_PLAN_GENERATION_FAILED,
@@ -1354,7 +1354,7 @@ def _call_llm_review(
             "invoke_backend": "server_client",
             "invoke_backend_error": server_error,
         }
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         server_error = str(exc)
         atomic_write_text(stderr_file, f"[server_client] Failed: {server_error}")
         return {
@@ -1892,7 +1892,7 @@ def main(argv: list[str] | None = None) -> int:
         plan_source = args.plan_text
         if args.plan_file:
             plan_source = _read_text(Path(args.plan_file))
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         payload = _blocked_payload(
             reason="plan-source-unreadable",
             reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
@@ -1913,7 +1913,7 @@ def main(argv: list[str] | None = None) -> int:
         state = document.get("SESSION_STATE")
         if not isinstance(state, dict):
             raise RuntimeError("SESSION_STATE root missing")
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         payload = _blocked_payload(
             reason="session-state-unreadable",
             reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
@@ -2025,7 +2025,7 @@ def main(argv: list[str] | None = None) -> int:
                 state=state,
                 commands_home=commands_home,
             )
-        except Exception as exc:
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
             effective_policy_error = str(exc)
         if effective_policy_error:
             payload = _blocked_payload(
@@ -2421,7 +2421,7 @@ def main(argv: list[str] | None = None) -> int:
                 "review_binding_source": state.get("phase5_review_binding_source", ""),
             },
         )
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         payload = _blocked_payload(
             reason="plan-record-persist-failed",
             reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
