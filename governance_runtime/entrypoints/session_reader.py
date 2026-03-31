@@ -86,7 +86,7 @@ def _derive_commands_home() -> Path:
     if env_commands:
         try:
             return Path(env_commands).expanduser().resolve()
-        except Exception:
+        except (OSError, ValueError):
             pass
 
     env_config = os.environ.get("OPENCODE_CONFIG_ROOT", "").strip()
@@ -95,7 +95,7 @@ def _derive_commands_home() -> Path:
             candidate = (Path(env_config).expanduser().resolve() / "commands").resolve()
             if candidate.exists():
                 return candidate
-        except Exception:
+        except (OSError, ValueError):
             pass
 
     try:
@@ -104,7 +104,7 @@ def _derive_commands_home() -> Path:
         evidence = BindingEvidenceResolver(env=os.environ).resolve(mode="kernel")
         if evidence.commands_home is not None:
             return evidence.commands_home
-    except Exception:
+    except (ImportError, OSError):
         pass
 
     return (Path.home() / ".config" / "opencode" / "commands").resolve()
@@ -287,7 +287,7 @@ def _build_plan_summary(*, state_view: Mapping[str, object], session_path: Path)
                     text = _truncate_text(latest.get("plan_record_text"))
                     if text != "none":
                         return text
-    except Exception:
+    except (OSError, ValueError, TypeError):
         pass
     return _truncate_text(state_view.get("phase5_plan_record_digest"))
 
@@ -423,7 +423,7 @@ def _resolve_session_document(commands_home: Path) -> tuple[Path, dict, Path, di
 
     try:
         raw_pointer = _read_json(pointer_path)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         raise RuntimeError(f"Invalid session pointer JSON: {exc}") from exc
 
     try:
@@ -441,7 +441,7 @@ def _resolve_session_document(commands_home: Path) -> tuple[Path, dict, Path, di
 
     try:
         state = _read_json(session_path)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         raise RuntimeError(f"Invalid workspace session state JSON: {exc}") from exc
     return config_root, pointer, session_path, state
 
@@ -826,7 +826,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
 
     try:
         config_root, pointer, session_path, state = _resolve_session_document(commands_home)
-    except Exception as exc:
+    except (RuntimeError, ValueError, OSError) as exc:
         return {
             "schema": SNAPSHOT_SCHEMA,
             "status": "ERROR",
@@ -866,7 +866,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
                 session_path=session_path,
                 state_doc=state,
             )
-        except Exception as exc:
+        except (ValueError, OSError, TypeError) as exc:
             return {
                 "schema": SNAPSHOT_SCHEMA,
                 "status": "ERROR",
@@ -893,7 +893,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
                 session_state_doc=state,
                 runtime_ctx=ctx,
             )
-        except Exception:
+        except (ImportError, OSError, ValueError):
             # Graceful degradation -- fall back to persisted state.
             kernel_result = None
 
@@ -987,7 +987,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             p54_missing_code_surfaces = [str(item) for item in _missing_surfaces if str(item).strip()]
         p55_evaluated_status = str(p55_eval.status)
         p56_evaluated_status = str(p56_eval.status)
-    except Exception:
+    except (ValueError, AttributeError, TypeError):
         pass
 
     signal = resolve_plan_record_signal(
@@ -1107,7 +1107,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             snapshot["next_action"] = str(resolved_action.label)
         if resolved_action.reason:
             snapshot["next_action_code"] = str(resolved_action.reason).upper().replace("-", "_")
-    except Exception:
+    except (ValueError, AttributeError, TypeError):
         snapshot["next_action_code"] = "NEXT_ACTION_UNAVAILABLE"
         snapshot["next_action"] = "Next action unavailable: resolve snapshot computation error and rerun /continue."
     if transition_evidence_hint:
@@ -1375,7 +1375,7 @@ def main(argv: list[str] | None = None) -> int:
             from governance_runtime.application.use_cases.audit_readout_builder import build_audit_readout
 
             payload = build_audit_readout(commands_home=home, tail_count=tail_count)
-        except Exception as exc:
+        except (ImportError, OSError, ValueError) as exc:
             print("status: ERROR", file=sys.stdout)
             print(f"error: {exc}", file=sys.stdout)
             return 1

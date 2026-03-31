@@ -25,12 +25,12 @@ from typing import Mapping
 
 try:
     from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
-except Exception:
+except (ImportError, AttributeError):
     GitCliClient = None
 
 try:
     from governance_runtime.infrastructure.adapters.process.subprocess_runner import SubprocessRunner
-except Exception:
+except (ImportError, AttributeError):
     SubprocessRunner = None
 
 if __package__ in {None, ""}:
@@ -129,7 +129,7 @@ def _load_mandates_schema() -> dict[str, object] | None:
         return None
     try:
         return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
 
@@ -204,7 +204,7 @@ def _load_effective_authoring_policy_text(
         BLOCKED_EFFECTIVE_POLICY_SCHEMA_INVALID,
     ):
         return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
-    except Exception:
+    except (OSError, ValueError, json.JSONDecodeError):
         return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
 
 
@@ -289,7 +289,7 @@ def _get_developer_output_schema_text() -> str:
             for key in defs:
                 if key == "developerOutputSchema":
                     return json.dumps({"$schema": "https://json-schema.org/draft/2020-12/schema", **defs[key]}, indent=2)
-        except Exception:
+        except (ValueError, json.JSONDecodeError):
             pass
     return ""
 
@@ -306,7 +306,7 @@ def _append_event(path: Path, event: dict[str, object]) -> bool:
         path.parent.mkdir(parents=True, exist_ok=True)
         write_jsonl_event(path, event, append=True)
         return True
-    except Exception:
+    except OSError:
         return False
 
 
@@ -362,8 +362,8 @@ def _load_compiled_requirements(session_path: Path, state: Mapping[str, object])
     if not path.exists() or not path.is_file():
         return []
     try:
-        payload = _load_json(path)
-    except Exception:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return []
     requirements = payload.get("requirements")
     if not isinstance(requirements, list):
@@ -380,8 +380,8 @@ def _load_compiled_requirements_source_authority(session_path: Path, state: Mapp
     if not path.exists() or not path.is_file():
         return ""
     try:
-        payload = _load_json(path)
-    except Exception:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return ""
     return str(payload.get("source_authority") or "").strip()
 
@@ -425,8 +425,8 @@ def _repo_root(session_path: Path, state: Mapping[str, object]) -> Path:
             mapped_root = Path(str(payload.get("repoRoot") or "").strip())
             if mapped_root.is_absolute() and mapped_root.exists() and mapped_root.is_dir():
                 return mapped_root
-        except Exception:
-            pass
+    except (OSError, json.JSONDecodeError):
+        pass
 
     if session_path.parent.exists() and session_path.parent.is_dir():
         return session_path.parent
@@ -631,7 +631,7 @@ def _parse_json_events_to_text(response_text: str) -> str:
             text_content = part.get("text", "")
             if text_content:
                 return text_content
-    except Exception:
+    except OSError:
         pass
 
     return response_text
@@ -680,7 +680,7 @@ def _bridge_timeout_seconds() -> int | None:
 def _file_sha256(path: Path) -> str:
     try:
         data = path.read_bytes()
-    except Exception:
+    except OSError:
         return ""
     return hashlib.sha256(data).hexdigest()
 
@@ -735,7 +735,7 @@ def _invoke_llm_via_server(
         return extract_session_response(response)
     except ServerNotAvailableError:
         raise
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         raise ServerNotAvailableError(f"Server client failed: {exc}") from exc
 
 
@@ -1040,7 +1040,7 @@ def _run_llm_edit_step(
                         "invoke_backend_error": server_error,
                         "recovery_action": "AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER=1 is set but OpenCode server is not available.",
                     }
-            except Exception as exc:
+            except (OSError, ValueError, RuntimeError) as exc:
                 server_error = str(exc)
                 _write_text_atomic(stderr_file, f"[server_client] Failed: {server_error}")
                 if server_required:
@@ -1335,7 +1335,7 @@ def start_implementation(
             workspace_dir = resolved_workspace_dir
             workspaces_home = resolved_workspaces_home
             active_repo_fingerprint = resolved_repo_fingerprint
-    except Exception:
+    except (OSError, RuntimeError):
         pass
 
     pipeline_mode = get_pipeline_mode(workspace_dir)
@@ -1839,7 +1839,7 @@ def main(argv: list[str] | None = None) -> int:
             actor=str(args.actor),
             note=str(args.note),
         )
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         payload = _payload(
             "error",
             reason_code=BLOCKED_IMPLEMENT_START_INVALID,
