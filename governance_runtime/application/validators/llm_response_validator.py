@@ -73,7 +73,7 @@ def _validate_json_schema(data: Any, schema: dict[str, Any]) -> list[str]:
         return [f"{'.'.join(str(p) for p in e.path)}: {e.message}" if e.path else e.message for e in errors]
     except ImportError:
         return _validate_without_library(data, schema)
-    except Exception as e:
+    except (ValueError, TypeError) as e:
         return [f"schema-validation-error: {e}"]
 
 

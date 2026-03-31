@@ -60,7 +60,7 @@ def _resolve_session_id_from_guard(
         return ""
     try:
         pointer_doc = json.loads(pointer_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return ""
 
     session_state_file = str(pointer_doc.get("activeSessionStateFile") or "").strip()
@@ -73,7 +73,7 @@ def _resolve_session_id_from_guard(
         return ""
     try:
         guard_doc = json.loads(guard_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return ""
     last = guard_doc.get("last")
     if not isinstance(last, dict):
@@ -127,7 +127,7 @@ def resolve_active_opencode_model(
 
     try:
         conn = sqlite3.connect(str(resolved_db_path))
-    except Exception:
+    except (sqlite3.OperationalError, OSError):
         return None
 
     try:
