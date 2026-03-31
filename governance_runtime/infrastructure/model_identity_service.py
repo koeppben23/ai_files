@@ -79,7 +79,7 @@ def _compute_binding_file_digest(binding_file: str) -> str | None:
             return None
         content = path.read_bytes()
         return hashlib.sha256(content).hexdigest()[:16]
-    except Exception:
+    except OSError:
         return None
 
 
@@ -342,7 +342,7 @@ def _write_resolution_event_and_evidence(
             newline_lf=True,
         )
         event_path = event_file
-    except Exception:
+    except OSError:
         pass
     
     evidence = {
@@ -372,7 +372,7 @@ def _write_resolution_event_and_evidence(
             newline_lf=True,
         )
         evidence_path = evidence_file
-    except Exception:
+    except OSError:
         pass
     
     return event_path, evidence_path

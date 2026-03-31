@@ -178,7 +178,7 @@ def run_post_archive_governance(
             error="",
         )
 
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         # Log the error but do not propagate
         if events_path is not None:
             try:
@@ -190,7 +190,7 @@ def run_post_archive_governance(
                     observed_at=observed_at,
                     error=str(exc),
                 )
-            except Exception:
+            except OSError:
                 pass
 
         return GovernanceHookResult(

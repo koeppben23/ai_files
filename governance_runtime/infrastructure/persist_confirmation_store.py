@@ -24,7 +24,7 @@ def load_persist_confirmation_evidence(*, evidence_path: Path | None) -> dict[st
         return {"schema": "persist-confirmations.v1", "items": []}
     try:
         payload = json.loads(evidence_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return {"schema": "persist-confirmations.v1", "items": []}
     if not isinstance(payload, dict):
         return {"schema": "persist-confirmations.v1", "items": []}

@@ -21,7 +21,7 @@ class CanonicalRootPhase5ConfigResolver:
                 canonical_path = evidence.governance_home / "assets" / "config" / "phase5_review_config.yaml"
                 if canonical_path.exists():
                     return canonical_path
-        except Exception:
+        except (ValueError, OSError):
             if self._mode == "pipeline":
                 return None
         return None

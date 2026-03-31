@@ -84,7 +84,7 @@ def _resolve_session_id_from_guard(
 def _extract_model_from_message_payload(payload: str) -> tuple[str, str] | None:
     try:
         data = json.loads(payload)
-    except Exception:
+    except json.JSONDecodeError:
         return None
     if not isinstance(data, dict):
         return None

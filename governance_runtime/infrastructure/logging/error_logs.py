@@ -39,7 +39,7 @@ def resolve_paths_full(config_root: Path | None = None) -> tuple[Path, Path, Pat
                         commands = Path(raw_commands)
                     if isinstance(raw_workspaces, str) and raw_workspaces.strip():
                         workspaces = Path(raw_workspaces)
-            except Exception:
+            except (ValueError, OSError):
                 pass
         return cfg, workspaces, commands
     resolver = BindingEvidenceResolver()
@@ -129,8 +129,14 @@ def write_error_event(
 def safe_log_error(**kwargs: Any) -> dict[str, str]:
     if _read_only() and not kwargs.get("gate"):
         return {"status": "read-only"}
+    # Filter out kwargs that write_error_event doesn't accept
+    valid_kwargs = {k: v for k, v in kwargs.items() if k in {
+        "reason_key", "message", "config_root", "phase", "gate",
+        "repo_fingerprint", "command", "component", "observed_value",
+        "expected_constraint", "remediation", "action", "result", "details",
+    }}
     try:
-        p = write_error_event(**kwargs)
+        p = write_error_event(**valid_kwargs)
         return {"status": "logged", "path": str(p)}
-    except Exception as exc:
+    except OSError as exc:
         return {"status": "log-failed", "error": str(exc)}

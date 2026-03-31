@@ -61,7 +61,7 @@ def read_pointer_file(pointer_path: Path) -> dict | None:
         return None
     try:
         payload = json.loads(pointer_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return None
     
     result = parse_pointer_payload(payload)
@@ -133,7 +133,7 @@ def ensure_workspace_ready(
                     if acquired.tzinfo is None:
                         acquired = acquired.replace(tzinfo=timezone.utc)
                     stale = (datetime.now(timezone.utc) - acquired).total_seconds() > _LOCK_TTL_SECONDS
-            except Exception:
+            except ValueError:
                 stale = True
         else:
             stale = True

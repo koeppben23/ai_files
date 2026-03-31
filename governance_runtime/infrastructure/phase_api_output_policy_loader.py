@@ -33,7 +33,7 @@ def _candidate_phase_api_paths() -> list[Path]:
             candidates.append(evidence.spec_home / "phase_api.yaml")
         if evidence.commands_home is not None:
             candidates.append(evidence.commands_home / "phase_api.yaml")
-    except Exception:
+    except (ValueError, OSError):
         pass
 
     env_local_root = os.environ.get("OPENCODE_LOCAL_ROOT", "").strip()
