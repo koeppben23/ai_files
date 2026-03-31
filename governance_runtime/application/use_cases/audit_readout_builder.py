@@ -100,7 +100,7 @@ def _parse_jsonl(path: Path) -> list[dict[str, object]]:
             continue
         try:
             item = json.loads(row)
-        except Exception:
+        except json.JSONDecodeError:
             continue
         if isinstance(item, dict):
             rows.append(item)
@@ -139,7 +139,7 @@ def _read_current_run_pointer(workspace_dir: Path) -> tuple[str, list[str]]:
         return "", notes
     try:
         payload = _read_json(pointer_path)
-    except Exception:
+    except (OSError, ValueError, json.JSONDecodeError):
         notes.append("invalid-current-run-pointer")
         return "", notes
 
@@ -183,12 +183,12 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
             continue
         try:
             metadata = _read_json(metadata_path)
-        except Exception:
+        except (OSError, ValueError, json.JSONDecodeError):
             notes.append(f"run-metadata-invalid:{run_id}")
             continue
         try:
             snapshot_document = _read_json(snapshot_path)
-        except Exception:
+        except (OSError, ValueError, json.JSONDecodeError):
             notes.append(f"run-session-state-invalid:{run_id}")
             continue
 
@@ -213,7 +213,7 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
                     resolved_mode = manifest_resolved
                 if manifest_verify:
                     verify_policy_version = manifest_verify
-            except Exception:
+            except (OSError, ValueError, json.JSONDecodeError):
                 notes.append(f"run-manifest-invalid:{run_id}")
         else:
             notes.append(f"run-manifest-missing:{run_id}")
@@ -293,7 +293,7 @@ def _build_last_snapshot(
         raw = str(item.get("archived_at") or "")
         try:
             parsed = datetime.strptime(raw, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-        except Exception:
+        except (ValueError, TypeError):
             parsed = datetime.fromtimestamp(0, tz=timezone.utc)
         return parsed, str(item.get("snapshot_path") or "")
 
@@ -305,7 +305,7 @@ def _timestamps_monotonic(events: list[dict[str, object]], *, last_snapshot: Map
     previous: datetime | None = None
     try:
         snapshot_dt = datetime.strptime(str(last_snapshot.get("archived_at") or ""), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-    except Exception:
+    except (ValueError, TypeError):
         notes.append("invalid-last-snapshot-archived-at")
         return False, notes
 
@@ -314,7 +314,7 @@ def _timestamps_monotonic(events: list[dict[str, object]], *, last_snapshot: Map
         observed = str(event.get("observed_at") or "")
         try:
             observed_dt = datetime.strptime(observed, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-        except Exception:
+        except (ValueError, TypeError):
             notes.append(f"invalid-event-timestamp:{observed}")
             return False, notes
         if previous is not None and observed_dt < previous:
