@@ -135,7 +135,7 @@ def _invoke_llm_via_server(
         return extract_session_response(response)
     except ServerNotAvailableError:
         raise
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         raise ServerNotAvailableError(f"Server client failed: {exc}") from exc
 
 
@@ -177,7 +177,7 @@ def _load_mandates_schema() -> dict[str, object] | None:
         data = json.loads(_MANDATE_SCHEMA_PATH.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise MandateSchemaInvalidJsonError(f"Mandate schema JSON invalid: {exc}") from exc
-    except Exception as exc:
+    except OSError as exc:
         raise MandateSchemaUnavailableError(
             f"Mandate schema unavailable due to IO error: {exc}"
         ) from exc
@@ -348,7 +348,7 @@ def _get_plan_output_schema_text() -> str:
             for key in defs:
                 if key == "planOutputSchema":
                     return json.dumps({"$schema": "https://json-schema.org/draft/2020-12/schema", **defs[key]}, indent=2)
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         pass
     return ""
 
@@ -438,7 +438,7 @@ def _get_review_output_schema_text() -> str:
             for key in defs:
                 if key == "reviewOutputSchema":
                     return json.dumps({"$schema": "https://json-schema.org/draft/2020-12/schema", **defs[key]}, indent=2)
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         pass
     return ""
 
@@ -592,7 +592,7 @@ def _parse_json_events_to_text(response_text: str) -> str:
             if combined.strip().startswith("{"):
                 return combined
 
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         pass
 
     return response_text
