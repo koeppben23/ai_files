@@ -1818,9 +1818,30 @@ def load_manifest(manifest_path: Path) -> dict | None:
 
 OPENCODE_JSON_NAME = "opencode.json"
 
-# Canonical command markdown files - ONLY these are true slash commands
-# Note: NON-command content (master.md, rules.md, etc.) is NOT installed as command surface
+# Legacy constant: command rails as instruction entries.
+# Kept for backward compatibility (include_legacy_command_files, tests).
+# Fresh installs no longer emit these in the ``instructions`` array —
+# OpenCode loads commands automatically from the ``commands/`` directory.
 OPENCODE_INSTRUCTIONS = [f"commands/{name}" for name in CANONICAL_RAIL_FILENAMES]
+
+# Context / reference files that the LLM needs for governance legitimacy.
+# These are installed under ``<local_root>/governance_content/reference/``
+# and referenced by absolute path in ``opencode.json`` ``instructions``.
+_CONTEXT_REFERENCE_FILENAMES = (
+    "master.md",
+    "rules.md",
+)
+
+
+def _build_opencode_instructions(local_root: Path) -> list[str]:
+    """Build the ``instructions`` array for ``opencode.json``.
+
+    Returns absolute paths to the governance context/reference files that
+    the LLM needs to understand the governance system.  Command rails are
+    NOT included — OpenCode loads them automatically from ``commands/``.
+    """
+    ref_dir = local_root / "governance_content" / "reference"
+    return [str(ref_dir / name) for name in _CONTEXT_REFERENCE_FILENAMES]
 OPENCODE_PLUGIN_KEY = "plugin"
 OPENCODE_PLUGIN_RELATIVE = f"{OPENCODE_PLUGINS_DIR_NAME}/audit-new-session.mjs"
 
@@ -1905,14 +1926,29 @@ def ensure_opencode_json(
     dry_run: bool,
     effective_opencode_port: int = DEFAULT_OPENCODE_PORT,
     include_legacy_command_files: bool = False,
+    local_root: Path | None = None,
 ) -> dict:
     """Generate or merge ``opencode.json`` with governance instructions for Desktop.
 
-    - If the file does not exist, create it with the ``instructions`` array.
-    - If it exists, merge: add missing instruction entries, ensure plugin is set,
-      and actively remove any legacy ``command_files`` key unless
-      include_legacy_command_files=True.
-      Other user keys are preserved.
+    - If the file does not exist, create it with the ``instructions`` array
+      pointing to context/reference files (master.md, rules.md) so the LLM
+      understands the governance system.  Command rails are NOT included —
+      OpenCode loads them automatically from ``commands/``.
+    - If it exists, merge: add missing context-file instruction entries,
+      ensure plugin is set, and actively remove any legacy ``command_files``
+      key unless include_legacy_command_files=True.
+      Other user keys are preserved.  Existing instruction entries (including
+      legacy ``commands/...`` entries from prior installs) are kept
+      (append-only contract).
+
+    Parameters
+    ----------
+    local_root:
+        The local data root (e.g. ``~/.local/share/opencode``).  When
+        provided, context-file absolute paths are computed from here.
+        When ``None``, falls back to the legacy ``OPENCODE_INSTRUCTIONS``
+        constant (command-rail paths) for backward compatibility with
+        callers that haven't been updated yet.
 
     Returns a status dict for logging.
     """
@@ -1951,7 +1987,14 @@ def ensure_opencode_json(
         if not isinstance(current, list):
             current = []
         merged = list(current)
-        for entry in OPENCODE_INSTRUCTIONS:
+        # Append context-file paths (new installs with local_root) OR
+        # legacy command-rail paths (backward compat when local_root is None).
+        new_entries = (
+            _build_opencode_instructions(local_root)
+            if local_root is not None
+            else list(OPENCODE_INSTRUCTIONS)
+        )
+        for entry in new_entries:
             if entry not in merged:
                 merged.append(entry)
         existing["instructions"] = merged
@@ -1979,8 +2022,14 @@ def ensure_opencode_json(
         atomic_write_json(target, existing, ensure_ascii=False)
         return {"status": "merged", "dst": str(target)}
 
+    # Fresh install: context-file paths (new) or legacy command-rail paths.
+    fresh_instructions = (
+        _build_opencode_instructions(local_root)
+        if local_root is not None
+        else list(OPENCODE_INSTRUCTIONS)
+    )
     payload = {
-        "instructions": list(OPENCODE_INSTRUCTIONS),
+        "instructions": fresh_instructions,
         OPENCODE_PLUGIN_KEY: [plugin_uri],
         "server": {
             "hostname": "127.0.0.1",
@@ -2452,6 +2501,7 @@ def install(
         dry_run=dry_run,
         effective_opencode_port=opencode_port,
         include_legacy_command_files=include_legacy_command_files,
+        local_root=plan.local_root,
     )
     print(f"  opencode.json: {ojs['status']}")
 
