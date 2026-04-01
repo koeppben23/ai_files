@@ -75,6 +75,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-P5-REVIEW-PERSIST-FAILED": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P6-PREREQUISITES-NOT-MET": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P6-PLAN-COMPLIANCE-MAJOR": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-GUARD-EVALUATION-FAILED": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-INTERACTIVE": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-HUMAN-ASSIST": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-PROMPT-BUDGET": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",

@@ -3,10 +3,11 @@ from __future__ import annotations
 import base64
 import json
 import os
+import time
 import urllib.request
 import warnings
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Callable, Mapping, TypeVar
 
 
 class OpenCodeServerError(Exception):
@@ -23,6 +24,41 @@ class AuthenticationError(OpenCodeServerError):
 
 class APIError(OpenCodeServerError):
     pass
+
+
+T = TypeVar("T")
+
+
+def _retry_with_backoff(
+    func: Callable[[], T],
+    max_attempts: int = 3,
+    backoff_ms: int = 100,
+    retryable_exceptions: tuple[type[Exception], ...] = (ServerNotAvailableError, TimeoutError),
+) -> T:
+    """Execute a function with exponential backoff retry for transient failures.
+
+    Args:
+        func: Function to execute
+        max_attempts: Maximum number of attempts (default: 3)
+        backoff_ms: Initial backoff delay in milliseconds (default: 100)
+        retryable_exceptions: Exceptions that trigger retry (default: ServerNotAvailableError, TimeoutError)
+
+    Returns:
+        Result of func()
+
+    Raises:
+        Last exception if all attempts fail (fail-closed)
+    """
+    last_error: Exception | None = None
+    for attempt in range(max_attempts):
+        try:
+            return func()
+        except retryable_exceptions as e:
+            last_error = e
+            if attempt < max_attempts - 1:
+                sleep_time = backoff_ms * (attempt + 1) / 1000.0
+                time.sleep(sleep_time)
+    raise last_error
 
 
 def is_server_required_mode() -> bool:
@@ -184,6 +220,9 @@ def post_json(
     body: dict,
     *,
     base_url: str | None = None,
+    retry: bool = False,
+    max_attempts: int = 3,
+    backoff_ms: int = 100,
 ) -> dict:
     """Send JSON POST request to OpenCode server.
 
@@ -191,46 +230,60 @@ def post_json(
         path: API path (e.g., "/session/abc/message")
         body: JSON body to send
         base_url: Base URL override (default: resolved from environment)
+        retry: If True, retry on transient failures (connection/timeout)
+        max_attempts: Maximum retry attempts (default: 3)
+        backoff_ms: Initial backoff delay in ms (default: 100)
 
     Returns:
         Parsed JSON response
 
     Raises:
-        ServerNotAvailableError: If server is not reachable
+        ServerNotAvailableError: If server is not reachable (or in required mode)
         AuthenticationError: If auth fails
         APIError: For other API errors
     """
-    if base_url is None:
-        base_url = resolve_opencode_server_base_url()
 
-    url = f"{base_url}{path}"
-    headers = {"Content-Type": "application/json"}
+    def _do_request() -> dict:
+        _base_url = base_url
+        if _base_url is None:
+            _base_url = resolve_opencode_server_base_url()
 
-    auth_headers = _resolve_auth()
-    if auth_headers:
-        headers.update(auth_headers)
+        url = f"{_base_url}{path}"
+        headers = {"Content-Type": "application/json"}
 
-    data = json.dumps(body).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        auth_headers = _resolve_auth()
+        if auth_headers:
+            headers.update(auth_headers)
 
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            response_body = resp.read().decode("utf-8")
-            if response_body:
-                return json.loads(response_body)
-            return {}
-    except urllib.request.HTTPError as e:
-        if e.code == 401:
-            raise AuthenticationError(
-                f"Authentication failed for {url}. Check OPENCODE_SERVER_PASSWORD."
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                response_body = resp.read().decode("utf-8")
+                if response_body:
+                    return json.loads(response_body)
+                return {}
+        except urllib.request.HTTPError as e:
+            if e.code == 401:
+                raise AuthenticationError(
+                    f"Authentication failed for {url}. Check OPENCODE_SERVER_PASSWORD."
+                ) from e
+            raise APIError(f"API error {e.code}: {e.reason}") from e
+        except urllib.request.URLError as e:
+            raise ServerNotAvailableError(
+                f"Cannot connect to OpenCode server at {_base_url}: {e.reason}"
             ) from e
-        raise APIError(f"API error {e.code}: {e.reason}") from e
-    except urllib.request.URLError as e:
-        raise ServerNotAvailableError(
-            f"Cannot connect to OpenCode server at {base_url}: {e.reason}"
-        ) from e
-    except TimeoutError as e:
-        raise ServerNotAvailableError(f"Request timeout to {url}") from e
+        except TimeoutError as e:
+            raise ServerNotAvailableError(f"Request timeout to {url}") from e
+
+    if retry:
+        return _retry_with_backoff(
+            _do_request,
+            max_attempts=max_attempts,
+            backoff_ms=backoff_ms,
+        )
+    return _do_request()
 
 
 def resolve_session_id() -> tuple[str, dict]:
@@ -266,6 +319,9 @@ def send_session_prompt(
     model: dict[str, str] | None = None,
     output_schema: dict | None = None,
     required: bool = False,
+    retry: bool = False,
+    max_attempts: int = 3,
+    backoff_ms: int = 100,
 ) -> dict:
     """Send a prompt to a session and get LLM response.
 
@@ -286,6 +342,9 @@ def send_session_prompt(
         output_schema: Optional JSON schema for structured output
                       Uses "format" by default; set AI_GOVERNANCE_USE_OUTPUTFORMAT=1 for outputFormat
         required: If True, fail-closed when server not available (respects AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER)
+        retry: If True, retry on transient failures (connection/timeout)
+        max_attempts: Maximum retry attempts (default: 3)
+        backoff_ms: Initial backoff delay in ms (default: 100)
 
     Returns:
         Session response dict with info and parts, plus resolved_session_id in response
@@ -329,7 +388,14 @@ def send_session_prompt(
                 "schema": output_schema,
             }
 
-    response = post_json(f"/session/{resolved_session_id}/message", body, base_url=server_url)
+    response = post_json(
+        f"/session/{resolved_session_id}/message",
+        body,
+        base_url=server_url,
+        retry=retry,
+        max_attempts=max_attempts,
+        backoff_ms=backoff_ms,
+    )
 
     response["resolved_session_id"] = resolved_session_id
     response["session_evidence"] = session_evidence

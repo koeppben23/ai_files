@@ -218,6 +218,11 @@ NOT_VERIFIED_STRICT_EVIDENCE_STALE: Final[str] = "NOT_VERIFIED-STRICT-EVIDENCE-S
 NOT_VERIFIED_STRICT_EVIDENCE_MISSING: Final[str] = "NOT_VERIFIED-STRICT-EVIDENCE-MISSING"
 
 # ---------------------------------------------------------------------------
+# Guard evaluation codes
+# ---------------------------------------------------------------------------
+BLOCKED_GUARD_EVALUATION_FAILED: Final[str] = "BLOCKED-GUARD-EVALUATION-FAILED"
+
+# ---------------------------------------------------------------------------
 # Operational / informational codes
 # ---------------------------------------------------------------------------
 REPO_DOC_UNSAFE_DIRECTIVE: Final[str] = "REPO-DOC-UNSAFE-DIRECTIVE"
@@ -320,6 +325,7 @@ CANONICAL_REASON_CODES: Final[tuple[str, ...]] = (
     BLOCKED_REVIEW_HEAD_UNRESOLVED,
     BLOCKED_REVIEW_MERGE_BASE_UNRESOLVED,
     # Pipeline hard-blocks
+    BLOCKED_GUARD_EVALUATION_FAILED,
     BLOCKED_PIPELINE_INTERACTIVE,
     BLOCKED_PIPELINE_HUMAN_ASSIST,
     BLOCKED_PIPELINE_PROMPT_BUDGET,

@@ -11,6 +11,7 @@ from governance_runtime.infrastructure.opencode_server_client import (
     APIError,
     AuthenticationError,
     ServerNotAvailableError,
+    _retry_with_backoff,
     check_server_health,
     extract_session_response,
     post_json,
@@ -386,3 +387,130 @@ class TestCheckServerHealth:
                 mock_urlopen.side_effect = Exception("Connection refused")
                 with pytest.raises(ServerNotAvailableError):
                     check_server_health()
+
+
+class TestRetryWithBackoff:
+    """Tests for retry wrapper with backoff.
+
+    Happy: Retry succeeds on second attempt
+    Bad: All retries fail -> fail-closed
+    Edge: Non-retryable exceptions bypass retry
+    """
+
+    def test_happy_retry_succeeds_on_second_attempt(self):
+        """Happy: First attempt fails, second succeeds."""
+        call_count = 0
+
+        def flaky_func():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise ServerNotAvailableError("Connection failed")
+            return "success"
+
+        result = _retry_with_backoff(flaky_func, max_attempts=3, backoff_ms=10)
+        assert result == "success"
+        assert call_count == 2
+
+    def test_happy_retry_succeeds_on_third_attempt(self):
+        """Happy: Third attempt succeeds."""
+        call_count = 0
+
+        def flaky_func():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise ServerNotAvailableError(f"Attempt {call_count} failed")
+            return "success"
+
+        result = _retry_with_backoff(flaky_func, max_attempts=3, backoff_ms=10)
+        assert result == "success"
+        assert call_count == 3
+
+    def test_bad_all_retries_fail_fails_closed(self):
+        """Bad: All attempts fail -> raises last exception."""
+        call_count = 0
+
+        def flaky_func():
+            nonlocal call_count
+            call_count += 1
+            raise ServerNotAvailableError(f"Attempt {call_count} failed")
+
+        with pytest.raises(ServerNotAvailableError) as exc_info:
+            _retry_with_backoff(flaky_func, max_attempts=3, backoff_ms=10)
+        assert "Attempt 3 failed" in str(exc_info.value)
+        assert call_count == 3
+
+    def test_edge_non_retryable_exception_bypasses_retry(self):
+        """Edge: Non-retryable exceptions (APIError) are not retried."""
+        call_count = 0
+
+        def flaky_func():
+            nonlocal call_count
+            call_count += 1
+            raise APIError("Invalid request")
+
+        with pytest.raises(APIError):
+            _retry_with_backoff(
+                flaky_func,
+                max_attempts=3,
+                backoff_ms=10,
+                retryable_exceptions=(ServerNotAvailableError, TimeoutError),
+            )
+        assert call_count == 1
+
+    def test_happy_single_attempt_succeeds_no_retry(self):
+        """Happy: First attempt succeeds -> no retry."""
+        call_count = 0
+
+        def success_func():
+            nonlocal call_count
+            call_count += 1
+            return "success"
+
+        result = _retry_with_backoff(success_func, max_attempts=3)
+        assert result == "success"
+        assert call_count == 1
+
+
+class TestPostJsonRetry:
+    """Tests for post_json with retry parameter."""
+
+    def test_happy_retry_enabled(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: post_json with retry=True uses retry wrapper."""
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._retry_with_backoff") as mock_retry:
+            mock_retry.return_value = {"success": True}
+            result = post_json("/test", {"key": "value"}, retry=True, max_attempts=3, backoff_ms=10)
+            assert result == {"success": True}
+            mock_retry.assert_called_once()
+            call_kwargs = mock_retry.call_args[1]
+            assert call_kwargs["max_attempts"] == 3
+            assert call_kwargs["backoff_ms"] == 10
+
+    def test_bad_retry_disabled_bypasses_wrapper(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: post_json with retry=False makes direct request."""
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._retry_with_backoff") as mock_retry:
+            mock_retry.return_value = {"success": True}
+            with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
+                mock_response = mock_urlopen.return_value.__enter__.return_value
+                mock_response.read.return_value = b'{"success": true}'
+                result = post_json("/test", {"key": "value"}, retry=False)
+                assert result == {"success": True}
+                mock_retry.assert_not_called()
+
+    def test_happy_default_no_retry(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: Default behavior (retry not specified) makes direct request."""
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._retry_with_backoff") as mock_retry:
+            mock_retry.return_value = {"success": True}
+            with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
+                mock_response = mock_urlopen.return_value.__enter__.return_value
+                mock_response.read.return_value = b'{"success": true}'
+                result = post_json("/test", {"key": "value"})
+                assert result == {"success": True}
+                mock_retry.assert_not_called()

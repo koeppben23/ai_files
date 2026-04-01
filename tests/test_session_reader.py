@@ -1159,6 +1159,10 @@ class TestMain:
         }
         (fake_config / "SESSION_STATE.json").write_text(json.dumps(pointer), encoding="utf-8")
 
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        _write_minimum_governance_specs(spec_home)
+
         _write_workspace_state(
             ws_state,
             {
@@ -1248,6 +1252,10 @@ class TestMain:
         Gate. The next action must be the explicit persist rail, not /continue.
         """
         ws_state = _write_pointer(fake_config)
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        _write_minimum_governance_specs(spec_home)
+
         _write_workspace_state(
             ws_state,
             {
@@ -1335,6 +1343,10 @@ class TestMain:
         next token path and clear P5.3-TestQuality from pending.
         """
         ws_state = _write_pointer(fake_config)
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        _write_minimum_governance_specs(spec_home)
+
         _write_workspace_state(
             ws_state,
             {

@@ -106,6 +106,7 @@ def _invoke_llm_via_server(
     model_info: dict | None = None,
     output_schema: dict | None = None,
     required: bool = False,
+    retry: bool = True,
 ) -> str:
     """Invoke LLM via direct server API.
 
@@ -117,6 +118,7 @@ def _invoke_llm_via_server(
         model_info: Optional model specification from resolve_active_opencode_model()
         output_schema: Optional JSON schema for structured output
         required: If True, fail-closed when server not available
+        retry: If True, retry on transient failures (default: True)
 
     Returns:
         LLM response text
@@ -131,6 +133,9 @@ def _invoke_llm_via_server(
             model=model_info,
             output_schema=output_schema,
             required=required,
+            retry=retry,
+            max_attempts=3,
+            backoff_ms=100,
         )
         return extract_session_response(response)
     except ServerNotAvailableError:

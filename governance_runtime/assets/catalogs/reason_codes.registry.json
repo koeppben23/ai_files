@@ -479,6 +479,13 @@
       "remediation_hint": "Review plan-record.json against actual changes. Update plan or resolve deviations before Phase 6."
     },
     {
+      "code": "BLOCKED-GUARD-EVALUATION-FAILED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Guard evaluation failed at runtime - transition blocked due to transient evaluation error.",
+      "remediation_hint": "Review guard configuration in guards.yaml. Ensure required state fields are present and valid."
+    },
+    {
       "code": "BLOCKED-PIPELINE-INTERACTIVE",
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",

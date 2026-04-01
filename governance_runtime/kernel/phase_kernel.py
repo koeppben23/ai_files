@@ -17,6 +17,7 @@ from governance_runtime.paths import get_workspace_logs_root
 
 from governance_runtime.engine.gate_evaluator import evaluate_p6_prerequisites, can_promote_to_phase6, evaluate_strict_exit_gate
 from governance_runtime.engine import reason_codes
+from governance_runtime.kernel.guard_evaluator import GuardEvaluationBlocked
 
 from .phase_api_spec import PhaseApiSpec, PhaseApiSpecError, PhaseSpecEntry, load_phase_api
 
@@ -896,10 +897,19 @@ def _transition_guard_passes(
     - Preferred: guards.yaml via GuardEvaluator
     - Fallback: none (explicitly disabled; unknown events fail closed)
     """
-    from governance_runtime.kernel.guard_evaluator import GuardEvaluationError, GuardEvaluator
+    from governance_runtime.kernel.guard_evaluator import GuardConfigurationError, GuardEvaluationFailed, GuardEvaluator
 
     if GuardEvaluator.has_transition_guard(event):
-        return GuardEvaluator.evaluate_event(event, guard_state)
+        try:
+            return GuardEvaluator.evaluate_event(event, guard_state)
+        except GuardConfigurationError:
+            raise
+        except GuardEvaluationFailed as e:
+            raise GuardEvaluationBlocked(
+                f"Guard evaluation failed for event '{event}': {e}",
+                guard_name=event,
+                event=event,
+            ) from e
 
     return False
 
@@ -1212,7 +1222,12 @@ def _select_transition_topology_authoritative(
     Raises:
         TopologyError: If state or transition not found in topology (fail-closed).
     """
-    from governance_runtime.kernel.guard_evaluator import GuardEvaluationError, GuardEvaluator
+    from governance_runtime.kernel.guard_evaluator import (
+        GuardConfigurationError,
+        GuardEvaluationBlocked,
+        GuardEvaluationFailed,
+        GuardEvaluator,
+    )
     from governance_runtime.kernel.topology_loader import TopologyLoader
 
     # Terminal Phase-6 states have no outgoing transitions.
@@ -1249,10 +1264,14 @@ def _select_transition_topology_authoritative(
             when = transition.when.strip().lower()
             try:
                 passed = GuardEvaluator.evaluate_event(when, guard_state)
-            except GuardEvaluationError as exc:
-                raise GuardEvaluationError(
-                    f"Guard evaluation failed for event '{when}' in state '{current_token}': {exc}"
-                ) from exc
+            except GuardConfigurationError:
+                raise
+            except GuardEvaluationFailed as e:
+                raise GuardEvaluationBlocked(
+                    f"Guard evaluation failed for event '{when}' in state '{current_token}': {e}",
+                    guard_name=when,
+                    event=when,
+                ) from e
 
             if passed and _select_event(when, transition):
                 break
@@ -1958,11 +1977,22 @@ def execute(
                 reason=f"strict-exit-gate: {reason_codes.BLOCKED_STRICT_CONTRACT_MISSING}",
             )
 
-    next_token, source, override_active_gate, override_next_condition = _select_transition(
-        entry,
-        state,
-        plan_record_versions=plan_record_signal.versions,
-    )
+    try:
+        next_token, source, override_active_gate, override_next_condition = _select_transition(
+            entry,
+            state,
+            plan_record_versions=plan_record_signal.versions,
+        )
+    except GuardEvaluationBlocked as e:
+        return _blocked_result(
+            phase=entry.phase,
+            token=chosen_token,
+            active_gate="Transition Guard",
+            next_gate_condition=f"PHASE_BLOCKED: {reason_codes.BLOCKED_GUARD_EVALUATION_FAILED}",
+            source="guard-evaluation-failed",
+            reason=f"guard evaluation failed: {e}",
+            detail={"guard_name": e.guard_name, "event": e.event},
+        )
     
     resolved_phase = entry.phase
     resolved_active_gate = override_active_gate or entry.active_gate or runtime_ctx.requested_active_gate

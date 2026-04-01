@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from governance_runtime.kernel.guard_evaluator import GuardEvaluationError, GuardEvaluator
+from governance_runtime.kernel.guard_evaluator import (
+    GuardConfigurationError,
+    GuardEvaluationError,
+    GuardEvaluator,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -34,5 +38,5 @@ def test_transition_guard_workflow_approved_requires_presentation_and_approve() 
 
 
 def test_missing_transition_guard_fails_closed() -> None:
-    with pytest.raises(GuardEvaluationError):
+    with pytest.raises(GuardConfigurationError):
         GuardEvaluator.evaluate_event("nonexistent_event", {})
