@@ -27,6 +27,18 @@ from install import (
 )
 
 
+def _plain_write_text(path: Path, text: str, **_kwargs) -> int:
+    """Fallback for atomic_write_text when os.name is mocked to 'nt' on POSIX.
+
+    ``atomic_write_text`` internally creates new ``Path`` objects which fails
+    on Python 3.9 when ``os.name`` is spoofed to ``"nt"`` on a POSIX host
+    (``WindowsPath`` cannot be instantiated).  This shim writes via the
+    already-instantiated *path* object, which is safe.
+    """
+    path.write_text(text, encoding="utf-8")
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -69,6 +81,12 @@ _BIN = "C:/Users/test/.config/opencode/bin"
 
 class TestHappyPathWindows:
     """On Windows (os.name == 'nt'), bash is preserved and cmd is appended."""
+
+    @pytest.fixture(autouse=True)
+    def _bypass_atomic_write(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Prevent atomic_write_text from creating Path objects while os.name is spoofed."""
+        import governance_runtime.install.install as _inner
+        monkeypatch.setattr(_inner, "atomic_write_text", _plain_write_text)
 
     @pytest.fixture()
     def commands_dir(self, tmp_path: Path) -> Path:
@@ -138,6 +156,12 @@ class TestHappyPathWindows:
 class TestHappyPathUnix:
     """On non-Windows (os.name != 'nt'), only the bash block is present."""
 
+    @pytest.fixture(autouse=True)
+    def _bypass_atomic_write(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Prevent atomic_write_text from creating Path objects while os.name is spoofed."""
+        import governance_runtime.install.install as _inner
+        monkeypatch.setattr(_inner, "atomic_write_text", _plain_write_text)
+
     @pytest.fixture()
     def commands_dir(self, tmp_path: Path) -> Path:
         d = tmp_path / "commands"
@@ -170,6 +194,12 @@ class TestHappyPathUnix:
 
 class TestBadPath:
     """Error and skip conditions."""
+
+    @pytest.fixture(autouse=True)
+    def _bypass_atomic_write(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Prevent atomic_write_text from creating Path objects while os.name is spoofed."""
+        import governance_runtime.install.install as _inner
+        monkeypatch.setattr(_inner, "atomic_write_text", _plain_write_text)
 
     @pytest.fixture()
     def commands_dir(self, tmp_path: Path) -> Path:
@@ -212,6 +242,12 @@ class TestBadPath:
 
 
 class TestCornerCases:
+    @pytest.fixture(autouse=True)
+    def _bypass_atomic_write(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Prevent atomic_write_text from creating Path objects while os.name is spoofed."""
+        import governance_runtime.install.install as _inner
+        monkeypatch.setattr(_inner, "atomic_write_text", _plain_write_text)
+
     @pytest.fixture()
     def commands_dir(self, tmp_path: Path) -> Path:
         d = tmp_path / "commands"
@@ -323,6 +359,12 @@ class TestCornerCases:
 
 
 class TestEdgeCases:
+    @pytest.fixture(autouse=True)
+    def _bypass_atomic_write(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Prevent atomic_write_text from creating Path objects while os.name is spoofed."""
+        import governance_runtime.install.install as _inner
+        monkeypatch.setattr(_inner, "atomic_write_text", _plain_write_text)
+
     @pytest.fixture()
     def commands_dir(self, tmp_path: Path) -> Path:
         d = tmp_path / "commands"

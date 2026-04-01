@@ -17,8 +17,14 @@ T = TypeVar("T")
 
 
 def _platform_path(path: Path) -> str:
+    """Return *raw* on POSIX; add ``\\\\?\\`` long-path prefix on Windows.
+
+    The guard ``raw.startswith("/")`` is a safety net: if test code patches
+    ``os.name`` to ``"nt"`` while running on a POSIX host, the resulting
+    absolute path is still ``/…``-rooted and must never receive a UNC prefix.
+    """
     raw = os.path.abspath(str(path))
-    if os.name != "nt":
+    if os.name != "nt" or raw.startswith("/"):
         return raw
     if raw.startswith("\\\\?\\"):
         return raw

@@ -90,3 +90,12 @@ def test_fsync_dir_calls_fsync_on_unix(monkeypatch: pytest.MonkeyPatch, tmp_path
     fs_atomic.fsync_dir(tmp_path)
 
     assert fsync_called["count"] == 1, "os.fsync should be called once on Unix"
+
+
+@pytest.mark.governance
+def test_platform_path_never_adds_unc_prefix_to_posix_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """Even if os.name is spoofed to 'nt', POSIX paths (starting with /) must not get \\\\?\\ prefix."""
+    monkeypatch.setattr(os, "name", "nt")
+    result = fs_atomic._platform_path(tmp_path)
+    assert not result.startswith("\\\\"), f"POSIX path got UNC prefix: {result}"
+    assert result == os.path.abspath(str(tmp_path))
