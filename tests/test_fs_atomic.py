@@ -44,3 +44,49 @@ def test_atomic_write_removes_temp_file_when_replace_fails(monkeypatch: pytest.M
 
     leftovers = [p for p in tmp_path.glob("out.txt.*.tmp") if p.is_file()]
     assert leftovers == []
+
+
+@pytest.mark.governance
+def test_fsync_dir_returns_immediately_on_windows(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """On Windows (os.name == 'nt'), fsync_dir() must return without calling os.open or os.fsync."""
+    monkeypatch.setattr(os, "name", "nt")
+
+    open_called = {"count": 0}
+    fsync_called = {"count": 0}
+    original_open = os.open
+    original_fsync = os.fsync
+
+    def spy_open(*args, **kwargs):
+        open_called["count"] += 1
+        return original_open(*args, **kwargs)
+
+    def spy_fsync(*args, **kwargs):
+        fsync_called["count"] += 1
+        return original_fsync(*args, **kwargs)
+
+    monkeypatch.setattr(os, "open", spy_open)
+    monkeypatch.setattr(os, "fsync", spy_fsync)
+
+    fs_atomic.fsync_dir(tmp_path)
+
+    assert open_called["count"] == 0, "os.open should not be called on Windows"
+    assert fsync_called["count"] == 0, "os.fsync should not be called on Windows"
+
+
+@pytest.mark.governance
+def test_fsync_dir_calls_fsync_on_unix(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """On Unix (os.name != 'nt'), fsync_dir() must call os.open and os.fsync."""
+    monkeypatch.setattr(os, "name", "posix")
+
+    fsync_called = {"count": 0}
+    original_fsync = os.fsync
+
+    def spy_fsync(*args, **kwargs):
+        fsync_called["count"] += 1
+        return original_fsync(*args, **kwargs)
+
+    monkeypatch.setattr(os, "fsync", spy_fsync)
+
+    fs_atomic.fsync_dir(tmp_path)
+
+    assert fsync_called["count"] == 1, "os.fsync should be called once on Unix"

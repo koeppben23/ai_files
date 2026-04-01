@@ -47,6 +47,17 @@ def bounded_retry(fn: Callable[[], T], attempts: int = 5, backoff_ms: int = 50) 
 
 
 def fsync_dir(path: Path) -> None:
+    """Flush directory metadata to disk after an atomic rename.
+
+    On Windows, directory fsync is not supported — opening a directory
+    with ``O_RDONLY`` raises ``PermissionError``.  ``os.replace()``
+    remains the relevant atomicity boundary on Windows, but this does
+    **not** provide the same durability guarantee as POSIX directory
+    fsync.  We return early with an explicit platform check rather than
+    silently swallowing the ``PermissionError``.
+    """
+    if os.name == "nt":
+        return
     try:
         fd = os.open(_platform_path(path), os.O_RDONLY)
     except OSError:
