@@ -483,7 +483,7 @@
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
       "description": "Guard evaluation failed at runtime - transition blocked due to transient evaluation error.",
-      "remediation_hint": "Review guard configuration in guards.yaml. Ensure required state fields are present and valid."
+      "remediation_hint": "Review guard configuration in guards.yaml and ensure required state fields (inputs, bindings) are present and valid. Retry after fixing state."
     },
     {
       "code": "BLOCKED-PIPELINE-INTERACTIVE",

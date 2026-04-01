@@ -35,7 +35,7 @@ def _retry_with_backoff(
     backoff_ms: int = 100,
     retryable_exceptions: tuple[type[Exception], ...] = (ServerNotAvailableError, TimeoutError),
 ) -> T:
-    """Execute a function with exponential backoff retry for transient failures.
+    """Execute a function with linear backoff retry for transient failures.
 
     Args:
         func: Function to execute
