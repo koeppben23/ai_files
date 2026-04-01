@@ -486,6 +486,34 @@
       "remediation_hint": "Review guard configuration in guards.yaml and ensure required state fields (inputs, bindings) are present and valid. Retry after fixing state."
     },
     {
+      "code": "BLOCKED-SERVER-TARGET-UNREACHABLE",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Target OpenCode server is not reachable at the configured hostname/port.",
+      "remediation_hint": "Start OpenCode Desktop or run: opencode serve --port <port> --hostname <hostname>"
+    },
+    {
+      "code": "BLOCKED-SERVER-TARGET-UNHEALTHY",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Target OpenCode server is reachable but returned unhealthy status.",
+      "remediation_hint": "Restart OpenCode Desktop or run: opencode serve --port <port> --hostname <hostname>"
+    },
+    {
+      "code": "BLOCKED-SERVER-START-FAILED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Failed to start OpenCode server automatically.",
+      "remediation_hint": "Start OpenCode Desktop manually or check opencode installation."
+    },
+    {
+      "code": "BLOCKED-SERVER-START-TIMEOUT",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "OpenCode server did not become healthy within startup timeout.",
+      "remediation_hint": "Check system resources or start OpenCode Desktop manually."
+    },
+    {
       "code": "BLOCKED-PIPELINE-INTERACTIVE",
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",

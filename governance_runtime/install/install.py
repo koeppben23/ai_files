@@ -1855,6 +1855,39 @@ def resolve_effective_opencode_port(
     return _parse_opencode_port(default_port, purpose="default OPENCODE port")
 
 
+DEFAULT_OPENCODE_HOSTNAME = "127.0.0.1"
+
+
+def resolve_effective_opencode_hostname(
+    *,
+    cli_opencode_hostname: str | None,
+    opencode_json_config: dict | None = None,
+    default_hostname: str = DEFAULT_OPENCODE_HOSTNAME,
+) -> str:
+    """Resolve the effective OpenCode hostname from a single contract.
+
+    Priority:
+      1) explicit CLI argument (cli_opencode_hostname)
+      2) opencode.json server.hostname
+      3) default 127.0.0.1
+
+    Note: Unlike port, hostname does NOT have an environment variable fallback
+    to avoid creating undocumented resolution paths. The JSON config is the
+    authoritative source for hostname.
+    """
+    if cli_opencode_hostname is not None and str(cli_opencode_hostname).strip():
+        return str(cli_opencode_hostname).strip()
+
+    if opencode_json_config is not None:
+        server_block = opencode_json_config.get("server", {})
+        if isinstance(server_block, dict):
+            hostname = server_block.get("hostname", "").strip()
+            if hostname:
+                return hostname
+
+    return default_hostname
+
+
 def ensure_opencode_json(
     config_root: Path,
     *,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import subprocess
 import time
 import urllib.request
 import warnings
@@ -16,6 +17,40 @@ class OpenCodeServerError(Exception):
 
 class ServerNotAvailableError(OpenCodeServerError):
     pass
+
+
+class ServerTargetUnreachableError(ServerNotAvailableError):
+    """Raised when target server is not reachable."""
+
+    def __init__(self, message: str, target_url: str | None = None):
+        super().__init__(message)
+        self.target_url = target_url
+
+
+class ServerTargetUnhealthyError(ServerNotAvailableError):
+    """Raised when target server is reachable but unhealthy."""
+
+    def __init__(self, message: str, target_url: str | None = None, health_response: dict | None = None):
+        super().__init__(message)
+        self.target_url = target_url
+        self.health_response = health_response
+
+
+class ServerStartFailedError(ServerNotAvailableError):
+    """Raised when server auto-start fails."""
+
+    def __init__(self, message: str, target_url: str | None = None):
+        super().__init__(message)
+        self.target_url = target_url
+
+
+class ServerStartTimeoutError(ServerNotAvailableError):
+    """Raised when server does not become healthy within timeout."""
+
+    def __init__(self, message: str, target_url: str | None = None, timeout_seconds: int | None = None):
+        super().__init__(message)
+        self.target_url = target_url
+        self.timeout_seconds = timeout_seconds
 
 
 class AuthenticationError(OpenCodeServerError):
@@ -613,6 +648,197 @@ def check_server_health() -> dict:
         raise ServerNotAvailableError(f"Cannot connect to server: {e}") from e
     except Exception as e:
         raise ServerNotAvailableError(f"Server health check failed: {e}") from e
+
+
+def ensure_opencode_server_running(
+    *,
+    hostname: str | None = None,
+    port: int | None = None,
+    startup_timeout_seconds: int = 30,
+    health_check_timeout: int = 10,
+) -> dict:
+    """Ensure OpenCode server is running on target (hostname, port).
+
+    This is the server lifecycle manager for governance. It implements:
+    - Adopt if matching: healthy server on target -> use it
+    - Start if absent: server not running -> start and wait for health
+    - Block if mismatched: server running but not healthy -> fail closed
+
+    Priority:
+      1) Use provided hostname/port if given
+      2) Resolve from opencode.json (SSOT)
+
+    Args:
+        hostname: Target hostname (optional, overrides config)
+        port: Target port (optional, overrides config)
+        startup_timeout_seconds: Max time to wait for server startup (default: 30)
+        health_check_timeout: HTTP timeout for health check (default: 10)
+
+    Returns:
+        Dict with "healthy" (bool), "version" (str), "started" (bool) keys
+
+    Raises:
+        ServerNotAvailableError: If server cannot be started or is unhealthy
+    """
+    if hostname is None or port is None:
+        from governance_runtime.install.install import resolve_effective_opencode_port
+        resolved = _resolve_server_endpoint_from_opencode_json()
+        resolved_port = resolved[1] if resolved else None
+        resolved_hostname = resolved[0] if resolved else None
+
+        if port is None:
+            port = resolved_port
+        if port is None:
+            from governance_runtime.install.install import DEFAULT_OPENCODE_PORT
+            port = DEFAULT_OPENCODE_PORT
+
+        if hostname is None:
+            if resolved_hostname:
+                hostname = resolved_hostname
+            else:
+                from governance_runtime.install.install import DEFAULT_OPENCODE_HOSTNAME
+                hostname = DEFAULT_OPENCODE_HOSTNAME
+
+    if port is None:
+        raise ServerNotAvailableError(
+            "OpenCode server port not resolvable. "
+            "Set server.port in opencode.json or provide port explicitly."
+        )
+
+    target_url = f"http://{hostname}:{port}"
+
+    health = None
+    try:
+        health = _check_target_server_health(
+            hostname=hostname,
+            port=port,
+            timeout=health_check_timeout,
+        )
+        if health.get("healthy") is True:
+            return {
+                "healthy": True,
+                "version": health.get("version", "unknown"),
+                "started": False,
+                "target_url": target_url,
+            }
+    except ServerNotAvailableError:
+        pass
+
+    if health is not None and health.get("healthy") is not True:
+        raise ServerTargetUnhealthyError(
+            f"Target server at {target_url} is reachable but unhealthy. "
+            f"Health response: {health}. "
+            f"Cannot auto-start: a server process appears to be running but not healthy. "
+            f"Stop the existing server or fix its health before retrying.",
+            target_url=target_url,
+            health_response=health,
+        )
+
+    try:
+        proc = subprocess.Popen(
+            ["opencode", "serve", "--port", str(port), "--hostname", hostname],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except FileNotFoundError:
+        raise ServerStartFailedError(
+            f"Cannot start OpenCode server: 'opencode' command not found. "
+            f"Ensure OpenCode Desktop is installed and 'opencode serve' is available.",
+            target_url=target_url,
+        ) from None
+    except OSError as e:
+        raise ServerStartFailedError(
+            f"Failed to start OpenCode server: {e}",
+            target_url=target_url,
+        ) from e
+
+    poll_interval = 0.5
+    elapsed = 0.0
+    while elapsed < startup_timeout_seconds:
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+        try:
+            health = _check_target_server_health(
+                hostname=hostname,
+                port=port,
+                timeout=health_check_timeout,
+            )
+            if health.get("healthy") is True:
+                return {
+                    "healthy": True,
+                    "version": health.get("version", "unknown"),
+                    "started": True,
+                    "target_url": target_url,
+                }
+        except ServerNotAvailableError:
+            continue
+
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+
+    raise ServerStartTimeoutError(
+        f"OpenCode server start timeout: server did not become healthy within "
+        f"{startup_timeout_seconds}s on {target_url}. "
+        f"Check logs or start manually: opencode serve --port {port} --hostname {hostname}",
+        target_url=target_url,
+        timeout_seconds=startup_timeout_seconds,
+    )
+
+
+def _check_target_server_health(
+    hostname: str,
+    port: int,
+    timeout: int = 10,
+) -> dict:
+    """Check health of a specific server endpoint.
+
+    Args:
+        hostname: Server hostname
+        port: Server port
+        timeout: HTTP request timeout
+
+    Returns:
+        Dict with health status
+
+    Raises:
+        ServerNotAvailableError: If server is not reachable
+    """
+    url = f"http://{hostname}:{port}/global/health"
+    headers = {}
+    auth_headers = _resolve_auth()
+    if auth_headers:
+        headers.update(auth_headers)
+
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ServerNotAvailableError(
+                    f"Invalid health response from {url}: expected dict, got {type(data)}"
+                )
+            return data
+    except urllib.error.HTTPError as e:
+        raise ServerNotAvailableError(
+            f"Server health check failed on {url}: HTTP {e.code}"
+        ) from e
+    except urllib.error.URLError as e:
+        raise ServerNotAvailableError(
+            f"Cannot connect to server at {url}: {e.reason}"
+        ) from e
+    except (OSError, ValueError) as e:
+        raise ServerNotAvailableError(
+            f"Server health check failed on {url}: {e}"
+        ) from e
+    except json.JSONDecodeError as e:
+        raise ServerNotAvailableError(
+            f"Invalid JSON in health response from {url}: {e}"
+        ) from e
 
 
 def get_sessions() -> list[dict]:

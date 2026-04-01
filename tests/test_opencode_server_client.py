@@ -11,8 +11,13 @@ from governance_runtime.infrastructure.opencode_server_client import (
     APIError,
     AuthenticationError,
     ServerNotAvailableError,
+    ServerStartFailedError,
+    ServerStartTimeoutError,
+    ServerTargetUnhealthyError,
+    _check_target_server_health,
     _retry_with_backoff,
     check_server_health,
+    ensure_opencode_server_running,
     extract_session_response,
     post_json,
     resolve_opencode_server_base_url,
@@ -514,3 +519,209 @@ class TestPostJsonRetry:
                 result = post_json("/test", {"key": "value"})
                 assert result == {"success": True}
                 mock_retry.assert_not_called()
+
+
+class TestEnsureOpencodeServerRunning:
+    """Tests for ensure_opencode_server_running lifecycle manager.
+
+    Happy: target server healthy -> reuse
+    Happy: target server absent -> auto-start -> healthy
+    Bad: target server unhealthy -> blocked
+    Bad: start fails -> blocked
+    Bad: start timeout -> blocked
+    Edge: port not resolvable -> blocked
+    """
+
+    def test_happy_target_healthy_reuse(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: healthy server on target -> reuse immediately."""
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._check_target_server_health") as mock_health:
+            mock_health.return_value = {"healthy": True, "version": "1.2.3"}
+            result = ensure_opencode_server_running(hostname="127.0.0.1", port=4096)
+
+            assert result["healthy"] is True
+            assert result["started"] is False
+            assert result["version"] == "1.2.3"
+            mock_health.assert_called_once()
+
+    def test_happy_target_absent_auto_start_becomes_healthy(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: server absent -> auto-start -> becomes healthy."""
+        call_count = 0
+
+        def health_check_sequence(hostname, port, timeout):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise ServerNotAvailableError("not running")
+            if call_count == 2:
+                raise ServerNotAvailableError("starting up")
+            return {"healthy": True, "version": "1.2.3"}
+
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._check_target_server_health") as mock_health:
+            with patch("governance_runtime.infrastructure.opencode_server_client.subprocess.Popen") as mock_popen:
+                mock_proc = mock_popen.return_value
+                mock_proc.wait.return_value = None
+                mock_proc.terminate.return_value = None
+                mock_health.side_effect = health_check_sequence
+
+                with patch("governance_runtime.infrastructure.opencode_server_client.time.sleep"):
+                    result = ensure_opencode_server_running(
+                        hostname="127.0.0.1",
+                        port=4096,
+                        startup_timeout_seconds=5,
+                    )
+
+                    assert result["healthy"] is True
+                    assert result["started"] is True
+                    mock_popen.assert_called_once()
+
+    def test_bad_target_unhealthy_returns_blocked(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: server reachable but unhealthy -> blocked immediately."""
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._check_target_server_health") as mock_health:
+            mock_health.return_value = {"healthy": False, "version": "1.2.3"}
+
+            with pytest.raises(ServerTargetUnhealthyError) as exc_info:
+                ensure_opencode_server_running(hostname="127.0.0.1", port=4096)
+
+            error_msg = str(exc_info.value).lower()
+            assert "reachable but unhealthy" in error_msg or "not healthy" in error_msg
+
+    def test_bad_start_fails_command_not_found(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: opencode command not found -> blocked."""
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._check_target_server_health") as mock_health:
+            mock_health.side_effect = ServerNotAvailableError("not running")
+
+            with patch("governance_runtime.infrastructure.opencode_server_client.subprocess.Popen") as mock_popen:
+                mock_popen.side_effect = FileNotFoundError("opencode not found")
+
+                with pytest.raises(ServerStartFailedError) as exc_info:
+                    ensure_opencode_server_running(hostname="127.0.0.1", port=4096)
+
+                assert "not found" in str(exc_info.value).lower()
+
+    def test_bad_start_timeout(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: server doesn't become healthy within timeout -> blocked."""
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._check_target_server_health") as mock_health:
+            mock_health.side_effect = ServerNotAvailableError("not running")
+
+            with patch("governance_runtime.infrastructure.opencode_server_client.subprocess.Popen") as mock_popen:
+                mock_proc = mock_popen.return_value
+                mock_proc.wait.return_value = None
+                mock_proc.terminate.return_value = None
+                mock_proc.wait.side_effect = None
+
+                mock_health.side_effect = ServerNotAvailableError("still not running")
+
+                with patch("governance_runtime.infrastructure.opencode_server_client.time.sleep"):
+                    with pytest.raises(ServerStartTimeoutError) as exc_info:
+                        ensure_opencode_server_running(
+                            hostname="127.0.0.1",
+                            port=4096,
+                            startup_timeout_seconds=1,
+                        )
+
+                assert "timeout" in str(exc_info.value).lower()
+
+    def test_edge_port_not_resolvable(self, monkeypatch: pytest.MonkeyPatch):
+        """Edge: port not resolvable -> uses defaults when server available."""
+        monkeypatch.setenv("OPENCODE_PORT", "")
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._resolve_server_endpoint_from_opencode_json") as mock_resolve:
+            with patch("governance_runtime.infrastructure.opencode_server_client._check_target_server_health") as mock_health:
+                mock_resolve.return_value = (None, None)
+                mock_health.return_value = {"healthy": True, "version": "1.0.0"}
+
+                result = ensure_opencode_server_running()
+
+                assert result["healthy"] is True
+                assert result["started"] is False
+
+    def test_happy_uses_config_when_no_explicit_params(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: uses opencode.json config when no explicit hostname/port."""
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._resolve_server_endpoint_from_opencode_json") as mock_resolve:
+            mock_resolve.return_value = ("192.168.1.100", 8192)
+
+            with patch("governance_runtime.infrastructure.opencode_server_client._check_target_server_health") as mock_health:
+                mock_health.return_value = {"healthy": True, "version": "1.2.3"}
+
+                result = ensure_opencode_server_running()
+
+                assert result["healthy"] is True
+                mock_health.assert_called_once_with(hostname="192.168.1.100", port=8192, timeout=10)
+
+
+class TestCheckTargetServerHealth:
+    """Tests for _check_target_server_health internal function."""
+
+    def test_happy_healthy_response(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: valid healthy response."""
+        with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
+            mock_response = mock_urlopen.return_value.__enter__.return_value
+            mock_response.read.return_value = b'{"healthy": true, "version": "1.0.0"}'
+
+            result = _check_target_server_health("127.0.0.1", 4096, timeout=5)
+
+            assert result == {"healthy": True, "version": "1.0.0"}
+
+    def test_bad_http_error(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: server returns HTTP error."""
+        import urllib.error
+
+        with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
+            mock_urlopen.side_effect = urllib.error.HTTPError(
+                "http://127.0.0.1:4096/global/health",
+                500,
+                "Internal Server Error",
+                {},
+                None,
+            )
+
+            with pytest.raises(ServerNotAvailableError) as exc_info:
+                _check_target_server_health("127.0.0.1", 4096)
+
+            assert "500" in str(exc_info.value)
+
+    def test_bad_connection_refused(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: connection refused."""
+        import urllib.error
+
+        with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
+            mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
+
+            with pytest.raises(ServerNotAvailableError) as exc_info:
+                _check_target_server_health("127.0.0.1", 4096)
+
+            assert "Connection refused" in str(exc_info.value)
+
+    def test_bad_invalid_json(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: invalid JSON response."""
+        with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
+            mock_response = mock_urlopen.return_value.__enter__.return_value
+            mock_response.read.return_value = b"not valid json"
+
+            with pytest.raises(ServerNotAvailableError) as exc_info:
+                _check_target_server_health("127.0.0.1", 4096)
+
+            assert "JSON" in str(exc_info.value) or "Expecting value" in str(exc_info.value)
+
+    def test_bad_non_dict_response(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: response is not a dict."""
+        with patch("governance_runtime.infrastructure.opencode_server_client.urllib.request.urlopen") as mock_urlopen:
+            mock_response = mock_urlopen.return_value.__enter__.return_value
+            mock_response.read.return_value = b'"just a string"'
+
+            with pytest.raises(ServerNotAvailableError) as exc_info:
+                _check_target_server_health("127.0.0.1", 4096)
+
+            assert "expected dict" in str(exc_info.value)

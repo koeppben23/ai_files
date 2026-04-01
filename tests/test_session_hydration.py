@@ -250,13 +250,16 @@ class TestSessionHydrationBad:
         def mock_health_unhealthy():
             return {"healthy": False, "version": "1.3.7"}
 
+        def mock_ensure_server_returns_unhealthy():
+            return {"healthy": False, "version": "1.3.7"}
+
         monkeypatch.setattr(module, "resolve_active_session_paths", mock_resolve_paths)
-        monkeypatch.setattr(module, "check_server_health", mock_health_unhealthy)
+        monkeypatch.setattr(module, "ensure_opencode_server_running", mock_ensure_server_returns_unhealthy)
 
         rc = module.main(["--quiet"])
         assert rc == 2
         payload = json.loads(capsys.readouterr().out.strip())
-        assert payload["reason_code"] == "HYDRATION-SERVER-UNHEALTHY"
+        assert payload["reason_code"] == "BLOCKED-SERVER-TARGET-UNHEALTHY"
         assert payload["reason"] == "server-unhealthy"
 
     def test_hydration_blocks_when_server_health_payload_is_malformed(
@@ -278,12 +281,12 @@ class TestSessionHydrationBad:
             return {"status": "ok"}
 
         monkeypatch.setattr(module, "resolve_active_session_paths", mock_resolve_paths)
-        monkeypatch.setattr(module, "check_server_health", mock_health_malformed)
+        monkeypatch.setattr(module, "ensure_opencode_server_running", mock_health_malformed)
 
         rc = module.main(["--quiet"])
         assert rc == 2
         payload = json.loads(capsys.readouterr().out.strip())
-        assert payload["reason_code"] == "HYDRATION-SERVER-UNHEALTHY"
+        assert payload["reason_code"] == "BLOCKED-SERVER-TARGET-UNHEALTHY"
         assert payload["reason"] == "server-unhealthy"
 
 
