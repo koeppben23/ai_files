@@ -880,6 +880,10 @@ def detect_server_binding_mismatch(
     - Check if server is running on configured target → OK
     - Check if server is running elsewhere → MISMATCH (block, don't auto-adopt)
 
+    Note: This is diagnostic-only heuristics, not SSOT. The scan_ports list represents
+    commonly used OpenCode ports. This will NOT auto-adopt or auto-rebind - it only
+    provides diagnostic information for the user.
+
     Args:
         target_hostname: Expected hostname from config
         target_port: Expected port from config
