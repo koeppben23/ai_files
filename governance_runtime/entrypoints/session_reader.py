@@ -762,48 +762,6 @@ def get_canonical_active_gate(materialized: dict) -> str:
     canonical = get_canonical_state(materialized)
     return str(canonical.get("active_gate") or "")
 
-    state_obj = materialized.get("SESSION_STATE")
-    state_map = state_obj if isinstance(state_obj, dict) else materialized
-    if not str(state_map.get("session_run_id") or "").strip():
-        state_map["session_run_id"] = f"session-{uuid.uuid4().hex[:12]}"
-    current_revision = 0
-    try:
-        current_revision = int(str(state_map.get("session_state_revision") or "0").strip())
-    except ValueError:
-        current_revision = 0
-    state_map["session_state_revision"] = current_revision + 1
-    state_map["session_materialization_event_id"] = f"mat-{uuid.uuid4().hex}"
-    state_map["session_materialized_at"] = _now_iso()
-
-    # Create gate evaluator dependencies for Phase-5 normalizer
-    _gate_evaluators = GateEvaluators(
-        evaluate_p53=evaluate_p53_test_quality_gate,
-        evaluate_p54=evaluate_p54_business_rules_gate,
-        evaluate_p55=evaluate_p55_technical_debt_gate,
-        evaluate_p56=evaluate_p56_rollback_safety_gate,
-        phase_1_5_executed=_phase_1_5_executed,
-    )
-    _gate_constants = GateConstants(
-        priority_order=P5_GATE_PRIORITY_ORDER,
-        terminal_values=P5_GATE_TERMINAL_VALUES,
-        reason_code_for_gate=reason_code_for_gate,
-    )
-
-    _sync_conditional_p5_gate_states(state_doc=materialized, gate_evaluators=_gate_evaluators)
-    _normalize_phase6_p5_state(
-        state_doc=materialized,
-        events_path=session_path.parent / "logs" / "events.jsonl",
-        clock=_now_iso,
-        audit_sink=_append_jsonl,
-        gate_constants=_gate_constants,
-        gate_evaluators=_gate_evaluators,
-    )
-    _persist_review_package_markers(state_doc=materialized, session_path=session_path)
-    _persist_implementation_package_markers(state_doc=materialized)
-
-    _write_json_atomic(session_path, materialized)
-    return materialized
-
 
 def read_session_snapshot(commands_home: Path | None = None, *, materialize: bool = False) -> dict:
     """Read governance session state and return the render source payload.
