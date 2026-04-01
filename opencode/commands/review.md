@@ -1,6 +1,17 @@
+---
+description: Independent read-only PR, file, or directory review using the governance review mandate.
+---
+
 # Governance Review
 
 <!-- rail-classification: READ-ONLY, GATE-EVALUATION, NO-STATE-CHANGE -->
+
+## Context
+
+This command is part of a **locally installed governance extension** for OpenCode.
+It is not a native OpenCode core feature.  The governance runtime, its command
+rails, and all referenced files reside in the local OpenCode configuration
+directory as part of the project's governance setup.
 
 ## Purpose
 

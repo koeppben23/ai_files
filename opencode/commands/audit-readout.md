@@ -1,6 +1,17 @@
+---
+description: Read-only audit readout of governance session state, chain integrity, and last snapshot.
+---
+
 # Governance Audit Readout
 
 <!-- rail-classification: READ-ONLY, OUTPUT-ONLY, NO-STATE-CHANGE -->
+
+## Context
+
+This command is part of a **locally installed governance extension** for OpenCode.
+It is not a native OpenCode core feature.  The governance runtime, its command
+rails, and all referenced files reside in the local OpenCode configuration
+directory as part of the project's governance setup.
 
 ## Purpose
 

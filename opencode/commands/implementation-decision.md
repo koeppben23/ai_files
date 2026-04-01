@@ -1,6 +1,17 @@
+---
+description: Persist the final external decision for implemented results (approve, changes_requested, or reject).
+---
+
 # Governance Implementation Decision
 
 <!-- rail-classification: MUTATING, GATE-EVALUATION -->
+
+## Context
+
+This command is part of a **locally installed governance extension** for OpenCode.
+It is not a native OpenCode core feature.  The governance runtime, its command
+rails, and all referenced files reside in the local OpenCode configuration
+directory as part of the project's governance setup.
 
 ## Purpose
 

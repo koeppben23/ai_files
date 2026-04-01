@@ -1,6 +1,17 @@
+---
+description: Materialize and print the current governance session state for this repository.
+---
+
 # Governance Continue
 
 <!-- rail-classification: MUTATING, GATE-EVALUATION -->
+
+## Context
+
+This command is part of a **locally installed governance extension** for OpenCode.
+It is not a native OpenCode core feature.  The governance runtime, its command
+rails, and all referenced files reside in the local OpenCode configuration
+directory as part of the project's governance setup.
 
 ## Purpose
 

@@ -841,8 +841,10 @@ _RESPONSE_SHAPE_SECTION_RE = re.compile(
 )
 
 # Density caps — intentionally generous; tighten after guidance-core refactor
-_MAX_HEADINGS_PER_RAIL = 9
-_MAX_LINES_PER_RAIL = 75
+# Raised from 9→10 / 75→86 after adding mandatory frontmatter + ## Context
+# section (11 lines) to all command rails for OpenCode compatibility.
+_MAX_HEADINGS_PER_RAIL = 10
+_MAX_LINES_PER_RAIL = 86
 _MAX_RESPONSE_SHAPE_BULLETS = 4
 
 # Guidance vocabulary banned from execution-facing rails
