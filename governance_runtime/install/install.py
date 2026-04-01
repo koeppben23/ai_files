@@ -41,6 +41,8 @@ from pathlib import Path
 from collections.abc import Callable, Mapping
 from typing import Iterable
 
+from governance_runtime.infrastructure.fs_atomic import atomic_write_json, atomic_write_text
+
 
 DEFAULT_OPENCODE_PORT = 4096
 
@@ -467,7 +469,7 @@ def create_launcher(
             )
             created_entries.extend(launcher_entries)
         except RuntimeError as exc:
-            raise RuntimeError(f"Launcher generation failed: {exc}")
+            raise RuntimeError(f"Launcher generation failed: {exc}") from exc
 
     if binding_path.exists():
         try:
@@ -498,8 +500,7 @@ def create_launcher(
     if dry_run:
         print(f"  [DRY-RUN] write {health_path}")
     else:
-        import json
-        health_path.write_text(json.dumps(health_data, indent=2, ensure_ascii=True), encoding="utf-8")
+        atomic_write_json(health_path, health_data, ensure_ascii=True)
         print(f"  ✅ {health_path}")
 
     created_entries.append(
@@ -521,7 +522,7 @@ def _resolve_python_executable(binding_path: Path, *, fallback: str, strict: boo
     try:
         data = json.loads(binding_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"Invalid governance.paths.json: {exc}")
+        raise RuntimeError(f"Invalid governance.paths.json: {exc}") from exc
     paths = data.get("paths")
     if not isinstance(paths, dict):
         return fallback
@@ -766,7 +767,7 @@ def _write_python_binding_file(bin_dir: Path, python_exe: str) -> Path:
     binding_file = bin_dir / "PYTHON_BINDING"
     # Always POSIX-normalized absolute path (match governance.paths.json normalization)
     posix_path = Path(os.path.normpath(os.path.abspath(str(Path(python_exe).expanduser())))).as_posix()
-    binding_file.write_text(posix_path + "\n", encoding="utf-8")
+    atomic_write_text(binding_file, posix_path + "\n")
     return binding_file
 
 
@@ -783,7 +784,7 @@ def _write_launcher_wrappers(
     try:
         python_exec = _resolve_python_executable(binding_path, fallback=python_exe, strict=True)
     except RuntimeError as exc:
-        raise RuntimeError(f"Invalid pythonCommand in governance.paths.json: {exc}")
+        raise RuntimeError(f"Invalid pythonCommand in governance.paths.json: {exc}") from exc
 
     bin_dir = dest_unix.parent  # bin/
 
@@ -810,11 +811,11 @@ def _write_launcher_wrappers(
         opencode_port=opencode_port,
     )
 
-    dest_unix.write_text(unix_payload, encoding="utf-8")
+    atomic_write_text(dest_unix, unix_payload)
     dest_unix.chmod(0o755)
     created.append({"dst": str(dest_unix.resolve()), "src": "generated", "status": "generated"})
 
-    dest_win.write_text(win_payload, encoding="utf-8")
+    atomic_write_text(dest_win, win_payload)
     created.append({"dst": str(dest_win.resolve()), "src": "generated", "status": "generated"})
 
     return created
@@ -1761,7 +1762,7 @@ def write_manifest(manifest_path: Path, manifest: dict, dry_run: bool) -> None:
         print(json.dumps(manifest, indent=2, ensure_ascii=False))
         return
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    atomic_write_json(manifest_path, manifest, ensure_ascii=False)
 
 
 def _load_json(path: Path) -> dict | None:
@@ -1925,7 +1926,7 @@ def ensure_opencode_json(
         if corrupt and not dry_run:
             backup_name = target.with_suffix(".json.corrupt-backup")
             try:
-                backup_name.write_text(raw_text, encoding="utf-8")
+                atomic_write_text(backup_name, raw_text)
             except OSError:
                 pass  # best-effort backup
 
@@ -1965,10 +1966,7 @@ def ensure_opencode_json(
             print(f"  [DRY-RUN] merge instructions into {target}")
             return {"status": "planned-merge", "dst": str(target)}
 
-        target.write_text(
-            json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        atomic_write_json(target, existing, ensure_ascii=False)
         return {"status": "merged", "dst": str(target)}
 
     payload = {
@@ -1986,10 +1984,7 @@ def ensure_opencode_json(
         return {"status": "planned-create", "dst": str(target)}
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write_json(target, payload, ensure_ascii=False)
     return {"status": "created", "dst": str(target)}
 
 
@@ -2016,7 +2011,7 @@ def remove_installer_plugin_from_opencode_json(config_root: Path, *, dry_run: bo
         print(f"  [DRY-RUN] remove installer plugin entry from {target}")
         return {"status": "planned-remove-plugin", "dst": str(target)}
 
-    target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    atomic_write_json(target, payload, ensure_ascii=False)
     return {"status": "removed-plugin", "dst": str(target)}
 
 
@@ -2143,7 +2138,7 @@ def inject_session_reader_path_for_command(
         print(f"  [DRY-RUN] inject rail paths into {command_md}")
         return {"status": "planned-inject", "dst": str(command_md)}
 
-    command_md.write_text(new_content, encoding="utf-8")
+    atomic_write_text(command_md, new_content)
     return {"status": "injected", "dst": str(command_md)}
 
 
