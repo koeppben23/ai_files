@@ -44,6 +44,7 @@ from governance_runtime.infrastructure.opencode_server_client import (
     get_active_session,
     send_session_message,
     ServerNotAvailableError,
+    ServerBindingMismatchError,
     ServerTargetUnreachableError,
     ServerTargetUnhealthyError,
     ServerStartFailedError,
@@ -441,6 +442,15 @@ def main(argv: list[str] | None = None) -> int:
                 reason=f"server-start-failed: {exc}",
                 reason_code="BLOCKED-SERVER-START-FAILED",
                 recovery_action="Ensure OpenCode is installed: opencode serve should be available",
+                observed=str(exc),
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+        except ServerBindingMismatchError as exc:
+            payload = _blocked_payload(
+                reason=f"server-binding-mismatch: {exc}",
+                reason_code="BLOCKED-SERVER-BINDING-MISMATCH",
+                recovery_action="Stop existing server or update opencode.json to match the running instance",
                 observed=str(exc),
             )
             print(json.dumps(payload, ensure_ascii=True))

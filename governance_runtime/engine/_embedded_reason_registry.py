@@ -80,6 +80,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-SERVER-TARGET-UNHEALTHY": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-SERVER-START-FAILED": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-SERVER-START-TIMEOUT": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-SERVER-BINDING-MISMATCH": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-INTERACTIVE": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-HUMAN-ASSIST": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-PROMPT-BUDGET": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",

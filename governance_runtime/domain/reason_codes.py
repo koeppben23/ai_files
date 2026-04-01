@@ -223,12 +223,13 @@ NOT_VERIFIED_STRICT_EVIDENCE_MISSING: Final[str] = "NOT_VERIFIED-STRICT-EVIDENCE
 BLOCKED_GUARD_EVALUATION_FAILED: Final[str] = "BLOCKED-GUARD-EVALUATION-FAILED"
 
 # ---------------------------------------------------------------------------
-# Server lifecycle codes (P1)
+# Server lifecycle codes (P1 + P2)
 # ---------------------------------------------------------------------------
 BLOCKED_SERVER_TARGET_UNREACHABLE: Final[str] = "BLOCKED-SERVER-TARGET-UNREACHABLE"
 BLOCKED_SERVER_TARGET_UNHEALTHY: Final[str] = "BLOCKED-SERVER-TARGET-UNHEALTHY"
 BLOCKED_SERVER_START_FAILED: Final[str] = "BLOCKED-SERVER-START-FAILED"
 BLOCKED_SERVER_START_TIMEOUT: Final[str] = "BLOCKED-SERVER-START-TIMEOUT"
+BLOCKED_SERVER_BINDING_MISMATCH: Final[str] = "BLOCKED-SERVER-BINDING-MISMATCH"
 
 # ---------------------------------------------------------------------------
 # Operational / informational codes
@@ -338,6 +339,7 @@ CANONICAL_REASON_CODES: Final[tuple[str, ...]] = (
     BLOCKED_SERVER_TARGET_UNHEALTHY,
     BLOCKED_SERVER_START_FAILED,
     BLOCKED_SERVER_START_TIMEOUT,
+    BLOCKED_SERVER_BINDING_MISMATCH,
     BLOCKED_PIPELINE_INTERACTIVE,
     BLOCKED_PIPELINE_HUMAN_ASSIST,
     BLOCKED_PIPELINE_PROMPT_BUDGET,

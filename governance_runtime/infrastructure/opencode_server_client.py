@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import time
+import urllib.error
 import urllib.request
 import warnings
 from pathlib import Path
@@ -51,6 +52,20 @@ class ServerStartTimeoutError(ServerNotAvailableError):
         super().__init__(message)
         self.target_url = target_url
         self.timeout_seconds = timeout_seconds
+
+
+class ServerBindingMismatchError(ServerNotAvailableError):
+    """Raised when server is found on different port/hostname than configured."""
+
+    def __init__(
+        self,
+        message: str,
+        target_url: str | None = None,
+        found_url: str | None = None,
+    ):
+        super().__init__(message)
+        self.target_url = target_url
+        self.found_url = found_url
 
 
 class AuthenticationError(OpenCodeServerError):
@@ -734,6 +749,18 @@ def ensure_opencode_server_running(
             health_response=health,
         )
 
+    mismatch = detect_server_binding_mismatch(hostname, port)
+    if mismatch:
+        found_hostname, found_port = mismatch
+        found_url = f"http://{found_hostname}:{found_port}"
+        raise ServerBindingMismatchError(
+            f"Server binding mismatch: expected {target_url} but found server at {found_url}. "
+            f"Governance will not automatically adopt a server on a different port/hostname. "
+            f"Either stop the existing server or update opencode.json to match.",
+            target_url=target_url,
+            found_url=found_url,
+        )
+
     try:
         proc = subprocess.Popen(
             ["opencode", "serve", "--port", str(port), "--hostname", hostname],
@@ -839,6 +866,46 @@ def _check_target_server_health(
         raise ServerNotAvailableError(
             f"Invalid JSON in health response from {url}: {e}"
         ) from e
+
+
+def detect_server_binding_mismatch(
+    target_hostname: str,
+    target_port: int,
+    scan_ports: list[int] | None = None,
+    scan_timeout: int = 2,
+) -> tuple[str, int] | None:
+    """Detect if OpenCode server is running on a different port/hostname than target.
+
+    This implements drift detection for Phase 4 of the server lifecycle plan:
+    - Check if server is running on configured target → OK
+    - Check if server is running elsewhere → MISMATCH (block, don't auto-adopt)
+
+    Args:
+        target_hostname: Expected hostname from config
+        target_port: Expected port from config
+        scan_ports: Ports to scan for drift detection (default: common ports)
+        scan_timeout: Timeout per port check
+
+    Returns:
+        Tuple of (found_hostname, found_port) if drift detected, None if no server found
+    """
+    if scan_ports is None:
+        scan_ports = [4096, 4097, 4098, 8192]
+
+    for port in scan_ports:
+        if port == target_port:
+            continue
+        try:
+            url = f"http://{target_hostname}:{port}/global/health"
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=scan_timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data.get("healthy") is True:
+                    return (target_hostname, port)
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError):
+            continue
+
+    return None
 
 
 def get_sessions() -> list[dict]:

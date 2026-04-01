@@ -514,6 +514,13 @@
       "remediation_hint": "Check system resources or start OpenCode Desktop manually."
     },
     {
+      "code": "BLOCKED-SERVER-BINDING-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Server binding mismatch: server found on different port/hostname than configured.",
+      "remediation_hint": "Stop the existing server or update opencode.json to match the running instance."
+    },
+    {
       "code": "BLOCKED-PIPELINE-INTERACTIVE",
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
