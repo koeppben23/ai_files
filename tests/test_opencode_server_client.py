@@ -671,6 +671,76 @@ class TestEnsureOpencodeServerRunning:
                 mock_health.assert_called_once_with(hostname="192.168.1.100", port=8192, timeout=10)
 
 
+class TestPopenPlatformDetachment:
+    """Tests for platform-aware process detachment in ensure_opencode_server_running.
+
+    On Windows, the managed server must use CREATE_NEW_PROCESS_GROUP |
+    DETACHED_PROCESS instead of start_new_session=True, which is silently
+    ignored on Windows.
+    """
+
+    def test_unix_uses_start_new_session(self, monkeypatch: pytest.MonkeyPatch):
+        """Unix: Popen receives start_new_session=True, no creationflags."""
+        monkeypatch.setattr("governance_runtime.infrastructure.opencode_server_client.sys.platform", "darwin")
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+
+        call_count = 0
+
+        def health_side_effect(hostname, port, timeout):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise ServerNotAvailableError("not running")
+            return {"healthy": True, "version": "1.0.0"}
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._check_target_server_health") as mock_health:
+            with patch("governance_runtime.infrastructure.opencode_server_client.subprocess.Popen") as mock_popen:
+                with patch("governance_runtime.infrastructure.opencode_server_client.time.sleep"):
+                    mock_health.side_effect = health_side_effect
+                    mock_popen.return_value.wait.return_value = None
+
+                    ensure_opencode_server_running(hostname="127.0.0.1", port=4096)
+
+                    mock_popen.assert_called_once()
+                    call_kwargs = mock_popen.call_args
+                    assert call_kwargs.kwargs.get("start_new_session") is True or call_kwargs[1].get("start_new_session") is True
+                    assert "creationflags" not in (call_kwargs.kwargs or call_kwargs[1])
+
+    def test_windows_uses_creationflags(self, monkeypatch: pytest.MonkeyPatch):
+        """Windows: Popen receives CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS, no start_new_session."""
+        monkeypatch.setattr("governance_runtime.infrastructure.opencode_server_client.sys.platform", "win32")
+        monkeypatch.setenv("OPENCODE_PORT", "4096")
+
+        call_count = 0
+
+        def health_side_effect(hostname, port, timeout):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise ServerNotAvailableError("not running")
+            return {"healthy": True, "version": "1.0.0"}
+
+        # These constants only exist on Windows; use their known values for
+        # cross-platform test execution.
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        DETACHED_PROCESS = 0x00000008
+        expected_flags = CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS
+
+        with patch("governance_runtime.infrastructure.opencode_server_client._check_target_server_health") as mock_health:
+            with patch("governance_runtime.infrastructure.opencode_server_client.subprocess.Popen") as mock_popen:
+                with patch("governance_runtime.infrastructure.opencode_server_client.time.sleep"):
+                    mock_health.side_effect = health_side_effect
+                    mock_popen.return_value.wait.return_value = None
+
+                    ensure_opencode_server_running(hostname="127.0.0.1", port=4096)
+
+                    mock_popen.assert_called_once()
+                    call_kwargs = mock_popen.call_args
+                    kwargs = call_kwargs.kwargs if call_kwargs.kwargs else call_kwargs[1]
+                    assert kwargs.get("creationflags") == expected_flags
+                    assert "start_new_session" not in kwargs
+
+
 class TestCheckTargetServerHealth:
     """Tests for _check_target_server_health internal function."""
 

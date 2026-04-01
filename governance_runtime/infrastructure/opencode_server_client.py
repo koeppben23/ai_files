@@ -859,12 +859,28 @@ def ensure_opencode_server_running(
             found_url=found_url,
         )
 
+    # Build platform-specific kwargs for process detachment.
+    # On Unix, start_new_session=True calls setsid() to detach the child
+    # into its own session, preventing parent-exit from killing it.
+    # On Windows, start_new_session is not the reliable detachment
+    # mechanism — we use explicit creationflags instead:
+    # CREATE_NEW_PROCESS_GROUP detaches from the parent's console control
+    # group (Ctrl+C), and DETACHED_PROCESS prevents the child from
+    # inheriting or creating a console window.
+    _popen_detach_kwargs: dict[str, Any] = {}
+    if sys.platform == "win32":
+        _create_new_pg = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+        _detached = getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+        _popen_detach_kwargs["creationflags"] = _create_new_pg | _detached
+    else:
+        _popen_detach_kwargs["start_new_session"] = True
+
     try:
         proc = subprocess.Popen(
             ["opencode", "serve", "--port", str(port), "--hostname", hostname],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            start_new_session=True,
+            **_popen_detach_kwargs,
         )
     except FileNotFoundError:
         raise ServerStartFailedError(
