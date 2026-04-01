@@ -16,15 +16,26 @@ from typing import Any, Callable, TypeVar
 T = TypeVar("T")
 
 
+def _is_windows() -> bool:
+    """Return True when running on Windows.
+
+    Encapsulated so test code can ``monkeypatch.setattr(fs_atomic, "_is_windows", …)``
+    instead of globally patching ``os.name``, which poisons ``pathlib.Path()``
+    and pytest internals on cross-platform CI.
+    """
+    return os.name == "nt"
+
+
 def _platform_path(path: Path) -> str:
     """Return *raw* on POSIX; add ``\\\\?\\`` long-path prefix on Windows.
 
-    The guard ``raw.startswith("/")`` is a safety net: if test code patches
-    ``os.name`` to ``"nt"`` while running on a POSIX host, the resulting
-    absolute path is still ``/…``-rooted and must never receive a UNC prefix.
+    The guard ``raw.startswith("/")`` is a safety net: if ``_is_windows()``
+    returns True while running on a POSIX host (e.g. in tests), the
+    resulting absolute path is still ``/…``-rooted and must never receive a
+    UNC prefix.
     """
     raw = os.path.abspath(str(path))
-    if os.name != "nt" or raw.startswith("/"):
+    if not _is_windows() or raw.startswith("/"):
         return raw
     if raw.startswith("\\\\?\\"):
         return raw
@@ -62,7 +73,7 @@ def fsync_dir(path: Path) -> None:
     fsync.  We return early with an explicit platform check rather than
     silently swallowing the ``PermissionError``.
     """
-    if os.name == "nt":
+    if _is_windows():
         return
     try:
         fd = os.open(_platform_path(path), os.O_RDONLY)

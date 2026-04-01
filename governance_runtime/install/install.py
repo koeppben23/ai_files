@@ -44,6 +44,16 @@ from typing import Iterable
 from governance_runtime.infrastructure.fs_atomic import atomic_write_json, atomic_write_text
 
 
+def _is_windows() -> bool:
+    """Return True when running on Windows.
+
+    Encapsulated as a function so test code can ``monkeypatch.setattr``
+    *this* function instead of globally patching ``os.name``, which poisons
+    ``pathlib.Path()`` and pytest internals on cross-platform CI.
+    """
+    return os.name == "nt"
+
+
 DEFAULT_OPENCODE_PORT = 4096
 
 def get_governance_docs_root(base: Path) -> Path:
@@ -2048,7 +2058,7 @@ def inject_session_reader_path_for_command(
         # Platform-aware rail injection (python-binding-contract.v1.md §4.2):
         # Rails are installed as platform-specific — the installer writes only
         # the block matching the target OS.
-        if os.name == "nt" and "```cmd" not in new_content:
+        if _is_windows() and "```cmd" not in new_content:
             # Windows: keep the bash block intact (OpenCode's LLM tool runner
             # uses bash even on Windows via Git Bash / WSL) and *append* a cmd
             # block immediately after the bash code fence for native Windows
@@ -3684,7 +3694,7 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
         if launcher.exists():
             test_env = os.environ.copy()
             test_env["OPENCODE_CONFIG_ROOT"] = str(config_root)
-            if os.name == "nt" and launcher_win.exists():
+            if _is_windows() and launcher_win.exists():
                 cmd = ["cmd", "/c", str(launcher), "--help"]
             else:
                 cmd = [str(launcher), "--help"]
@@ -3790,7 +3800,7 @@ def run_smoketest(config_root: Path) -> int:
     if launcher.exists():
         test_env = os.environ.copy()
         test_env["OPENCODE_CONFIG_ROOT"] = str(config_root)
-        if os.name == "nt" and launcher_win.exists():
+        if _is_windows() and launcher_win.exists():
             cmd = ["cmd", "/c", str(launcher), "--help"]
         else:
             cmd = [str(launcher), "--help"]

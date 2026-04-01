@@ -48,8 +48,8 @@ def test_atomic_write_removes_temp_file_when_replace_fails(monkeypatch: pytest.M
 
 @pytest.mark.governance
 def test_fsync_dir_returns_immediately_on_windows(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    """On Windows (os.name == 'nt'), fsync_dir() must return without calling os.open or os.fsync."""
-    monkeypatch.setattr(os, "name", "nt")
+    """When _is_windows() returns True, fsync_dir() must return without calling os.open or os.fsync."""
+    monkeypatch.setattr(fs_atomic, "_is_windows", lambda: True)
 
     open_called = {"count": 0}
     fsync_called = {"count": 0}
@@ -75,8 +75,8 @@ def test_fsync_dir_returns_immediately_on_windows(monkeypatch: pytest.MonkeyPatc
 
 @pytest.mark.governance
 def test_fsync_dir_calls_fsync_on_unix(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    """On Unix (os.name != 'nt'), fsync_dir() must call os.open and os.fsync."""
-    monkeypatch.setattr(os, "name", "posix")
+    """When _is_windows() returns False, fsync_dir() must call os.open and os.fsync."""
+    monkeypatch.setattr(fs_atomic, "_is_windows", lambda: False)
 
     fsync_called = {"count": 0}
     original_fsync = os.fsync
@@ -94,8 +94,8 @@ def test_fsync_dir_calls_fsync_on_unix(monkeypatch: pytest.MonkeyPatch, tmp_path
 
 @pytest.mark.governance
 def test_platform_path_never_adds_unc_prefix_to_posix_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    """Even if os.name is spoofed to 'nt', POSIX paths (starting with /) must not get \\\\?\\ prefix."""
-    monkeypatch.setattr(os, "name", "nt")
+    """Even if _is_windows() returns True, POSIX paths (starting with /) must not get \\\\?\\ prefix."""
+    monkeypatch.setattr(fs_atomic, "_is_windows", lambda: True)
     result = fs_atomic._platform_path(tmp_path)
     assert not result.startswith("\\\\"), f"POSIX path got UNC prefix: {result}"
     assert result == os.path.abspath(str(tmp_path))
