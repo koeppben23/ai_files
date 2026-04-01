@@ -2,25 +2,35 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import urllib.error
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 
 from governance_runtime.infrastructure.opencode_server_client import (
     APIError,
     AuthenticationError,
+    ServerAuthRequiredError,
+    ServerDiscoveryAmbiguousError,
+    ServerDiscoveryNotFoundError,
+    ServerDiscoveryUnsupportedPlatformError,
+    ServerMode,
     ServerNotAvailableError,
     ServerStartFailedError,
     ServerStartTimeoutError,
     ServerTargetUnhealthyError,
     _check_target_server_health,
+    _parse_lsof_candidates,
     _retry_with_backoff,
     check_server_health,
+    discover_local_opencode_server,
     ensure_opencode_server_running,
     extract_session_response,
     post_json,
     resolve_opencode_server_base_url,
+    resolve_server_mode,
     send_session_command,
     send_session_prompt,
 )
@@ -725,3 +735,620 @@ class TestCheckTargetServerHealth:
                 _check_target_server_health("127.0.0.1", 4096)
 
             assert "expected dict" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# ServerMode + resolve_server_mode() tests
+# ---------------------------------------------------------------------------
+
+
+class TestServerMode:
+    """Tests for ServerMode enum and resolve_server_mode().
+
+    Happy: Valid mode strings resolve correctly
+    Bad: Invalid mode strings raise ValueError
+    Corner: Whitespace handling, case insensitivity
+    Edge: Resolution order (CLI > ENV > default)
+    """
+
+    def test_happy_enum_values(self):
+        """Happy: Enum has exactly two members with correct values."""
+        assert ServerMode.ATTACH_EXISTING.value == "attach_existing"
+        assert ServerMode.MANAGED.value == "managed"
+        assert len(ServerMode) == 2
+
+    def test_happy_default_is_attach_existing(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: Default mode is attach_existing when no CLI or ENV."""
+        monkeypatch.delenv("OPENCODE_SERVER_MODE", raising=False)
+        assert resolve_server_mode() is ServerMode.ATTACH_EXISTING
+
+    def test_happy_cli_attach_existing(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: CLI value 'attach_existing' resolves correctly."""
+        monkeypatch.delenv("OPENCODE_SERVER_MODE", raising=False)
+        assert resolve_server_mode("attach_existing") is ServerMode.ATTACH_EXISTING
+
+    def test_happy_cli_managed(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: CLI value 'managed' resolves correctly."""
+        monkeypatch.delenv("OPENCODE_SERVER_MODE", raising=False)
+        assert resolve_server_mode("managed") is ServerMode.MANAGED
+
+    def test_happy_env_attach_existing(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: ENV 'attach_existing' resolves when no CLI."""
+        monkeypatch.setenv("OPENCODE_SERVER_MODE", "attach_existing")
+        assert resolve_server_mode() is ServerMode.ATTACH_EXISTING
+
+    def test_happy_env_managed(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: ENV 'managed' resolves when no CLI."""
+        monkeypatch.setenv("OPENCODE_SERVER_MODE", "managed")
+        assert resolve_server_mode() is ServerMode.MANAGED
+
+    def test_edge_cli_overrides_env(self, monkeypatch: pytest.MonkeyPatch):
+        """Edge: CLI value takes priority over ENV."""
+        monkeypatch.setenv("OPENCODE_SERVER_MODE", "managed")
+        assert resolve_server_mode("attach_existing") is ServerMode.ATTACH_EXISTING
+
+    def test_edge_cli_managed_overrides_env_attach(self, monkeypatch: pytest.MonkeyPatch):
+        """Edge: CLI 'managed' overrides ENV 'attach_existing'."""
+        monkeypatch.setenv("OPENCODE_SERVER_MODE", "attach_existing")
+        assert resolve_server_mode("managed") is ServerMode.MANAGED
+
+    def test_corner_case_insensitive_cli(self, monkeypatch: pytest.MonkeyPatch):
+        """Corner: CLI values are case-insensitive."""
+        monkeypatch.delenv("OPENCODE_SERVER_MODE", raising=False)
+        assert resolve_server_mode("MANAGED") is ServerMode.MANAGED
+        assert resolve_server_mode("Attach_Existing") is ServerMode.ATTACH_EXISTING
+
+    def test_corner_case_insensitive_env(self, monkeypatch: pytest.MonkeyPatch):
+        """Corner: ENV values are case-insensitive."""
+        monkeypatch.setenv("OPENCODE_SERVER_MODE", "MANAGED")
+        assert resolve_server_mode() is ServerMode.MANAGED
+
+    def test_corner_whitespace_cli(self, monkeypatch: pytest.MonkeyPatch):
+        """Corner: CLI whitespace is stripped."""
+        monkeypatch.delenv("OPENCODE_SERVER_MODE", raising=False)
+        assert resolve_server_mode("  managed  ") is ServerMode.MANAGED
+
+    def test_corner_whitespace_env(self, monkeypatch: pytest.MonkeyPatch):
+        """Corner: ENV whitespace is stripped."""
+        monkeypatch.setenv("OPENCODE_SERVER_MODE", "  attach_existing  ")
+        assert resolve_server_mode() is ServerMode.ATTACH_EXISTING
+
+    def test_corner_empty_env_uses_default(self, monkeypatch: pytest.MonkeyPatch):
+        """Corner: Empty ENV falls through to default."""
+        monkeypatch.setenv("OPENCODE_SERVER_MODE", "")
+        assert resolve_server_mode() is ServerMode.ATTACH_EXISTING
+
+    def test_corner_whitespace_only_env_uses_default(self, monkeypatch: pytest.MonkeyPatch):
+        """Corner: Whitespace-only ENV falls through to default."""
+        monkeypatch.setenv("OPENCODE_SERVER_MODE", "   ")
+        assert resolve_server_mode() is ServerMode.ATTACH_EXISTING
+
+    def test_bad_invalid_cli_value(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: Invalid CLI value raises ValueError."""
+        monkeypatch.delenv("OPENCODE_SERVER_MODE", raising=False)
+        with pytest.raises(ValueError, match="Invalid server mode"):
+            resolve_server_mode("auto_discover")
+
+    def test_bad_invalid_env_value(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: Invalid ENV value raises ValueError."""
+        monkeypatch.setenv("OPENCODE_SERVER_MODE", "hybrid")
+        with pytest.raises(ValueError, match="Invalid server mode"):
+            resolve_server_mode()
+
+    def test_bad_invalid_cli_overrides_valid_env(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: Invalid CLI value raises even when ENV is valid."""
+        monkeypatch.setenv("OPENCODE_SERVER_MODE", "managed")
+        with pytest.raises(ValueError, match="Invalid server mode"):
+            resolve_server_mode("bogus")
+
+
+# ---------------------------------------------------------------------------
+# _parse_lsof_candidates() tests
+# ---------------------------------------------------------------------------
+
+
+class TestParseLsofCandidates:
+    """Tests for _parse_lsof_candidates().
+
+    Happy: Standard lsof output is parsed correctly
+    Bad: Malformed lines are skipped
+    Corner: IPv6, duplicate ports, non-opencode processes
+    Edge: Real-world lsof output from macOS
+    """
+
+    REAL_LSOF_LINE = (
+        "opencode- 53525 koeppben   11u  IPv4 0xabc123  0t0  TCP 127.0.0.1:52372 (LISTEN)"
+    )
+
+    def test_happy_single_opencode_listener(self):
+        """Happy: Single opencode listener is extracted."""
+        candidates = _parse_lsof_candidates(self.REAL_LSOF_LINE)
+        assert candidates == [("127.0.0.1", 52372)]
+
+    def test_happy_multiple_opencode_listeners(self):
+        """Happy: Multiple listeners on different ports."""
+        output = (
+            "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+            "opencode  53530 user   12u  IPv4 0x2  0t0  TCP 127.0.0.1:52373 (LISTEN)\n"
+        )
+        candidates = _parse_lsof_candidates(output)
+        assert candidates == [("127.0.0.1", 52372), ("127.0.0.1", 52373)]
+
+    def test_happy_filters_non_opencode_processes(self):
+        """Happy: Non-opencode processes are filtered out."""
+        output = (
+            "node      1234 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:3000 (LISTEN)\n"
+            "opencode- 5678 user   12u  IPv4 0x2  0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+            "postgres  9012 user   13u  IPv4 0x3  0t0  TCP 127.0.0.1:5432 (LISTEN)\n"
+        )
+        candidates = _parse_lsof_candidates(output)
+        assert candidates == [("127.0.0.1", 52372)]
+
+    def test_corner_deduplicates_same_port(self):
+        """Corner: Same host:port from multiple file descriptors is deduplicated."""
+        output = (
+            "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+            "opencode- 53525 user   12u  IPv4 0x2  0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+        )
+        candidates = _parse_lsof_candidates(output)
+        assert candidates == [("127.0.0.1", 52372)]
+
+    def test_corner_empty_output(self):
+        """Corner: Empty lsof output returns no candidates."""
+        assert _parse_lsof_candidates("") == []
+
+    def test_corner_header_line_skipped(self):
+        """Corner: lsof header line is skipped (fewer than 9 columns)."""
+        output = "COMMAND   PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME\n"
+        assert _parse_lsof_candidates(output) == []
+
+    def test_bad_malformed_port(self):
+        """Bad: Non-numeric port is skipped."""
+        output = "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:abc (LISTEN)\n"
+        assert _parse_lsof_candidates(output) == []
+
+    def test_bad_out_of_range_port(self):
+        """Bad: Port outside valid range is skipped."""
+        output = "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:70000 (LISTEN)\n"
+        assert _parse_lsof_candidates(output) == []
+
+    def test_bad_no_listen_marker(self):
+        """Bad: Line without (LISTEN) marker is skipped."""
+        output = "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:52372 (ESTABLISHED)\n"
+        assert _parse_lsof_candidates(output) == []
+
+    def test_edge_real_macos_output_with_mixed_processes(self):
+        """Edge: Real-world macOS lsof output with mixed processes."""
+        output = (
+            "COMMAND     PID     USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\n"
+            "launchd       1     root    7u  IPv6 0xabc123      0t0  TCP *:22 (LISTEN)\n"
+            "opencode- 53525 koeppben   11u  IPv4 0xdef456      0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+            "Google    54000 koeppben   23u  IPv4 0xghi789      0t0  TCP 127.0.0.1:9222 (LISTEN)\n"
+        )
+        candidates = _parse_lsof_candidates(output)
+        assert candidates == [("127.0.0.1", 52372)]
+
+    def test_corner_opencode_without_dash(self):
+        """Corner: Process named 'opencode' (no dash) is also matched."""
+        output = "opencode  53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:4096 (LISTEN)\n"
+        candidates = _parse_lsof_candidates(output)
+        assert candidates == [("127.0.0.1", 4096)]
+
+    def test_corner_ipv6_bracket_notation(self):
+        """Corner: IPv6 bracket notation is parsed correctly."""
+        output = "opencode- 53525 user   11u  IPv6 0x1  0t0  TCP [::1]:52372 (LISTEN)\n"
+        candidates = _parse_lsof_candidates(output)
+        assert candidates == [("[::1]", 52372)]
+
+
+# ---------------------------------------------------------------------------
+# discover_local_opencode_server() tests
+# ---------------------------------------------------------------------------
+
+
+class TestDiscoverLocalOpencodeServer:
+    """Tests for discover_local_opencode_server().
+
+    Happy: Single healthy server is discovered
+    Bad: No listeners, lsof failures
+    Corner: Multiple listeners but only one healthy
+    Edge: Auth required, platform check
+    """
+
+    _MODULE = "governance_runtime.infrastructure.opencode_server_client"
+
+    def _mock_lsof(self, stdout: str, returncode: int = 0):
+        """Create a mock subprocess.CompletedProcess for lsof."""
+        return subprocess.CompletedProcess(
+            args=["lsof", "-iTCP@127.0.0.1", "-sTCP:LISTEN", "-nP"],
+            returncode=returncode,
+            stdout=stdout,
+            stderr="",
+        )
+
+    def _mock_urlopen_for_candidates(
+        self,
+        healthy_ports: set[int],
+        auth_required_ports: set[int] | None = None,
+    ):
+        """Create a side_effect function for urlopen that responds per port.
+
+        Ports in ``healthy_ports`` return ``{"healthy": true}``.
+        Ports in ``auth_required_ports`` return HTTP 401.
+        All others raise URLError (connection refused).
+        """
+        auth_required_ports = auth_required_ports or set()
+
+        def side_effect(req, timeout=None):
+            url = req.full_url if hasattr(req, "full_url") else str(req)
+            # Extract port from URL like http://127.0.0.1:52372/global/health
+            port_str = url.split(":")[-1].split("/")[0]
+            port = int(port_str)
+
+            if port in auth_required_ports:
+                raise urllib.error.HTTPError(url, 401, "Unauthorized", {}, None)
+
+            if port in healthy_ports:
+                resp = MagicMock()
+                resp.__enter__ = MagicMock(return_value=resp)
+                resp.__exit__ = MagicMock(return_value=False)
+                resp.read.return_value = json.dumps({"healthy": True, "version": "1.3.7"}).encode()
+                return resp
+
+            raise urllib.error.URLError("Connection refused")
+
+        return side_effect
+
+    def test_happy_single_healthy_server(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: Single opencode listener that is healthy → returns base_url + health."""
+        lsof_output = "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.subprocess.run", return_value=self._mock_lsof(lsof_output)):
+            with patch(f"{self._MODULE}.urllib.request.urlopen",
+                       side_effect=self._mock_urlopen_for_candidates({52372})):
+                base_url, health = discover_local_opencode_server()
+
+        assert base_url == "http://127.0.0.1:52372"
+        assert health["healthy"] is True
+
+
+class TestBaseUrlThreading:
+    """Tests for base_url parameter threading in server client functions.
+
+    Verifies that when base_url is provided, resolve_opencode_server_base_url()
+    is NOT called — the provided URL is used directly.
+
+    Happy: Provided base_url is used for HTTP requests
+    Corner: base_url=None falls back to resolve_opencode_server_base_url()
+    """
+
+    _MODULE = "governance_runtime.infrastructure.opencode_server_client"
+
+    def test_happy_get_sessions_uses_provided_base_url(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: get_sessions(base_url=...) uses the provided URL, not resolve."""
+        from governance_runtime.infrastructure.opencode_server_client import get_sessions
+
+        captured = {}
+
+        def mock_urlopen(req, **kwargs):
+            captured["url"] = req.full_url
+            mock_resp = MagicMock()
+            mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_resp.read.return_value = b'[{"id": "ses_1"}]'
+            return mock_resp
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OPENCODE_SERVER_USERNAME", raising=False)
+        with patch(f"{self._MODULE}.urllib.request.urlopen", side_effect=mock_urlopen):
+            result = get_sessions(base_url="http://127.0.0.1:52372")
+
+        assert captured["url"] == "http://127.0.0.1:52372/session"
+        assert result == [{"id": "ses_1"}]
+
+    def test_happy_get_sessions_base_url_skips_resolve(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: get_sessions(base_url=...) does NOT call resolve_opencode_server_base_url."""
+        from governance_runtime.infrastructure.opencode_server_client import get_sessions
+
+        def mock_urlopen(req, **kwargs):
+            mock_resp = MagicMock()
+            mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_resp.read.return_value = b'[]'
+            return mock_resp
+
+        resolve_called = {"count": 0}
+        original_resolve = None
+
+        def mock_resolve():
+            resolve_called["count"] += 1
+            raise AssertionError("resolve_opencode_server_base_url should not be called when base_url is provided")
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OPENCODE_SERVER_USERNAME", raising=False)
+        with patch(f"{self._MODULE}.resolve_opencode_server_base_url", side_effect=mock_resolve):
+            with patch(f"{self._MODULE}.urllib.request.urlopen", side_effect=mock_urlopen):
+                get_sessions(base_url="http://127.0.0.1:52372")
+
+        assert resolve_called["count"] == 0
+
+    def test_happy_get_active_session_threads_base_url(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: get_active_session(base_url=...) passes URL to get_sessions."""
+        from governance_runtime.infrastructure.opencode_server_client import get_active_session
+
+        captured = {}
+
+        def mock_urlopen(req, **kwargs):
+            captured["url"] = req.full_url
+            mock_resp = MagicMock()
+            mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_resp.read.return_value = b'[{"id": "ses_1", "title": "Test"}]'
+            return mock_resp
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OPENCODE_SERVER_USERNAME", raising=False)
+        with patch(f"{self._MODULE}.urllib.request.urlopen", side_effect=mock_urlopen):
+            result = get_active_session(base_url="http://127.0.0.1:52372")
+
+        assert captured["url"] == "http://127.0.0.1:52372/session"
+        assert result["id"] == "ses_1"
+
+    def test_happy_send_session_message_uses_provided_base_url(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: send_session_message(base_url=...) uses the provided URL."""
+        from governance_runtime.infrastructure.opencode_server_client import send_session_message
+
+        captured = {}
+
+        def mock_urlopen(req, **kwargs):
+            captured["url"] = req.full_url
+            mock_resp = MagicMock()
+            mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_resp.read.return_value = b'{}'
+            return mock_resp
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OPENCODE_SERVER_USERNAME", raising=False)
+        with patch(f"{self._MODULE}.urllib.request.urlopen", side_effect=mock_urlopen):
+            send_session_message("hello", "ses_123", base_url="http://127.0.0.1:52372")
+
+        assert captured["url"] == "http://127.0.0.1:52372/session/ses_123/message"
+
+    def test_happy_send_session_message_base_url_skips_resolve(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: send_session_message(base_url=...) does NOT call resolve."""
+        from governance_runtime.infrastructure.opencode_server_client import send_session_message
+
+        def mock_urlopen(req, **kwargs):
+            mock_resp = MagicMock()
+            mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_resp.read.return_value = b'{}'
+            return mock_resp
+
+        resolve_called = {"count": 0}
+
+        def mock_resolve():
+            resolve_called["count"] += 1
+            raise AssertionError("resolve should not be called")
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OPENCODE_SERVER_USERNAME", raising=False)
+        with patch(f"{self._MODULE}.resolve_opencode_server_base_url", side_effect=mock_resolve):
+            with patch(f"{self._MODULE}.urllib.request.urlopen", side_effect=mock_urlopen):
+                send_session_message("hello", "ses_123", base_url="http://127.0.0.1:52372")
+
+        assert resolve_called["count"] == 0
+
+    def test_corner_none_base_url_falls_back_to_resolve(self, monkeypatch: pytest.MonkeyPatch):
+        """Corner: base_url=None falls back to resolve_opencode_server_base_url."""
+        from governance_runtime.infrastructure.opencode_server_client import get_sessions
+
+        captured = {}
+
+        def mock_urlopen(req, **kwargs):
+            captured["url"] = req.full_url
+            mock_resp = MagicMock()
+            mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_resp.read.return_value = b'[]'
+            return mock_resp
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OPENCODE_SERVER_USERNAME", raising=False)
+        with patch(f"{self._MODULE}.resolve_opencode_server_base_url", return_value="http://127.0.0.1:9999"):
+            with patch(f"{self._MODULE}.urllib.request.urlopen", side_effect=mock_urlopen):
+                get_sessions()  # No base_url → resolve fallback
+
+        assert captured["url"] == "http://127.0.0.1:9999/session"
+
+
+class TestDiscoverLocalOpencodeServerFailures:
+    """Failure and edge-case tests for discover_local_opencode_server().
+
+    These tests cover bad paths, error handling, and edge cases that
+    exercise lsof failures, unhealthy candidates, ambiguous matches,
+    auth requirements, and platform checks.
+    """
+
+    _MODULE = "governance_runtime.infrastructure.opencode_server_client"
+
+    def _mock_lsof(self, stdout: str, returncode: int = 0):
+        """Create a mock subprocess.CompletedProcess for lsof."""
+        return subprocess.CompletedProcess(
+            args=["lsof", "-iTCP@127.0.0.1", "-sTCP:LISTEN", "-nP"],
+            returncode=returncode,
+            stdout=stdout,
+            stderr="",
+        )
+
+    def _mock_urlopen_for_candidates(
+        self,
+        healthy_ports: set[int],
+        auth_required_ports: set[int] | None = None,
+    ):
+        """Create a side_effect function for urlopen that responds per port."""
+        auth_required_ports = auth_required_ports or set()
+
+        def side_effect(req, timeout=None):
+            url = req.full_url if hasattr(req, "full_url") else str(req)
+            port_str = url.split(":")[-1].split("/")[0]
+            port = int(port_str)
+
+            if port in auth_required_ports:
+                raise urllib.error.HTTPError(url, 401, "Unauthorized", {}, None)
+
+            if port in healthy_ports:
+                resp = MagicMock()
+                resp.__enter__ = MagicMock(return_value=resp)
+                resp.__exit__ = MagicMock(return_value=False)
+                resp.read.return_value = json.dumps({"healthy": True, "version": "1.3.7"}).encode()
+                return resp
+
+            raise urllib.error.URLError("Connection refused")
+
+        return side_effect
+
+    def test_bad_no_opencode_listeners(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: lsof returns output but no opencode-named processes → not found."""
+        lsof_output = "node 1234 user 11u IPv4 0x1 0t0 TCP 127.0.0.1:3000 (LISTEN)\n"
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.subprocess.run", return_value=self._mock_lsof(lsof_output)):
+            with pytest.raises(ServerDiscoveryNotFoundError, match="No OpenCode server found"):
+                discover_local_opencode_server()
+
+    def test_bad_empty_lsof_output(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: lsof returns empty output (no listeners at all)."""
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.subprocess.run", return_value=self._mock_lsof("", returncode=1)):
+            with pytest.raises(ServerDiscoveryNotFoundError, match="No OpenCode server found"):
+                discover_local_opencode_server()
+
+    def test_bad_lsof_not_found(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: lsof command not found → not found error (not platform error)."""
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.subprocess.run", side_effect=FileNotFoundError("lsof")):
+            with pytest.raises(ServerDiscoveryNotFoundError, match="lsof.*not found"):
+                discover_local_opencode_server()
+
+    def test_bad_lsof_timeout(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: lsof times out → not found error."""
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.subprocess.run",
+                   side_effect=subprocess.TimeoutExpired(cmd="lsof", timeout=5)):
+            with pytest.raises(ServerDiscoveryNotFoundError, match="timed out"):
+                discover_local_opencode_server()
+
+    def test_bad_lsof_oserror(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: lsof raises OSError → not found error."""
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.subprocess.run", side_effect=OSError("Permission denied")):
+            with pytest.raises(ServerDiscoveryNotFoundError, match="lsof failed"):
+                discover_local_opencode_server()
+
+    def test_bad_all_candidates_unhealthy(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: Opencode listeners found but none return healthy → not found (with count)."""
+        lsof_output = (
+            "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+            "opencode- 53530 user   12u  IPv4 0x2  0t0  TCP 127.0.0.1:52373 (LISTEN)\n"
+        )
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.subprocess.run", return_value=self._mock_lsof(lsof_output)):
+            with patch(f"{self._MODULE}.urllib.request.urlopen",
+                       side_effect=self._mock_urlopen_for_candidates(set())):
+                with pytest.raises(ServerDiscoveryNotFoundError) as exc_info:
+                    discover_local_opencode_server()
+
+        assert exc_info.value.candidates_scanned == 2
+        assert "none returned healthy" in str(exc_info.value)
+
+    def test_bad_ambiguous_multiple_healthy(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: Multiple healthy servers → ambiguous error."""
+        lsof_output = (
+            "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+            "opencode- 53530 user   12u  IPv4 0x2  0t0  TCP 127.0.0.1:52373 (LISTEN)\n"
+        )
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.subprocess.run", return_value=self._mock_lsof(lsof_output)):
+            with patch(f"{self._MODULE}.urllib.request.urlopen",
+                       side_effect=self._mock_urlopen_for_candidates({52372, 52373})):
+                with pytest.raises(ServerDiscoveryAmbiguousError) as exc_info:
+                    discover_local_opencode_server()
+
+        assert len(exc_info.value.healthy_endpoints) == 2
+        assert "http://127.0.0.1:52372" in exc_info.value.healthy_endpoints
+        assert "http://127.0.0.1:52373" in exc_info.value.healthy_endpoints
+
+    def test_edge_auth_required_no_credentials(self, monkeypatch: pytest.MonkeyPatch):
+        """Edge: Candidate returns 401, no OPENCODE_SERVER_PASSWORD → auth required."""
+        lsof_output = "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OPENCODE_SERVER_USERNAME", raising=False)
+        with patch(f"{self._MODULE}.subprocess.run", return_value=self._mock_lsof(lsof_output)):
+            with patch(f"{self._MODULE}.urllib.request.urlopen",
+                       side_effect=self._mock_urlopen_for_candidates(set(), auth_required_ports={52372})):
+                with pytest.raises(ServerAuthRequiredError) as exc_info:
+                    discover_local_opencode_server()
+
+        assert "OPENCODE_SERVER_PASSWORD" in str(exc_info.value)
+        assert exc_info.value.target_url == "http://127.0.0.1:52372"
+
+    def test_edge_auth_required_with_credentials_still_fails(self, monkeypatch: pytest.MonkeyPatch):
+        """Edge: Candidate returns 401 even with credentials → not auth error (just unhealthy)."""
+        lsof_output = "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+
+        # Set credentials — _resolve_auth() will return headers, so 401 is NOT classified as auth-required
+        monkeypatch.setenv("OPENCODE_SERVER_PASSWORD", "secret")
+        with patch(f"{self._MODULE}.subprocess.run", return_value=self._mock_lsof(lsof_output)):
+            with patch(f"{self._MODULE}.urllib.request.urlopen",
+                       side_effect=self._mock_urlopen_for_candidates(set(), auth_required_ports={52372})):
+                with pytest.raises(ServerDiscoveryNotFoundError) as exc_info:
+                    discover_local_opencode_server()
+
+        # Should NOT be ServerAuthRequiredError since credentials are configured
+        assert exc_info.value.candidates_scanned == 1
+
+    def test_edge_windows_platform(self, monkeypatch: pytest.MonkeyPatch):
+        """Edge: Windows platform raises explicit unsupported platform error."""
+        monkeypatch.setattr("governance_runtime.infrastructure.opencode_server_client.sys.platform", "win32")
+        with pytest.raises(ServerDiscoveryUnsupportedPlatformError) as exc_info:
+            discover_local_opencode_server()
+
+        assert exc_info.value.platform == "win32"
+        assert "not implemented on Windows" in str(exc_info.value)
+        assert "--server-mode managed" in str(exc_info.value)
+
+    def test_edge_linux_platform_not_blocked(self, monkeypatch: pytest.MonkeyPatch):
+        """Edge: Linux platform proceeds with lsof (not blocked)."""
+        lsof_output = "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+
+        monkeypatch.setattr("governance_runtime.infrastructure.opencode_server_client.sys.platform", "linux")
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.subprocess.run", return_value=self._mock_lsof(lsof_output)):
+            with patch(f"{self._MODULE}.urllib.request.urlopen",
+                       side_effect=self._mock_urlopen_for_candidates({52372})):
+                base_url, health = discover_local_opencode_server()
+
+        assert base_url == "http://127.0.0.1:52372"
+
+    def test_corner_healthy_preferred_over_auth_required(self, monkeypatch: pytest.MonkeyPatch):
+        """Corner: One healthy + one auth-required → returns the healthy one."""
+        lsof_output = (
+            "opencode- 53525 user   11u  IPv4 0x1  0t0  TCP 127.0.0.1:52372 (LISTEN)\n"
+            "opencode- 53530 user   12u  IPv4 0x2  0t0  TCP 127.0.0.1:52373 (LISTEN)\n"
+        )
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.subprocess.run", return_value=self._mock_lsof(lsof_output)):
+            with patch(f"{self._MODULE}.urllib.request.urlopen",
+                       side_effect=self._mock_urlopen_for_candidates(
+                           {52372}, auth_required_ports={52373})):
+                base_url, health = discover_local_opencode_server()
+
+        assert base_url == "http://127.0.0.1:52372"
+        assert health["healthy"] is True

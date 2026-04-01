@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import base64
+import enum
 import json
 import os
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -76,6 +78,61 @@ class APIError(OpenCodeServerError):
     pass
 
 
+# ---------------------------------------------------------------------------
+# Server discovery exceptions (attach_existing mode)
+# ---------------------------------------------------------------------------
+
+
+class ServerDiscoveryNotFoundError(ServerNotAvailableError):
+    """Raised when attach_existing discovery finds zero healthy OpenCode servers."""
+
+    def __init__(self, message: str, candidates_scanned: int = 0):
+        super().__init__(message)
+        self.candidates_scanned = candidates_scanned
+
+
+class ServerDiscoveryAmbiguousError(ServerNotAvailableError):
+    """Raised when attach_existing discovery finds multiple healthy OpenCode servers."""
+
+    def __init__(self, message: str, healthy_endpoints: list[str] | None = None):
+        super().__init__(message)
+        self.healthy_endpoints = healthy_endpoints or []
+
+
+class ServerAuthRequiredError(ServerNotAvailableError):
+    """Raised when a candidate returns HTTP 401 and no credentials are configured."""
+
+    def __init__(self, message: str, target_url: str | None = None):
+        super().__init__(message)
+        self.target_url = target_url
+
+
+class ServerDiscoveryUnsupportedPlatformError(ServerNotAvailableError):
+    """Raised when attach_existing discovery is requested on an unsupported platform."""
+
+    def __init__(self, message: str, platform: str | None = None):
+        super().__init__(message)
+        self.platform = platform
+
+
+# ---------------------------------------------------------------------------
+# Server mode enum
+# ---------------------------------------------------------------------------
+
+
+class ServerMode(enum.Enum):
+    """Server discovery/lifecycle mode for governance runtime.
+
+    ATTACH_EXISTING (default): Discover and attach to an already-running
+        local OpenCode server. Never auto-start. Block if none or multiple found.
+    MANAGED: Start and manage a server with a fixed port via
+        ``opencode serve --port X --hostname Y``. Start-if-absent is allowed.
+    """
+
+    ATTACH_EXISTING = "attach_existing"
+    MANAGED = "managed"
+
+
 T = TypeVar("T")
 
 
@@ -122,6 +179,47 @@ def is_server_required_mode() -> bool:
         True if server is required, False for opportunistic mode (default)
     """
     return os.environ.get("AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+_VALID_SERVER_MODES: frozenset[str] = frozenset(m.value for m in ServerMode)
+
+
+def resolve_server_mode(cli_value: str | None = None) -> ServerMode:
+    """Resolve the server discovery/lifecycle mode.
+
+    Resolution order (first non-None wins):
+      1. ``cli_value`` (from ``--server-mode`` CLI arg)
+      2. ``OPENCODE_SERVER_MODE`` environment variable
+      3. Default: ``attach_existing``
+
+    Args:
+        cli_value: Explicit mode string from CLI argument, or None.
+
+    Returns:
+        Resolved ``ServerMode`` enum member.
+
+    Raises:
+        ValueError: If the resolved value is not a valid server mode.
+    """
+    raw: str | None = None
+
+    if cli_value is not None:
+        raw = cli_value.strip().lower()
+    else:
+        env = os.environ.get("OPENCODE_SERVER_MODE", "").strip().lower()
+        if env:
+            raw = env
+
+    if raw is None:
+        return ServerMode.ATTACH_EXISTING
+
+    if raw not in _VALID_SERVER_MODES:
+        raise ValueError(
+            f"Invalid server mode '{raw}'. "
+            f"Valid modes: {', '.join(sorted(_VALID_SERVER_MODES))}"
+        )
+
+    return ServerMode(raw)
 
 
 def _parse_port(raw: object, *, purpose: str) -> int:
@@ -912,10 +1010,225 @@ def detect_server_binding_mismatch(
     return None
 
 
-def get_sessions() -> list[dict]:
+# ---------------------------------------------------------------------------
+# attach_existing discovery (lsof-based)
+# ---------------------------------------------------------------------------
+
+_LSOF_TIMEOUT_SECONDS: int = 5
+_HEALTH_CHECK_TIMEOUT_SECONDS: int = 5
+_OPENCODE_PROCESS_PREFIXES: tuple[str, ...] = ("opencode",)
+
+
+def _parse_lsof_candidates(lsof_output: str) -> list[tuple[str, int]]:
+    """Parse lsof TCP-LISTEN output into (hostname, port) candidate tuples.
+
+    Pre-filters on process name containing an ``opencode`` prefix.
+    This is a heuristic pre-filter only — ``/global/health`` is the authority.
+
+    Expected lsof line format (``-nP`` suppresses name resolution)::
+
+        opencode- 53525 koeppben 11u IPv4 0x... TCP 127.0.0.1:52372 (LISTEN)
+
+    Args:
+        lsof_output: Raw stdout from ``lsof -iTCP@127.0.0.1 -sTCP:LISTEN -nP``.
+
+    Returns:
+        De-duplicated list of ``(hostname, port)`` tuples from opencode-named processes.
+    """
+    seen: set[tuple[str, int]] = set()
+    candidates: list[tuple[str, int]] = []
+
+    for line in lsof_output.splitlines():
+        parts = line.split()
+        if len(parts) < 9:
+            continue
+
+        command_name = parts[0].lower()
+        if not any(command_name.startswith(prefix) for prefix in _OPENCODE_PROCESS_PREFIXES):
+            continue
+
+        # TCP column is typically parts[8] in format "host:port"
+        # But position can shift — scan backwards for the (LISTEN) marker
+        tcp_field: str | None = None
+        for i in range(len(parts) - 1, -1, -1):
+            if parts[i] == "(LISTEN)" and i > 0:
+                tcp_field = parts[i - 1]
+                break
+
+        if tcp_field is None:
+            continue
+
+        # Parse "host:port" — handle IPv6 bracket notation if present
+        if tcp_field.startswith("["):
+            # IPv6: [::1]:port
+            bracket_end = tcp_field.rfind("]")
+            if bracket_end < 0:
+                continue
+            hostname = tcp_field[: bracket_end + 1]
+            port_str = tcp_field[bracket_end + 2 :]  # skip ]:
+        else:
+            colon_pos = tcp_field.rfind(":")
+            if colon_pos < 0:
+                continue
+            hostname = tcp_field[:colon_pos]
+            port_str = tcp_field[colon_pos + 1 :]
+
+        try:
+            port = int(port_str)
+        except ValueError:
+            continue
+
+        if port < 1 or port > 65535:
+            continue
+
+        key = (hostname, port)
+        if key not in seen:
+            seen.add(key)
+            candidates.append(key)
+
+    return candidates
+
+
+def discover_local_opencode_server(
+    *,
+    health_check_timeout: int = _HEALTH_CHECK_TIMEOUT_SECONDS,
+    lsof_timeout: int = _LSOF_TIMEOUT_SECONDS,
+) -> tuple[str, dict]:
+    """Discover a running local OpenCode server via OS-level port scanning.
+
+    Used by ``attach_existing`` mode. Finds opencode-named TCP listeners on
+    127.0.0.1, then verifies each candidate via ``/global/health``.
+
+    Platform support:
+      - macOS / Linux: ``lsof -iTCP@127.0.0.1 -sTCP:LISTEN -nP``
+      - Windows: raises ``ServerDiscoveryUnsupportedPlatformError``
+
+    Args:
+        health_check_timeout: HTTP timeout per candidate health check (seconds).
+        lsof_timeout: Timeout for the lsof subprocess (seconds).
+
+    Returns:
+        Tuple of ``(base_url, health_dict)`` for the single healthy server.
+
+    Raises:
+        ServerDiscoveryUnsupportedPlatformError: On unsupported platforms (Windows).
+        ServerDiscoveryNotFoundError: If zero healthy OpenCode servers found.
+        ServerDiscoveryAmbiguousError: If multiple healthy OpenCode servers found.
+        ServerAuthRequiredError: If a candidate returns HTTP 401 and no credentials
+            are configured via ``OPENCODE_SERVER_PASSWORD``.
+    """
+    if sys.platform == "win32":
+        raise ServerDiscoveryUnsupportedPlatformError(
+            "attach_existing discovery is not implemented on Windows yet; "
+            "use --server-mode managed",
+            platform="win32",
+        )
+
+    # --- Run lsof to find TCP listeners on localhost ---
+    try:
+        result = subprocess.run(
+            ["lsof", "-iTCP@127.0.0.1", "-sTCP:LISTEN", "-nP"],
+            capture_output=True,
+            text=True,
+            timeout=lsof_timeout,
+        )
+    except FileNotFoundError:
+        raise ServerDiscoveryNotFoundError(
+            "Cannot discover local servers: 'lsof' command not found. "
+            "Install lsof or use --server-mode managed.",
+            candidates_scanned=0,
+        ) from None
+    except subprocess.TimeoutExpired:
+        raise ServerDiscoveryNotFoundError(
+            f"Cannot discover local servers: lsof timed out after {lsof_timeout}s. "
+            "Use --server-mode managed as a workaround.",
+            candidates_scanned=0,
+        ) from None
+    except OSError as exc:
+        raise ServerDiscoveryNotFoundError(
+            f"Cannot discover local servers: lsof failed: {exc}. "
+            "Use --server-mode managed as a workaround.",
+            candidates_scanned=0,
+        ) from exc
+
+    # lsof returns exit code 1 when no matching files found — that's expected
+    candidates = _parse_lsof_candidates(result.stdout)
+
+    if not candidates:
+        raise ServerDiscoveryNotFoundError(
+            "No OpenCode server found listening on 127.0.0.1. "
+            "Start OpenCode Desktop or use --server-mode managed.",
+            candidates_scanned=0,
+        )
+
+    # --- Health-check each candidate; /global/health is the authority ---
+    healthy: list[tuple[str, dict]] = []
+    auth_required_url: str | None = None
+
+    for hostname, port in candidates:
+        base_url = f"http://{hostname}:{port}"
+        url = f"{base_url}/global/health"
+
+        headers: dict[str, str] = {}
+        auth_headers = _resolve_auth()
+        if auth_headers:
+            headers.update(auth_headers)
+
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=health_check_timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if isinstance(data, dict) and data.get("healthy") is True:
+                    healthy.append((base_url, data))
+        except urllib.error.HTTPError as e:
+            if e.code == 401 and not _resolve_auth():
+                # Real HTTP 401 from a candidate, and no credentials configured
+                auth_required_url = base_url
+            # Other HTTP errors: candidate is not a healthy OpenCode server
+            continue
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError):
+            # Connection refused, timeout, malformed response: skip candidate
+            continue
+
+    # --- Evaluate results ---
+    if len(healthy) == 1:
+        return healthy[0]
+
+    if len(healthy) > 1:
+        endpoints = [url for url, _ in healthy]
+        raise ServerDiscoveryAmbiguousError(
+            f"Multiple healthy OpenCode servers found on 127.0.0.1: "
+            f"{', '.join(endpoints)}. "
+            f"Stop extra servers or use --server-mode managed with an explicit port.",
+            healthy_endpoints=endpoints,
+        )
+
+    # Zero healthy — check if auth was the blocker
+    if auth_required_url is not None:
+        raise ServerAuthRequiredError(
+            f"OpenCode server at {auth_required_url} requires authentication. "
+            f"Set OPENCODE_SERVER_PASSWORD (and optionally OPENCODE_SERVER_USERNAME) "
+            f"environment variables.",
+            target_url=auth_required_url,
+        )
+
+    raise ServerDiscoveryNotFoundError(
+        f"Found {len(candidates)} opencode-named listener(s) on 127.0.0.1 "
+        f"but none returned healthy on /global/health. "
+        f"Start OpenCode Desktop or use --server-mode managed.",
+        candidates_scanned=len(candidates),
+    )
+
+
+def get_sessions(*, base_url: str | None = None) -> list[dict]:
     """Get all sessions from OpenCode server.
 
     Uses GET /session per official server API documentation.
+
+    Args:
+        base_url: Optional server base URL. If provided, uses this URL directly
+            instead of resolving via opencode.json / OPENCODE_PORT. This enables
+            attach_existing mode where the server was discovered dynamically.
 
     Returns:
         List of session dicts with id, title, projectID, directory, etc.
@@ -924,13 +1237,16 @@ def get_sessions() -> list[dict]:
         ServerNotAvailableError: If server is not reachable
         APIError: For API errors
     """
-    try:
-        server_url = resolve_opencode_server_base_url()
-    except ServerNotAvailableError as exc:
-        raise ServerNotAvailableError(
-            f"OpenCode server not reachable: {exc}. "
-            "Ensure OpenCode Desktop is running."
-        ) from exc
+    if base_url is not None:
+        server_url = base_url
+    else:
+        try:
+            server_url = resolve_opencode_server_base_url()
+        except ServerNotAvailableError as exc:
+            raise ServerNotAvailableError(
+                f"OpenCode server not reachable: {exc}. "
+                "Ensure OpenCode Desktop is running."
+            ) from exc
 
     headers = {}
     auth_headers = _resolve_auth()
@@ -948,7 +1264,11 @@ def get_sessions() -> list[dict]:
         raise APIError(f"Failed to get sessions: {e}") from e
 
 
-def get_active_session(project_path: str | None = None) -> dict:
+def get_active_session(
+    project_path: str | None = None,
+    *,
+    base_url: str | None = None,
+) -> dict:
     """Get the active session for a project.
 
     If project_path is provided, returns the session for that project ONLY if
@@ -959,6 +1279,9 @@ def get_active_session(project_path: str | None = None) -> dict:
 
     Args:
         project_path: Optional project directory path (e.g., "/Users/koeppben/work/ai_files")
+        base_url: Optional server base URL. If provided, uses this URL directly
+            instead of resolving via opencode.json / OPENCODE_PORT. This enables
+            attach_existing mode where the server was discovered dynamically.
 
     Returns:
         Session dict with id, title, projectID, directory, etc.
@@ -967,7 +1290,7 @@ def get_active_session(project_path: str | None = None) -> dict:
         ServerNotAvailableError: If server is not reachable
         APIError: If no unique session found for project_path
     """
-    sessions = get_sessions()
+    sessions = get_sessions(base_url=base_url)
 
     if not sessions:
         raise APIError(
@@ -1001,6 +1324,7 @@ def send_session_message(
     text: str,
     session_id: str | None = None,
     *,
+    base_url: str | None = None,
     model: dict[str, str] | None = None,
 ) -> dict:
     """Send a message to a session without waiting for LLM response.
@@ -1011,6 +1335,9 @@ def send_session_message(
     Args:
         text: Message text to send
         session_id: Session ID (optional, uses OPENCODE_SESSION_ID if not provided)
+        base_url: Optional server base URL. If provided, uses this URL directly
+            instead of resolving via opencode.json / OPENCODE_PORT. This enables
+            attach_existing mode where the server was discovered dynamically.
         model: Optional model specification
 
     Returns:
@@ -1023,10 +1350,13 @@ def send_session_message(
     if session_id is None:
         session_id, _ = resolve_session_id()
 
-    try:
-        server_url = resolve_opencode_server_base_url()
-    except ServerNotAvailableError as exc:
-        raise APIError(f"Server not available: {exc}") from exc
+    if base_url is not None:
+        server_url = base_url
+    else:
+        try:
+            server_url = resolve_opencode_server_base_url()
+        except ServerNotAvailableError as exc:
+            raise APIError(f"Server not available: {exc}") from exc
 
     body: dict = {
         "noReply": True,

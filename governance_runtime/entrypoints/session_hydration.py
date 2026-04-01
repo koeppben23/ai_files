@@ -40,15 +40,22 @@ from governance_runtime.infrastructure.workspace_paths import (
 )
 from governance_runtime.infrastructure.opencode_server_client import (
     check_server_health,
+    discover_local_opencode_server,
     ensure_opencode_server_running,
     get_active_session,
+    resolve_server_mode,
     send_session_message,
-    ServerNotAvailableError,
+    ServerAuthRequiredError,
     ServerBindingMismatchError,
-    ServerTargetUnreachableError,
-    ServerTargetUnhealthyError,
+    ServerDiscoveryAmbiguousError,
+    ServerDiscoveryNotFoundError,
+    ServerDiscoveryUnsupportedPlatformError,
+    ServerMode,
+    ServerNotAvailableError,
     ServerStartFailedError,
     ServerStartTimeoutError,
+    ServerTargetUnhealthyError,
+    ServerTargetUnreachableError,
     APIError,
 )
 from governance_runtime.shared.next_action import NextActions
@@ -343,6 +350,15 @@ def main(argv: list[str] | None = None) -> int:
         default="",
         help="Project path to match session (required for unique session resolution)",
     )
+    parser.add_argument(
+        "--server-mode",
+        default=None,
+        dest="server_mode",
+        help=(
+            "Server discovery mode: 'attach_existing' (default) discovers a running server; "
+            "'managed' starts/manages a server with a fixed port."
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -406,76 +422,161 @@ def main(argv: list[str] | None = None) -> int:
 
     health_check_skipped = os.environ.get("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "").strip().lower()
 
+    # Server URL resolved during mode-aware discovery/startup.
+    # When set, all subsequent API calls use this URL directly instead of
+    # falling back to resolve_opencode_server_base_url() (opencode.json / OPENCODE_PORT).
+    # This is the critical binding that makes attach_existing actually attach.
+    resolved_server_url: str | None = None
+
     if health_check_skipped not in ("1", "true", "yes"):
+        # --- Resolve server mode: CLI > ENV > default (attach_existing) ---
         try:
-            server_status = ensure_opencode_server_running()
-            health = server_status if isinstance(server_status, dict) else {"healthy": False}
-            if not _is_server_healthy(health):
-                payload = _blocked_payload(
-                    reason="server-unhealthy",
-                    reason_code="BLOCKED-SERVER-TARGET-UNHEALTHY",
-                    recovery_action="Ensure OpenCode Desktop server is healthy at /global/health before running /hydrate",
-                    observed=json.dumps(health if isinstance(health, Mapping) else {"health": str(health)}, ensure_ascii=True),
-                )
-                print(json.dumps(payload, ensure_ascii=True))
-                return 2
-        except ServerTargetUnhealthyError as exc:
+            server_mode = resolve_server_mode(args.server_mode)
+        except ValueError as exc:
             payload = _blocked_payload(
-                reason=f"server-unhealthy: {exc}",
-                reason_code="BLOCKED-SERVER-TARGET-UNHEALTHY",
-                recovery_action="Stop existing server or fix its health, then retry /hydrate",
-                observed=str(exc),
-            )
-            print(json.dumps(payload, ensure_ascii=True))
-            return 2
-        except ServerStartTimeoutError as exc:
-            payload = _blocked_payload(
-                reason=f"server-start-timeout: {exc}",
-                reason_code="BLOCKED-SERVER-START-TIMEOUT",
-                recovery_action="Check system resources or start OpenCode Desktop manually: opencode serve",
-                observed=str(exc),
-            )
-            print(json.dumps(payload, ensure_ascii=True))
-            return 2
-        except ServerStartFailedError as exc:
-            payload = _blocked_payload(
-                reason=f"server-start-failed: {exc}",
-                reason_code="BLOCKED-SERVER-START-FAILED",
-                recovery_action="Ensure OpenCode is installed: opencode serve should be available",
-                observed=str(exc),
-            )
-            print(json.dumps(payload, ensure_ascii=True))
-            return 2
-        except ServerBindingMismatchError as exc:
-            payload = _blocked_payload(
-                reason=f"server-binding-mismatch: {exc}",
-                reason_code="BLOCKED-SERVER-BINDING-MISMATCH",
-                recovery_action="Stop existing server or update opencode.json to match the running instance",
-                observed=str(exc),
-            )
-            print(json.dumps(payload, ensure_ascii=True))
-            return 2
-        except ServerNotAvailableError as exc:
-            payload = _blocked_payload(
-                reason=f"server-unreachable: {exc}",
-                reason_code="BLOCKED-SERVER-TARGET-UNREACHABLE",
-                recovery_action="Start OpenCode Desktop or run: opencode serve --port <port> --hostname <hostname>",
-                observed=str(exc),
-            )
-            print(json.dumps(payload, ensure_ascii=True))
-            return 2
-        except (OSError, RuntimeError) as exc:
-            payload = _blocked_payload(
-                reason=f"server-error: {exc}",
-                reason_code="BLOCKED-SERVER-START-FAILED",
-                recovery_action="Check OpenCode Desktop status or start manually: opencode serve",
+                reason=f"invalid-server-mode: {exc}",
+                reason_code="BLOCKED-UNSPECIFIED",
+                recovery_action="Use --server-mode attach_existing or --server-mode managed",
                 observed=str(exc),
             )
             print(json.dumps(payload, ensure_ascii=True))
             return 2
 
+        if server_mode is ServerMode.ATTACH_EXISTING:
+            # --- attach_existing: discover only, NEVER start ---
+            try:
+                discovered_url, health = discover_local_opencode_server()
+                if not _is_server_healthy(health):
+                    payload = _blocked_payload(
+                        reason="server-unhealthy",
+                        reason_code="BLOCKED-SERVER-TARGET-UNHEALTHY",
+                        recovery_action="Ensure the discovered OpenCode server is healthy at /global/health",
+                        observed=json.dumps(health, ensure_ascii=True),
+                    )
+                    print(json.dumps(payload, ensure_ascii=True))
+                    return 2
+                # Bind discovered URL for all subsequent API calls.
+                resolved_server_url = discovered_url
+            except ServerDiscoveryUnsupportedPlatformError as exc:
+                payload = _blocked_payload(
+                    reason=f"server-discovery-unsupported-platform: {exc}",
+                    reason_code="BLOCKED-SERVER-DISCOVERY-UNSUPPORTED-PLATFORM",
+                    recovery_action="Use --server-mode managed on this platform",
+                    observed=str(exc),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+            except ServerDiscoveryNotFoundError as exc:
+                payload = _blocked_payload(
+                    reason=f"server-discovery-not-found: {exc}",
+                    reason_code="BLOCKED-SERVER-DISCOVERY-NOT-FOUND",
+                    recovery_action="Start OpenCode Desktop or use --server-mode managed",
+                    observed=str(exc),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+            except ServerDiscoveryAmbiguousError as exc:
+                payload = _blocked_payload(
+                    reason=f"server-discovery-ambiguous: {exc}",
+                    reason_code="BLOCKED-SERVER-DISCOVERY-AMBIGUOUS",
+                    recovery_action="Stop extra OpenCode servers so only one is running, or use --server-mode managed",
+                    observed=str(exc),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+            except ServerAuthRequiredError as exc:
+                payload = _blocked_payload(
+                    reason=f"server-auth-required: {exc}",
+                    reason_code="BLOCKED-SERVER-AUTH-REQUIRED",
+                    recovery_action="Set OPENCODE_SERVER_PASSWORD environment variable",
+                    observed=str(exc),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+            except ServerNotAvailableError as exc:
+                payload = _blocked_payload(
+                    reason=f"server-unreachable: {exc}",
+                    reason_code="BLOCKED-SERVER-TARGET-UNREACHABLE",
+                    recovery_action="Start OpenCode Desktop or use --server-mode managed",
+                    observed=str(exc),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+
+        elif server_mode is ServerMode.MANAGED:
+            # --- managed: ensure/start only ---
+            try:
+                server_status = ensure_opencode_server_running()
+                health = server_status if isinstance(server_status, dict) else {"healthy": False}
+                if not _is_server_healthy(health):
+                    payload = _blocked_payload(
+                        reason="server-unhealthy",
+                        reason_code="BLOCKED-SERVER-TARGET-UNHEALTHY",
+                        recovery_action="Ensure OpenCode Desktop server is healthy at /global/health before running /hydrate",
+                        observed=json.dumps(health if isinstance(health, Mapping) else {"health": str(health)}, ensure_ascii=True),
+                    )
+                    print(json.dumps(payload, ensure_ascii=True))
+                    return 2
+                # Bind managed URL for all subsequent API calls.
+                if isinstance(server_status, dict) and server_status.get("target_url"):
+                    resolved_server_url = server_status["target_url"]
+            except ServerTargetUnhealthyError as exc:
+                payload = _blocked_payload(
+                    reason=f"server-unhealthy: {exc}",
+                    reason_code="BLOCKED-SERVER-TARGET-UNHEALTHY",
+                    recovery_action="Stop existing server or fix its health, then retry /hydrate",
+                    observed=str(exc),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+            except ServerStartTimeoutError as exc:
+                payload = _blocked_payload(
+                    reason=f"server-start-timeout: {exc}",
+                    reason_code="BLOCKED-SERVER-START-TIMEOUT",
+                    recovery_action="Check system resources or start OpenCode Desktop manually: opencode serve",
+                    observed=str(exc),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+            except ServerStartFailedError as exc:
+                payload = _blocked_payload(
+                    reason=f"server-start-failed: {exc}",
+                    reason_code="BLOCKED-SERVER-START-FAILED",
+                    recovery_action="Ensure OpenCode is installed: opencode serve should be available",
+                    observed=str(exc),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+            except ServerBindingMismatchError as exc:
+                payload = _blocked_payload(
+                    reason=f"server-binding-mismatch: {exc}",
+                    reason_code="BLOCKED-SERVER-BINDING-MISMATCH",
+                    recovery_action="Stop existing server or update opencode.json to match the running instance",
+                    observed=str(exc),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+            except ServerNotAvailableError as exc:
+                payload = _blocked_payload(
+                    reason=f"server-unreachable: {exc}",
+                    reason_code="BLOCKED-SERVER-TARGET-UNREACHABLE",
+                    recovery_action="Start OpenCode Desktop or run: opencode serve --port <port> --hostname <hostname>",
+                    observed=str(exc),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+            except (OSError, RuntimeError) as exc:
+                payload = _blocked_payload(
+                    reason=f"server-error: {exc}",
+                    reason_code="BLOCKED-SERVER-START-FAILED",
+                    recovery_action="Check OpenCode Desktop status or start manually: opencode serve",
+                    observed=str(exc),
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+
     try:
-        active_session = get_active_session(project_path)
+        active_session = get_active_session(project_path, base_url=resolved_server_url)
         session_id = active_session.get("id", "")
         session_title = active_session.get("title", "")
     except ServerNotAvailableError as exc:
@@ -533,7 +634,7 @@ def main(argv: list[str] | None = None) -> int:
             hydration_brief = "# Governance Hydration Brief\n\n(No artifacts available)"
 
     try:
-        send_session_message(hydration_brief, session_id)
+        send_session_message(hydration_brief, session_id, base_url=resolved_server_url)
     except APIError as exc:
         payload = _blocked_payload(
             reason=f"session-write-failed: {exc}",

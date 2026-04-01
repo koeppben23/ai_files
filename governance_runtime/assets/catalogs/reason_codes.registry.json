@@ -521,6 +521,34 @@
       "remediation_hint": "Stop the existing server or update opencode.json to match the running instance."
     },
     {
+      "code": "BLOCKED-SERVER-DISCOVERY-NOT-FOUND",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "No healthy OpenCode server found on localhost during attach_existing discovery.",
+      "remediation_hint": "Start OpenCode Desktop or use --server-mode managed."
+    },
+    {
+      "code": "BLOCKED-SERVER-DISCOVERY-AMBIGUOUS",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Multiple healthy OpenCode servers found on localhost during attach_existing discovery.",
+      "remediation_hint": "Stop extra servers so only one is running, or use --server-mode managed with an explicit port."
+    },
+    {
+      "code": "BLOCKED-SERVER-AUTH-REQUIRED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "OpenCode server requires authentication but no credentials are configured.",
+      "remediation_hint": "Set OPENCODE_SERVER_PASSWORD (and optionally OPENCODE_SERVER_USERNAME) environment variables."
+    },
+    {
+      "code": "BLOCKED-SERVER-DISCOVERY-UNSUPPORTED-PLATFORM",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "attach_existing server discovery is not supported on this platform.",
+      "remediation_hint": "Use --server-mode managed on Windows, or run on macOS/Linux."
+    },
+    {
       "code": "BLOCKED-PIPELINE-INTERACTIVE",
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
