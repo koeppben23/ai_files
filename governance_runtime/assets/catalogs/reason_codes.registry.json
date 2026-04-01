@@ -549,6 +549,13 @@
       "remediation_hint": "Use --server-mode managed on Windows, or run on macOS/Linux."
     },
     {
+      "code": "BLOCKED-ENVIRONMENT-CONSTRAINT",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "An environment-level constraint prevents the requested operation from proceeding.",
+      "remediation_hint": "Unset the blocking environment variable or run in a mode that permits the operation."
+    },
+    {
       "code": "BLOCKED-PIPELINE-INTERACTIVE",
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",

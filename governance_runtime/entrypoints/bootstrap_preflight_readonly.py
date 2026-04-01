@@ -35,6 +35,7 @@ from governance_runtime.application.use_cases.phase_router import route_phase
 from governance_runtime.application.use_cases.session_state_helpers import with_kernel_result
 from governance_runtime.application.services.state_accessor import get_next, get_phase
 from governance_runtime.domain.phase_state_machine import normalize_phase_token, phase_rank
+from governance_runtime.domain.reason_codes import BLOCKED_ENVIRONMENT_CONSTRAINT
 from governance_runtime.engine.sanitization import apply_fresh_start_business_rules_neutralization
 from governance_runtime.engine.business_rules_hydration import (
     canonicalize_business_rules_outcome,
@@ -1566,6 +1567,12 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
 
 def main() -> int:
     if os.getenv("OPENCODE_FORCE_READ_ONLY", "").strip() == "1":
+        print(json.dumps({
+            "status": "BLOCKED",
+            "reason_code": BLOCKED_ENVIRONMENT_CONSTRAINT,
+            "detail": "OPENCODE_FORCE_READ_ONLY=1 is set; all write operations are suppressed.",
+            "remediation": "Unset OPENCODE_FORCE_READ_ONLY or set it to 0.",
+        }, ensure_ascii=True))
         raise SystemExit(2)
     if os.getenv("OPENCODE_BOOTSTRAP_VERBOSE", "").strip() == "1":
         emit_start_receipt()

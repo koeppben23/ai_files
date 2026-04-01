@@ -85,6 +85,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-SERVER-DISCOVERY-AMBIGUOUS": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-SERVER-AUTH-REQUIRED": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-SERVER-DISCOVERY-UNSUPPORTED-PLATFORM": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-ENVIRONMENT-CONSTRAINT": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-INTERACTIVE": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-HUMAN-ASSIST": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-PROMPT-BUDGET": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
