@@ -74,6 +74,7 @@ def test_fsync_dir_returns_immediately_on_windows(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.governance
+@pytest.mark.skipif(os.name == "nt", reason="os.open(dir, O_RDONLY) raises PermissionError on Windows")
 def test_fsync_dir_calls_fsync_on_unix(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """When _is_windows() returns False, fsync_dir() must call os.open and os.fsync."""
     monkeypatch.setattr(fs_atomic, "_is_windows", lambda: False)
@@ -93,9 +94,19 @@ def test_fsync_dir_calls_fsync_on_unix(monkeypatch: pytest.MonkeyPatch, tmp_path
 
 
 @pytest.mark.governance
+@pytest.mark.skipif(os.name == "nt", reason="tmp_path is C:\\... on Windows — test is POSIX-only")
 def test_platform_path_never_adds_unc_prefix_to_posix_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Even if _is_windows() returns True, POSIX paths (starting with /) must not get \\\\?\\ prefix."""
     monkeypatch.setattr(fs_atomic, "_is_windows", lambda: True)
     result = fs_atomic._platform_path(tmp_path)
     assert not result.startswith("\\\\"), f"POSIX path got UNC prefix: {result}"
     assert result == os.path.abspath(str(tmp_path))
+
+
+@pytest.mark.governance
+@pytest.mark.skipif(os.name != "nt", reason="Windows-only: verifies UNC long-path prefix on real Windows paths")
+def test_platform_path_adds_unc_prefix_on_windows(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """On real Windows, _platform_path adds the \\\\?\\ long-path prefix."""
+    monkeypatch.setattr(fs_atomic, "_is_windows", lambda: True)
+    result = fs_atomic._platform_path(tmp_path)
+    assert result.startswith("\\\\?\\"), f"Expected UNC prefix, got: {result}"
