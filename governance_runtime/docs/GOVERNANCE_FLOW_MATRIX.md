@@ -18,6 +18,36 @@ It mirrors the deterministic resolver behavior in
 | Phase 5 mutating rail | `SessionHydration.status != hydrated` | `/hydrate` | hard-blocked (`/plan` returns blocked) |
 | Phase 4 read-only rail | `session_hydrated != true` | `/hydrate` | soft fail-closed in rail contract (`/review`) |
 
+### Hydration Persistence Across Bootstrap Cycles
+
+Once `/hydrate` sets `SessionHydration.status = "hydrated"`, that state MUST survive
+subsequent bootstrap persistence cycles.  Bootstrap runs automatically at the start of
+each OpenCode conversation turn.  Two protections exist:
+
+1. **`_merge_final_session_state()`** in `bootstrap_persistence.py`:  When the on-disk
+   SESSION_STATE already has `SessionHydration.status == "hydrated"`, the merge preserves
+   the existing `SessionHydration` block and `session_hydrated = True` intact.  Bootstrap-
+   owned fields (phase, CommitFlags, writePolicy, etc.) are still updated normally.
+
+2. **`run_kernel_continuation()`** in `bootstrap_preflight_readonly.py`:  The Phase-4 reset
+   block (which sets `SessionHydration = {status: "not_hydrated"}` for fresh sessions)
+   is guarded by `_session_hydrated()` — it only executes when the session is NOT already
+   hydrated.
+
+### Session ID Resolution Chain
+
+`resolve_session_id()` in `opencode_server_client.py` resolves the OpenCode session ID
+using a three-source chain (first match wins):
+
+| Priority | Source | Mechanism | I/O |
+|---|---|---|---|
+| 1 | `OPENCODE_SESSION_ID` env var | `os.environ.get()` | None (fast path) |
+| 2 | `SESSION_STATE.SessionHydration.hydrated_session_id` | File read via `resolve_active_session_paths()` → `load_json()` | Single JSON parse |
+| 3 | Fail-closed | `APIError` raised | None |
+
+`send_session_prompt()` also accepts an explicit `session_id=` parameter that bypasses the
+resolution chain entirely when provided.
+
 ## Phase 5
 
 | Phase | Active Gate | Condition | Next Action | Notes |

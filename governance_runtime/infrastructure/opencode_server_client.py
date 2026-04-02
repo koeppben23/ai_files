@@ -452,36 +452,76 @@ def post_json(
     return _do_request()
 
 
-def resolve_session_id() -> tuple[str, dict]:
-    """Resolve OpenCode session ID from environment.
+def _read_hydrated_session_id_from_state() -> str | None:
+    """Read SessionHydration.hydrated_session_id from SESSION_STATE.
 
-    This is the ONLY supported method for production LLM paths.
-    No heuristic fallback - session_id must be explicitly provided.
+    Returns the hydrated session ID string, or None when unavailable.
+    This is intentionally fail-safe: any error → None (caller decides
+    whether to raise).
+
+    Performance: uses a lazy import of session_locator + json_store to
+    avoid circular imports and keep the common path (env var set) fast.
+    The file read is a single JSON parse of the already-on-disk
+    SESSION_STATE.json — no network I/O.
+    """
+    try:
+        from governance_runtime.infrastructure.session_locator import (
+            resolve_active_session_paths,
+        )
+        from governance_runtime.infrastructure.json_store import load_json
+
+        session_path, _fp, _wh, _wd = resolve_active_session_paths()
+        document = load_json(session_path)
+        state = document.get("SESSION_STATE")
+        if not isinstance(state, dict):
+            return None
+        hydration = state.get("SessionHydration")
+        if not isinstance(hydration, dict):
+            return None
+        if str(hydration.get("status") or "").strip().lower() != "hydrated":
+            return None
+        sid = str(hydration.get("hydrated_session_id") or "").strip()
+        return sid if sid else None
+    except Exception:  # noqa: BLE001 — fail-safe; caller decides policy
+        return None
+
+
+def resolve_session_id() -> tuple[str, dict]:
+    """Resolve OpenCode session ID.
+
+    Resolution chain (first match wins):
+        1. OPENCODE_SESSION_ID environment variable  (explicit, pipeline mode)
+        2. SESSION_STATE.SessionHydration.hydrated_session_id  (direct/chat mode)
+        3. Fail-closed with APIError
 
     Returns:
-        Tuple of (session_id, evidence_dict with resolved_session_id source)
+        Tuple of (session_id, evidence_dict with session_id_source)
 
     Raises:
-        APIError: If session_id is not set in environment
+        APIError: If no session ID can be resolved from any source
     """
+    # ── Source 1: explicit env var (fast path, no I/O) ────────────────
     session_id = os.environ.get("OPENCODE_SESSION_ID", "").strip()
+    if session_id:
+        return session_id, {"session_id_source": "OPENCODE_SESSION_ID"}
 
-    evidence: dict = {
-        "session_id_source": "OPENCODE_SESSION_ID",
-    }
+    # ── Source 2: hydrated session from SESSION_STATE (file read) ─────
+    hydrated_id = _read_hydrated_session_id_from_state()
+    if hydrated_id:
+        return hydrated_id, {"session_id_source": "SESSION_STATE.SessionHydration"}
 
-    if not session_id:
-        raise APIError(
-            "OPENCODE_SESSION_ID environment variable is required for production LLM calls. "
-            "No heuristic fallback allowed. Set OPENCODE_SESSION_ID to a valid session ID."
-        )
-
-    return session_id, evidence
+    # ── Source 3: fail-closed ─────────────────────────────────────────
+    raise APIError(
+        "No OpenCode session ID available. "
+        "Set OPENCODE_SESSION_ID or run /hydrate to bind a session. "
+        "Resolution chain: OPENCODE_SESSION_ID env → SESSION_STATE.SessionHydration → fail."
+    )
 
 
 def send_session_prompt(
     text: str,
     *,
+    session_id: str | None = None,
     model: dict[str, str] | None = None,
     output_schema: dict | None = None,
     required: bool = False,
@@ -494,8 +534,12 @@ def send_session_prompt(
     This is the documented programmatic way to access the OpenCode session LLM,
     replacing the legacy subprocess("opencode run --session ...") approach.
 
-    Session ID: Must be provided via OPENCODE_SESSION_ID environment variable.
-    No heuristic fallback is allowed for production paths.
+    Session ID resolution (first match wins):
+        1. Explicit ``session_id`` parameter  (caller-provided, highest priority)
+        2. ``resolve_session_id()`` chain:
+           a. OPENCODE_SESSION_ID env var
+           b. SESSION_STATE.SessionHydration.hydrated_session_id
+           c. Fail-closed with APIError
 
     Note: The server API documentation is inconsistent between format (SDK examples)
     and outputFormat (API overview). Default uses "format" per SDK examples.
@@ -503,6 +547,8 @@ def send_session_prompt(
 
     Args:
         text: Prompt text to send
+        session_id: Optional explicit session ID.  When provided, skips
+                    resolve_session_id() entirely (avoids env + file I/O).
         model: Optional model specification (e.g., {"providerID": "openai", "modelID": "gpt-5"})
                If None, uses the session's default model
         output_schema: Optional JSON schema for structured output
@@ -520,7 +566,11 @@ def send_session_prompt(
         AuthenticationError: If auth fails
         APIError: For API errors or missing OPENCODE_SESSION_ID
     """
-    resolved_session_id, session_evidence = resolve_session_id()
+    if session_id:
+        resolved_session_id = session_id
+        session_evidence: dict = {"session_id_source": "explicit_parameter"}
+    else:
+        resolved_session_id, session_evidence = resolve_session_id()
 
     server_required = required or is_server_required_mode()
 
