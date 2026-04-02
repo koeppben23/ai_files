@@ -150,6 +150,201 @@ class TestResolveServerBaseUrl:
         with pytest.raises(ServerNotAvailableError):
             resolve_opencode_server_base_url()
 
+    def test_happy_session_state_fallback(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Happy: SESSION_STATE.SessionHydration.resolved_server_url resolves URL."""
+        self._clear_env(monkeypatch)
+        self._mock_home(monkeypatch, tmp_path)
+        # No opencode.json, no OPENCODE_PORT — only SESSION_STATE has the URL
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.opencode_server_client._read_server_url_from_state",
+            lambda: "http://127.0.0.1:52372",
+        )
+        result = resolve_opencode_server_base_url()
+        assert result == "http://127.0.0.1:52372"
+
+    def test_opencode_json_overrides_session_state(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Happy: opencode.json takes priority over SESSION_STATE URL."""
+        self._clear_env(monkeypatch)
+        config_dir = self._mock_home(monkeypatch, tmp_path)
+        config = {"server": {"port": 4096}}
+        (config_dir / "opencode.json").write_text(json.dumps(config))
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.opencode_server_client._read_server_url_from_state",
+            lambda: "http://127.0.0.1:52372",
+        )
+        result = resolve_opencode_server_base_url()
+        assert result == "http://127.0.0.1:4096", "opencode.json must override SESSION_STATE"
+
+    def test_session_state_overrides_opencode_port(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Happy: SESSION_STATE URL takes priority over OPENCODE_PORT."""
+        self._clear_env(monkeypatch)
+        self._mock_home(monkeypatch, tmp_path)
+        monkeypatch.setenv("OPENCODE_PORT", "9999")
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.opencode_server_client._read_server_url_from_state",
+            lambda: "http://127.0.0.1:52372",
+        )
+        result = resolve_opencode_server_base_url()
+        assert result == "http://127.0.0.1:52372", "SESSION_STATE must override OPENCODE_PORT"
+
+    def test_session_state_none_falls_through(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Edge: SESSION_STATE returns None, resolution falls through to OPENCODE_PORT."""
+        self._clear_env(monkeypatch)
+        self._mock_home(monkeypatch, tmp_path)
+        monkeypatch.setenv("OPENCODE_PORT", "8080")
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.opencode_server_client._read_server_url_from_state",
+            lambda: None,
+        )
+        result = resolve_opencode_server_base_url()
+        assert result == "http://127.0.0.1:8080"
+
+    def test_session_state_empty_string_falls_through(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Edge: SESSION_STATE returns empty string, resolution falls through."""
+        self._clear_env(monkeypatch)
+        self._mock_home(monkeypatch, tmp_path)
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.opencode_server_client._read_server_url_from_state",
+            lambda: "",
+        )
+        with pytest.raises(ServerNotAvailableError):
+            resolve_opencode_server_base_url()
+
+
+class TestReadServerUrlFromState:
+    """Tests for _read_server_url_from_state() helper.
+
+    This function reads SessionHydration.resolved_server_url from SESSION_STATE.
+    It must be fail-safe: any error → None.
+    """
+
+    _MODULE = "governance_runtime.infrastructure.opencode_server_client"
+
+    def _mock_state(self, session_hydration: dict | None, state: dict | None = None):
+        """Create a mock that simulates reading SESSION_STATE."""
+        from governance_runtime.infrastructure.opencode_server_client import _read_server_url_from_state
+
+        if state is None:
+            state = {}
+        if session_hydration is not None:
+            state["SessionHydration"] = session_hydration
+
+        def mock_resolve():
+            return (Path("/fake/SESSION_STATE.json"), "fp", Path("/fake/ws"), Path("/fake/wd"))
+
+        def mock_load(path):
+            return {"SESSION_STATE": state}
+
+        return _read_server_url_from_state, mock_resolve, mock_load
+
+    def test_happy_returns_url(self, monkeypatch):
+        """Happy: returns resolved_server_url when status is hydrated."""
+        fn, mock_resolve, mock_load = self._mock_state({
+            "status": "hydrated",
+            "hydrated_session_id": "ses_abc",
+            "resolved_server_url": "http://127.0.0.1:52372",
+        })
+        monkeypatch.setattr(
+            f"{self._MODULE}.resolve_active_session_paths" if False else
+            "governance_runtime.infrastructure.session_locator.resolve_active_session_paths",
+            mock_resolve,
+        )
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.json_store.load_json",
+            mock_load,
+        )
+        result = fn()
+        assert result == "http://127.0.0.1:52372"
+
+    def test_returns_none_when_not_hydrated(self, monkeypatch):
+        """Bad: returns None when status is not_hydrated."""
+        fn, mock_resolve, mock_load = self._mock_state({
+            "status": "not_hydrated",
+            "resolved_server_url": "http://127.0.0.1:52372",
+        })
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.session_locator.resolve_active_session_paths",
+            mock_resolve,
+        )
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.json_store.load_json",
+            mock_load,
+        )
+        result = fn()
+        assert result is None
+
+    def test_returns_none_when_url_missing(self, monkeypatch):
+        """Edge: returns None when hydrated but resolved_server_url is absent."""
+        fn, mock_resolve, mock_load = self._mock_state({
+            "status": "hydrated",
+            "hydrated_session_id": "ses_abc",
+        })
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.session_locator.resolve_active_session_paths",
+            mock_resolve,
+        )
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.json_store.load_json",
+            mock_load,
+        )
+        result = fn()
+        assert result is None
+
+    def test_returns_none_when_url_empty(self, monkeypatch):
+        """Edge: returns None when resolved_server_url is empty string."""
+        fn, mock_resolve, mock_load = self._mock_state({
+            "status": "hydrated",
+            "resolved_server_url": "   ",
+        })
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.session_locator.resolve_active_session_paths",
+            mock_resolve,
+        )
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.json_store.load_json",
+            mock_load,
+        )
+        result = fn()
+        assert result is None
+
+    def test_returns_none_when_no_session_state(self, monkeypatch):
+        """Corner: returns None when SESSION_STATE key is missing."""
+        from governance_runtime.infrastructure.opencode_server_client import _read_server_url_from_state
+
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.session_locator.resolve_active_session_paths",
+            lambda: (Path("/fake/s.json"), "fp", Path("/fake/ws"), Path("/fake/wd")),
+        )
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.json_store.load_json",
+            lambda p: {},
+        )
+        assert _read_server_url_from_state() is None
+
+    def test_returns_none_on_exception(self, monkeypatch):
+        """Corner: any exception returns None (fail-safe)."""
+        from governance_runtime.infrastructure.opencode_server_client import _read_server_url_from_state
+
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.session_locator.resolve_active_session_paths",
+            lambda: (_ for _ in ()).throw(RuntimeError("session locator broken")),
+        )
+        assert _read_server_url_from_state() is None
+
+    def test_returns_none_when_hydration_not_dict(self, monkeypatch):
+        """Corner: returns None when SessionHydration is a string, not dict."""
+        from governance_runtime.infrastructure.opencode_server_client import _read_server_url_from_state
+
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.session_locator.resolve_active_session_paths",
+            lambda: (Path("/fake/s.json"), "fp", Path("/fake/ws"), Path("/fake/wd")),
+        )
+        monkeypatch.setattr(
+            "governance_runtime.infrastructure.json_store.load_json",
+            lambda p: {"SESSION_STATE": {"SessionHydration": "hydrated"}},
+        )
+        assert _read_server_url_from_state() is None
+
 
 class TestExtractSessionResponse:
     """Tests for extracting text from session responses.

@@ -310,8 +310,9 @@ def resolve_opencode_server_base_url() -> str:
 
     Resolution order:
     1. opencode.json (server.hostname + server.port) - SSOT
-    2. OPENCODE_PORT (fallback for explicit port)
-    3. fail-closed with clear error
+    2. SESSION_STATE.SessionHydration.resolved_server_url (hydration discovery)
+    3. OPENCODE_PORT (fallback for explicit port)
+    4. fail-closed with clear error
 
     Returns:
         Base URL like "http://127.0.0.1:4096"
@@ -319,6 +320,7 @@ def resolve_opencode_server_base_url() -> str:
     Raises:
         ServerNotAvailableError: If no server URL can be resolved
     """
+    # ── Source 1: opencode.json (SSOT) ────────────────────────────────
     endpoint = _resolve_server_endpoint_from_opencode_json()
     env_port_token = os.environ.get("OPENCODE_PORT", "").strip()
 
@@ -345,6 +347,14 @@ def resolve_opencode_server_base_url() -> str:
                 )
         return f"http://{hostname}:{json_port}"
 
+    # ── Source 2: hydrated server URL from SESSION_STATE ──────────────
+    # Written by /hydrate when server discovery (lsof) succeeds.
+    # Survives bootstrap cycles via hydration preservation guard.
+    hydrated_url = _read_server_url_from_state()
+    if hydrated_url:
+        return hydrated_url
+
+    # ── Source 3: OPENCODE_PORT env var ───────────────────────────────
     if env_port_token:
         try:
             env_port = _parse_port(env_port_token, purpose="OPENCODE_PORT")
@@ -354,9 +364,11 @@ def resolve_opencode_server_base_url() -> str:
             ) from exc
         return f"http://127.0.0.1:{env_port}"
 
+    # ── Source 4: fail-closed ─────────────────────────────────────────
     raise ServerNotAvailableError(
         "OpenCode server URL not resolvable. "
-        "Set server.hostname/server.port in ~/.config/opencode/opencode.json "
+        "Run /hydrate to discover the server, "
+        "set server.hostname/server.port in ~/.config/opencode/opencode.json, "
         "or set OPENCODE_PORT."
     )
 
@@ -482,6 +494,40 @@ def _read_hydrated_session_id_from_state() -> str | None:
             return None
         sid = str(hydration.get("hydrated_session_id") or "").strip()
         return sid if sid else None
+    except Exception:  # noqa: BLE001 — fail-safe; caller decides policy
+        return None
+
+
+def _read_server_url_from_state() -> str | None:
+    """Read SessionHydration.resolved_server_url from SESSION_STATE.
+
+    Returns the server URL string, or None when unavailable.
+    This is intentionally fail-safe: any error → None (caller falls
+    through to the next resolution source).
+
+    The URL is written during /hydrate when server discovery succeeds.
+    It survives bootstrap cycles via the hydration preservation guard.
+
+    Performance: same lazy-import pattern as _read_hydrated_session_id_from_state.
+    """
+    try:
+        from governance_runtime.infrastructure.session_locator import (
+            resolve_active_session_paths,
+        )
+        from governance_runtime.infrastructure.json_store import load_json
+
+        session_path, _fp, _wh, _wd = resolve_active_session_paths()
+        document = load_json(session_path)
+        state = document.get("SESSION_STATE")
+        if not isinstance(state, dict):
+            return None
+        hydration = state.get("SessionHydration")
+        if not isinstance(hydration, dict):
+            return None
+        if str(hydration.get("status") or "").strip().lower() != "hydrated":
+            return None
+        url = str(hydration.get("resolved_server_url") or "").strip()
+        return url if url else None
     except Exception:  # noqa: BLE001 — fail-safe; caller decides policy
         return None
 
