@@ -274,7 +274,7 @@ def _build_hydration_brief(
         parts.append("*No governance config found.*\n")
 
     parts.append("\n\n---\n\n")
-    parts.append("**Next Action:** Run `/ticket` to create a ticket.\n")
+    parts.append("**Next Action:** Run `/ticket` or `/review`.\n")
 
     return "".join(parts)
 
@@ -310,17 +310,21 @@ def _update_session_state_for_hydration(
     hydrated_at: str,
     digest: str,
     artifact_digest: str,
+    resolved_server_url: str = "",
 ) -> None:
     document = load_json(session_path)
     state = document.get("SESSION_STATE", {})
 
-    state["SessionHydration"] = {
+    hydration_block: dict[str, Any] = {
         "hydrated_session_id": hydrated_session_id,
         "hydrated_at": hydrated_at,
         "digest": digest,
         "artifact_digest": artifact_digest,
         "status": HYDRATION_STATUS_HYDRATED,
     }
+    if resolved_server_url:
+        hydration_block["resolved_server_url"] = resolved_server_url
+    state["SessionHydration"] = hydration_block
     state["session_hydrated"] = True
 
     state["phase"] = "4"
@@ -696,6 +700,7 @@ def main(argv: list[str] | None = None) -> int:
             hydrated_at=hydrated_at,
             digest=digest,
             artifact_digest=artifact_digest,
+            resolved_server_url=resolved_server_url,
         )
     except (OSError, json.JSONDecodeError) as exc:
         payload = _blocked_payload(

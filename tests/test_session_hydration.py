@@ -696,6 +696,224 @@ class TestSessionHydrationServerMode:
         assert state.get("SessionHydration", {}).get("hydrated_session_id") == "ses_new"
 
 
+class TestHydrationBriefNextAction:
+    """Tests that the hydration brief includes both /ticket and /review."""
+
+    def _setup(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        from governance_runtime.entrypoints import session_hydration as module
+
+        session_path = _write_session_state(tmp_path, {"phase": "3", "repo_root": str(tmp_path / "repo")})
+        workspace_dir = tmp_path / "workspaces" / "testrepo"
+        _write_core_hydration_artifacts(workspace_dir)
+
+        def mock_resolve_paths():
+            return (session_path, "testrepo", tmp_path / "workspaces", workspace_dir)
+
+        monkeypatch.setattr(module, "resolve_active_session_paths", mock_resolve_paths)
+        return module, session_path, workspace_dir
+
+    def test_brief_includes_review_command(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """The hydration brief sent to the LLM MUST mention both /ticket and /review."""
+        module, session_path, workspace_dir = self._setup(tmp_path, monkeypatch)
+
+        captured = {"text": ""}
+
+        def mock_get_session(project_path=None, **kwargs):
+            return {"id": "ses_brief", "title": "Brief Test"}
+
+        def mock_send_message(text, session_id, **kwargs):
+            captured["text"] = text
+            return {"info": {"id": "msg_test"}}
+
+        monkeypatch.setattr(module, "check_server_health", lambda: {"healthy": True})
+        monkeypatch.setattr(module, "get_active_session", mock_get_session)
+        monkeypatch.setattr(module, "send_session_message", mock_send_message)
+        monkeypatch.setenv("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "1")
+
+        rc = module.main(["--quiet"])
+        assert rc == 0
+        assert "/ticket" in captured["text"], "Brief must mention /ticket"
+        assert "/review" in captured["text"], "Brief must mention /review"
+
+    def test_brief_next_action_line_format(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """The Next Action line in the brief must contain both commands."""
+        module, session_path, workspace_dir = self._setup(tmp_path, monkeypatch)
+
+        captured = {"text": ""}
+
+        def mock_get_session(project_path=None, **kwargs):
+            return {"id": "ses_fmt", "title": "Format Test"}
+
+        def mock_send_message(text, session_id, **kwargs):
+            captured["text"] = text
+            return {"info": {"id": "msg_test"}}
+
+        monkeypatch.setattr(module, "check_server_health", lambda: {"healthy": True})
+        monkeypatch.setattr(module, "get_active_session", mock_get_session)
+        monkeypatch.setattr(module, "send_session_message", mock_send_message)
+        monkeypatch.setenv("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "1")
+
+        rc = module.main(["--quiet"])
+        assert rc == 0
+
+        # Find the Next Action line specifically
+        lines = captured["text"].split("\n")
+        next_action_lines = [l for l in lines if "Next Action" in l]
+        assert next_action_lines, "Brief must contain a Next Action line"
+        na_line = next_action_lines[0]
+        assert "/ticket" in na_line, f"Next Action line must mention /ticket: {na_line}"
+        assert "/review" in na_line, f"Next Action line must mention /review: {na_line}"
+
+    def test_success_payload_includes_review(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture):
+        """The JSON success payload must include /review in next_action fields."""
+        module, session_path, workspace_dir = self._setup(tmp_path, monkeypatch)
+
+        def mock_get_session(project_path=None, **kwargs):
+            return {"id": "ses_payload", "title": "Payload Test"}
+
+        def mock_send_message(text, session_id, **kwargs):
+            return {"info": {"id": "msg_test"}}
+
+        monkeypatch.setattr(module, "check_server_health", lambda: {"healthy": True})
+        monkeypatch.setattr(module, "get_active_session", mock_get_session)
+        monkeypatch.setattr(module, "send_session_message", mock_send_message)
+        monkeypatch.setenv("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "1")
+
+        rc = module.main(["--quiet"])
+        assert rc == 0
+
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert "/review" in payload.get("next_action", ""), "next_action must mention /review"
+        assert "/review" in payload.get("next_action_command", ""), "next_action_command must mention /review"
+
+
+class TestHydrationServerUrlPersistence:
+    """Tests that resolved_server_url is persisted in SESSION_STATE during hydration.
+
+    This URL is critical for post-hydration commands (/plan, /review) that need
+    to reach the same server discovered during hydration.
+    """
+
+    def _setup(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        from governance_runtime.entrypoints import session_hydration as module
+
+        session_path = _write_session_state(tmp_path, {"phase": "3", "repo_root": str(tmp_path / "repo")})
+        workspace_dir = tmp_path / "workspaces" / "testrepo"
+        _write_core_hydration_artifacts(workspace_dir)
+
+        def mock_resolve_paths():
+            return (session_path, "testrepo", tmp_path / "workspaces", workspace_dir)
+
+        monkeypatch.setattr(module, "resolve_active_session_paths", mock_resolve_paths)
+        return module, session_path
+
+    def test_attach_existing_persists_server_url(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Happy: attach_existing persists discovered URL in SessionHydration."""
+        module, session_path = self._setup(tmp_path, monkeypatch)
+        discovered_url = "http://127.0.0.1:52372"
+
+        def mock_discover():
+            return (discovered_url, {"healthy": True})
+
+        def mock_get_session(project_path=None, **kwargs):
+            return {"id": "ses_url1", "title": "URL Test"}
+
+        def mock_send_message(text, session_id, **kwargs):
+            return {"info": {"id": "msg_test"}}
+
+        monkeypatch.setattr(module, "discover_local_opencode_server", mock_discover)
+        monkeypatch.setattr(module, "get_active_session", mock_get_session)
+        monkeypatch.setattr(module, "send_session_message", mock_send_message)
+
+        rc = module.main(["--quiet", "--server-mode", "attach_existing"])
+        assert rc == 0
+
+        state = json.loads(session_path.read_text())["SESSION_STATE"]
+        hydration = state["SessionHydration"]
+        assert hydration["resolved_server_url"] == discovered_url
+        assert hydration["status"] == "hydrated"
+
+    def test_managed_mode_persists_server_url(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Happy: managed mode persists target_url in SessionHydration."""
+        module, session_path = self._setup(tmp_path, monkeypatch)
+        managed_url = "http://127.0.0.1:4096"
+
+        def mock_ensure():
+            return {"healthy": True, "target_url": managed_url}
+
+        def mock_get_session(project_path=None, **kwargs):
+            return {"id": "ses_url2", "title": "Managed URL Test"}
+
+        def mock_send_message(text, session_id, **kwargs):
+            return {"info": {"id": "msg_test"}}
+
+        monkeypatch.setattr(module, "ensure_opencode_server_running", mock_ensure)
+        monkeypatch.setattr(module, "get_active_session", mock_get_session)
+        monkeypatch.setattr(module, "send_session_message", mock_send_message)
+
+        rc = module.main(["--quiet", "--server-mode", "managed"])
+        assert rc == 0
+
+        state = json.loads(session_path.read_text())["SESSION_STATE"]
+        hydration = state["SessionHydration"]
+        assert hydration["resolved_server_url"] == managed_url
+
+    def test_skip_health_check_does_not_persist_empty_url(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Edge: skip-health-check mode has no resolved_server_url — field is absent."""
+        module, session_path = self._setup(tmp_path, monkeypatch)
+
+        def mock_get_session(project_path=None, **kwargs):
+            return {"id": "ses_url3", "title": "Skip Health Test"}
+
+        def mock_send_message(text, session_id, **kwargs):
+            return {"info": {"id": "msg_test"}}
+
+        monkeypatch.setattr(module, "check_server_health", lambda: {"healthy": True})
+        monkeypatch.setattr(module, "get_active_session", mock_get_session)
+        monkeypatch.setattr(module, "send_session_message", mock_send_message)
+        monkeypatch.setenv("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "1")
+
+        rc = module.main(["--quiet"])
+        assert rc == 0
+
+        state = json.loads(session_path.read_text())["SESSION_STATE"]
+        hydration = state["SessionHydration"]
+        # No resolved_server_url since skip-health-check bypasses discovery
+        assert "resolved_server_url" not in hydration
+
+    def test_random_port_url_survives_in_state(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Edge: random high port (e.g. 58596) is persisted correctly."""
+        module, session_path = self._setup(tmp_path, monkeypatch)
+        random_port_url = "http://127.0.0.1:58596"
+
+        def mock_discover():
+            return (random_port_url, {"healthy": True, "version": "1.4.0"})
+
+        def mock_get_session(project_path=None, **kwargs):
+            return {"id": "ses_rnd", "title": "Random Port"}
+
+        def mock_send_message(text, session_id, **kwargs):
+            return {"info": {"id": "msg_test"}}
+
+        monkeypatch.setattr(module, "discover_local_opencode_server", mock_discover)
+        monkeypatch.setattr(module, "get_active_session", mock_get_session)
+        monkeypatch.setattr(module, "send_session_message", mock_send_message)
+
+        rc = module.main(["--quiet", "--server-mode", "attach_existing"])
+        assert rc == 0
+
+        state = json.loads(session_path.read_text())["SESSION_STATE"]
+        assert state["SessionHydration"]["resolved_server_url"] == random_port_url
+
+
 class TestBootstrapOpencodePort:
     """Tests for bootstrap --opencode-port parameter."""
 
