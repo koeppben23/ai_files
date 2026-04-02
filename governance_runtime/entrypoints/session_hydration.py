@@ -107,7 +107,7 @@ def _success_payload(
         "next": "Ticket Intake Gate",
         "active_gate": TICKET_INTAKE_GATE,
         "next_gate_condition": "TicketRecordVersion > 0",
-        "next_action": "run /ticket.",
+        "next_action": "run /ticket or /review.",
         "next_action_command": "/ticket",
     }
 
@@ -391,6 +391,8 @@ def main(argv: list[str] | None = None) -> int:
     project_path = args.project_path
     if not project_path:
         project_path = str(state.get("repo_root") or "")
+    if not project_path:
+        project_path = os.environ.get("OPENCODE_REPO_ROOT", "")
     project_path = str(project_path).strip()
 
     if not project_path:

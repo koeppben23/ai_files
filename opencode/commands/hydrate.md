@@ -66,11 +66,11 @@ environment variable.
 ## Commands by platform
 
 ```bash
-PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --hydrate --quiet
+PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --hydrate --quiet --project-path "{{PROJECT_PATH}}"
 ```
 
 ```powershell
-$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --hydrate --quiet
+$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --hydrate --quiet --project-path "{{PROJECT_PATH}}"
 ```
 
 ## If execution is unavailable
@@ -101,7 +101,7 @@ If OpenCode Desktop is not running:
 - if a blocker or warning is present, render it with concise evidence and one recovery action
 
 **After successful hydration:**
-- Next action: run `/ticket`.
+- Next action: run `/ticket` or `/review`.
 
 ---
 
