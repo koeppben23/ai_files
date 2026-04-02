@@ -536,6 +536,28 @@ def _merge_final_session_state(
         "PointerVerified": pointer_verified,
     }
 
+    # ── Preserve hydration state across bootstrap cycles ──────────────
+    # Hydration is written by session_hydration.py *before* the next
+    # bootstrap runs.  _session_state_payload() always hardcodes
+    # SessionHydration.status = "not_hydrated".  When the on-disk session
+    # already carries status == "hydrated" we MUST keep it — bootstrap
+    # must never silently regress hydration.
+    existing_hydration = session.get("SessionHydration")
+    if isinstance(existing_hydration, dict) and str(
+        existing_hydration.get("status") or ""
+    ).strip().lower() == "hydrated":
+        # Already hydrated — keep the existing block and flag intact.
+        session["session_hydrated"] = True
+    else:
+        # Not yet hydrated — apply the fallback (bootstrap default).
+        if isinstance(fallback_session, dict):
+            fb_hydration = fallback_session.get("SessionHydration")
+            if isinstance(fb_hydration, dict):
+                session["SessionHydration"] = fb_hydration
+            session["session_hydrated"] = bool(
+                fallback_session.get("session_hydrated")
+            )
+
     parsed["SESSION_STATE"] = session
     return parsed
 

@@ -1534,11 +1534,17 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
     if final_phase == "4" and not (has_ticket or has_task or has_ticket_digest or has_task_digest):
         final_state["phase4_intake_source"] = "bootstrap"
         final_state["phase4_intake_evidence"] = False
-        final_state["session_hydrated"] = False
-        final_state["SessionHydration"] = {
-            "status": "not_hydrated",
-            "source": "bootstrap",
-        }
+        # ── Guard: never regress an already-hydrated session ──────────
+        # session_hydration.py writes SessionHydration.status = "hydrated"
+        # before the next bootstrap cycle.  If the session is already
+        # hydrated we must preserve that state — only reset when NOT
+        # hydrated (i.e. fresh bootstrap with no prior hydration).
+        if not _session_hydrated(final_state):
+            final_state["session_hydrated"] = False
+            final_state["SessionHydration"] = {
+                "status": "not_hydrated",
+                "source": "bootstrap",
+            }
         final_state["phase4_intake_updated_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         final_state["phase_transition_evidence"] = False
         apply_fresh_start_business_rules_neutralization(final_state)
