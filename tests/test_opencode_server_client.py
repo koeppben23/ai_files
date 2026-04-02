@@ -162,8 +162,13 @@ class TestResolveServerBaseUrl:
         result = resolve_opencode_server_base_url()
         assert result == "http://127.0.0.1:52372"
 
-    def test_opencode_json_overrides_session_state(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-        """Happy: opencode.json takes priority over SESSION_STATE URL."""
+    def test_session_state_overrides_opencode_json(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Happy: SESSION_STATE hydrated URL takes priority over opencode.json.
+
+        Rationale: OpenCode Desktop starts on random ports.  The hydrated URL
+        reflects the *actual* running server discovered by lsof, whereas
+        opencode.json contains a stale installer default (e.g. 4096).
+        """
         self._clear_env(monkeypatch)
         config_dir = self._mock_home(monkeypatch, tmp_path)
         config = {"server": {"port": 4096}}
@@ -173,7 +178,7 @@ class TestResolveServerBaseUrl:
             lambda: "http://127.0.0.1:52372",
         )
         result = resolve_opencode_server_base_url()
-        assert result == "http://127.0.0.1:4096", "opencode.json must override SESSION_STATE"
+        assert result == "http://127.0.0.1:52372", "SESSION_STATE must override opencode.json"
 
     def test_session_state_overrides_opencode_port(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         """Happy: SESSION_STATE URL takes priority over OPENCODE_PORT."""

@@ -309,9 +309,14 @@ def resolve_opencode_server_base_url() -> str:
     """Resolve OpenCode server base URL.
 
     Resolution order:
-    1. opencode.json (server.hostname + server.port) - SSOT
-    2. SESSION_STATE.SessionHydration.resolved_server_url (hydration discovery)
-    3. OPENCODE_PORT (fallback for explicit port)
+    1. SESSION_STATE.SessionHydration.resolved_server_url (hydration discovery)
+       — This is checked FIRST because it reflects the ACTUAL running server
+       discovered by lsof.  OpenCode Desktop starts on random ports, so the
+       installer-written opencode.json port is stale after each restart.
+    2. opencode.json (server.hostname + server.port)
+       — Authoritative when hydration has not yet run (e.g., managed mode
+       with a fixed port).
+    3. OPENCODE_PORT env var (explicit user override)
     4. fail-closed with clear error
 
     Returns:
@@ -320,7 +325,16 @@ def resolve_opencode_server_base_url() -> str:
     Raises:
         ServerNotAvailableError: If no server URL can be resolved
     """
-    # ── Source 1: opencode.json (SSOT) ────────────────────────────────
+    # ── Source 1: hydrated server URL from SESSION_STATE ──────────────
+    # Written by /hydrate when server discovery (lsof) succeeds.
+    # Survives bootstrap cycles via hydration preservation guards in
+    # bootstrap_persistence.py, bootstrap_preflight_readonly.py, and
+    # new_work_session.py.
+    hydrated_url = _read_server_url_from_state()
+    if hydrated_url:
+        return hydrated_url
+
+    # ── Source 2: opencode.json ───────────────────────────────────────
     endpoint = _resolve_server_endpoint_from_opencode_json()
     env_port_token = os.environ.get("OPENCODE_PORT", "").strip()
 
@@ -346,13 +360,6 @@ def resolve_opencode_server_base_url() -> str:
                     stacklevel=2,
                 )
         return f"http://{hostname}:{json_port}"
-
-    # ── Source 2: hydrated server URL from SESSION_STATE ──────────────
-    # Written by /hydrate when server discovery (lsof) succeeds.
-    # Survives bootstrap cycles via hydration preservation guard.
-    hydrated_url = _read_server_url_from_state()
-    if hydrated_url:
-        return hydrated_url
 
     # ── Source 3: OPENCODE_PORT env var ───────────────────────────────
     if env_port_token:

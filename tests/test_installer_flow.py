@@ -1233,7 +1233,12 @@ class TestPythonBindingArtifact:
         )
 
     def test_happy_opencode_port_cli_wires_launcher_and_opencode_json(self, tmp_path: Path) -> None:
-        """Happy: --opencode-port is the single effective port for install outputs."""
+        """Happy: --opencode-port wires port into opencode.json but NOT launcher.
+
+        The launcher must NOT hardcode a default port because OpenCode Desktop
+        starts on random ports.  The resolution chain (SESSION_STATE > opencode.json
+        > OPENCODE_PORT > fail-closed) handles discovery via hydration.
+        """
         config_root = tmp_path / "config-port"
         result = run_install([
             "--force",
@@ -1250,8 +1255,11 @@ class TestPythonBindingArtifact:
 
         unix_launcher = (config_root / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
         win_launcher = (config_root / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
-        assert "OPENCODE_PORT=\"${OPENCODE_PORT:-5001}\"" in unix_launcher
-        assert "set \"OPENCODE_PORT=5001\"" in win_launcher
+        # Launcher must NOT hardcode any port default (Patch 23 — Root Cause B fix)
+        assert ":-5001}" not in unix_launcher, "Launcher must not hardcode port default"
+        assert ":-4096}" not in unix_launcher, "Launcher must not hardcode port default"
+        assert '"OPENCODE_PORT=5001"' not in win_launcher, "Windows launcher must not hardcode port"
+        assert '"OPENCODE_PORT=4096"' not in win_launcher, "Windows launcher must not hardcode port"
 
     def test_corner_opencode_port_env_used_when_cli_missing(self, tmp_path: Path) -> None:
         """Corner: installer uses OPENCODE_PORT env when --opencode-port is omitted."""

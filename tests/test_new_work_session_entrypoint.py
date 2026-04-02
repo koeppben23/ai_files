@@ -406,3 +406,335 @@ class TestNewWorkSessionEntrypoint:
         assert (workspace / "decision-pack.md").exists()
         assert (workspace / "notes.tmp").exists()
         assert (run_dir(workspace.parent, workspace.name, "run-old-001") / "run-manifest.json").is_file()
+
+
+# ---------------------------------------------------------------------------
+# Patch 23 — SessionHydration preservation across new-work-session cycles
+# ---------------------------------------------------------------------------
+# Root Cause A: _reset_for_new_work() unconditionally overwrote
+# SessionHydration with {status: "not_hydrated"}, destroying the hydrated
+# URL and session ID written by /hydrate.  The fix adds a guard identical
+# to bootstrap_persistence.py and bootstrap_preflight_readonly.py.
+# ---------------------------------------------------------------------------
+
+
+def _setup_hydrated_workspace(
+    tmp_path: Path,
+    *,
+    hydration_status: str = "hydrated",
+    resolved_server_url: str = "http://127.0.0.1:52372",
+    hydrated_session_id: str = "ses_hydrated_42",
+) -> tuple[Path, Path, str]:
+    """Set up a workspace whose SESSION_STATE is already hydrated."""
+    config_root = tmp_path / "config"
+    commands_home = config_root / "commands"
+    workspaces_home = config_root / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    session_path = workspaces_home / fingerprint / "SESSION_STATE.json"
+
+    _write_json(
+        config_root / "governance.paths.json",
+        {
+            "schema": "opencode-governance.paths.v1",
+            "paths": {
+                "configRoot": str(config_root),
+                "commandsHome": str(commands_home),
+                "workspacesHome": str(workspaces_home),
+                "pythonCommand": "/usr/bin/python3",
+            },
+        },
+    )
+    _write_json(
+        config_root / "SESSION_STATE.json",
+        {
+            "schema": "opencode-session-pointer.v1",
+            "activeRepoFingerprint": fingerprint,
+            "activeSessionStateFile": str(session_path),
+        },
+    )
+    _write_json(
+        session_path,
+        {
+            "SESSION_STATE": {
+                "RepoFingerprint": fingerprint,
+                "PersistenceCommitted": True,
+                "WorkspaceReadyGateCommitted": True,
+                "phase_transition_evidence": True,
+                "phase": "5-ArchitectureReview",
+                "next": "5.3",
+                "Mode": "IN_PROGRESS",
+                "OutputMode": "ARCHITECT",
+                "DecisionSurface": {},
+                "status": "OK",
+                "active_gate": "Architecture Review Gate",
+                "next_gate_condition": "Review in progress",
+                "Bootstrap": {
+                    "Satisfied": True,
+                    "Present": True,
+                    "Evidence": "bootstrap-completed",
+                },
+                "ticket_intake_ready": True,
+                "phase_ready": 4,
+                "session_run_id": "run-old-hydrated",
+                "ActiveProfile": "profile.backend-python",
+                "Ticket": "old ticket",
+                "Task": "old task",
+                "TicketRecordDigest": "ticket-old",
+                "TaskRecordDigest": "task-old",
+                "phase4_intake_source": "phase4-intake-bridge",
+                "session_hydrated": True,
+                "SessionHydration": {
+                    "status": hydration_status,
+                    "source": "session-hydration",
+                    "hydrated_session_id": hydrated_session_id,
+                    "hydrated_at": "2026-04-02T10:00:00Z",
+                    "resolved_server_url": resolved_server_url,
+                    "digest": "abc123",
+                    "artifact_digest": "def456",
+                },
+                "Gates": {
+                    "P5-Architecture": "approved",
+                    "P5.3-TestQuality": "pass",
+                    "P5.4-BusinessRules": "compliant",
+                    "P5.5-TechnicalDebt": "approved",
+                    "P5.6-RollbackSafety": "approved",
+                    "P6-ImplementationQA": "pending",
+                },
+                "Scope": {"BusinessRules": "extracted"},
+                "BusinessRules": {
+                    "Decision": "execute",
+                    "Outcome": "extracted",
+                    "ExecutionEvidence": True,
+                    "InventoryFileStatus": "written",
+                    "Rules": ["BR-7: must preserve old behavior"],
+                    "Evidence": ["docs/rules.md:10"],
+                    "Inventory": {"sha256": "abc123", "count": 1},
+                },
+                "ArchitectureDecisions": [{"Status": "approved"}],
+            }
+        },
+    )
+    return config_root, session_path, fingerprint
+
+
+class TestNewWorkSessionHydrationPreservation:
+    """Patch 23 — Definitive tests for hydration preservation guard.
+
+    The user demanded: "Da MUSS ein Test her, der das 100% abfängt."
+    These tests cover the FULL flow: hydrated SESSION_STATE → new_work_session
+    runs → hydration block (resolved_server_url, hydrated_session_id) survives.
+    """
+
+    def test_happy_hydrated_state_preserved_after_new_work_session(
+        self,
+        short_tmp: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """CRITICAL: hydrated SessionHydration block survives new-work-session."""
+        config_root, session_path, _ = _setup_hydrated_workspace(short_tmp)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(
+            ["--trigger-source", "desktop-plugin", "--session-id", "ses_new", "--quiet"]
+        )
+        assert code == 0
+
+        state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+
+        # Phase reset correctly
+        assert state["phase"] == "4"
+        assert state["next"] == "4"
+        assert state["Ticket"] is None
+
+        # BUT SessionHydration is PRESERVED
+        assert state["session_hydrated"] is True
+        hydration = state["SessionHydration"]
+        assert hydration["status"] == "hydrated"
+        assert hydration["resolved_server_url"] == "http://127.0.0.1:52372"
+        assert hydration["hydrated_session_id"] == "ses_hydrated_42"
+        assert hydration["hydrated_at"] == "2026-04-02T10:00:00Z"
+        assert hydration["digest"] == "abc123"
+        assert hydration["artifact_digest"] == "def456"
+
+    def test_happy_resolved_server_url_survives_intact(
+        self,
+        short_tmp: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """CRITICAL: resolved_server_url (random port) is NOT lost."""
+        random_port_url = "http://127.0.0.1:58596"
+        config_root, session_path, _ = _setup_hydrated_workspace(
+            short_tmp, resolved_server_url=random_port_url
+        )
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 0
+
+        state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert state["SessionHydration"]["resolved_server_url"] == random_port_url
+
+    def test_not_hydrated_state_resets_normally(
+        self,
+        short_tmp: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """When state is NOT hydrated, reset proceeds normally."""
+        config_root, session_path, _ = _setup_hydrated_workspace(
+            short_tmp, hydration_status="not_hydrated"
+        )
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 0
+
+        state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert state["session_hydrated"] is False
+        assert state["SessionHydration"]["status"] == "not_hydrated"
+        assert state["SessionHydration"]["source"] == "new-work-session"
+
+    def test_edge_missing_session_hydration_resets_normally(
+        self,
+        short_tmp: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Edge: when SessionHydration key is absent, reset creates default."""
+        config_root, session_path, _ = _setup_hydrated_workspace(short_tmp)
+        # Remove SessionHydration from the state
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        del doc["SESSION_STATE"]["SessionHydration"]
+        doc["SESSION_STATE"]["session_hydrated"] = False
+        session_path.write_text(json.dumps(doc), encoding="utf-8")
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 0
+
+        state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert state["session_hydrated"] is False
+        assert state["SessionHydration"]["status"] == "not_hydrated"
+        assert state["SessionHydration"]["source"] == "new-work-session"
+
+    def test_edge_session_hydration_is_string_not_dict(
+        self,
+        short_tmp: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Edge: when SessionHydration is a string (corrupted), reset creates default."""
+        config_root, session_path, _ = _setup_hydrated_workspace(short_tmp)
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        doc["SESSION_STATE"]["SessionHydration"] = "broken"
+        doc["SESSION_STATE"]["session_hydrated"] = False
+        session_path.write_text(json.dumps(doc), encoding="utf-8")
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 0
+
+        state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert state["session_hydrated"] is False
+        assert isinstance(state["SessionHydration"], dict)
+        assert state["SessionHydration"]["status"] == "not_hydrated"
+
+    def test_corner_case_insensitive_hydrated_check(
+        self,
+        short_tmp: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Corner: status = 'HYDRATED' (uppercase) is still preserved."""
+        config_root, session_path, _ = _setup_hydrated_workspace(
+            short_tmp, hydration_status="HYDRATED"
+        )
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 0
+
+        state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert state["session_hydrated"] is True
+        assert state["SessionHydration"]["resolved_server_url"] == "http://127.0.0.1:52372"
+
+    def test_corner_whitespace_padded_status_preserved(
+        self,
+        short_tmp: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Corner: status = '  hydrated  ' (whitespace) is still preserved."""
+        config_root, session_path, _ = _setup_hydrated_workspace(
+            short_tmp, hydration_status="  hydrated  "
+        )
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 0
+
+        state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert state["session_hydrated"] is True
+
+    def test_bad_empty_status_resets(
+        self,
+        short_tmp: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Bad: status = '' (empty) is NOT treated as hydrated."""
+        config_root, session_path, _ = _setup_hydrated_workspace(
+            short_tmp, hydration_status=""
+        )
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 0
+
+        state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert state["session_hydrated"] is False
+        assert state["SessionHydration"]["status"] == "not_hydrated"
+
+    def test_bad_none_status_resets(
+        self,
+        short_tmp: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Bad: status = None is NOT treated as hydrated."""
+        config_root, session_path, _ = _setup_hydrated_workspace(short_tmp)
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        doc["SESSION_STATE"]["SessionHydration"]["status"] = None
+        session_path.write_text(json.dumps(doc), encoding="utf-8")
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 0
+
+        state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert state["session_hydrated"] is False
+
+    def test_extra_hydration_fields_preserved(
+        self,
+        short_tmp: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Future-proofing: extra fields in SessionHydration are preserved."""
+        config_root, session_path, _ = _setup_hydrated_workspace(short_tmp)
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        doc["SESSION_STATE"]["SessionHydration"]["project_path"] = "/my/repo"
+        doc["SESSION_STATE"]["SessionHydration"]["custom_future_field"] = 42
+        session_path.write_text(json.dumps(doc), encoding="utf-8")
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 0
+
+        state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+        hydration = state["SessionHydration"]
+        assert hydration["project_path"] == "/my/repo"
+        assert hydration["custom_future_field"] == 42
+        assert hydration["resolved_server_url"] == "http://127.0.0.1:52372"

@@ -70,11 +70,26 @@ def _reset_for_new_work(
     state["phase4_intake_evidence"] = False
     state["phase4_intake_source"] = "new-work-session"
     state["phase4_intake_updated_at"] = observed_at
-    state["session_hydrated"] = False
-    state["SessionHydration"] = {
-        "status": "not_hydrated",
-        "source": "new-work-session",
-    }
+
+    # ── Preserve hydration state across new-work-session cycles ───────
+    # session_hydration.py writes SessionHydration.status = "hydrated"
+    # with resolved_server_url *before* the next new-work-session fires.
+    # If the existing state already carries status == "hydrated" we MUST
+    # keep the block intact — new-work-session must never silently
+    # regress hydration (identical guard to bootstrap_persistence.py and
+    # bootstrap_preflight_readonly.py, Patch 19).
+    existing_hydration = state.get("SessionHydration")
+    if isinstance(existing_hydration, dict) and str(
+        existing_hydration.get("status") or ""
+    ).strip().lower() == "hydrated":
+        state["session_hydrated"] = True
+        # Keep existing SessionHydration block unchanged.
+    else:
+        state["session_hydrated"] = False
+        state["SessionHydration"] = {
+            "status": "not_hydrated",
+            "source": "new-work-session",
+        }
     state["phase_transition_evidence"] = False
 
     state["phase"] = "4"
