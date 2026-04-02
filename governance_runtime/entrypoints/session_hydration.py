@@ -45,6 +45,8 @@ from governance_runtime.infrastructure.opencode_server_client import (
     get_active_session,
     resolve_server_mode,
     send_session_message,
+    ProjectNotFoundError,
+    ProjectSessionNotFoundError,
     ServerAuthRequiredError,
     ServerBindingMismatchError,
     ServerDiscoveryAmbiguousError,
@@ -579,6 +581,24 @@ def main(argv: list[str] | None = None) -> int:
         active_session = get_active_session(project_path, base_url=resolved_server_url)
         session_id = active_session.get("id", "")
         session_title = active_session.get("title", "")
+    except ProjectNotFoundError as exc:
+        payload = _blocked_payload(
+            reason=f"project-not-found: {exc}",
+            reason_code="BLOCKED-PROJECT-NOT-FOUND",
+            recovery_action="Open this repository in OpenCode Desktop first so it registers as a project",
+            observed=str(exc),
+        )
+        print(json.dumps(payload, ensure_ascii=True))
+        return 2
+    except ProjectSessionNotFoundError as exc:
+        payload = _blocked_payload(
+            reason=f"project-session-not-found: {exc}",
+            reason_code="BLOCKED-PROJECT-SESSION-NOT-FOUND",
+            recovery_action="Open a new session for this project in OpenCode Desktop before running /hydrate",
+            observed=str(exc),
+        )
+        print(json.dumps(payload, ensure_ascii=True))
+        return 2
     except ServerNotAvailableError as exc:
         payload = _blocked_payload(
             reason=f"server-unreachable: {exc}",

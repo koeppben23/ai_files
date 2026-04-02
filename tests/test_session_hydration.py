@@ -232,6 +232,73 @@ class TestSessionHydrationBad:
 
         assert result == 2
 
+    def test_hydration_blocks_when_project_not_found(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+    ):
+        """Hydration fails with BLOCKED-PROJECT-NOT-FOUND when repo has no matching project."""
+        from governance_runtime.entrypoints import session_hydration as module
+        from governance_runtime.infrastructure.opencode_server_client import ProjectNotFoundError
+
+        session_path = _write_session_state(tmp_path, {"phase": "3", "repo_root": str(tmp_path / "repo")})
+        _write_core_hydration_artifacts(tmp_path / "workspaces" / "testrepo")
+
+        def mock_resolve_paths():
+            return (session_path, "testrepo", tmp_path / "workspaces", tmp_path / "workspaces" / "testrepo")
+
+        def mock_get_session(project_path=None, **kwargs):
+            raise ProjectNotFoundError(
+                f"No OpenCode project found for path: {project_path}",
+                project_path=project_path,
+            )
+
+        monkeypatch.setattr(module, "resolve_active_session_paths", mock_resolve_paths)
+        monkeypatch.setattr(module, "get_active_session", mock_get_session)
+        monkeypatch.setenv("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "1")
+
+        rc = module.main(["--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["reason_code"] == "BLOCKED-PROJECT-NOT-FOUND"
+        assert payload["blocked"] is True
+        assert "Open this repository" in payload["recovery_action"]
+
+    def test_hydration_blocks_when_project_session_not_found(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+    ):
+        """Hydration fails with BLOCKED-PROJECT-SESSION-NOT-FOUND when project exists but no session."""
+        from governance_runtime.entrypoints import session_hydration as module
+        from governance_runtime.infrastructure.opencode_server_client import ProjectSessionNotFoundError
+
+        session_path = _write_session_state(tmp_path, {"phase": "3", "repo_root": str(tmp_path / "repo")})
+        _write_core_hydration_artifacts(tmp_path / "workspaces" / "testrepo")
+
+        def mock_resolve_paths():
+            return (session_path, "testrepo", tmp_path / "workspaces", tmp_path / "workspaces" / "testrepo")
+
+        def mock_get_session(project_path=None, **kwargs):
+            raise ProjectSessionNotFoundError(
+                f"No session found for project (projectID=proj_abc)",
+                project_id="proj_abc",
+                project_path=project_path,
+            )
+
+        monkeypatch.setattr(module, "resolve_active_session_paths", mock_resolve_paths)
+        monkeypatch.setattr(module, "get_active_session", mock_get_session)
+        monkeypatch.setenv("AI_GOVERNANCE_SKIP_SERVER_HEALTH_CHECK", "1")
+
+        rc = module.main(["--quiet"])
+        assert rc == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["reason_code"] == "BLOCKED-PROJECT-SESSION-NOT-FOUND"
+        assert payload["blocked"] is True
+        assert "Open a new session" in payload["recovery_action"]
+
     def test_hydration_blocks_when_server_health_is_unhealthy(
         self,
         tmp_path: Path,

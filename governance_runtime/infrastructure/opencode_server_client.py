@@ -78,6 +78,23 @@ class APIError(OpenCodeServerError):
     pass
 
 
+class ProjectNotFoundError(APIError):
+    """Raised when no OpenCode project matches the given worktree path."""
+
+    def __init__(self, message: str, project_path: str | None = None):
+        super().__init__(message)
+        self.project_path = project_path
+
+
+class ProjectSessionNotFoundError(APIError):
+    """Raised when the project exists but has no sessions."""
+
+    def __init__(self, message: str, project_id: str | None = None, project_path: str | None = None):
+        super().__init__(message)
+        self.project_id = project_id
+        self.project_path = project_path
+
+
 # ---------------------------------------------------------------------------
 # Server discovery exceptions (attach_existing mode)
 # ---------------------------------------------------------------------------
@@ -1236,6 +1253,100 @@ def discover_local_opencode_server(
     )
 
 
+def get_projects(*, base_url: str | None = None) -> list[dict]:
+    """Get all projects from OpenCode server.
+
+    Uses GET /project per official server API documentation.
+
+    Args:
+        base_url: Optional server base URL. If provided, uses this URL directly
+            instead of resolving via opencode.json / OPENCODE_PORT.
+
+    Returns:
+        List of project dicts with id, worktree, vcs, etc.
+
+    Raises:
+        ServerNotAvailableError: If server is not reachable
+        APIError: For API errors
+    """
+    if base_url is not None:
+        server_url = base_url
+    else:
+        try:
+            server_url = resolve_opencode_server_base_url()
+        except ServerNotAvailableError as exc:
+            raise ServerNotAvailableError(
+                f"OpenCode server not reachable: {exc}. "
+                "Ensure OpenCode Desktop is running."
+            ) from exc
+
+    headers = {}
+    auth_headers = _resolve_auth()
+    if auth_headers:
+        headers.update(auth_headers)
+
+    url = f"{server_url}/project"
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise APIError(f"Failed to get projects: HTTP {e.code}: {e.reason}") from e
+    except (OSError, ValueError) as e:
+        raise APIError(f"Failed to get projects: {e}") from e
+
+
+def resolve_project_id(
+    project_path: str,
+    *,
+    base_url: str | None = None,
+) -> str:
+    """Resolve a filesystem project path to an OpenCode project ID.
+
+    Calls GET /project and matches by canonicalized comparison of
+    ``project["worktree"]`` against *project_path*.
+
+    Args:
+        project_path: Absolute filesystem path to the repository root.
+        base_url: Optional server base URL.
+
+    Returns:
+        The ``id`` field of the matching project.
+
+    Raises:
+        ProjectNotFoundError: If no project matches the given path.
+        ServerNotAvailableError: If server is not reachable.
+        APIError: For other API errors.
+    """
+    projects = get_projects(base_url=base_url)
+
+    # Canonicalize: resolve symlinks, remove trailing slashes, normalize case
+    # on case-insensitive filesystems (macOS).
+    try:
+        canon_target = os.path.realpath(project_path).rstrip(os.sep)
+    except (OSError, ValueError):
+        canon_target = project_path.rstrip("/").rstrip("\\")
+
+    for project in projects:
+        worktree = project.get("worktree", "")
+        if not worktree:
+            continue
+        try:
+            canon_worktree = os.path.realpath(worktree).rstrip(os.sep)
+        except (OSError, ValueError):
+            canon_worktree = worktree.rstrip("/").rstrip("\\")
+        if canon_target == canon_worktree:
+            return project["id"]
+
+    available = [p.get("worktree", "") for p in projects if p.get("worktree")]
+    raise ProjectNotFoundError(
+        f"No OpenCode project found for path: {project_path}. "
+        f"Available project worktrees: {available}. "
+        "Open this repository in OpenCode Desktop first.",
+        project_path=project_path,
+    )
+
+
 def get_sessions(*, base_url: str | None = None) -> list[dict]:
     """Get all sessions from OpenCode server.
 
@@ -1285,16 +1396,22 @@ def get_active_session(
     *,
     base_url: str | None = None,
 ) -> dict:
-    """Get the active session for a project.
+    """Get the active session for a project via project-based resolution.
 
-    If project_path is provided, returns the session for that project ONLY if
-    exactly one matching session exists. Fail-closed: raises APIError if no
-    match or multiple matches.
+    Resolution when *project_path* is provided:
+      1. ``GET /project`` — list all projects.
+      2. Resolve *project_path* → ``project_id`` by canonicalized worktree match.
+      3. ``GET /session`` — list all sessions.
+      4. Filter sessions where ``session["projectID"] == project_id``.
+      5. 0 matches → ``ProjectSessionNotFoundError``.
+      6. 1 match  → return it.
+      7. Multiple → return the most recently created (highest ``createdAt``).
 
-    If project_path is not provided, returns the most recently updated session.
+    If *project_path* is not provided, returns the most recently updated session
+    (no project resolution).
 
     Args:
-        project_path: Optional project directory path (e.g., "/Users/koeppben/work/ai_files")
+        project_path: Optional project directory path (e.g., "/Users/koeppben/work/ai_files").
         base_url: Optional server base URL. If provided, uses this URL directly
             instead of resolving via opencode.json / OPENCODE_PORT. This enables
             attach_existing mode where the server was discovered dynamically.
@@ -1303,8 +1420,10 @@ def get_active_session(
         Session dict with id, title, projectID, directory, etc.
 
     Raises:
-        ServerNotAvailableError: If server is not reachable
-        APIError: If no unique session found for project_path
+        ServerNotAvailableError: If server is not reachable.
+        ProjectNotFoundError: If no OpenCode project matches *project_path*.
+        ProjectSessionNotFoundError: If the project exists but has no sessions.
+        APIError: If no sessions exist at all.
     """
     sessions = get_sessions(base_url=base_url)
 
@@ -1315,24 +1434,36 @@ def get_active_session(
         )
 
     if project_path:
-        matching_sessions = []
-        for session in sessions:
-            session_dir = session.get("directory", "")
-            if session_dir == project_path:
-                matching_sessions.append(session)
+        # Step 1-2: Resolve project_path → project_id via worktree match.
+        # ProjectNotFoundError propagates if no project matches.
+        project_id = resolve_project_id(project_path, base_url=base_url)
+
+        # Step 3-4: Filter sessions by projectID (NOT by directory).
+        matching_sessions = [
+            s for s in sessions
+            if s.get("projectID") == project_id
+        ]
 
         if len(matching_sessions) == 0:
-            raise APIError(
-                f"No session found for project path: {project_path}. "
-                "Open the workspace in OpenCode Desktop first."
+            raise ProjectSessionNotFoundError(
+                f"No session found for project '{project_path}' (projectID={project_id}). "
+                "Open a new session for this project in OpenCode Desktop.",
+                project_id=project_id,
+                project_path=project_path,
             )
-        if len(matching_sessions) > 1:
-            raise APIError(
-                f"Multiple sessions ({len(matching_sessions)}) found for project path: {project_path}. "
-                "Close other sessions for this project or specify a different project path."
-            )
+
+        if len(matching_sessions) == 1:
+            return matching_sessions[0]
+
+        # Multiple matches: return the most recently created session.
+        # Session objects have a "createdAt" timestamp field.
+        matching_sessions.sort(
+            key=lambda s: s.get("createdAt", ""),
+            reverse=True,
+        )
         return matching_sessions[0]
 
+    # No project_path: return the first (most recent) session.
     return sessions[0]
 
 

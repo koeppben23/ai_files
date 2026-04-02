@@ -12,6 +12,8 @@ import pytest
 from governance_runtime.infrastructure.opencode_server_client import (
     APIError,
     AuthenticationError,
+    ProjectNotFoundError,
+    ProjectSessionNotFoundError,
     ServerAuthRequiredError,
     ServerDiscoveryAmbiguousError,
     ServerDiscoveryNotFoundError,
@@ -28,8 +30,11 @@ from governance_runtime.infrastructure.opencode_server_client import (
     discover_local_opencode_server,
     ensure_opencode_server_running,
     extract_session_response,
+    get_active_session,
+    get_projects,
     post_json,
     resolve_opencode_server_base_url,
+    resolve_project_id,
     resolve_server_mode,
     send_session_command,
     send_session_prompt,
@@ -1422,3 +1427,267 @@ class TestDiscoverLocalOpencodeServerFailures:
 
         assert base_url == "http://127.0.0.1:52372"
         assert health["healthy"] is True
+
+
+# ---------------------------------------------------------------------------
+# get_projects(), resolve_project_id(), get_active_session() project-based tests
+# ---------------------------------------------------------------------------
+
+
+class TestGetProjects:
+    """Tests for get_projects() — GET /project."""
+
+    _MODULE = "governance_runtime.infrastructure.opencode_server_client"
+
+    def test_happy_returns_project_list(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: Returns list of project dicts from server."""
+        projects = [
+            {"id": "proj_abc", "worktree": "/Users/user/work/repo1"},
+            {"id": "proj_def", "worktree": "/Users/user/work/repo2"},
+        ]
+
+        def mock_urlopen(req, **kwargs):
+            resp = MagicMock()
+            resp.__enter__ = MagicMock(return_value=resp)
+            resp.__exit__ = MagicMock(return_value=False)
+            resp.read.return_value = json.dumps(projects).encode()
+            return resp
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.urllib.request.urlopen", side_effect=mock_urlopen):
+            result = get_projects(base_url="http://127.0.0.1:52372")
+
+        assert result == projects
+
+    def test_happy_threads_base_url(self, monkeypatch: pytest.MonkeyPatch):
+        """Happy: Provided base_url is used for the request URL."""
+        captured = {}
+
+        def mock_urlopen(req, **kwargs):
+            captured["url"] = req.full_url
+            resp = MagicMock()
+            resp.__enter__ = MagicMock(return_value=resp)
+            resp.__exit__ = MagicMock(return_value=False)
+            resp.read.return_value = b"[]"
+            return resp
+
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.urllib.request.urlopen", side_effect=mock_urlopen):
+            get_projects(base_url="http://127.0.0.1:52372")
+
+        assert captured["url"] == "http://127.0.0.1:52372/project"
+
+    def test_bad_server_unreachable(self, monkeypatch: pytest.MonkeyPatch):
+        """Bad: Server unreachable raises APIError."""
+        monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+        with patch(f"{self._MODULE}.urllib.request.urlopen",
+                   side_effect=OSError("Connection refused")):
+            with pytest.raises(APIError, match="Failed to get projects"):
+                get_projects(base_url="http://127.0.0.1:52372")
+
+
+class TestResolveProjectId:
+    """Tests for resolve_project_id() — worktree path → project ID.
+
+    Happy: Exact match and symlink-resolved match
+    Bad: No matching project
+    Corner: Trailing slashes, case sensitivity
+    """
+
+    _MODULE = "governance_runtime.infrastructure.opencode_server_client"
+
+    def _mock_get_projects(self, projects: list[dict]):
+        """Return a patcher for get_projects that returns fixed data."""
+        return patch(f"{self._MODULE}.get_projects", return_value=projects)
+
+    def test_happy_exact_worktree_match(self, tmp_path: Path):
+        """Happy: Exact worktree path matches project."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        projects = [
+            {"id": "proj_abc", "worktree": str(repo)},
+            {"id": "proj_def", "worktree": "/other/path"},
+        ]
+        with self._mock_get_projects(projects):
+            result = resolve_project_id(str(repo))
+        assert result == "proj_abc"
+
+    def test_happy_trailing_slash_normalized(self, tmp_path: Path):
+        """Happy: Trailing slash in project_path is stripped before comparison."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        projects = [{"id": "proj_abc", "worktree": str(repo)}]
+        with self._mock_get_projects(projects):
+            result = resolve_project_id(str(repo) + "/")
+        assert result == "proj_abc"
+
+    def test_happy_symlink_resolved(self, tmp_path: Path):
+        """Happy: Symlinked path resolves to same realpath as worktree."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        link = tmp_path / "repo-link"
+        link.symlink_to(repo)
+        projects = [{"id": "proj_abc", "worktree": str(repo)}]
+        with self._mock_get_projects(projects):
+            result = resolve_project_id(str(link))
+        assert result == "proj_abc"
+
+    def test_bad_no_matching_project(self, tmp_path: Path):
+        """Bad: No project matches the given path → ProjectNotFoundError."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        projects = [
+            {"id": "proj_abc", "worktree": "/some/other/repo"},
+            {"id": "proj_def", "worktree": "/yet/another/repo"},
+        ]
+        with self._mock_get_projects(projects):
+            with pytest.raises(ProjectNotFoundError) as exc_info:
+                resolve_project_id(str(repo))
+        assert exc_info.value.project_path == str(repo)
+        assert "No OpenCode project found" in str(exc_info.value)
+
+    def test_bad_empty_project_list(self, tmp_path: Path):
+        """Bad: Server returns no projects → ProjectNotFoundError."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        with self._mock_get_projects([]):
+            with pytest.raises(ProjectNotFoundError):
+                resolve_project_id(str(repo))
+
+    def test_corner_worktree_with_trailing_slash_in_server_data(self, tmp_path: Path):
+        """Corner: Server returns worktree with trailing slash — still matches."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        projects = [{"id": "proj_abc", "worktree": str(repo) + "/"}]
+        with self._mock_get_projects(projects):
+            result = resolve_project_id(str(repo))
+        assert result == "proj_abc"
+
+
+class TestGetActiveSessionProjectResolution:
+    """Tests for get_active_session() with project-based resolution.
+
+    Happy: project_path → project_id → session match
+    Bad: No project, no session for project
+    Corner: Multiple sessions for same project, global sessions excluded
+    Edge: No project_path (fallback to first session)
+    """
+
+    _MODULE = "governance_runtime.infrastructure.opencode_server_client"
+
+    def _mock_sessions(self, sessions: list[dict]):
+        return patch(f"{self._MODULE}.get_sessions", return_value=sessions)
+
+    def _mock_project_id(self, project_id: str):
+        return patch(f"{self._MODULE}.resolve_project_id", return_value=project_id)
+
+    def _mock_project_not_found(self, project_path: str):
+        return patch(
+            f"{self._MODULE}.resolve_project_id",
+            side_effect=ProjectNotFoundError(
+                f"No project found for {project_path}", project_path=project_path,
+            ),
+        )
+
+    def test_happy_single_session_for_project(self):
+        """Happy: Exactly one session matches the project → returned."""
+        sessions = [
+            {"id": "ses_1", "projectID": "proj_abc", "title": "My Session", "createdAt": "2026-04-01T10:00:00Z"},
+            {"id": "ses_2", "projectID": "global", "title": "Global Session", "createdAt": "2026-04-01T09:00:00Z"},
+        ]
+        with self._mock_sessions(sessions):
+            with self._mock_project_id("proj_abc"):
+                result = get_active_session("/Users/user/work/repo", base_url="http://127.0.0.1:52372")
+        assert result["id"] == "ses_1"
+        assert result["projectID"] == "proj_abc"
+
+    def test_happy_multiple_sessions_returns_most_recent(self):
+        """Happy: Multiple sessions for project → returns most recently created."""
+        sessions = [
+            {"id": "ses_old", "projectID": "proj_abc", "title": "Old Session", "createdAt": "2026-04-01T09:00:00Z"},
+            {"id": "ses_new", "projectID": "proj_abc", "title": "New Session", "createdAt": "2026-04-02T10:00:00Z"},
+            {"id": "ses_mid", "projectID": "proj_abc", "title": "Mid Session", "createdAt": "2026-04-01T15:00:00Z"},
+        ]
+        with self._mock_sessions(sessions):
+            with self._mock_project_id("proj_abc"):
+                result = get_active_session("/Users/user/work/repo", base_url="http://127.0.0.1:52372")
+        assert result["id"] == "ses_new"
+
+    def test_happy_excludes_global_sessions(self):
+        """Happy: Global sessions (projectID='global') don't match a repo project."""
+        sessions = [
+            {"id": "ses_global", "projectID": "global", "title": "Global", "createdAt": "2026-04-02T10:00:00Z"},
+            {"id": "ses_repo", "projectID": "proj_abc", "title": "Repo Session", "createdAt": "2026-04-01T10:00:00Z"},
+        ]
+        with self._mock_sessions(sessions):
+            with self._mock_project_id("proj_abc"):
+                result = get_active_session("/Users/user/work/repo", base_url="http://127.0.0.1:52372")
+        assert result["id"] == "ses_repo"
+
+    def test_bad_project_not_found(self):
+        """Bad: No project matches path → ProjectNotFoundError propagates."""
+        sessions = [
+            {"id": "ses_1", "projectID": "proj_abc", "title": "Some Session"},
+        ]
+        with self._mock_sessions(sessions):
+            with self._mock_project_not_found("/Users/user/work/unknown"):
+                with pytest.raises(ProjectNotFoundError) as exc_info:
+                    get_active_session("/Users/user/work/unknown", base_url="http://127.0.0.1:52372")
+        assert exc_info.value.project_path == "/Users/user/work/unknown"
+
+    def test_bad_no_session_for_project(self):
+        """Bad: Project exists but no sessions for it → ProjectSessionNotFoundError."""
+        sessions = [
+            {"id": "ses_1", "projectID": "proj_other", "title": "Other Project Session"},
+            {"id": "ses_2", "projectID": "global", "title": "Global Session"},
+        ]
+        with self._mock_sessions(sessions):
+            with self._mock_project_id("proj_abc"):
+                with pytest.raises(ProjectSessionNotFoundError) as exc_info:
+                    get_active_session("/Users/user/work/repo", base_url="http://127.0.0.1:52372")
+        assert exc_info.value.project_id == "proj_abc"
+        assert exc_info.value.project_path == "/Users/user/work/repo"
+
+    def test_bad_no_sessions_at_all(self):
+        """Bad: Server returns zero sessions → APIError."""
+        with self._mock_sessions([]):
+            with pytest.raises(APIError, match="No OpenCode sessions found"):
+                get_active_session("/Users/user/work/repo", base_url="http://127.0.0.1:52372")
+
+    def test_edge_no_project_path_returns_first_session(self):
+        """Edge: No project_path → returns first session (no project resolution)."""
+        sessions = [
+            {"id": "ses_1", "projectID": "global", "title": "First Session"},
+            {"id": "ses_2", "projectID": "proj_abc", "title": "Second Session"},
+        ]
+        with self._mock_sessions(sessions):
+            result = get_active_session(base_url="http://127.0.0.1:52372")
+        assert result["id"] == "ses_1"
+
+    def test_edge_only_global_sessions_for_repo_project(self):
+        """Edge: All sessions are global, none match the repo project → ProjectSessionNotFoundError."""
+        sessions = [
+            {"id": "ses_1", "projectID": "global", "title": "Global 1"},
+            {"id": "ses_2", "projectID": "global", "title": "Global 2"},
+        ]
+        with self._mock_sessions(sessions):
+            with self._mock_project_id("proj_abc"):
+                with pytest.raises(ProjectSessionNotFoundError):
+                    get_active_session("/Users/user/work/repo", base_url="http://127.0.0.1:52372")
+
+    def test_happy_threads_base_url_to_resolve_project_id(self):
+        """Happy: base_url is threaded through to resolve_project_id."""
+        sessions = [
+            {"id": "ses_1", "projectID": "proj_abc", "title": "Session"},
+        ]
+        captured = {}
+
+        def mock_resolve_project(project_path, *, base_url=None):
+            captured["base_url"] = base_url
+            return "proj_abc"
+
+        with self._mock_sessions(sessions):
+            with patch(f"{self._MODULE}.resolve_project_id", side_effect=mock_resolve_project):
+                get_active_session("/Users/user/work/repo", base_url="http://127.0.0.1:52372")
+
+        assert captured["base_url"] == "http://127.0.0.1:52372"
