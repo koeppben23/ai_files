@@ -1411,7 +1411,7 @@ def get_active_session(
     (no project resolution).
 
     Args:
-        project_path: Optional project directory path (e.g., "/Users/koeppben/work/ai_files").
+        project_path: Optional project directory path (e.g., "/path/to/repo").
         base_url: Optional server base URL. If provided, uses this URL directly
             instead of resolving via opencode.json / OPENCODE_PORT. This enables
             attach_existing mode where the server was discovered dynamically.
