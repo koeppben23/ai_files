@@ -77,9 +77,11 @@ class TestFinalSweep:
 
     def test_no_commands_logs_references(self):
         """Sweep: No active references to commands/logs/ as primary location."""
-        # This is documented as legacy - workspace logs only
-        # Just verify the conformance test exists
-        assert True
+        # commands/logs/ was removed in Wave 25b; verify it does not exist
+        commands_logs = REPO_ROOT / "commands" / "logs"
+        assert not commands_logs.exists(), (
+            f"commands/logs/ still exists at {commands_logs} — should be removed"
+        )
 
     def test_version_source_final(self):
         """Sweep: governance_runtime/VERSION is canonical."""

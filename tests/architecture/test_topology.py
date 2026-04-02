@@ -431,9 +431,11 @@ class TestTerminalStates:
         """Edge: Terminale States dürfen keine oder leere Transitions haben."""
         for state in topology["states"]:
             if state["terminal"]:
-                # Terminal states can have empty transitions or be marked explicitly
-                # This is allowed - no assertion needed
-                pass
+                # Terminal states must have zero transitions (no outgoing edges)
+                assert len(state["transitions"]) == 0, (
+                    f"Terminal state {state['id']} has {len(state['transitions'])} "
+                    f"transitions — terminal states must have none"
+                )
 
     def test_terminal_flag_is_boolean(self, topology):
         """Happy: Terminal-Flag ist Boolean."""

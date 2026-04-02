@@ -140,6 +140,7 @@ class TestProcessRunnerPortCorner:
         result = runner.run(["env"], env=None)
         call_kwargs = mock_run.call_args.kwargs
         # When env=None, subprocess uses current environment
+        assert "env" not in call_kwargs or call_kwargs["env"] is None
 
     @patch("subprocess.run")
     def test_run_with_special_chars_in_argv(self, mock_run, runner):

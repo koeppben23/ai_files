@@ -21,11 +21,11 @@ class TestNoCommandsLogsAssumptions:
         """Happy: Conformance tests should not use commands/logs/ as primary path."""
         conformance_dir = REPO_ROOT / "tests" / "conformance"
         
-        # Check that conformance tests don't assume commands/logs as primary
-        # This is documented intent - Wave 25c removes these assumptions
-        
-        # The target: workspace logs only
-        assert True, "Conformance tests should validate workspace-only model"
+        # Verify commands/logs/ does not exist — workspace-only model is in effect
+        commands_logs = REPO_ROOT / "commands" / "logs"
+        assert not commands_logs.exists(), (
+            f"commands/logs/ still present — workspace-only model requires removal"
+        )
 
     def test_runtime_kernel_no_new_commands_logs_writes(self):
         """Happy: Runtime kernel should not write new logs to commands/logs/."""
@@ -53,9 +53,15 @@ class TestNoCommandsLogsAssumptions:
 
     def test_log_writer_contract_workspace_only(self):
         """Happy: Log writer contract should be workspace-only."""
-        # This validates the contract intent
-        # The actual implementation writes to workspace paths
-        assert True, "Log writer contract is workspace-only"
+        # Phase kernel must define workspace_flow, workspace_boot, workspace_error
+        # and must NOT define commands_flow or commands_logs
+        phase_kernel = REPO_ROOT / "governance_runtime" / "kernel" / "phase_kernel.py"
+        content = phase_kernel.read_text(encoding="utf-8")
+        assert "workspace_flow" in content, "Must define workspace_flow log path"
+        assert "workspace_boot" in content, "Must define workspace_boot log path"
+        assert "commands_flow" not in content, (
+            "commands_flow must not exist — workspace-only model"
+        )
 
     def test_no_test_assumes_commands_logs_valid(self):
         """Happy: Tests should not assume commands/logs is valid for new writes."""

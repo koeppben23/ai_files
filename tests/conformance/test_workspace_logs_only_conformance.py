@@ -18,47 +18,39 @@ class TestWorkspaceLogsOnlyConformance:
 
     def test_workspace_logs_path_model(self):
         """Happy: Logs should be under workspaces/<fp>/logs/ not commands/logs/."""
-        workspace_logs_pattern = "workspaces/*/logs/"
-        
-        # The target model is: logs should be under workspaces/*/logs/
-        # NOT under commands/logs/
-        # This test documents the target state
-        
-        # Verify workspaces directory exists
-        workspaces = REPO_ROOT / "workspaces"
-        assert workspaces.is_dir() or True, "workspaces/ directory should exist or be creatable"
+        # Workspace paths are resolved at runtime from config-derived locations
+        # (e.g. ~/.config/opencode/workspaces/<fp>/logs/), not from repo root.
+        # Verify the repo does NOT contain a commands/logs/ directory.
+        commands_logs = REPO_ROOT / "commands" / "logs"
+        assert not commands_logs.exists(), (
+            "commands/logs/ must not exist — workspace-only model in effect"
+        )
 
     def test_no_commands_logs_in_target_model(self):
         """Happy: commands/logs/ should NOT be the primary log location."""
-        # According to the target model:
-        # - Primary logs should be under workspaces/<fp>/logs/
-        # - commands/logs/ is legacy and should be deprecated
-        
-        # This test validates the intent, not current state
-        # Actual migration happens in Wave 25b/c
-        
-        # For now, just document that the target is workspace-only
-        assert True, "Target model is workspace-only logs"
+        # Verify phase_kernel defines workspace log paths, not commands log paths
+        phase_kernel = REPO_ROOT / "governance_runtime" / "kernel" / "phase_kernel.py"
+        content = phase_kernel.read_text(encoding="utf-8")
+        assert "workspace_flow" in content, "workspace_flow must be defined"
+        assert "commands_flow" not in content, "commands_flow must not be defined"
 
     def test_log_routing_respects_workspace_model(self):
         """Happy: Log routing should prioritize workspace paths."""
-        # The target: log writers should route to workspaces/<fp>/logs/
-        # Not to commands/logs/
-        
-        # This is documented intent - actual implementation in Wave 25b
-        assert True, "Log routing should use workspace paths"
+        # Phase kernel must have the Wave 25b comment confirming workspace-only
+        phase_kernel = REPO_ROOT / "governance_runtime" / "kernel" / "phase_kernel.py"
+        content = phase_kernel.read_text(encoding="utf-8")
+        assert "workspace" in content.lower(), "Log routing must reference workspace paths"
+        assert "workspace_boot" in content, "workspace_boot log path must be defined"
 
     def test_workspace_directory_structure_for_logs(self):
         """Happy: Workspace structure supports logs subdirectory."""
-        # The target structure is:
-        # workspaces/<repo_fingerprint>/
-        #   └── logs/
-        #       ├── error.log.jsonl
-        #       ├── flow.log.jsonl
-        #       └── boot.log.jsonl
-        
-        # This validates the model intent
-        assert True, "Workspace structure supports logs/ subdirectory"
+        # Verify phase_kernel defines the expected log file names under workspace
+        phase_kernel = REPO_ROOT / "governance_runtime" / "kernel" / "phase_kernel.py"
+        content = phase_kernel.read_text(encoding="utf-8")
+        # Expected log files: flow.log.jsonl, boot.log.jsonl, error.log.jsonl
+        assert "flow.log.jsonl" in content, "workspace must define flow.log.jsonl"
+        assert "boot.log.jsonl" in content, "workspace must define boot.log.jsonl"
+        assert "error.log.jsonl" in content, "workspace must define error.log.jsonl"
 
 
 @pytest.mark.conformance  
@@ -76,11 +68,9 @@ class TestLogPathInventory:
 
     def test_log_schema_locations(self):
         """Verify log schemas are defined in governance."""
-        # Log schemas should be in governance runtime
+        # Log structure is defined inline in phase_kernel (not as separate schema files)
+        # Verify the engine directory exists and has session state schema at minimum
         engine = REPO_ROOT / "governance_runtime" / "engine"
-        if engine.is_dir():
-            # Schema files may exist
-            pass
-        
-        # Just document that we checked
-        assert True
+        assert engine.is_dir(), "governance_runtime/engine/ must exist"
+        schema_file = engine / "_embedded_session_state_schema.py"
+        assert schema_file.exists(), "Embedded session state schema must exist"
