@@ -1592,8 +1592,8 @@ class TestGetActiveSessionProjectResolution:
     def test_happy_single_session_for_project(self):
         """Happy: Exactly one session matches the project → returned."""
         sessions = [
-            {"id": "ses_1", "projectID": "proj_abc", "title": "My Session", "createdAt": "2026-04-01T10:00:00Z"},
-            {"id": "ses_2", "projectID": "global", "title": "Global Session", "createdAt": "2026-04-01T09:00:00Z"},
+            {"id": "ses_1", "projectID": "proj_abc", "title": "My Session", "time": {"created": 1000, "updated": 1000}},
+            {"id": "ses_2", "projectID": "global", "title": "Global Session", "time": {"created": 900, "updated": 900}},
         ]
         with self._mock_sessions(sessions):
             with self._mock_project_id("proj_abc"):
@@ -1604,9 +1604,9 @@ class TestGetActiveSessionProjectResolution:
     def test_happy_multiple_sessions_returns_most_recent(self):
         """Happy: Multiple sessions for project → returns most recently created."""
         sessions = [
-            {"id": "ses_old", "projectID": "proj_abc", "title": "Old Session", "createdAt": "2026-04-01T09:00:00Z"},
-            {"id": "ses_new", "projectID": "proj_abc", "title": "New Session", "createdAt": "2026-04-02T10:00:00Z"},
-            {"id": "ses_mid", "projectID": "proj_abc", "title": "Mid Session", "createdAt": "2026-04-01T15:00:00Z"},
+            {"id": "ses_old", "projectID": "proj_abc", "title": "Old Session", "time": {"created": 900, "updated": 900}},
+            {"id": "ses_new", "projectID": "proj_abc", "title": "New Session", "time": {"created": 2000, "updated": 2000}},
+            {"id": "ses_mid", "projectID": "proj_abc", "title": "Mid Session", "time": {"created": 1500, "updated": 1500}},
         ]
         with self._mock_sessions(sessions):
             with self._mock_project_id("proj_abc"):
@@ -1616,8 +1616,8 @@ class TestGetActiveSessionProjectResolution:
     def test_happy_excludes_global_sessions(self):
         """Happy: Global sessions (projectID='global') don't match a repo project."""
         sessions = [
-            {"id": "ses_global", "projectID": "global", "title": "Global", "createdAt": "2026-04-02T10:00:00Z"},
-            {"id": "ses_repo", "projectID": "proj_abc", "title": "Repo Session", "createdAt": "2026-04-01T10:00:00Z"},
+            {"id": "ses_global", "projectID": "global", "title": "Global", "time": {"created": 2000, "updated": 2000}},
+            {"id": "ses_repo", "projectID": "proj_abc", "title": "Repo Session", "time": {"created": 1000, "updated": 1000}},
         ]
         with self._mock_sessions(sessions):
             with self._mock_project_id("proj_abc"):
@@ -1691,3 +1691,48 @@ class TestGetActiveSessionProjectResolution:
                 get_active_session("/Users/user/work/repo", base_url="http://127.0.0.1:52372")
 
         assert captured["base_url"] == "http://127.0.0.1:52372"
+
+    def test_happy_threads_directory_to_get_sessions(self):
+        """Happy: project_path is forwarded as directory= to get_sessions()."""
+        sessions = [
+            {"id": "ses_1", "projectID": "proj_abc", "title": "Session"},
+        ]
+        captured = {}
+
+        def mock_get_sessions(*, base_url=None, directory=None):
+            captured["directory"] = directory
+            return sessions
+
+        with patch(f"{self._MODULE}.get_sessions", side_effect=mock_get_sessions):
+            with self._mock_project_id("proj_abc"):
+                get_active_session("/Users/user/work/repo", base_url="http://127.0.0.1:52372")
+
+        assert captured["directory"] == "/Users/user/work/repo"
+
+    def test_edge_no_project_path_passes_none_directory(self):
+        """Edge: No project_path → directory=None passed to get_sessions()."""
+        sessions = [
+            {"id": "ses_1", "projectID": "global", "title": "Global Session"},
+        ]
+        captured = {}
+
+        def mock_get_sessions(*, base_url=None, directory=None):
+            captured["directory"] = directory
+            return sessions
+
+        with patch(f"{self._MODULE}.get_sessions", side_effect=mock_get_sessions):
+            result = get_active_session(base_url="http://127.0.0.1:52372")
+
+        assert captured["directory"] is None
+        assert result["id"] == "ses_1"
+
+    def test_bad_no_session_diagnostic_includes_actual_project_ids(self):
+        """Bad: Error message includes actual projectIDs for debugging."""
+        sessions = [
+            {"id": "ses_1", "projectID": "proj_other", "title": "Other"},
+            {"id": "ses_2", "projectID": "global", "title": "Global"},
+        ]
+        with self._mock_sessions(sessions):
+            with self._mock_project_id("proj_abc"):
+                with pytest.raises(ProjectSessionNotFoundError, match="proj_other"):
+                    get_active_session("/Users/user/work/repo", base_url="http://127.0.0.1:52372")

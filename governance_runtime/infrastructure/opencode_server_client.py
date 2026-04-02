@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import warnings
 from pathlib import Path
@@ -1347,8 +1348,8 @@ def resolve_project_id(
     )
 
 
-def get_sessions(*, base_url: str | None = None) -> list[dict]:
-    """Get all sessions from OpenCode server.
+def get_sessions(*, base_url: str | None = None, directory: str | None = None) -> list[dict]:
+    """Get sessions from OpenCode server.
 
     Uses GET /session per official server API documentation.
 
@@ -1356,6 +1357,10 @@ def get_sessions(*, base_url: str | None = None) -> list[dict]:
         base_url: Optional server base URL. If provided, uses this URL directly
             instead of resolving via opencode.json / OPENCODE_PORT. This enables
             attach_existing mode where the server was discovered dynamically.
+        directory: Optional directory filter. When provided, appended as
+            ``?directory=<path>`` so the server returns only sessions scoped
+            to that directory.  Without this parameter the server returns
+            only global sessions.
 
     Returns:
         List of session dicts with id, title, projectID, directory, etc.
@@ -1381,6 +1386,8 @@ def get_sessions(*, base_url: str | None = None) -> list[dict]:
         headers.update(auth_headers)
 
     url = f"{server_url}/session"
+    if directory:
+        url = f"{url}?directory={urllib.parse.quote(directory, safe='')}"
     req = urllib.request.Request(url, headers=headers, method="GET")
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -1425,7 +1432,7 @@ def get_active_session(
         ProjectSessionNotFoundError: If the project exists but has no sessions.
         APIError: If no sessions exist at all.
     """
-    sessions = get_sessions(base_url=base_url)
+    sessions = get_sessions(base_url=base_url, directory=project_path)
 
     if not sessions:
         raise APIError(
@@ -1445,8 +1452,11 @@ def get_active_session(
         ]
 
         if len(matching_sessions) == 0:
+            # Diagnostic: include actual projectIDs for debugging.
+            actual_ids = sorted({s.get("projectID", "<missing>") for s in sessions})
             raise ProjectSessionNotFoundError(
                 f"No session found for project '{project_path}' (projectID={project_id}). "
+                f"Sessions returned had projectIDs: {actual_ids}. "
                 "Open a new session for this project in OpenCode Desktop.",
                 project_id=project_id,
                 project_path=project_path,
@@ -1456,9 +1466,9 @@ def get_active_session(
             return matching_sessions[0]
 
         # Multiple matches: return the most recently created session.
-        # Session objects have a "createdAt" timestamp field.
+        # Session objects have nested time.created (numeric Unix timestamp ms).
         matching_sessions.sort(
-            key=lambda s: s.get("createdAt", ""),
+            key=lambda s: s.get("time", {}).get("created", 0),
             reverse=True,
         )
         return matching_sessions[0]

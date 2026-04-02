@@ -569,12 +569,16 @@ def _launcher_template_unix(
       3. Fail-closed: exit 1, NO silent PATH probing
 
     Subcommand routing (python-binding-contract.v1 §4):
+      --hydrate [args]           -> session_hydration entrypoint
       --session-reader [args]    -> session_reader.py entrypoint
+      --review-pr [args]         -> review_pr entrypoint
       --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
       --review-decision-persist [args] -> review_decision_persist entrypoint (canonical)
       --implement-start [args]   -> implement_start entrypoint (canonical)
       --implementation-decision-persist [args] -> implementation_decision_persist entrypoint (canonical)
+      --verify-contracts [args]  -> verify_contracts entrypoint
+      --human-approval-persist [args] -> human_approval_persist entrypoint
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
@@ -614,9 +618,17 @@ def _launcher_template_unix(
             "",
             "# --- Subcommand routing (python-binding-contract.v1 §4) ---",
             "case \"${1:-}\" in",
+            "    --hydrate)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.session_hydration \"$@\"",
+            "        ;;",
             "    --session-reader)",
             "        shift",
             "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.session_reader \"$@\"",
+            "        ;;",
+            "    --review-pr)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.review_pr \"$@\"",
             "        ;;",
             "    --ticket-persist)",
             "        shift",
@@ -637,6 +649,14 @@ def _launcher_template_unix(
             "    --implementation-decision-persist)",
             "        shift",
             "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.implementation_decision_persist \"$@\"",
+            "        ;;",
+            "    --verify-contracts)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.verify_contracts \"$@\"",
+            "        ;;",
+            "    --human-approval-persist)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.human_approval_persist \"$@\"",
             "        ;;",
             "    *)",
             "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.bootstrap_executor \"$@\"",
@@ -664,12 +684,16 @@ def _launcher_template_windows(
       3. Fail-closed: exit /b 1, NO silent PATH probing
 
     Subcommand routing (python-binding-contract.v1 §4):
+      --hydrate [args]           -> session_hydration entrypoint
       --session-reader [args]    -> session_reader.py entrypoint
+      --review-pr [args]         -> review_pr entrypoint
       --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
       --review-decision-persist [args] -> review_decision_persist entrypoint (canonical)
       --implement-start [args]   -> implement_start entrypoint (canonical)
       --implementation-decision-persist [args] -> implementation_decision_persist entrypoint (canonical)
+      --verify-contracts [args]  -> verify_contracts entrypoint
+      --human-approval-persist [args] -> human_approval_persist entrypoint
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
@@ -722,9 +746,21 @@ def _launcher_template_windows(
             ")",
             "",
             "rem --- Subcommand routing (python-binding-contract.v1 §4) ---",
+            "if \"%~1\"==\"--hydrate\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.session_hydration %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
             "if \"%~1\"==\"--session-reader\" (",
             "    shift",
             "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.session_reader %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
+            "if \"%~1\"==\"--review-pr\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.review_pr %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
@@ -755,6 +791,18 @@ def _launcher_template_windows(
             "if \"%~1\"==\"--implementation-decision-persist\" (",
             "    shift",
             "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.implementation_decision_persist %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
+            "if \"%~1\"==\"--verify-contracts\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.verify_contracts %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
+            "if \"%~1\"==\"--human-approval-persist\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.human_approval_persist %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
