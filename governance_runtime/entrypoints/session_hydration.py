@@ -108,7 +108,7 @@ def _success_payload(
         "active_gate": TICKET_INTAKE_GATE,
         "next_gate_condition": "TicketRecordVersion > 0",
         "next_action": "run /ticket or /review.",
-        "next_action_command": "/ticket",
+        "next_action_command": "/ticket or /review",
     }
 
 
