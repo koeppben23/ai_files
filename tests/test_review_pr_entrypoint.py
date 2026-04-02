@@ -226,3 +226,67 @@ def test_review_pr_main_happy(monkeypatch, tmp_path: Path, capsys) -> None:
     assert output["base_sha"] == "a" * 40
     assert output["head_sha"] == "b" * 40
     assert output["merge_base_sha"] == "c" * 40
+
+
+# ---------------------------------------------------------------------------
+# Additional BLOCKED code coverage
+# ---------------------------------------------------------------------------
+
+
+def test_review_pr_base_ref_unresolved_blocks(monkeypatch, tmp_path: Path) -> None:
+    """BLOCKED-REVIEW-BASE-UNRESOLVED when base ref cannot be resolved."""
+    monkeypatch.setattr(review_pr, "require_complete_contracts", lambda repo_root, required_ids: _EnforcementOk())
+
+    monkeypatch.setattr(review_pr, "_remote_available", lambda *, repo_root, remote: True)
+    monkeypatch.setattr(review_pr, "_resolve_ref", lambda *, repo_root, ref: "")  # always fail
+    monkeypatch.setattr(review_pr, "_run_git_command", lambda args, *, cwd: _cp(0))
+
+    result = review_pr.analyze_pr(
+        repo_root=tmp_path, remote="origin", base_branch="main", head_ref="refs/heads/feat/x",
+    )
+    assert result.status == "blocked"
+    assert result.reason_code == "BLOCKED-REVIEW-BASE-UNRESOLVED"
+    assert "base ref" in result.message
+
+
+def test_review_pr_head_ref_unresolved_blocks(monkeypatch, tmp_path: Path) -> None:
+    """BLOCKED-REVIEW-HEAD-UNRESOLVED when head ref cannot be resolved but base can."""
+    monkeypatch.setattr(review_pr, "require_complete_contracts", lambda repo_root, required_ids: _EnforcementOk())
+
+    def fake_resolve(*, repo_root: Path, ref: str) -> str:
+        # Base resolves, head does not
+        if "refs/remotes/origin/main" in ref:
+            return "a" * 40
+        return ""
+
+    monkeypatch.setattr(review_pr, "_remote_available", lambda *, repo_root, remote: True)
+    monkeypatch.setattr(review_pr, "_resolve_ref", fake_resolve)
+    monkeypatch.setattr(review_pr, "_run_git_command", lambda args, *, cwd: _cp(0))
+
+    result = review_pr.analyze_pr(
+        repo_root=tmp_path, remote="origin", base_branch="main", head_ref="refs/heads/feat/x",
+    )
+    assert result.status == "blocked"
+    assert result.reason_code == "BLOCKED-REVIEW-HEAD-UNRESOLVED"
+    assert "head ref" in result.message
+
+
+def test_review_pr_remote_unavailable_worktree_fail_blocks(monkeypatch, tmp_path: Path) -> None:
+    """BLOCKED-REVIEW-REMOTE-UNAVAILABLE when remote is down AND worktree creation fails."""
+    monkeypatch.setattr(review_pr, "require_complete_contracts", lambda repo_root, required_ids: _EnforcementOk())
+
+    monkeypatch.setattr(review_pr, "_remote_available", lambda *, repo_root, remote: False)
+
+    def fake_run_git(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+        if args[0] == "worktree" and args[1] == "add":
+            return _cp(128, stderr="worktree add failed")
+        return _cp(0)
+
+    monkeypatch.setattr(review_pr, "_run_git_command", fake_run_git)
+
+    result = review_pr.analyze_pr(
+        repo_root=tmp_path, remote="origin", base_branch="main", head_ref="refs/heads/feat/x",
+    )
+    assert result.status == "blocked"
+    assert result.reason_code == "BLOCKED-REVIEW-REMOTE-UNAVAILABLE"
+    assert "worktree" in result.message
