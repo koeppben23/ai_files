@@ -24,7 +24,7 @@ def main() -> int:
 
     try:
         payload = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
-    except Exception as exc:  # pragma: no cover - defensive parse path
+    except (OSError, json.JSONDecodeError, ValueError) as exc:  # pragma: no cover - defensive parse path
         print(f"BLOCKED: reason schema registry unreadable: {exc}")
         return 2
 

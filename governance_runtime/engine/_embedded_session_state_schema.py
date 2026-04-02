@@ -19,7 +19,7 @@ def _load_schema() -> dict[str, object]:
     try:
         schema_text = resources.files("governance.assets.schemas").joinpath("session_state.core.v1.schema.json").read_text(encoding="utf-8")
         return json.loads(schema_text)
-    except Exception:
+    except (OSError, ImportError, TypeError, json.JSONDecodeError):
         # import fallback: hardcoded schema for frozen/embedded contexts where resources API fails
         # This MUST be kept in sync with session_state.core.v1.schema.json
         return _HARDCODED_FALLBACK_SCHEMA  # pragma: no cover

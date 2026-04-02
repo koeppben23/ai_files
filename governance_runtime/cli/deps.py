@@ -40,6 +40,6 @@ class GlobalErrorLogger:
                 message=event.message,
                 context=event.context,
             )
-        except Exception:
+        except (OSError, RuntimeError):
             # best-effort: emit failure should not crash the CLI
             return

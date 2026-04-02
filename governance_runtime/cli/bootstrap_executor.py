@@ -15,7 +15,7 @@ from governance_runtime.application.use_cases.repo_policy_setup import (
 
 try:
     from governance_runtime.infrastructure.path_contract import normalize_absolute_path
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     normalize_absolute_path = None  # type: ignore
 
 def _normalize_path(raw: str, *, purpose: str) -> Path:
@@ -229,7 +229,7 @@ def main() -> int:
                 profile=selected_profile,
                 now_utc=now_utc,
             )
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             print(f"failed to set repo operating mode: {exc}", file=sys.stderr)
             return 2
         print(f"repoOperatingMode = {selected_profile}")
@@ -247,7 +247,7 @@ def main() -> int:
                 if mode_path:
                     print(f"governanceModeState = active")
                     print(f"governanceModePath = {mode_path}")
-            except Exception as exc:
+            except (OSError, ValueError) as exc:
                 print(f"failed to set regulated mode: {exc}", file=sys.stderr)
                 return 2
     # Always request full preflight payloads, then format in this entrypoint.

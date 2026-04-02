@@ -26,7 +26,7 @@ try:
         session_state_template,
     )
     from governance_runtime.entrypoints.bootstrap_session_state_orchestrator import main as _orchestrator_main
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     from bootstrap_session_state_orchestrator import (  # type: ignore # noqa: F401
         _atomic_write_text,
         _is_canonical_fingerprint,

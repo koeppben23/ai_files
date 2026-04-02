@@ -20,7 +20,7 @@ try:
         _verify_phase2_artifacts_exist,
     )
     from governance_runtime.entrypoints.persist_workspace_artifacts_orchestrator import main as _orchestrator_main
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     from persist_workspace_artifacts_orchestrator import *  # type: ignore  # noqa: F401,F403
     from persist_workspace_artifacts_orchestrator import (  # type: ignore # noqa: F401
         PHASE2_ARTIFACTS,

@@ -89,7 +89,7 @@ def _check_policy_bundle_selfcheck(mode: str) -> tuple[bool, str | None]:
         return False, "operating_mode_invalid"
     try:
         ensure_policy_bundle_loaded(mode=mode)
-    except Exception:
+    except (OSError, ValueError, RuntimeError):
         # fail-closed: any policy bundle load failure is a selfcheck failure
         return False, "policy_bundle_load_failed"
     return True, None

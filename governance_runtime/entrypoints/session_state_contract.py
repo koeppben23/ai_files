@@ -18,7 +18,7 @@ try:
         session_pointer_path,
         session_state_template,
     )
-except Exception:  # pragma: no cover - fallback imports
+except ImportError:  # pragma: no cover - fallback imports
     import re
     from datetime import datetime, timezone
     from pathlib import Path

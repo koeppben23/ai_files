@@ -320,8 +320,8 @@ def extract_candidates_from_repo(repo_root: Path) -> tuple[list[RuleCandidate], 
                             section_signal=section_signal,
                         )
                     )
-    except Exception:
-        # fail-closed: any error during repo walk/scan returns empty candidates
+    except OSError:
+        # fail-closed: any filesystem error during repo walk/scan returns empty candidates
         return [], False
     return candidates, True
 

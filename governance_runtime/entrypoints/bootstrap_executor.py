@@ -15,7 +15,7 @@ from governance_runtime.application.use_cases.repo_policy_setup import (
 
 try:
     from governance_runtime.infrastructure.path_contract import normalize_absolute_path
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     normalize_absolute_path = None  # type: ignore
 
 

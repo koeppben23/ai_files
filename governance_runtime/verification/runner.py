@@ -21,7 +21,7 @@ from governance_runtime.verification.static_verifier import run_static_verificat
 
 try:
     from governance_runtime.infrastructure.adapters.process.subprocess_runner import SubprocessRunner
-except Exception:
+except ImportError:
     # import fallback: use direct subprocess if SubprocessRunner unavailable
     SubprocessRunner = None  # pragma: no cover
 
@@ -62,7 +62,7 @@ def _run_node(python_bin: str, repo_root: Path, nodeid: str) -> bool:
 def run_contract_verification(*, repo_root: Path, python_bin: str = sys.executable) -> dict[str, object]:
     try:
         loaded = load_and_validate_contracts(repo_root)
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         return {
             "status": "FAIL",
             "reason": "contract_load_failed",
@@ -76,7 +76,7 @@ def run_contract_verification(*, repo_root: Path, python_bin: str = sys.executab
         }
     try:
         registry = _load_verification_registry(repo_root)
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         return {
             "status": "FAIL",
             "reason": "verification_registry_load_failed",

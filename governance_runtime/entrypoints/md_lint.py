@@ -372,7 +372,7 @@ def lint_file(file_path: Path, rules: Sequence[Rule] = RULES) -> list[Finding]:
     
     try:
         content = file_path.read_text(encoding="utf-8")
-    except Exception as exc:
+    except OSError as exc:
         findings.append(Finding(
             rule_id="PARSE",
             severity="error",

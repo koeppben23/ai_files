@@ -13,7 +13,7 @@ from typing import Any
 
 try:
     import yaml
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     yaml = None  # type: ignore
 
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver

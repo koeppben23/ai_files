@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -26,7 +27,7 @@ def require_complete_contracts(
 ) -> EnforcementResult:
     try:
         loaded = load_and_validate_contracts(repo_root)
-    except Exception as exc:  # Fail-closed: contracts must load
+    except (OSError, json.JSONDecodeError, ValueError) as exc:  # Fail-closed: contracts must load
         return EnforcementResult(
             ok=False,
             reason=FAIL_CLOSED_MISSING_CONTRACT,
