@@ -609,7 +609,7 @@ class TestNoRoguePaths:
         "VERSION",
         # Configuration
         "AGENTS.md",
-        "ARCHITECTURE_BASELINE.md".
+        "ARCHITECTURE_BASELINE.md",
         # Documentation
         "ADR.md",
         "CHANGELOG.md",
