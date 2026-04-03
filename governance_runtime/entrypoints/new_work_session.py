@@ -34,12 +34,12 @@ from governance_runtime.application.services.state_accessor import get_next, get
 try:
     from governance_runtime.infrastructure.governance_hooks import run_post_archive_governance as _run_post_archive_governance
     _GOVERNANCE_AVAILABLE = True
-except Exception:
+except (ImportError, AttributeError):
     _run_post_archive_governance = None  # type: ignore[assignment]
     _GOVERNANCE_AVAILABLE = False
 try:
     from governance_runtime.entrypoints.workspace_lock import acquire_workspace_lock
-except Exception:
+except (ImportError, AttributeError):
     from workspace_lock import acquire_workspace_lock  # type: ignore
 
 
@@ -70,6 +70,26 @@ def _reset_for_new_work(
     state["phase4_intake_evidence"] = False
     state["phase4_intake_source"] = "new-work-session"
     state["phase4_intake_updated_at"] = observed_at
+
+    # ── Preserve hydration state across new-work-session cycles ───────
+    # session_hydration.py writes SessionHydration.status = "hydrated"
+    # with resolved_server_url *before* the next new-work-session fires.
+    # If the existing state already carries status == "hydrated" we MUST
+    # keep the block intact — new-work-session must never silently
+    # regress hydration (identical guard to bootstrap_persistence.py and
+    # bootstrap_preflight_readonly.py, Patch 19).
+    existing_hydration = state.get("SessionHydration")
+    if isinstance(existing_hydration, dict) and str(
+        existing_hydration.get("status") or ""
+    ).strip().lower() == "hydrated":
+        state["session_hydrated"] = True
+        # Keep existing SessionHydration block unchanged.
+    else:
+        state["session_hydrated"] = False
+        state["SessionHydration"] = {
+            "status": "not_hydrated",
+            "source": "new-work-session",
+        }
     state["phase_transition_evidence"] = False
 
     state["phase"] = "4"
@@ -77,7 +97,7 @@ def _reset_for_new_work(
     state["Mode"] = "IN_PROGRESS"
     state["status"] = "OK"
     state["active_gate"] = "Ticket Input Gate"
-    state["next_gate_condition"] = "Collect ticket and planning constraints (or run /review for review-only lead/staff feedback)."
+    state["next_gate_condition"] = "Run /hydrate first to bind the session, then collect ticket and planning constraints (or run /review for review-only lead/staff feedback)."
     apply_fresh_start_business_rules_neutralization(state)
     hydrate_business_rules_state_from_artifacts(
         state=state,
@@ -130,7 +150,7 @@ def _check_recent_duplicate(
         return False, {}
     try:
         guard_doc = _load_json(guard_path)
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return False, {}
 
     last = guard_doc.get("last")
@@ -222,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         session_path, repo_fingerprint, workspaces_home, workspace_dir = resolve_active_session_paths()
-    except Exception as exc:
+    except (ImportError, OSError, RuntimeError) as exc:
         payload = _payload(
             "blocked",
             reason="new-work-session-init-failed",
@@ -318,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
                     workspace_root=session_path.parent,
                     events_path=session_path.parent / "logs" / "events.jsonl",
                 )
-            except Exception:
+            except (ImportError, OSError):
                 pass  # governance hook is fail-open — never blocks session
 
         purged_runtime_files = purge_runtime_artifacts(session_path.parent)
@@ -359,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
             run_id=new_run_id,
             observed_at=observed_at,
         )
-    except Exception as exc:
+    except (ImportError, OSError, RuntimeError) as exc:
         try:
             _append_jsonl(
                 session_path.parent / "logs" / "events.jsonl",
@@ -374,7 +394,7 @@ def main(argv: list[str] | None = None) -> int:
                     "error": str(exc),
                 },
             )
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
         payload = _payload(
             "blocked",
@@ -388,7 +408,7 @@ def main(argv: list[str] | None = None) -> int:
         if lock is not None:
             try:
                 lock.release()
-            except Exception:
+            except (OSError, RuntimeError):
                 pass
 
     payload = _payload(

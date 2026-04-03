@@ -30,8 +30,36 @@ if [ ! -x "${PYTHON_BIN}" ] 2>/dev/null; then
 fi
 export OPENCODE_PYTHON="${PYTHON_BIN}"
 
+# --- OpenCode Port configuration ---
+OPENCODE_PORT="${OPENCODE_PORT:-4096}"
+_REMAINING_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --opencode-port)
+            if [[ -n "${2:-}" ]]; then
+                OPENCODE_PORT="$2"
+                shift 2
+            else
+                echo "ERROR: --opencode-port requires a port number" >&2
+                exit 1
+            fi
+            ;;
+        *)
+            _REMAINING_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- "${_REMAINING_ARGS[@]}"
+unset _REMAINING_ARGS
+export OPENCODE_PORT
+
 # --- Subcommand routing (python-binding-contract.v1 §4) ---
 case "${1:-}" in
+    --hydrate)
+        shift
+        exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.session_hydration "$@"
+        ;;
     --session-reader)
         shift
         exec "${PYTHON_BIN}" -m governance_runtime.entrypoints.session_reader "$@"

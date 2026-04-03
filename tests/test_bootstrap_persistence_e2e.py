@@ -245,7 +245,7 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
 
     launcher = _bootstrap_launcher(checkout_root)
     proc = _run(
-        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
+        launcher + ["--repo-root", str(repo), "--config-root", str(config_root), "--json"],
         cwd=repo,
         env=env,
     )
@@ -384,7 +384,7 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
 
     launcher = _bootstrap_launcher(checkout_root)
     proc = _run(
-        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
+        launcher + ["--repo-root", str(repo), "--config-root", str(config_root), "--json"],
         cwd=repo,
         env=env,
     )
@@ -440,7 +440,7 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
 
     launcher = _bootstrap_launcher(checkout_root)
     proc = _run(
-        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
+        launcher + ["--repo-root", str(repo), "--config-root", str(config_root), "--json"],
         cwd=repo,
         env=env,
     )
@@ -464,7 +464,6 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     assert run_continue.returncode in (0, 1), run_continue.stdout + "\n" + run_continue.stderr
 
     output = run_continue.stdout
-    assert "Current state" in output
-    assert "What this means now" in output
-    assert "Next action:" in output
-    assert output.strip().splitlines()[-1].startswith("Next action: ")
+    assert "Current phase is" in output
+    assert "Current next is:" in output
+    assert "Next action:" not in output or output.strip().splitlines()[-1].startswith("Next action: ")

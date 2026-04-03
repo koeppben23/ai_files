@@ -33,13 +33,28 @@ import subprocess
 import sys
 try:
     import pwd
-except Exception:  # pragma: no cover - unavailable on Windows
+except ImportError:  # pragma: no cover - unavailable on Windows
     pwd = None
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Iterable
+
+from governance_runtime.infrastructure.fs_atomic import atomic_write_json, atomic_write_text
+
+
+def _is_windows() -> bool:
+    """Return True when running on Windows.
+
+    Encapsulated as a function so test code can ``monkeypatch.setattr``
+    *this* function instead of globally patching ``os.name``, which poisons
+    ``pathlib.Path()`` and pytest internals on cross-platform CI.
+    """
+    return os.name == "nt"
+
+
+DEFAULT_OPENCODE_PORT = 4096
 
 def get_governance_docs_root(base: Path) -> Path:
     new_path = base / "governance_content" / "docs"
@@ -174,7 +189,7 @@ def _ensure_utf8_stdio() -> None:
             reconfigure = getattr(stream, "reconfigure", None)
             if callable(reconfigure):
                 reconfigure(encoding="utf-8", errors="replace")
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
 
@@ -211,7 +226,7 @@ def _load_error_logger() -> Callable[..., object]:
         spec.loader.exec_module(mod)
         fn = getattr(mod, "safe_log_error", None)
         return fn if callable(fn) else (lambda **kwargs: {"status": "log-disabled"})
-    except Exception:
+    except (ImportError, AttributeError, OSError):
         return lambda **kwargs: {"status": "log-disabled"}
 
 
@@ -240,6 +255,7 @@ VERSION = "1.1.0-RC.2"
 CANONICAL_RAIL_FILENAMES = (
     "audit-readout.md",
     "continue.md",
+    "hydrate.md",
     "implement.md",
     "implementation-decision.md",
     "plan.md",
@@ -348,7 +364,7 @@ def get_config_root() -> Path:
                 home = getattr(pw_entry, "pw_dir", None)
                 if home:
                     return Path(home).resolve() / ".config" / "opencode"
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
     return (Path.home().resolve() / ".config" / "opencode").resolve()
 
@@ -417,7 +433,13 @@ def ensure_dirs(config_root: Path, local_root: Path | None = None, dry_run: bool
             print(f"  ✅ {d}")
 
 
-def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]:
+def create_launcher(
+    plan: InstallPlan,
+    dry_run: bool,
+    force: bool,
+    *,
+    opencode_port: int = DEFAULT_OPENCODE_PORT,
+) -> list[dict]:
     """Create local bootstrap launcher scripts. Returns list of created file entries for manifest."""
     import sys
     import json
@@ -453,16 +475,17 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
                 python_exe=python_exe,
                 dest_unix=launcher_unix,
                 dest_win=launcher_win,
+                opencode_port=opencode_port,
             )
             created_entries.extend(launcher_entries)
         except RuntimeError as exc:
-            raise RuntimeError(f"Launcher generation failed: {exc}")
+            raise RuntimeError(f"Launcher generation failed: {exc}") from exc
 
     if binding_path.exists():
         try:
             data = json.loads(binding_path.read_text(encoding="utf-8"))
             binding_ok = data.get("schema") == "opencode-governance.paths.v1"
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
     git_available = shutil.which("git") is not None
@@ -487,8 +510,7 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
     if dry_run:
         print(f"  [DRY-RUN] write {health_path}")
     else:
-        import json
-        health_path.write_text(json.dumps(health_data, indent=2, ensure_ascii=True), encoding="utf-8")
+        atomic_write_json(health_path, health_data, ensure_ascii=True)
         print(f"  ✅ {health_path}")
 
     created_entries.append(
@@ -509,8 +531,8 @@ def _resolve_python_executable(binding_path: Path, *, fallback: str, strict: boo
         return fallback
     try:
         data = json.loads(binding_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        raise RuntimeError(f"Invalid governance.paths.json: {exc}")
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Invalid governance.paths.json: {exc}") from exc
     paths = data.get("paths")
     if not isinstance(paths, dict):
         return fallback
@@ -530,7 +552,13 @@ def _resolve_python_executable(binding_path: Path, *, fallback: str, strict: boo
     return fallback
 
 
-def _launcher_template_unix(*, python_exe: str, config_root: Path, local_root: Path | None = None) -> str:
+def _launcher_template_unix(
+    *,
+    python_exe: str,
+    config_root: Path,
+    local_root: Path | None = None,
+    opencode_port: int = DEFAULT_OPENCODE_PORT,
+) -> str:
     if local_root is None:
         local_root = get_local_root()
     """Generate Unix launcher with fail-closed Python resolution and subcommand routing.
@@ -541,12 +569,16 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path, local_root: P
       3. Fail-closed: exit 1, NO silent PATH probing
 
     Subcommand routing (python-binding-contract.v1 §4):
+      --hydrate [args]           -> session_hydration entrypoint
       --session-reader [args]    -> session_reader.py entrypoint
+      --review-pr [args]         -> review_pr entrypoint
       --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
       --review-decision-persist [args] -> review_decision_persist entrypoint (canonical)
       --implement-start [args]   -> implement_start entrypoint (canonical)
       --implementation-decision-persist [args] -> implementation_decision_persist entrypoint (canonical)
+      --verify-contracts [args]  -> verify_contracts entrypoint
+      --human-approval-persist [args] -> human_approval_persist entrypoint
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
@@ -564,6 +596,13 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path, local_root: P
             "export OPENCODE_REPO_ROOT",
             "export COMMANDS_HOME",
             "export PYTHONPATH",
+            "# OPENCODE_PORT: only export if user-set or managed mode explicitly configured.",
+            "# Do NOT hardcode a default — OpenCode Desktop uses random ports.",
+            "# The resolution chain (opencode.json > SESSION_STATE > OPENCODE_PORT > fail-closed)",
+            "# handles absent OPENCODE_PORT correctly via hydration discovery.",
+            "if [ -n \"${OPENCODE_PORT:-}\" ]; then",
+            "    export OPENCODE_PORT",
+            "fi",
             "",
             "# --- Python resolution cascade (python-binding-contract.v1 §3) ---",
             f"PYTHON_BIN=\"{python_exe}\"",
@@ -584,9 +623,17 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path, local_root: P
             "",
             "# --- Subcommand routing (python-binding-contract.v1 §4) ---",
             "case \"${1:-}\" in",
+            "    --hydrate)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.session_hydration \"$@\"",
+            "        ;;",
             "    --session-reader)",
             "        shift",
             "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.session_reader \"$@\"",
+            "        ;;",
+            "    --review-pr)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.review_pr \"$@\"",
             "        ;;",
             "    --ticket-persist)",
             "        shift",
@@ -608,6 +655,14 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path, local_root: P
             "        shift",
             "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.implementation_decision_persist \"$@\"",
             "        ;;",
+            "    --verify-contracts)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.verify_contracts \"$@\"",
+            "        ;;",
+            "    --human-approval-persist)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.human_approval_persist \"$@\"",
+            "        ;;",
             "    *)",
             "        exec \"${PYTHON_BIN}\" -m governance_runtime.entrypoints.bootstrap_executor \"$@\"",
             "        ;;",
@@ -617,7 +672,13 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path, local_root: P
     )
 
 
-def _launcher_template_windows(*, python_exe: str, config_root: Path, local_root: Path | None = None) -> str:
+def _launcher_template_windows(
+    *,
+    python_exe: str,
+    config_root: Path,
+    local_root: Path | None = None,
+    opencode_port: int = DEFAULT_OPENCODE_PORT,
+) -> str:
     if local_root is None:
         local_root = get_local_root()
     """Generate Windows launcher with fail-closed Python resolution and subcommand routing.
@@ -628,12 +689,16 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path, local_root
       3. Fail-closed: exit /b 1, NO silent PATH probing
 
     Subcommand routing (python-binding-contract.v1 §4):
+      --hydrate [args]           -> session_hydration entrypoint
       --session-reader [args]    -> session_reader.py entrypoint
+      --review-pr [args]         -> review_pr entrypoint
       --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
       --review-decision-persist [args] -> review_decision_persist entrypoint (canonical)
       --implement-start [args]   -> implement_start entrypoint (canonical)
       --implementation-decision-persist [args] -> implementation_decision_persist entrypoint (canonical)
+      --verify-contracts [args]  -> verify_contracts entrypoint
+      --human-approval-persist [args] -> human_approval_persist entrypoint
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
@@ -652,6 +717,10 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path, local_root
             "set \"COMMANDS_HOME=%OPENCODE_CONFIG_ROOT%\\commands\"",
             "set \"OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%\"",
             "set \"PYTHONPATH=%COMMANDS_HOME%;%OPENCODE_LOCAL_ROOT%;!PYTHONPATH!\"",
+            "rem OPENCODE_PORT: only use if user-set or managed mode explicitly configured.",
+            "rem Do NOT hardcode a default - OpenCode Desktop uses random ports.",
+            "rem Resolution chain (opencode.json > SESSION_STATE > OPENCODE_PORT > fail-closed)",
+            "rem handles absent OPENCODE_PORT correctly via hydration discovery.",
             "set \"OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
             "set \"OPENCODE_BOOTSTRAP_BINDING_PATH=%OPENCODE_CONFIG_ROOT%\\governance.paths.json\"",
             "if defined OPENCODE_REPO_ROOT (",
@@ -683,9 +752,21 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path, local_root
             ")",
             "",
             "rem --- Subcommand routing (python-binding-contract.v1 §4) ---",
+            "if \"%~1\"==\"--hydrate\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.session_hydration %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
             "if \"%~1\"==\"--session-reader\" (",
             "    shift",
             "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.session_reader %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
+            "if \"%~1\"==\"--review-pr\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.review_pr %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
@@ -719,6 +800,18 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path, local_root
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
+            "if \"%~1\"==\"--verify-contracts\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.verify_contracts %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
+            "if \"%~1\"==\"--human-approval-persist\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance_runtime.entrypoints.human_approval_persist %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
             "\"!PYTHON_EXE!\" -m governance_runtime.entrypoints.bootstrap_executor %*",
             "set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "endlocal & exit /b %WRAPPER_EXIT%",
@@ -738,7 +831,7 @@ def _write_python_binding_file(bin_dir: Path, python_exe: str) -> Path:
     binding_file = bin_dir / "PYTHON_BINDING"
     # Always POSIX-normalized absolute path (match governance.paths.json normalization)
     posix_path = Path(os.path.normpath(os.path.abspath(str(Path(python_exe).expanduser())))).as_posix()
-    binding_file.write_text(posix_path + "\n", encoding="utf-8")
+    atomic_write_text(binding_file, posix_path + "\n")
     return binding_file
 
 
@@ -748,13 +841,14 @@ def _write_launcher_wrappers(
     python_exe: str,
     dest_unix: Path,
     dest_win: Path,
+    opencode_port: int,
 ) -> list[dict]:
     created: list[dict] = []
     binding_path = plan.governance_paths_path
     try:
         python_exec = _resolve_python_executable(binding_path, fallback=python_exe, strict=True)
     except RuntimeError as exc:
-        raise RuntimeError(f"Invalid pythonCommand in governance.paths.json: {exc}")
+        raise RuntimeError(f"Invalid pythonCommand in governance.paths.json: {exc}") from exc
 
     bin_dir = dest_unix.parent  # bin/
 
@@ -768,14 +862,24 @@ def _write_launcher_wrappers(
         "status": "generated",
     })
 
-    unix_payload = _launcher_template_unix(python_exe=python_exec, config_root=plan.config_root, local_root=plan.local_root)
-    win_payload = _launcher_template_windows(python_exe=python_exec, config_root=plan.config_root, local_root=plan.local_root)
+    unix_payload = _launcher_template_unix(
+        python_exe=python_exec,
+        config_root=plan.config_root,
+        local_root=plan.local_root,
+        opencode_port=opencode_port,
+    )
+    win_payload = _launcher_template_windows(
+        python_exe=python_exec,
+        config_root=plan.config_root,
+        local_root=plan.local_root,
+        opencode_port=opencode_port,
+    )
 
-    dest_unix.write_text(unix_payload, encoding="utf-8")
+    atomic_write_text(dest_unix, unix_payload)
     dest_unix.chmod(0o755)
     created.append({"dst": str(dest_unix.resolve()), "src": "generated", "status": "generated"})
 
-    dest_win.write_text(win_payload, encoding="utf-8")
+    atomic_write_text(dest_win, win_payload)
     created.append({"dst": str(dest_win.resolve()), "src": "generated", "status": "generated"})
 
     return created
@@ -823,7 +927,7 @@ def read_governance_version_metadata(version_file: Path) -> str | None:
         mm = semverish.search(raw)
         if mm:
             return mm.group(0)
-    except Exception:
+    except (OSError, UnicodeDecodeError):
         return None
     return None
 
@@ -1004,7 +1108,7 @@ def _is_forbidden_installed_path(path: Path, commands_dir: Path) -> bool:
 
     try:
         rel = path.resolve().relative_to(commands_dir.resolve())
-    except Exception:
+    except ValueError:
         return False
     if any(part == "_backup" for part in rel.parts):
         return True
@@ -1046,7 +1150,7 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
             else:
                 try:
                     path.unlink()
-                except Exception:
+                except OSError:
                     pass
             continue
         if path.is_dir():
@@ -1057,7 +1161,7 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
                 if path.is_symlink():
                     try:
                         path.unlink()
-                    except Exception:
+                    except OSError:
                         pass
                 else:
                     shutil.rmtree(path, ignore_errors=True)
@@ -1100,10 +1204,9 @@ def enforce_local_payload_hygiene(*, local_root: Path, dry_run: bool) -> tuple[l
                 else:
                     try:
                         path.unlink()
-                    except Exception:
+                    except OSError:
                         pass
-                continue
-            if path.name in governance_dirs:
+            elif path.name in governance_dirs:
                 continue
             print(f"  🛡️  PRESERVED (non-governance): {path.name}/")
 
@@ -1627,7 +1730,7 @@ def confirm_relative(path: Path, *, base_root: Path) -> Path:
     base = base_root.resolve()
     try:
         return p.relative_to(base)
-    except Exception:
+    except ValueError:
         return Path("external") / p.name
 
 
@@ -1723,7 +1826,7 @@ def write_manifest(manifest_path: Path, manifest: dict, dry_run: bool) -> None:
         print(json.dumps(manifest, indent=2, ensure_ascii=False))
         return
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    atomic_write_json(manifest_path, manifest, ensure_ascii=False)
 
 
 def _load_json(path: Path) -> dict | None:
@@ -1731,7 +1834,7 @@ def _load_json(path: Path) -> dict | None:
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
 
@@ -1751,7 +1854,7 @@ def load_manifest(manifest_path: Path) -> dict | None:
         return None
     try:
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict):
         return None
@@ -1769,9 +1872,30 @@ def load_manifest(manifest_path: Path) -> dict | None:
 
 OPENCODE_JSON_NAME = "opencode.json"
 
-# Canonical command markdown files - ONLY these are true slash commands
-# Note: NON-command content (master.md, rules.md, etc.) is NOT installed as command surface
+# Legacy constant: command rails as instruction entries.
+# Kept for backward compatibility (include_legacy_command_files, tests).
+# Fresh installs no longer emit these in the ``instructions`` array —
+# OpenCode loads commands automatically from the ``commands/`` directory.
 OPENCODE_INSTRUCTIONS = [f"commands/{name}" for name in CANONICAL_RAIL_FILENAMES]
+
+# Context / reference files that the LLM needs for governance legitimacy.
+# These are installed under ``<local_root>/governance_content/reference/``
+# and referenced by absolute path in ``opencode.json`` ``instructions``.
+_CONTEXT_REFERENCE_FILENAMES = (
+    "master.md",
+    "rules.md",
+)
+
+
+def _build_opencode_instructions(local_root: Path) -> list[str]:
+    """Build the ``instructions`` array for ``opencode.json``.
+
+    Returns absolute paths to the governance context/reference files that
+    the LLM needs to understand the governance system.  Command rails are
+    NOT included — OpenCode loads them automatically from ``commands/``.
+    """
+    ref_dir = local_root / "governance_content" / "reference"
+    return [str(ref_dir / name) for name in _CONTEXT_REFERENCE_FILENAMES]
 OPENCODE_PLUGIN_KEY = "plugin"
 OPENCODE_PLUGIN_RELATIVE = f"{OPENCODE_PLUGINS_DIR_NAME}/audit-new-session.mjs"
 
@@ -1780,19 +1904,105 @@ PYTHON_COMMAND_PLACEHOLDER = "{{PYTHON_COMMAND}}"
 BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
 
+def _parse_opencode_port(raw: str | int, *, purpose: str) -> int:
+    token = str(raw).strip()
+    if not token:
+        raise ValueError(f"{purpose}: empty port")
+    try:
+        value = int(token)
+    except ValueError as exc:
+        raise ValueError(f"{purpose}: port must be an integer") from exc
+    if value < 1 or value > 65535:
+        raise ValueError(f"{purpose}: port must be between 1 and 65535")
+    return value
+
+
+def resolve_effective_opencode_port(
+    *,
+    cli_opencode_port: str | int | None,
+    env: Mapping[str, str] | None = None,
+    default_port: int = DEFAULT_OPENCODE_PORT,
+) -> int:
+    """Resolve the effective OpenCode port from a single contract.
+
+    Priority:
+      1) explicit CLI argument (--opencode-port)
+      2) OPENCODE_PORT environment value
+      3) default 4096
+    """
+    if cli_opencode_port is not None and str(cli_opencode_port).strip():
+        return _parse_opencode_port(cli_opencode_port, purpose="--opencode-port")
+
+    env_map = env if env is not None else os.environ
+    env_port = str(env_map.get("OPENCODE_PORT", "")).strip()
+    if env_port:
+        return _parse_opencode_port(env_port, purpose="OPENCODE_PORT")
+
+    return _parse_opencode_port(default_port, purpose="default OPENCODE port")
+
+
+DEFAULT_OPENCODE_HOSTNAME = "127.0.0.1"
+
+
+def resolve_effective_opencode_hostname(
+    *,
+    cli_opencode_hostname: str | None,
+    opencode_json_config: dict | None = None,
+    default_hostname: str = DEFAULT_OPENCODE_HOSTNAME,
+) -> str:
+    """Resolve the effective OpenCode hostname from a single contract.
+
+    Priority:
+      1) explicit CLI argument (cli_opencode_hostname)
+      2) opencode.json server.hostname
+      3) default 127.0.0.1
+
+    Note: Unlike port, hostname does NOT have an environment variable fallback
+    to avoid creating undocumented resolution paths. The JSON config is the
+    authoritative source for hostname.
+    """
+    if cli_opencode_hostname is not None and str(cli_opencode_hostname).strip():
+        return str(cli_opencode_hostname).strip()
+
+    if opencode_json_config is not None:
+        server_block = opencode_json_config.get("server", {})
+        if isinstance(server_block, dict):
+            hostname = server_block.get("hostname", "").strip()
+            if hostname:
+                return hostname
+
+    return default_hostname
+
+
 def ensure_opencode_json(
     config_root: Path,
     *,
     dry_run: bool,
+    effective_opencode_port: int = DEFAULT_OPENCODE_PORT,
     include_legacy_command_files: bool = False,
+    local_root: Path | None = None,
 ) -> dict:
     """Generate or merge ``opencode.json`` with governance instructions for Desktop.
 
-    - If the file does not exist, create it with the ``instructions`` array.
-    - If it exists, merge: add missing instruction entries, ensure plugin is set,
-      and actively remove any legacy ``command_files`` key unless
-      include_legacy_command_files=True.
-      Other user keys are preserved.
+    - If the file does not exist, create it with the ``instructions`` array
+      pointing to context/reference files (master.md, rules.md) so the LLM
+      understands the governance system.  Command rails are NOT included —
+      OpenCode loads them automatically from ``commands/``.
+    - If it exists, merge: add missing context-file instruction entries,
+      ensure plugin is set, and actively remove any legacy ``command_files``
+      key unless include_legacy_command_files=True.
+      Other user keys are preserved.  Existing instruction entries (including
+      legacy ``commands/...`` entries from prior installs) are kept
+      (append-only contract).
+
+    Parameters
+    ----------
+    local_root:
+        The local data root (e.g. ``~/.local/share/opencode``).  When
+        provided, context-file absolute paths are computed from here.
+        When ``None``, falls back to the legacy ``OPENCODE_INSTRUCTIONS``
+        constant (command-rail paths) for backward compatibility with
+        callers that haven't been updated yet.
 
     Returns a status dict for logging.
     """
@@ -1808,7 +2018,7 @@ def ensure_opencode_json(
             if not isinstance(existing, dict):
                 corrupt = True
                 existing = {}
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             corrupt = True
             existing = {}
 
@@ -1816,8 +2026,8 @@ def ensure_opencode_json(
         if corrupt and not dry_run:
             backup_name = target.with_suffix(".json.corrupt-backup")
             try:
-                backup_name.write_text(raw_text, encoding="utf-8")
-            except Exception:
+                atomic_write_text(backup_name, raw_text)
+            except OSError:
                 pass  # best-effort backup
 
         # Keep legacy command_files only when explicitly requested for
@@ -1831,7 +2041,14 @@ def ensure_opencode_json(
         if not isinstance(current, list):
             current = []
         merged = list(current)
-        for entry in OPENCODE_INSTRUCTIONS:
+        # Append context-file paths (new installs with local_root) OR
+        # legacy command-rail paths (backward compat when local_root is None).
+        new_entries = (
+            _build_opencode_instructions(local_root)
+            if local_root is not None
+            else list(OPENCODE_INSTRUCTIONS)
+        )
+        for entry in new_entries:
             if entry not in merged:
                 merged.append(entry)
         existing["instructions"] = merged
@@ -1844,19 +2061,34 @@ def ensure_opencode_json(
             plugins_merged.append(plugin_uri)
         existing[OPENCODE_PLUGIN_KEY] = plugins_merged
 
+        # Ensure deterministic server configuration (SSOT for server connection)
+        server_block = existing.get("server")
+        if not isinstance(server_block, dict):
+            server_block = {}
+        server_block["hostname"] = "127.0.0.1"
+        server_block["port"] = effective_opencode_port
+        existing["server"] = server_block
+
         if dry_run:
             print(f"  [DRY-RUN] merge instructions into {target}")
             return {"status": "planned-merge", "dst": str(target)}
 
-        target.write_text(
-            json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        atomic_write_json(target, existing, ensure_ascii=False)
         return {"status": "merged", "dst": str(target)}
 
+    # Fresh install: context-file paths (new) or legacy command-rail paths.
+    fresh_instructions = (
+        _build_opencode_instructions(local_root)
+        if local_root is not None
+        else list(OPENCODE_INSTRUCTIONS)
+    )
     payload = {
-        "instructions": list(OPENCODE_INSTRUCTIONS),
+        "instructions": fresh_instructions,
         OPENCODE_PLUGIN_KEY: [plugin_uri],
+        "server": {
+            "hostname": "127.0.0.1",
+            "port": effective_opencode_port,
+        },
     }
     if include_legacy_command_files:
         payload["command_files"] = list(OPENCODE_INSTRUCTIONS)
@@ -1865,10 +2097,7 @@ def ensure_opencode_json(
         return {"status": "planned-create", "dst": str(target)}
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write_json(target, payload, ensure_ascii=False)
     return {"status": "created", "dst": str(target)}
 
 
@@ -1895,7 +2124,7 @@ def remove_installer_plugin_from_opencode_json(config_root: Path, *, dry_run: bo
         print(f"  [DRY-RUN] remove installer plugin entry from {target}")
         return {"status": "planned-remove-plugin", "dst": str(target)}
 
-    target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    atomic_write_json(target, payload, ensure_ascii=False)
     return {"status": "removed-plugin", "dst": str(target)}
 
 
@@ -1932,7 +2161,7 @@ def inject_session_reader_path_for_command(
         # Platform-aware rail injection (python-binding-contract.v1.md §4.2):
         # Rails are installed as platform-specific — the installer writes only
         # the block matching the target OS.
-        if os.name == "nt" and "```cmd" not in new_content:
+        if _is_windows() and "```cmd" not in new_content:
             # Windows: keep the bash block intact (OpenCode's LLM tool runner
             # uses bash even on Windows via Git Bash / WSL) and *append* a cmd
             # block immediately after the bash code fence for native Windows
@@ -2022,7 +2251,7 @@ def inject_session_reader_path_for_command(
         print(f"  [DRY-RUN] inject rail paths into {command_md}")
         return {"status": "planned-inject", "dst": str(command_md)}
 
-    command_md.write_text(new_content, encoding="utf-8")
+    atomic_write_text(command_md, new_content)
     return {"status": "injected", "dst": str(command_md)}
 
 
@@ -2049,6 +2278,7 @@ def install(
     force: bool,
     backup_enabled: bool,
     *,
+    opencode_port: int = DEFAULT_OPENCODE_PORT,
     include_legacy_command_files: bool = False,
 ) -> int:
     ok, missing, unsafe_symlinks = precheck_source(plan.source_dir)
@@ -2124,7 +2354,7 @@ def install(
             copied_entries.append(paths_entry)
 
     print("\nCreating local bootstrap launcher...")
-    launcher_entries = create_launcher(plan, dry_run=dry_run, force=force)
+    launcher_entries = create_launcher(plan, dry_run=dry_run, force=force, opencode_port=opencode_port)
 
     # determine governance version from kernel-owned metadata
     # Version may live in root VERSION or governance_runtime/VERSION
@@ -2323,7 +2553,9 @@ def install(
     ojs = ensure_opencode_json(
         plan.config_root,
         dry_run=dry_run,
+        effective_opencode_port=opencode_port,
         include_legacy_command_files=include_legacy_command_files,
+        local_root=plan.local_root,
     )
     print(f"  opencode.json: {ojs['status']}")
 
@@ -2334,6 +2566,13 @@ def install(
     )
     concrete_bin_dir = _path_for_json(plan.config_root / "bin")
     template_injections = {
+        "hydrate.md": inject_session_reader_path_for_command(
+            plan.commands_dir,
+            command_markdown="hydrate.md",
+            bin_dir=concrete_bin_dir,
+            python_command=binding_python,
+            dry_run=dry_run,
+        ),
         "continue.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="continue.md",
@@ -2429,7 +2668,7 @@ def install(
                 dst_path = Path(e["dst"]).resolve()
                 try:
                     rel_value = str(dst_path.relative_to(base_dir.resolve()))
-                except Exception:
+                except ValueError:
                     if dst_path.is_relative_to(plan.config_root.resolve()):
                         rel_base = "config"
                         rel_value = str(dst_path.relative_to(plan.config_root.resolve()))
@@ -2501,7 +2740,7 @@ def install(
     print(f"Commands dir: {plan.commands_dir}")
     print("Next: run the local bootstrap launcher:")
     print(f"  {plan.config_root}/bin/opencode-governance-bootstrap")
-    print("Then open OpenCode Desktop in this repository and run /continue.")
+    print("Then open OpenCode Desktop in this repository and run /hydrate.")
     return 0
 
 
@@ -2591,7 +2830,7 @@ def uninstall(
             for src in collect_customer_script_files(plan.source_dir, strict=False):
                 rel = src.relative_to(plan.source_dir)
                 targets.append(plan.commands_dir / rel)
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
         try:
@@ -2603,7 +2842,7 @@ def uninstall(
             for src in collect_workflow_template_files(plan.source_dir, strict=False):
                 rel = src.relative_to(templates_root)
                 targets.append(plan.commands_dir / "templates" / rel)
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
         # OpenCode plugins copied under config_root/plugins
@@ -2747,7 +2986,7 @@ def uninstall(
             try:
                 plan.manifest_path.unlink()
                 print(f"  ✅ Removed manifest: {plan.manifest_path.name}")
-            except Exception as e:
+            except OSError as e:
                 eprint(f"  ⚠️  Could not remove manifest: {e}")
 
     # cleanup empty dirs (leaf -> parent)
@@ -2783,7 +3022,7 @@ def uninstall(
             if f.is_file():
                 f.unlink()
                 print(f"  🧹 Removed placeholder: {f}")
-    except Exception:
+    except OSError:
         pass
 
     opencode_cleanup = remove_installer_plugin_from_opencode_json(plan.config_root, dry_run=dry_run)
@@ -2817,7 +3056,7 @@ def purge_manifest_leftover_trees(commands_dir: Path, local_root: Path, dry_run:
                     try:
                         item.unlink()
                         print(f"  ✅ Removed stale file: {item}")
-                    except Exception as e:
+                    except OSError as e:
                         eprint(f"  ❌ Failed removing stale file {item}: {e}")
                         errors += 1
             elif item.is_dir():
@@ -2843,7 +3082,7 @@ def purge_tree_contents(root: Path, dry_run: bool) -> int:
                 try:
                     item.unlink()
                     print(f"  ✅ Removed residual: {item}")
-                except Exception as e:
+                except OSError as e:
                     eprint(f"  ❌ Failed removing residual file {item}: {e}")
                     errors += 1
         elif item.is_dir():
@@ -2889,7 +3128,7 @@ def purge_governance_local_payload(local_root: Path, dry_run: bool) -> int:
                 try:
                     item.unlink()
                     print(f"  ✅ Removed symlink: {item.name}")
-                except Exception as e:
+                except OSError as e:
                     eprint(f"  ❌ Failed removing symlink {item.name}: {e}")
                     errors += 1
             continue
@@ -2901,7 +3140,7 @@ def purge_governance_local_payload(local_root: Path, dry_run: bool) -> int:
                 try:
                     item.unlink()
                     print(f"  ✅ Removed: {item.name}")
-                except Exception as e:
+                except OSError as e:
                     eprint(f"  ❌ Failed removing {item.name}: {e}")
                     errors += 1
             continue
@@ -2921,7 +3160,7 @@ def purge_governance_local_payload(local_root: Path, dry_run: bool) -> int:
                     try:
                         subitem.unlink()
                         print(f"  ✅ Removed: {subitem.relative_to(local_root)}")
-                    except Exception as e:
+                    except OSError as e:
                         eprint(f"  ❌ Failed removing {subitem.relative_to(local_root)}: {e}")
                         errors += 1
             elif subitem.is_dir():
@@ -2982,7 +3221,7 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
                 eprint(f"  ❌ Refusing to delete outside allowed dirs: {t}")
                 errors += 1
                 continue
-        except Exception:
+        except OSError:
             # If resolution fails, refuse deletion
             safe_log_error(
                 reason_key="ERR-UNINSTALL-PATH-RESOLUTION-FAILED",
@@ -3020,7 +3259,7 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
             try:
                 t.unlink()
                 print(f"  ✅ Removed: {t.name}")
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 safe_log_error(
                     reason_key="ERR-UNINSTALL-DELETE-FAILED",
                     message="Failed to delete uninstall target.",
@@ -3090,7 +3329,7 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
             try:
                 t.unlink()
                 print(f"  ✅ Removed runtime log: {t}")
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 safe_log_error(
                     reason_key="ERR-UNINSTALL-ERROR-LOG-PURGE-FAILED",
                     message="Failed to remove runtime error log file during uninstall purge.",
@@ -3175,7 +3414,7 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
             try:
                 activation_intent.unlink()
                 print(f"  ✅ Removed: {activation_intent.name}")
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 eprint(f"  ❌ Failed removing {activation_intent}: {e}")
                 errors += 1
 
@@ -3188,7 +3427,7 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
             try:
                 global_pointer.unlink()
                 print(f"  ✅ Removed: {global_pointer.name}")
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 eprint(f"  ❌ Failed removing {global_pointer}: {e}")
                 errors += 1
 
@@ -3239,7 +3478,7 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
                     try:
                         artifact.unlink()
                         print(f"  ✅ Removed: {ws_dir.name}/{name}")
-                    except Exception as e:
+                    except OSError as e:
                         eprint(f"  ❌ Failed removing {artifact}: {e}")
                         errors += 1
 
@@ -3256,7 +3495,7 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
                     try:
                         shutil.rmtree(subtree)
                         print(f"  ✅ Removed tree: {ws_dir.name}/{subtree_name}/")
-                    except Exception as e:
+                    except OSError as e:
                         eprint(f"  ❌ Failed removing tree {subtree}: {e}")
                         errors += 1
 
@@ -3282,7 +3521,7 @@ def try_remove_empty_dir(d: Path, dry_run: bool) -> None:
         else:
             d.rmdir()
             print(f"  ✅ Removed empty dir: {d}")
-    except Exception:
+    except (OSError, ValueError):
         return
 
 
@@ -3351,7 +3590,7 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
     # Resolve config root
     try:
         config_root = config_root_arg if config_root_arg is not None else get_config_root()
-    except Exception as e:
+    except (OSError, ValueError) as e:
         print(f"❌ Failed to resolve config root: {e}")
         return 1
 
@@ -3446,7 +3685,7 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
     try:
         config_root = config_root_arg if config_root_arg is not None else get_config_root()
         print(f"\n✅ Config root: {config_root}")
-    except Exception as e:
+    except (OSError, ValueError) as e:
         print(f"\n❌ Config root: failed to resolve ({e})")
         issues_found.append("config-root-resolution")
         return 1
@@ -3559,7 +3798,7 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
         if launcher.exists():
             test_env = os.environ.copy()
             test_env["OPENCODE_CONFIG_ROOT"] = str(config_root)
-            if os.name == "nt" and launcher_win.exists():
+            if _is_windows() and launcher_win.exists():
                 cmd = ["cmd", "/c", str(launcher), "--help"]
             else:
                 cmd = [str(launcher), "--help"]
@@ -3665,7 +3904,7 @@ def run_smoketest(config_root: Path) -> int:
     if launcher.exists():
         test_env = os.environ.copy()
         test_env["OPENCODE_CONFIG_ROOT"] = str(config_root)
-        if os.name == "nt" and launcher_win.exists():
+        if _is_windows() and launcher_win.exists():
             cmd = ["cmd", "/c", str(launcher), "--help"]
         else:
             cmd = [str(launcher), "--help"]
@@ -3714,6 +3953,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         default=None,
         help="Override local payload root (default: ~/.local/share/opencode).",
+    )
+    p.add_argument(
+        "--opencode-port",
+        default=None,
+        help="OpenCode Desktop server port (priority: CLI > OPENCODE_PORT > 4096).",
     )
     p.add_argument("--dry-run", action="store_true", help="Show what would happen without writing anything.")
     p.add_argument("--force", action="store_true", help="Overwrite without prompting / uninstall without prompt.")
@@ -3785,6 +4029,13 @@ def main(argv: list[str]) -> int:
 
     config_root = args.config_root if args.config_root is not None else get_config_root()
     local_root = args.local_root if args.local_root is not None else get_local_root()
+    try:
+        effective_opencode_port = resolve_effective_opencode_port(cli_opencode_port=args.opencode_port)
+    except ValueError as exc:
+        eprint(f"❌ Invalid OpenCode port: {exc}")
+        return 2
+    os.environ["OPENCODE_PORT"] = str(effective_opencode_port)
+
     plan = build_plan(
         args.source_dir,
         config_root,
@@ -3813,6 +4064,7 @@ def main(argv: list[str]) -> int:
     print(f"Source dir:  {plan.source_dir}")
     print(f"Config root: {plan.config_root}")
     print(f"Local root:  {plan.local_root}")
+    print(f"OpenCode port: {effective_opencode_port}")
 
     # prompt only if interactive and not forced and not dry-run
     if not args.force and not args.dry_run and is_interactive():
@@ -3827,6 +4079,7 @@ def main(argv: list[str]) -> int:
         dry_run=args.dry_run,
         force=args.force,
         backup_enabled=backup_enabled,
+        opencode_port=effective_opencode_port,
     )
 
 

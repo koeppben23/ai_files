@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from governance_runtime.kernel.guard_evaluator import GuardEvaluationError, GuardEvaluator
+from governance_runtime.kernel.guard_evaluator import (
+    GuardConfigurationError,
+    GuardEvaluationError,
+    GuardEvaluator,
+)
 from governance_runtime.kernel.phase_api_spec import PhaseApiSpec, PhaseSpecEntry, TransitionRule
 from governance_runtime.kernel.phase_kernel import RuntimeContext, execute
 
@@ -150,8 +154,8 @@ def test_execute_non_phase6_guarded_implementation_presentation_ready(tmp_path, 
     assert result.source == "phase-6-implementation-presentation-ready"
 
 
-def test_execute_non_phase6_guard_evaluator_error_is_visible(tmp_path, monkeypatch):
-    """execute(): evaluator failures on non-Phase6 path are not silent."""
+def test_execute_non_phase6_guard_evaluator_config_error_is_visible(tmp_path, monkeypatch):
+    """execute(): GuardConfigurationError (hard config errors) propagate as hard failures."""
     spec = PhaseApiSpec(
         path=tmp_path / "phase_api.yaml",
         sha256="fake",
@@ -180,17 +184,65 @@ def test_execute_non_phase6_guard_evaluator_error_is_visible(tmp_path, monkeypat
     monkeypatch.setattr(GuardEvaluator, "has_transition_guard", staticmethod(lambda event: event == "business_rules_execute"))
 
     def _boom(event, state):
-        raise GuardEvaluationError("non-phase6 evaluator error")
+        raise GuardConfigurationError("non-phase6 config error: guard not found in guards.yaml")
 
     monkeypatch.setattr(GuardEvaluator, "evaluate_event", staticmethod(_boom))
 
-    with pytest.raises(GuardEvaluationError, match="non-phase6 evaluator error"):
+    with pytest.raises(GuardConfigurationError, match="non-phase6 config error"):
         execute(
             current_token="2.1",
             session_state_doc={"SESSION_STATE": {"phase": "2.1-DecisionPack", "phase_transition_evidence": True}},
             runtime_ctx=_runtime_ctx(tmp_path),
             readonly=True,
         )
+
+
+def test_execute_non_phase6_guard_evaluation_failed_returns_blocked(tmp_path, monkeypatch):
+    """execute(): GuardEvaluationFailed (soft runtime errors) returns BLOCKED result."""
+    from governance_runtime.domain import reason_codes
+
+    spec = PhaseApiSpec(
+        path=tmp_path / "phase_api.yaml",
+        sha256="fake",
+        stable_hash="fake",
+        loaded_at="now",
+        start_token="2.1",
+        entries={
+            "2.1": PhaseSpecEntry(
+                token="2.1",
+                phase="2.1-DecisionPack",
+                active_gate="Decision Pack",
+                next_gate_condition="Continue",
+                next_token="3A",
+                route_strategy="next",
+                transitions=(
+                    TransitionRule(when="business_rules_execute", next_token="1.5", source="phase-1.5-routing-required"),
+                    TransitionRule(when="default", next_token="3A", source="phase-2.1-to-3a"),
+                ),
+                exit_required_keys=(),
+            ),
+        },
+    )
+
+    _patch_common(monkeypatch, tmp_path, spec)
+
+    monkeypatch.setattr(GuardEvaluator, "has_transition_guard", staticmethod(lambda event: event == "business_rules_execute"))
+
+    def _boom(event, state):
+        from governance_runtime.kernel.guard_evaluator import GuardEvaluationFailed
+        raise GuardEvaluationFailed("Guard evaluation failed at runtime", guard_name=event, event=event)
+
+    monkeypatch.setattr(GuardEvaluator, "evaluate_event", staticmethod(_boom))
+
+    result = execute(
+        current_token="2.1",
+        session_state_doc={"SESSION_STATE": {"phase": "2.1-DecisionPack", "phase_transition_evidence": True}},
+        runtime_ctx=_runtime_ctx(tmp_path),
+        readonly=True,
+    )
+
+    assert result.status == "BLOCKED"
+    assert reason_codes.BLOCKED_GUARD_EVALUATION_FAILED in result.next_gate_condition
 
 
 def test_execute_non_allowlisted_legacy_event_does_not_bypass_default(tmp_path, monkeypatch):

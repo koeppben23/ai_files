@@ -61,10 +61,36 @@ if not defined OPENCODE_BOOTSTRAP_OUTPUT (
     set "OPENCODE_BOOTSTRAP_OUTPUT=final"
 )
 
+rem --- OpenCode Port configuration ---
+if not defined OPENCODE_PORT (
+    set "OPENCODE_PORT=4096"
+)
+if "%~1"=="--opencode-port" (
+    if "%~2"=="" (
+        echo ERROR: --opencode-port requires a port number >&2
+        endlocal & exit /b 1
+    )
+    set "OPENCODE_PORT=%~2"
+    shift
+    shift
+)
+
 rem --- Subcommand routing (python-binding-contract.v1 §4) ---
+if "%~1"=="--hydrate" (
+    shift
+    "!PYTHON_EXE!" -m governance_runtime.entrypoints.session_hydration %*
+    set "WRAPPER_EXIT=%ERRORLEVEL%"
+    endlocal & exit /b %WRAPPER_EXIT%
+)
 if "%~1"=="--session-reader" (
     shift
     "!PYTHON_EXE!" -m governance_runtime.entrypoints.session_reader %*
+    set "WRAPPER_EXIT=%ERRORLEVEL%"
+    endlocal & exit /b %WRAPPER_EXIT%
+)
+if "%~1"=="--review-pr" (
+    shift
+    "!PYTHON_EXE!" -m governance_runtime.entrypoints.review_pr %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
@@ -95,6 +121,12 @@ if "%~1"=="--implement-start" (
 if "%~1"=="--implementation-decision-persist" (
     shift
     "!PYTHON_EXE!" -m governance_runtime.entrypoints.implementation_decision_persist %*
+    set "WRAPPER_EXIT=%ERRORLEVEL%"
+    endlocal & exit /b %WRAPPER_EXIT%
+)
+if "%~1"=="--verify-contracts" (
+    shift
+    "!PYTHON_EXE!" -m governance_runtime.entrypoints.verify_contracts %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )

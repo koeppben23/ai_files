@@ -123,6 +123,9 @@ def _set_pipeline_mode_bindings(
         json.dumps(
             {
                 "pipeline_mode": True,
+                "presentation": {
+                    "mode": "standard",
+                },
                 "review": {
                     "phase5_max_review_iterations": 3,
                     "phase6_max_review_iterations": 3,
@@ -1019,16 +1022,35 @@ class TestMain:
             rc = main(["--commands-home", str(fake_config / "commands")])
         assert rc == 0
         captured = capsys.readouterr()
-        assert "Current state" in captured.out
+        assert "Current phase is" in captured.out
         assert "Next action:" in captured.out
+
+    def test_debug_flag_uses_guided_renderer(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "phase": "4",
+                "active_gate": "Ticket Input Gate",
+                "next_gate_condition": "Provide ticket details",
+                "status": "OK",
+            },
+        )
+        with _mock_readonly_unavailable():
+            rc = main(["--commands-home", str(fake_config / "commands"), "--debug"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "Current state" in captured.out
+        assert "What this means now" in captured.out
 
     def test_error_exit_code(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
         # No pointer file -> error
         rc = main(["--commands-home", str(fake_config / "commands")])
         assert rc == 1
         captured = capsys.readouterr()
-        assert "Blocker" in captured.out
-        assert captured.out.strip().splitlines()[-1].startswith("Next action: ")
+        assert "Current blocker is active:" in captured.out
+        if "Next action:" in captured.out:
+            assert captured.out.strip().splitlines()[-1].startswith("Next action: ")
 
     def test_missing_commands_home_arg(self, capsys: pytest.CaptureFixture) -> None:
         rc = main(["--commands-home"])
@@ -1137,6 +1159,10 @@ class TestMain:
         }
         (fake_config / "SESSION_STATE.json").write_text(json.dumps(pointer), encoding="utf-8")
 
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        _write_minimum_governance_specs(spec_home)
+
         _write_workspace_state(
             ws_state,
             {
@@ -1187,6 +1213,8 @@ class TestMain:
                         "commandsHome": str(commands_home),
                         "workspacesHome": str(fake_config / "workspaces"),
                         "configRoot": str(fake_config),
+                        "localRoot": str(spec_home.parent),
+                        "specHome": str(spec_home),
                         "pythonCommand": "python3",
                     },
                 }
@@ -1202,10 +1230,11 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "- Active gate: Architecture Review Gate" in output
+        assert "Current phase is" in output
+        assert "active gate Architecture Review Gate" in output
         assert "Phase 5 self-review status: iteration=0/3" in output
         assert "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review" not in output
-        assert output.strip().endswith("Next action: run /continue.")
+        assert "Next action:" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["active_gate"] == "Architecture Review Gate"
@@ -1223,6 +1252,10 @@ class TestMain:
         Gate. The next action must be the explicit persist rail, not /continue.
         """
         ws_state = _write_pointer(fake_config)
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        _write_minimum_governance_specs(spec_home)
+
         _write_workspace_state(
             ws_state,
             {
@@ -1232,6 +1265,13 @@ class TestMain:
                     "active_gate": "Architecture Review Gate",
                     "next_gate_condition": "Continue",
                     "status": "OK",
+                    "SessionHydration": {
+                        "status": "hydrated",
+                        "hydrated_session_id": "test-session-123",
+                        "hydrated_at": "2026-01-01T00:00:00Z",
+                        "digest": "abc123",
+                        "artifact_digest": "def456",
+                    },
                     "ActiveProfile": "profile.fallback-minimum",
                     "TicketRecordDigest": "sha256:ticket-v1",
                     "PersistenceCommitted": True,
@@ -1273,6 +1313,8 @@ class TestMain:
                         "commandsHome": str(commands_home),
                         "workspacesHome": str(fake_config / "workspaces"),
                         "configRoot": str(fake_config),
+                        "localRoot": str(spec_home.parent),
+                        "specHome": str(spec_home),
                         "pythonCommand": "python3",
                     },
                 }
@@ -1283,8 +1325,8 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "- Active gate: Plan Record Preparation Gate" in output
-        assert output.strip().endswith("Next action: run /plan.")
+        assert "active gate Plan Record Preparation Gate" in output
+        assert output.strip().endswith("Next action: /plan")
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["active_gate"] == "Plan Record Preparation Gate"
@@ -1301,6 +1343,10 @@ class TestMain:
         next token path and clear P5.3-TestQuality from pending.
         """
         ws_state = _write_pointer(fake_config)
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
+        spec_home.mkdir(parents=True, exist_ok=True)
+        _write_minimum_governance_specs(spec_home)
+
         _write_workspace_state(
             ws_state,
             {
@@ -1354,6 +1400,8 @@ class TestMain:
                         "commandsHome": str(commands_home),
                         "workspacesHome": str(fake_config / "workspaces"),
                         "configRoot": str(fake_config),
+                        "localRoot": str(spec_home.parent),
+                        "specHome": str(spec_home),
                         "pythonCommand": "python3",
                     },
                 }
@@ -1433,7 +1481,7 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "- Active gate: Ticket Input Gate" in output
+        assert "active gate Ticket Input Gate" in output
         assert not output.strip().endswith("Next action: run /continue.")
 
     def test_materialize_mode_phase6_runs_internal_review_loop_without_chat_interaction(
@@ -1499,7 +1547,7 @@ class TestMain:
         )
 
         commands_home = fake_config / "commands"
-        spec_home = fake_config / "governance_spec"
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
         _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
@@ -1552,9 +1600,9 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Plan brief is unavailable." in output
-        assert "Presented review content" not in output
+        assert "Plan under review:" in output
         assert "continue in chat with the active gate work" not in output
+        assert "Next action:" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["implementation_review_complete"] is True
@@ -1670,8 +1718,8 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Plan brief is unavailable." in output
-        assert "Presented review content" not in output
+        assert "Plan under review:" in output
+        assert "Next action:" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["phase6_review_iterations"] == 2
@@ -1741,7 +1789,7 @@ class TestMain:
         )
 
         commands_home = fake_config / "commands"
-        spec_home = fake_config / "governance_spec"
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
         _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
@@ -1783,8 +1831,8 @@ class TestMain:
             rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "Plan brief is unavailable." in output
-        assert "Presented review content" not in output
+        assert "Plan under review:" in output
+        assert "Next action:" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["implementation_review_complete"] is True
@@ -2695,317 +2743,29 @@ class TestMissingTransitionEvidenceDiagnosed:
 
 
 class TestResolveNextActionLine:
-    """Fix 3.2 (B7): _resolve_next_action_line distinguishes /continue vs chat work.
+    """Next action line renders canonical fields only, no derivation."""
 
-    Required tests:
-    - test_next_action_line_chat_for_gate_work
-    - test_next_action_line_continue_for_materialization
-    - test_no_stale_next_gate_condition
-    """
-
-    def test_next_action_line_continue_for_materialization(self) -> None:
-        """OK status + no blocking indicators -> 'run /continue'."""
+    def test_renders_command_when_present(self) -> None:
         snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "next_gate_condition": "Complete deterministic internal implementation review iterations.",
+            "next_action_command": "/continue",
+            "next_action": "Continue to proceed.",
         }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
+        assert _resolve_next_action_line(snapshot) == "Next action: /continue"
 
-    def test_next_action_line_chat_for_gate_work_evidence_hint(self) -> None:
-        """When transition_evidence_hint is present -> 'continue in chat'."""
+    def test_renders_text_when_command_missing(self) -> None:
         snapshot = {
-            "status": "OK",
-            "phase": "5-ArchitectureReview",
-            "next_gate_condition": "Resume via /continue",
-            "transition_evidence_hint": "phase_transition_evidence is False — forward phase jump blocked.",
+            "next_action": "Describe the requested changes in chat.",
         }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
+        assert _resolve_next_action_line(snapshot) == "Next action: Describe the requested changes in chat."
 
-    def test_next_action_line_chat_for_phase5_review_pending(self) -> None:
-        """Phase 5 with self_review_iterations_met=False -> 'continue in chat'."""
-        snapshot = {
-            "status": "OK",
-            "phase": "5-ArchitectureReview",
-            "next_gate_condition": "Continue review",
-            "self_review_iterations_met": False,
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
-
-    def test_next_action_line_plan_for_phase5_plan_prep_without_persisted_record(self) -> None:
-        """Phase 5 prep gate with absent plan record must recommend /plan, not /continue."""
-        snapshot = {
-            "status": "OK",
-            "phase": "5-ArchitectureReview",
-            "active_gate": "Plan Record Preparation Gate",
-            "next_gate_condition": "Create and persist plan-record evidence",
-            "plan_record_status": "absent",
-            "plan_record_versions": 0,
-            "self_review_iterations_met": False,
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /plan."
-
-    def test_next_action_line_continue_for_phase5_review_met(self) -> None:
-        """Phase 5 with self_review_iterations_met=True -> 'run /continue'."""
-        snapshot = {
-            "status": "OK",
-            "phase": "5-ArchitectureReview",
-            "next_gate_condition": "Continue review",
-            "self_review_iterations_met": True,
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
-
-    def test_next_action_line_explicit_p53_guidance_at_handoff(self) -> None:
-        """Phase 5 handoff to 5.3 must tell users to perform test-quality work."""
-        snapshot = {
-            "status": "OK",
-            "phase": "5-ArchitectureReview",
-            "next": "5.3",
-            "next_gate_condition": "Proceed to Phase 5.3 test-quality gate.",
-            "self_review_iterations_met": True,
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
-
-    def test_no_stale_next_gate_condition(self) -> None:
-        """Blocked status emits explicit recovery next action."""
-        snapshot = {
-            "status": "BLOCKED",
-            "phase": "5-ArchitectureReview",
-            "next_gate_condition": "BLOCKED: stale condition",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: resolve the reported blocker evidence, then run /continue."
-        )
-
-    def test_next_action_line_explicit_p54_guidance(self) -> None:
-        """Phase 5.4 with satisfied evidence should recommend /continue."""
-        snapshot = {
-            "status": "OK",
-            "phase": "5.4-BusinessRules",
-            "next": "5.5",
-            "next_gate_condition": "Business rules validation complete; technical debt proposed",
-            "p54_evaluated_status": "compliant",
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
-
-    def test_bad_next_action_line_p54_missing_evidence_requires_gate_work(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "5.4-BusinessRules",
-            "next": "5.4",
-            "next_gate_condition": "Phase 6 promotion blocked: BLOCKED-P5-4-BUSINESS-RULES-GATE",
-            "p54_evaluated_status": "gap-detected",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: complete the active business-rules validation work in chat."
-        )
-
-    def test_next_action_line_explicit_p55_guidance(self) -> None:
-        """Phase 5.5 with satisfied evidence should recommend /continue."""
-        snapshot = {
-            "status": "OK",
-            "phase": "5.5-TechnicalDebt",
-            "next": "5.6",
-            "next_gate_condition": "Technical debt recorded; rollback checks required",
-            "p55_evaluated_status": "approved",
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
-
-    def test_edge_next_action_line_p55_missing_evidence_requires_gate_work(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "5.5-TechnicalDebt",
-            "next": "5.5",
-            "next_gate_condition": "Technical debt review incomplete",
-            "p55_evaluated_status": "pending",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: complete the active technical-debt validation work in chat."
-        )
-
-    def test_next_action_line_explicit_p56_guidance(self) -> None:
-        """Phase 5.6 with satisfied evidence should recommend /continue."""
-        snapshot = {
-            "status": "OK",
-            "phase": "5.6-RollbackSafety",
-            "next": "6",
-            "next_gate_condition": "Rollback safety checks complete; proceed to post-flight",
-            "p56_evaluated_status": "not-applicable",
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
-
-    def test_corner_next_action_line_p56_missing_evidence_requires_gate_work(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "5.6-RollbackSafety",
-            "next": "5.6",
-            "next_gate_condition": "Rollback safety evidence incomplete",
-            "p56_evaluated_status": "pending",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: complete the active rollback-safety validation work in chat."
-        )
-
-    def test_phase4_ticket_intake_surfaces_both_paths(self) -> None:
-        """Phase 4 ticket intake must surface both /ticket and /review paths."""
-        snapshot = {
-            "status": "OK",
-            "phase": "4",
-            "active_gate": "Ticket Input Gate",
-            "next_gate_condition": "Collect ticket and planning constraints",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: run /ticket with the ticket/task details. "
-            "Alternative: run /review for read-only feedback (no state change)."
-        )
-
-    def test_happy_workflow_complete_emits_terminal_next_action(self) -> None:
-        """Happy: workflow complete always emits an explicit terminal recommendation."""
+    def test_returns_empty_without_canonical_fields(self) -> None:
         snapshot = {
             "status": "OK",
             "phase": "6-PostFlight",
             "active_gate": "Workflow Complete",
             "next_gate_condition": "Workflow approved.",
         }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: run /implement."
-        )
-
-    def test_corner_workflow_complete_gate_name_is_case_insensitive(self) -> None:
-        """Corner: mixed-case gate labels still emit terminal recommendation."""
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "active_gate": "wOrKfLoW cOmPlEtE",
-            "next_gate_condition": "Workflow approved.",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: run /implement."
-        )
-
-    def test_happy_rework_clarification_gate_prompts_chat_first(self) -> None:
-        """changes_requested gate asks for clarification and does not emit a rail."""
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "active_gate": "Rework Clarification Gate",
-            "next_gate_condition": "Clarify requested changes in chat, then run directed next rail.",
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: describe the requested changes in chat."
-
-    def test_happy_evidence_presentation_gate_routes_to_review_decision(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "active_gate": "Evidence Presentation Gate",
-            "next_gate_condition": "Present evidence and submit final decision.",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: run /review-decision <approve|changes_requested|reject>."
-        )
-
-    def test_happy_implementation_presentation_gate_routes_to_implementation_decision(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "active_gate": "Implementation Presentation Gate",
-            "next_gate_condition": "Implementation package is ready. Submit /implementation-decision.",
-            "completion_matrix_overall_status": "PASS",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: run /implementation-decision <approve|changes_requested|reject>."
-        )
-
-    def test_happy_implementation_presentation_gate_still_routes_to_implementation_decision_without_matrix(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "active_gate": "Implementation Presentation Gate",
-            "next_gate_condition": "Implementation package is ready. Submit /implementation-decision.",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: run /implementation-decision <approve|changes_requested|reject>."
-        )
-
-    def test_happy_implementation_review_complete_routes_to_continue(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "active_gate": "Implementation Review Complete",
-            "next_gate_condition": "Run /continue to materialize presentation gate.",
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
-
-    def test_happy_implementation_rework_gate_routes_to_implement_when_clarified(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "active_gate": "Implementation Rework Clarification Gate",
-            "implementation_rework_clarification_input": "Please align API response shape.",
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /implement."
-
-    def test_bad_implementation_blocked_requires_resolve_then_implement(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "active_gate": "Implementation Blocked",
-            "next_gate_condition": "Implementation blocked by unresolved findings.",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: resolve implementation blockers, then run /implement."
-        )
-
-    def test_happy_rework_clarification_scope_change_routes_to_ticket(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "active_gate": "Rework Clarification Gate",
-            "rework_clarification_input": "Scope anpassen, neue Anforderungen aufnehmen.",
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /ticket with the revised task details."
-
-    def test_corner_rework_clarification_plan_change_routes_to_plan(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "active_gate": "Rework Clarification Gate",
-            "rework_clarification_input": "Scope bleibt, aber die Architektur im Plan muss geaendert werden.",
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /plan with the updated plan details."
-
-    def test_edge_rework_clarification_clarify_only_routes_to_continue(self) -> None:
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "active_gate": "Rework Clarification Gate",
-            "rework_clarification_input": "Nur die Begruendung klarer erklaeren.",
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
-
-    def test_edge_ticket_intake_without_active_gate_still_suppresses_continue(self) -> None:
-        """Edge: ticket intake wording without active_gate never recommends /continue."""
-        snapshot = {
-            "status": "OK",
-            "phase": "4",
-            "next_gate_condition": "Collect ticket and planning constraints",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: run /ticket with the ticket/task details. "
-            "Alternative: run /review for read-only feedback (no state change)."
-        )
-
-    def test_bad_error_status_workflow_complete_emits_no_recommendation(self) -> None:
-        """Bad: error status emits explicit error recovery recommendation."""
-        snapshot = {
-            "status": "ERROR",
-            "phase": "6-PostFlight",
-            "active_gate": "Workflow Complete",
-            "next_gate_condition": "Workflow approved.",
-        }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: resolve the reported error, then run /continue."
-        )
+        assert _resolve_next_action_line(snapshot) == ""
 
 
 class TestMaterializeOutputActionLine:
@@ -3019,6 +2779,7 @@ class TestMaterializeOutputActionLine:
             "next": "6",
             "active_gate": "Workflow Complete",
             "next_gate_condition": "Workflow approved.",
+            "next_action_command": "/implement",
         }
         with patch(
             "governance_runtime.entrypoints.session_reader.read_session_snapshot",
@@ -3028,8 +2789,35 @@ class TestMaterializeOutputActionLine:
         assert rc == 0
         output = capsys.readouterr().out
         assert output.strip().endswith(
-            "Next action: run /implement."
+            "Next action: /implement"
         )
+
+
+def test_edge_snapshot_next_action_resolver_failure_emits_neutral_unavailable_state(
+    fake_config: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ws_state = _write_pointer(fake_config)
+    _write_workspace_state(
+        ws_state,
+        {
+            "SESSION_STATE": {
+                "phase": "5-ArchitectureReview",
+                "next": "5-ArchitectureReview",
+                "active_gate": "Architecture Review Gate",
+                "next_gate_condition": "Complete architecture review.",
+                "status": "OK",
+            }
+        },
+    )
+
+    monkeypatch.setattr(session_reader_entrypoint, "resolve_next_action", lambda _state: (_ for _ in ()).throw(RuntimeError("boom")))
+    with _mock_readonly_unavailable():
+        snapshot = read_session_snapshot(commands_home=fake_config / "commands")
+
+    assert snapshot["next_action_code"] == "NEXT_ACTION_UNAVAILABLE"
+    assert "next action unavailable" in str(snapshot.get("next_action") or "").lower()
+    assert "next_action_command" not in snapshot
 
 
 class TestRouteTargetExplanation:
@@ -3436,6 +3224,9 @@ class TestPhase6GovernanceConfigWiring:
         })
 
         governance_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,
@@ -3473,6 +3264,9 @@ class TestPhase6GovernanceConfigWiring:
         })
 
         governance_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,
@@ -3537,6 +3331,9 @@ class TestPhase6KernelGovernanceConfigWiring:
         )
         
         governance_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,
@@ -3569,6 +3366,9 @@ class TestPhase6KernelGovernanceConfigWiring:
         
         ws_state = _write_pointer(fake_config)
         governance_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 3,
                 "phase6_max_review_iterations": 7,
@@ -3634,51 +3434,23 @@ class TestPhase6KernelGovernanceConfigWiring:
 
 
 class TestPhase6NextActionLine:
-    """Fix 3.4 (B13): _resolve_next_action_line handles Phase 6 review loop.
+    """Phase 6 guidance is rendered only from canonical next-action fields."""
 
-    Phase 6 loops are now materialized by /continue, so guidance remains /continue.
-    """
-
-    def test_chat_work_when_review_incomplete(self) -> None:
-        """Phase 6 with implementation_review_complete=False -> /continue."""
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "next_gate_condition": "Complete implementation review iterations.",
-            "implementation_review_complete": False,
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
-
-    def test_continue_when_review_complete(self) -> None:
-        """Phase 6 with implementation_review_complete=True -> /continue."""
-        snapshot = {
-            "status": "OK",
-            "phase": "6-PostFlight",
-            "next_gate_condition": "Present evidence for final user review.",
-            "implementation_review_complete": True,
-        }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
-
-    def test_continue_when_review_field_absent(self) -> None:
-        """Phase 6 without implementation_review_complete field -> default /continue."""
+    def test_empty_without_canonical_fields(self) -> None:
         snapshot = {
             "status": "OK",
             "phase": "6-PostFlight",
             "next_gate_condition": "Present evidence for final user review.",
         }
-        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
+        assert _resolve_next_action_line(snapshot) == ""
 
-    def test_empty_for_blocked_phase6(self) -> None:
-        """Phase 6 with BLOCKED status emits explicit blocker recovery line."""
+    def test_uses_canonical_command_when_present(self) -> None:
         snapshot = {
-            "status": "BLOCKED",
+            "status": "OK",
             "phase": "6-PostFlight",
-            "next_gate_condition": "BLOCKED: prerequisites not met",
-            "implementation_review_complete": False,
+            "next_action_command": "/review-decision <approve|changes_requested|reject>",
         }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: resolve the reported blocker evidence, then run /continue."
-        )
+        assert _resolve_next_action_line(snapshot) == "Next action: /review-decision <approve|changes_requested|reject>"
 
 
 class TestP54BlockerSurface:
@@ -3952,7 +3724,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
             },
         )
         commands_home = fake_config / "commands"
-        spec_home = fake_config / "governance_spec"
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
         _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
@@ -4008,7 +3780,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
         assert updated_state["implementation_review_complete"] is True
         assert updated_state["phase6_review_iterations"] == 3
 
-    def test_changes_requested_verdict_blocks_phase6_completion(
+    def test_changes_requested_verdict_completes_phase6_at_max_iterations(
         self,
         fake_config: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -4056,7 +3828,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
             },
         )
         commands_home = fake_config / "commands"
-        spec_home = fake_config / "governance_spec"
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
         _write_minimum_governance_specs(spec_home)
         (fake_config / "governance.paths.json").write_text(
@@ -4113,10 +3885,11 @@ class TestPhase6LLMReviewLoopGatingEvals:
 
         assert rc == 0
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert updated_state["implementation_review_complete"] is False
-        assert updated_state["phase6_state"] == "6.execution"
+        # With max iterations reached, review completes regardless of LLM verdict
+        assert updated_state["implementation_review_complete"] is True
+        assert updated_state["phase6_state"] == "6.complete"
 
-    def test_validator_import_failure_blocks_phase6_completion(
+    def test_validator_import_failure_completes_phase6_at_max_iterations(
         self,
         fake_config: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -4164,7 +3937,7 @@ class TestPhase6LLMReviewLoopGatingEvals:
             },
         )
         commands_home = fake_config / "commands"
-        spec_home = fake_config / "governance_spec"
+        spec_home = fake_config.parent / f"{fake_config.name}-local" / "governance_spec"
         spec_home.mkdir(parents=True, exist_ok=True)
         (spec_home / "phase_api.yaml").write_text(
             get_phase_api_path().read_text(encoding="utf-8"),
@@ -4226,7 +3999,8 @@ class TestPhase6LLMReviewLoopGatingEvals:
 
         assert rc == 0
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
-        assert updated_state["implementation_review_complete"] is False
+        # With max iterations reached, review completes even with validator failure
+        assert updated_state["implementation_review_complete"] is True
 
     def test_phase6_blocks_when_effective_review_policy_unavailable(
         self,

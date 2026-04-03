@@ -13,7 +13,7 @@ from typing import Any
 
 try:
     import yaml
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     yaml = None  # type: ignore
 
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
@@ -60,7 +60,7 @@ def _load_yaml(path: Path) -> dict[str, Any]:
         raise PolicyBundleError("YAML parser not available. Reason: BLOCKED-ENGINE-SELFCHECK")
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except Exception as exc:
+    except (OSError, ValueError, yaml.YAMLError) as exc:
         raise PolicyBundleError(f"Policy config parse failed ({path}): {exc}. Reason: BLOCKED-ENGINE-SELFCHECK")
     if not isinstance(data, dict) or not data:
         raise PolicyBundleError(f"Policy config empty/invalid: {path}. Reason: BLOCKED-ENGINE-SELFCHECK")

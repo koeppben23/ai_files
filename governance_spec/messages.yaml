@@ -186,7 +186,7 @@ transition_messages:
     state_id: "3A"
     event: "no_apis"
     gate_message: "Ticket Input Gate"
-    instruction: "Phase 3A completed with not-applicable; use /continue to proceed to Phase 4"
+    instruction: "Phase 3A completed with not-applicable; proceed to Phase 4 Ticket Input Gate"
 
   - id: "msg.trans.3A.default"
     state_id: "3A"
@@ -206,7 +206,7 @@ transition_messages:
     state_id: "3B-2"
     event: "default"
     gate_message: "Ticket Input Gate"
-    instruction: "Phase 3B-2 complete; use /continue to proceed to Phase 4"
+    instruction: "Phase 3B-2 complete; proceed to Phase 4 Ticket Input Gate"
 
   # Phase 4 transitions
   - id: "msg.trans.4.ticket_present"

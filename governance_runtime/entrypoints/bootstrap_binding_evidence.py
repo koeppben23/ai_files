@@ -59,7 +59,7 @@ def main() -> int:
         try:
             print(binding_file.read_text(encoding="utf-8"))
             return 0
-        except Exception as ex:
+        except OSError as ex:
             payload = {
                 "schema": "opencode-governance.paths.v1",
                 "status": "blocked",

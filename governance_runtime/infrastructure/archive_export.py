@@ -283,7 +283,7 @@ def export_finalized_bundle(
 
         return manifest
 
-    except Exception:
+    except OSError:
         # Clean up partial export on failure
         if export_path.exists():
             shutil.rmtree(export_path, ignore_errors=True)
@@ -341,7 +341,7 @@ def restore_from_bundle(
             errors=tuple(errors),
         )
 
-    except Exception:
+    except OSError:
         if restore_path.exists():
             shutil.rmtree(restore_path, ignore_errors=True)
         raise

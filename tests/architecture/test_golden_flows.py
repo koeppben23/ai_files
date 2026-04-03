@@ -110,9 +110,16 @@ class TestDesignDecisions:
         
         This is NOT a bug - it's an intentional design for system-driven completion.
         """
-        # workflow_complete has no producer in command_policy.yaml
-        # It's a system event only
-        assert True
+        # Verify no golden flow starts from a user command that directly produces
+        # workflow_complete.  The event must originate only from 6.execution.
+        wc_sources = [
+            source for gf in GOLDEN_FLOWS
+            for source, event, _ in gf.sequence
+            if event == "workflow_complete"
+        ]
+        assert all(s == "6.execution" for s in wc_sources), (
+            f"workflow_complete must only originate from 6.execution, got: {wc_sources}"
+        )
 
     def test_approved_single_exit_path(self):
         """DESIGN DECISION: 6.approved has only ONE exit path:
@@ -146,8 +153,16 @@ class TestDesignDecisions:
         
         This is intentional for clean rejection handling.
         """
-        # 6.rejected should have exactly one transition: default -> 4
-        assert True
+        # Verify 6.rejected has exactly one transition (default -> 4) in golden flows
+        rejected_steps = [
+            (event, target) for gf in GOLDEN_FLOWS
+            for source, event, target in gf.sequence
+            if source == "6.rejected"
+        ]
+        assert len(rejected_steps) >= 1, "Golden flows must cover 6.rejected"
+        for event, target in rejected_steps:
+            assert event == "default", f"6.rejected must use 'default' event, got '{event}'"
+            assert target == "4", f"6.rejected must return to Phase 4, got '{target}'"
 
 
 # =============================================================================
@@ -262,8 +277,16 @@ class TestAdversarialFlows:
     def test_adversarial_flow_blocked(self, test: dict):
         """Adversarial Flows müssen fail-closed sein."""
         if test.get("expected_fail"):
-            # Das System MUSS hier blockieren
-            assert True, f"Adversarial test {test['name']} erwartet Blockierung"
+            # Verify the adversarial (start_state, event) pair is NOT in any golden flow
+            adversarial_pair = (test["start_state"], test["event"])
+            golden_pairs = {
+                (source, event)
+                for gf in GOLDEN_FLOWS
+                for source, event, _ in gf.sequence
+            }
+            assert adversarial_pair not in golden_pairs, (
+                f"Adversarial pair {adversarial_pair} must NOT appear in golden flows"
+            )
 
     def test_blocked_state_requires_explicit_recovery(self):
         """6.blocked erfordert explizite Wiederaufnahme."""
@@ -306,10 +329,13 @@ class TestArchitectureInvariants:
 
     def test_terminal_states_have_no_mutating_transitions(self):
         """Terminale Zustände haben keine mutierenden Transitionen."""
-        terminal_states = ["6.complete"]
-        for state in terminal_states:
-            # 6.complete hat keine Transitionen
-            assert state in ["6.complete"]
+        terminal_states = {"6.complete"}
+        # No golden flow should have a terminal state as source of a transition
+        for gf in GOLDEN_FLOWS:
+            for source, _event, _target in gf.sequence:
+                assert source not in terminal_states, (
+                    f"Golden Flow {gf.name}: terminal state {source} used as transition source"
+                )
 
     def test_review_is_readonly(self):
         """/review mutiert den State nicht."""
@@ -330,12 +356,12 @@ class TestPerformanceGuardrails:
     Diese Tests nutzen relative Regression-Checks, keine absoluten ms-Werte.
     """
 
+    @pytest.mark.skip(reason="Requires timing infrastructure; no absolute ms values in unit tests")
     def test_spec_load_performance_guardrail(self):
         """Spec-Load sollte unter CI-Guardrail sein (relativer Check)."""
-        # Dies ist ein Placeholder - echte Implementierung würde timing nutzen
-        # Wichtig: KEINE absoluten ms-Werte in Unit-Tests
-        assert True, "Performance Guardrail Test"
+        raise AssertionError("Must not run — requires timing infrastructure")
 
+    @pytest.mark.skip(reason="Requires timing infrastructure; no absolute ms values in unit tests")
     def test_transition_resolve_performance_guardrail(self):
         """Transition-Resolve sollte unter CI-Guardrail sein."""
-        assert True, "Performance Guardrail Test"
+        raise AssertionError("Must not run — requires timing infrastructure")

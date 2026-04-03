@@ -18,7 +18,7 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
 
         domain_codes = set(reason_codes.CANONICAL_REASON_CODES)
         domain_blocked = {c for c in domain_codes if c.startswith("BLOCKED-")}
-    except Exception as exc:
+    except (ImportError, AttributeError) as exc:
         errors.append(f"Cannot load reason_codes.py: {exc}")
         return (False, errors)
 
@@ -30,7 +30,7 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
     try:
         with open(registry_path, "r", encoding="utf-8") as f:
             registry_data = json.load(f)
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"Cannot parse registry: {exc}")
         return (False, errors)
 
@@ -63,7 +63,7 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
 
         embedded_codes = set(EMBEDDED_REASON_CODE_TO_SCHEMA_REF.keys())
         embedded_blocked = {c for c in embedded_codes if c.startswith("BLOCKED-")}
-    except Exception as exc:
+    except (ImportError, AttributeError) as exc:
         errors.append(f"Cannot load embedded registry: {exc}")
         return (False, errors)
 
@@ -87,7 +87,7 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
     for yaml_path in sorted((repo_root / "governance_runtime" / "assets" / "config").glob("*.yaml")):
         try:
             text = yaml_path.read_text(encoding="utf-8")
-        except Exception as exc:
+        except OSError as exc:
             errors.append(f"Cannot read YAML policy file {yaml_path}: {exc}")
             continue
         for code in re.findall(r"BLOCKED-[A-Z0-9-]+", text):

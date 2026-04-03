@@ -8,14 +8,13 @@ Bash/WSL even on Windows).
 The fix keeps the bash block intact and appends a ``cmd`` block on Windows,
 guarded by an idempotency check (``"```cmd" not in content``).
 
-These tests cover Happy / Bad / Corner / Edge scenarios.  They use
-``unittest.mock.patch`` to simulate ``os.name`` on both platforms so the
-full matrix is exercised regardless of the CI host OS.
+These tests cover Happy / Bad / Corner / Edge scenarios.  They patch the
+installer's ``_is_windows()`` helper (NOT ``os.name``) so that ``pathlib.Path``
+and pytest internals are never poisoned on cross-platform CI.
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -25,6 +24,9 @@ from install import (
     BIN_DIR_PLACEHOLDER,
     inject_session_reader_path_for_command,
 )
+
+# Patch target: the inner module where the function object's globals live.
+_IS_WIN = "governance_runtime.install.install._is_windows"
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +70,7 @@ _BIN = "C:/Users/test/.config/opencode/bin"
 
 
 class TestHappyPathWindows:
-    """On Windows (os.name == 'nt'), bash is preserved and cmd is appended."""
+    """On Windows (_is_windows() == True), bash is preserved and cmd is appended."""
 
     @pytest.fixture()
     def commands_dir(self, tmp_path: Path) -> Path:
@@ -76,8 +78,8 @@ class TestHappyPathWindows:
         d.mkdir()
         return d
 
-    @patch("install.os.name", "nt")
-    def test_bash_block_preserved(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_bash_block_preserved(self, _mock, commands_dir: Path) -> None:
         _write_template(commands_dir)
         inject_session_reader_path_for_command(
             commands_dir, command_markdown="continue.md", bin_dir=_BIN, dry_run=False,
@@ -86,8 +88,8 @@ class TestHappyPathWindows:
         assert "```bash" in content
         assert f'PATH="{_BIN}:$PATH" opencode-governance-bootstrap --session-reader --materialize' in content
 
-    @patch("install.os.name", "nt")
-    def test_cmd_block_appended(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_cmd_block_appended(self, _mock, commands_dir: Path) -> None:
         _write_template(commands_dir)
         inject_session_reader_path_for_command(
             commands_dir, command_markdown="continue.md", bin_dir=_BIN, dry_run=False,
@@ -96,8 +98,8 @@ class TestHappyPathWindows:
         assert "```cmd" in content
         assert f'set "PATH={_BIN};%PATH%" && opencode-governance-bootstrap.cmd --session-reader --materialize' in content
 
-    @patch("install.os.name", "nt")
-    def test_powershell_block_preserved(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_powershell_block_preserved(self, _mock, commands_dir: Path) -> None:
         _write_template(commands_dir)
         inject_session_reader_path_for_command(
             commands_dir, command_markdown="continue.md", bin_dir=_BIN, dry_run=False,
@@ -105,8 +107,8 @@ class TestHappyPathWindows:
         content = _read(commands_dir)
         assert "```powershell" in content
 
-    @patch("install.os.name", "nt")
-    def test_all_three_blocks_present(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_all_three_blocks_present(self, _mock, commands_dir: Path) -> None:
         """After injection on Windows, exactly bash + cmd + powershell blocks exist."""
         _write_template(commands_dir)
         inject_session_reader_path_for_command(
@@ -117,8 +119,8 @@ class TestHappyPathWindows:
         assert content.count("```cmd") == 1
         assert content.count("```powershell") == 1
 
-    @patch("install.os.name", "nt")
-    def test_placeholder_fully_replaced(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_placeholder_fully_replaced(self, _mock, commands_dir: Path) -> None:
         _write_template(commands_dir)
         inject_session_reader_path_for_command(
             commands_dir, command_markdown="continue.md", bin_dir=_BIN, dry_run=False,
@@ -126,8 +128,8 @@ class TestHappyPathWindows:
         content = _read(commands_dir)
         assert BIN_DIR_PLACEHOLDER not in content
 
-    @patch("install.os.name", "nt")
-    def test_status_is_injected(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_status_is_injected(self, _mock, commands_dir: Path) -> None:
         _write_template(commands_dir)
         result = inject_session_reader_path_for_command(
             commands_dir, command_markdown="continue.md", bin_dir=_BIN, dry_run=False,
@@ -136,7 +138,7 @@ class TestHappyPathWindows:
 
 
 class TestHappyPathUnix:
-    """On non-Windows (os.name != 'nt'), only the bash block is present."""
+    """On non-Windows (_is_windows() == False), only the bash block is present."""
 
     @pytest.fixture()
     def commands_dir(self, tmp_path: Path) -> Path:
@@ -144,8 +146,8 @@ class TestHappyPathUnix:
         d.mkdir()
         return d
 
-    @patch("install.os.name", "posix")
-    def test_bash_block_preserved(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=False)
+    def test_bash_block_preserved(self, _mock, commands_dir: Path) -> None:
         _write_template(commands_dir)
         inject_session_reader_path_for_command(
             commands_dir, command_markdown="continue.md", bin_dir=_BIN, dry_run=False,
@@ -153,8 +155,8 @@ class TestHappyPathUnix:
         content = _read(commands_dir)
         assert "```bash" in content
 
-    @patch("install.os.name", "posix")
-    def test_no_cmd_block_on_unix(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=False)
+    def test_no_cmd_block_on_unix(self, _mock, commands_dir: Path) -> None:
         _write_template(commands_dir)
         inject_session_reader_path_for_command(
             commands_dir, command_markdown="continue.md", bin_dir=_BIN, dry_run=False,
@@ -177,15 +179,15 @@ class TestBadPath:
         d.mkdir()
         return d
 
-    @patch("install.os.name", "nt")
-    def test_missing_file_returns_skipped(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_missing_file_returns_skipped(self, _mock, commands_dir: Path) -> None:
         result = inject_session_reader_path_for_command(
             commands_dir, command_markdown="continue.md", bin_dir=_BIN, dry_run=False,
         )
         assert result["status"] == "skipped-missing"
 
-    @patch("install.os.name", "nt")
-    def test_no_placeholder_returns_skipped(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_no_placeholder_returns_skipped(self, _mock, commands_dir: Path) -> None:
         """File without {{BIN_DIR}} placeholder is skipped."""
         (commands_dir / "continue.md").write_text(
             "# Already injected\nNo placeholders here.\n", encoding="utf-8",
@@ -195,8 +197,8 @@ class TestBadPath:
         )
         assert result["status"] == "skipped-no-placeholder"
 
-    @patch("install.os.name", "nt")
-    def test_dry_run_does_not_modify_file(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_dry_run_does_not_modify_file(self, _mock, commands_dir: Path) -> None:
         md = _write_template(commands_dir)
         original = md.read_text(encoding="utf-8")
         result = inject_session_reader_path_for_command(
@@ -218,8 +220,8 @@ class TestCornerCases:
         d.mkdir()
         return d
 
-    @patch("install.os.name", "nt")
-    def test_idempotent_no_duplicate_cmd(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_idempotent_no_duplicate_cmd(self, _mock, commands_dir: Path) -> None:
         """Running twice on Windows must NOT duplicate the cmd block."""
         _write_template(commands_dir)
         inject_session_reader_path_for_command(
@@ -237,8 +239,8 @@ class TestCornerCases:
         assert first_content == second_content
         assert second_content.count("```cmd") == 1
 
-    @patch("install.os.name", "nt")
-    def test_bin_dir_with_spaces(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_bin_dir_with_spaces(self, _mock, commands_dir: Path) -> None:
         """Paths with spaces (common on Windows) are handled correctly."""
         bin_path = "C:/Program Files/opencode/bin"
         _write_template(commands_dir)
@@ -249,8 +251,8 @@ class TestCornerCases:
         assert f'set "PATH={bin_path};%PATH%"' in content
         assert f'PATH="{bin_path}:$PATH"' in content
 
-    @patch("install.os.name", "nt")
-    def test_template_without_trailing_args(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_template_without_trailing_args(self, _mock, commands_dir: Path) -> None:
         """A bash block with no trailing args after the launcher name."""
         template = (
             "# Test\n"
@@ -268,8 +270,8 @@ class TestCornerCases:
         # cmd block should have the launcher with .cmd extension but no trailing args
         assert f'set "PATH={_BIN};%PATH%" && opencode-governance-bootstrap.cmd\n```' in content
 
-    @patch("install.os.name", "nt")
-    def test_preserves_surrounding_content(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_preserves_surrounding_content(self, _mock, commands_dir: Path) -> None:
         """Non-code-block content is not altered."""
         template = (
             "# Governance Continue\n"
@@ -294,8 +296,8 @@ class TestCornerCases:
         assert "## Interpretation scope" in content
         assert "Use the YAML output." in content
 
-    @patch("install.os.name", "nt")
-    def test_pre_existing_cmd_block_prevents_insertion(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_pre_existing_cmd_block_prevents_insertion(self, _mock, commands_dir: Path) -> None:
         """If the template already has a ```cmd block (e.g., manually added),
         the idempotency guard prevents adding another one."""
         template = (
@@ -329,8 +331,8 @@ class TestEdgeCases:
         d.mkdir()
         return d
 
-    @patch("install.os.name", "nt")
-    def test_cmd_block_ordering(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_cmd_block_ordering(self, _mock, commands_dir: Path) -> None:
         """The cmd block must appear between the bash and powershell blocks."""
         _write_template(commands_dir)
         inject_session_reader_path_for_command(
@@ -342,8 +344,8 @@ class TestEdgeCases:
         ps_pos = content.index("```powershell")
         assert bash_pos < cmd_pos < ps_pos
 
-    @patch("install.os.name", "nt")
-    def test_different_command_markdowns(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_different_command_markdowns(self, _mock, commands_dir: Path) -> None:
         """The function works for any command_markdown, not just continue.md."""
         md = commands_dir / "review.md"
         md.write_text(_launcher_template(), encoding="utf-8")
@@ -355,8 +357,8 @@ class TestEdgeCases:
         assert "```bash" in content
         assert "```cmd" in content
 
-    @patch("install.os.name", "nt")
-    def test_forward_slashes_in_windows_paths(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_forward_slashes_in_windows_paths(self, _mock, commands_dir: Path) -> None:
         """POSIX-style forward slashes work in both bash and cmd blocks."""
         _write_template(commands_dir)
         inject_session_reader_path_for_command(
@@ -367,8 +369,8 @@ class TestEdgeCases:
         assert f'PATH="{_BIN}:$PATH"' in content
         assert f'set "PATH={_BIN};%PATH%"' in content
 
-    @patch("install.os.name", "posix")
-    def test_unix_does_not_add_cmd_even_with_nt_like_path(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=False)
+    def test_unix_does_not_add_cmd_even_with_nt_like_path(self, _mock, commands_dir: Path) -> None:
         """On Unix, even if the path looks like a Windows path, no cmd block is added."""
         _write_template(commands_dir)
         inject_session_reader_path_for_command(
@@ -378,8 +380,8 @@ class TestEdgeCases:
         assert "```cmd" not in content
         assert "```bash" in content
 
-    @patch("install.os.name", "nt")
-    def test_bin_dir_none_skips_injection(self, commands_dir: Path) -> None:
+    @patch(_IS_WIN, return_value=True)
+    def test_bin_dir_none_skips_injection(self, _mock, commands_dir: Path) -> None:
         """When bin_dir is None, the BIN_DIR branch is skipped entirely."""
         _write_template(commands_dir)
         result = inject_session_reader_path_for_command(

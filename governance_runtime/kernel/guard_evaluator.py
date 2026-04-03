@@ -14,8 +14,42 @@ from typing import Any, Mapping
 from governance_runtime.kernel.spec_registry import SpecRegistry
 
 
+class GuardConfigurationError(RuntimeError):
+    """Raised when guard configuration or invariant is violated.
+
+    This indicates a hard failure - the guard definition itself is invalid
+    or broken. Examples: missing guard in config, malformed condition,
+    unsupported operator/type.
+    """
+
+
+class GuardEvaluationFailed(RuntimeError):
+    """Raised when guard evaluation fails at runtime.
+
+    This is a soft failure - translated to BLOCKED at kernel boundary.
+    The guard configuration is valid, but evaluation could not complete.
+    """
+
+    def __init__(self, message: str, guard_name: str | None = None, event: str | None = None):
+        super().__init__(message)
+        self.guard_name = guard_name
+        self.event = event
+
+
 class GuardEvaluationError(RuntimeError):
     """Raised when guard evaluation cannot be performed safely."""
+
+
+class GuardEvaluationBlocked(RuntimeError):
+    """Raised when guard evaluation fails at runtime but should be handled gracefully.
+
+    This signals that the kernel should return a BLOCKED result instead of crashing.
+    """
+
+    def __init__(self, message: str, guard_name: str | None = None, event: str | None = None):
+        super().__init__(message)
+        self.guard_name = guard_name
+        self.event = event
 
 
 @dataclass(frozen=True)
@@ -74,7 +108,7 @@ class GuardEvaluator:
         cls._ensure_loaded()
         guard = cls._transition_guards_by_event.get(event)
         if guard is None:
-            raise GuardEvaluationError(
+            raise GuardConfigurationError(
                 f"Transition guard for event '{event}' not found in guards.yaml"
             )
 
@@ -87,7 +121,7 @@ class GuardEvaluator:
     def _eval_condition(cls, node: Mapping[str, Any], state: Mapping[str, Any]) -> bool:
         node_type = str(node.get("type", "")).strip()
         if not node_type:
-            raise GuardEvaluationError("Guard condition missing 'type'")
+            raise GuardConfigurationError("Guard condition missing 'type'")
 
         if node_type == "always":
             return True
@@ -95,18 +129,18 @@ class GuardEvaluator:
         if node_type == "all_of":
             operands = node.get("operands")
             if not isinstance(operands, list) or not operands:
-                raise GuardEvaluationError("all_of requires non-empty operands")
+                raise GuardConfigurationError("all_of requires non-empty operands")
             return all(cls._eval_condition(op, state) for op in operands)
 
         if node_type == "any_of":
             operands = node.get("operands")
             if not isinstance(operands, list) or not operands:
-                raise GuardEvaluationError("any_of requires non-empty operands")
+                raise GuardConfigurationError("any_of requires non-empty operands")
             return any(cls._eval_condition(op, state) for op in operands)
 
         key = str(node.get("key", "")).strip()
         if not key:
-            raise GuardEvaluationError(f"{node_type} requires 'key'")
+            raise GuardConfigurationError(f"{node_type} requires 'key'")
         value = cls._read_key(state, key)
 
         if node_type == "key_present":
@@ -131,9 +165,9 @@ class GuardEvaluator:
                 return left >= right
             if operator == "lt":
                 return left < right
-            raise GuardEvaluationError(f"Unsupported numeric_gte operator '{operator}'")
+            raise GuardConfigurationError(f"Unsupported numeric_gte operator '{operator}'")
 
-        raise GuardEvaluationError(f"Unsupported guard condition type '{node_type}'")
+        raise GuardConfigurationError(f"Unsupported guard condition type '{node_type}'")
 
     @staticmethod
     def _read_key(state: Mapping[str, Any], key_path: str) -> Any:

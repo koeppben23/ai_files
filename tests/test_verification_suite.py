@@ -35,16 +35,19 @@ RULEBOOK_BASE = {
 def _kernel_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     cfg = home / ".config" / "opencode"
+    local_root = home / ".local" / "share" / "opencode"
     commands_home = cfg / "commands"
     workspaces_home = cfg / "workspaces"
-    spec_home = cfg / "governance_spec"
+    spec_home = local_root / "governance_spec"
     commands_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
+    local_root.mkdir(parents=True, exist_ok=True)
     spec_home.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
+            "localRoot": str(local_root),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
             "specHome": str(spec_home),

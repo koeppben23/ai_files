@@ -17,7 +17,7 @@ from typing import Literal, Mapping, Protocol, Sequence
 
 from governance_runtime.engine.canonical_json import canonical_json_hash
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
-from governance_runtime.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
+from governance_runtime.infrastructure.path_contract import canonical_config_root, normalize_absolute_path, PathContractError
 
 
 CwdTrustLevel = Literal["trusted", "untrusted"]
@@ -40,7 +40,8 @@ def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
         return None
     try:
         return normalize_absolute_path(raw, purpose=f"env:{key}")
-    except Exception:
+    except (ValueError, OSError, PathContractError):
+        # fail-closed: reject unresolvable paths (e.g., relative paths) for security
         return None
 
 

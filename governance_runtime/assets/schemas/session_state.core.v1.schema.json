@@ -129,6 +129,10 @@
           "type": "boolean",
           "description": "Authoritative readiness gate for ticket intake"
         },
+        "session_hydrated": {
+          "type": "boolean",
+          "description": "True only after /hydrate binds governance to an OpenCode session"
+        },
         "AddonsEvidence": {
           "type": "object",
           "additionalProperties": true

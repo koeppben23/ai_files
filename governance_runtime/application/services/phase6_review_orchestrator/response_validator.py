@@ -53,7 +53,7 @@ class ResponseValidator:
             validators_path: Path to the validators directory.
                             If None, uses default location.
         """
-        self._validate_func = self._load_validator(validators_path)
+        self._validate_func, self._coerce_func = self._load_validator(validators_path)
 
     def _load_validator(self, validators_path: Path | None = None):
         """Load the llm_response_validator module."""
@@ -69,11 +69,14 @@ class ResponseValidator:
         if str(validators_dir) not in sys.path:
             sys.path.insert(0, str(validators_dir))
         try:
-            from llm_response_validator import validate_review_response
+            from llm_response_validator import (
+                coerce_output_against_mandates_schema,
+                validate_review_response,
+            )
 
-            return validate_review_response
-        except Exception:
-            return None
+            return validate_review_response, coerce_output_against_mandates_schema
+        except (ImportError, AttributeError):
+            return None, None
 
     def validate(
         self,
@@ -130,6 +133,11 @@ class ResponseValidator:
                 violations=["validator-not-available"],
                 raw_response=raw_text[:1000],
             )
+
+        if self._coerce_func is not None:
+            normalized = self._coerce_func(parsed_data, mandates_schema, "reviewOutputSchema")
+            if isinstance(normalized, dict):
+                parsed_data = normalized
 
         # Run schema validation
         validation = self._validate_func(parsed_data, mandates_schema=mandates_schema)

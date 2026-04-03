@@ -44,7 +44,7 @@ def write_governance_mode_config(
     if mode_path.exists() and mode_path.is_file():
         try:
             existing_payload = json.loads(mode_path.read_text(encoding="utf-8"))
-        except Exception:  # pragma: no cover - defensive parse guard
+        except (OSError, json.JSONDecodeError, ValueError):  # pragma: no cover - defensive parse guard
             pass
         else:
             if isinstance(existing_payload, dict):
@@ -84,7 +84,7 @@ def write_repo_operating_mode_policy(*, repo_root: Path, profile: str, now_utc: 
     if policy_path.exists() and policy_path.is_file():
         try:
             existing_payload = json.loads(policy_path.read_text(encoding="utf-8"))
-        except Exception as exc:  # pragma: no cover - defensive parse guard
+        except (OSError, json.JSONDecodeError, ValueError) as exc:  # pragma: no cover - defensive parse guard
             raise ValueError(f"existing repo policy is invalid JSON: {exc}") from exc
         if isinstance(existing_payload, dict):
             existing_created_at = str(existing_payload.get("createdAt") or "").strip()

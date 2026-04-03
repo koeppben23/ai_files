@@ -20,18 +20,18 @@ from __future__ import annotations
 import json
 import os
 import shlex
-import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from governance_runtime.engine.next_action_resolver import resolve_next_action
 from governance_runtime.entrypoints.phase5_plan_record_persist import (
     _parse_llm_review_response,
     _load_effective_review_policy_text,
 )
+from governance_runtime.engine.next_action_resolver import resolve_next_action
+from governance_runtime.infrastructure.session_hydration import is_session_hydrated
 from governance_runtime.infrastructure.session_pointer import (
     CANONICAL_POINTER_SCHEMA,
     is_session_pointer_document,
@@ -86,7 +86,7 @@ def _derive_commands_home() -> Path:
     if env_commands:
         try:
             return Path(env_commands).expanduser().resolve()
-        except Exception:
+        except (OSError, ValueError, RuntimeError):
             pass
 
     env_config = os.environ.get("OPENCODE_CONFIG_ROOT", "").strip()
@@ -95,7 +95,7 @@ def _derive_commands_home() -> Path:
             candidate = (Path(env_config).expanduser().resolve() / "commands").resolve()
             if candidate.exists():
                 return candidate
-        except Exception:
+        except (OSError, ValueError, RuntimeError):
             pass
 
     try:
@@ -104,7 +104,7 @@ def _derive_commands_home() -> Path:
         evidence = BindingEvidenceResolver(env=os.environ).resolve(mode="kernel")
         if evidence.commands_home is not None:
             return evidence.commands_home
-    except Exception:
+    except (ImportError, OSError, RuntimeError):
         pass
 
     return (Path.home() / ".config" / "opencode" / "commands").resolve()
@@ -232,71 +232,18 @@ def _should_emit_continue_next_action(snapshot: Snapshot) -> bool:
 
 
 def _resolve_next_action_line(snapshot: Snapshot) -> str:
-    """Determine the next action line (presentation assembly, not formatting)."""
-    render = resolve_next_action(snapshot)
-    label = str(render.label or "").strip()
-    phase = str(snapshot.get("phase") or "").strip().lower()
-    gate = str(snapshot.get("active_gate") or "").strip().lower()
-    next_condition = str(snapshot.get("next_gate_condition") or "").strip().lower()
+    """Render next action from canonical snapshot fields only."""
+    session_hydrated = snapshot.get("session_hydrated")
+    if session_hydrated is False:
+        return "Next action: run /hydrate."
 
-    if gate == "evidence presentation gate":
-        return "Next action: run /review-decision <approve|changes_requested|reject>."
-
-    if gate == "implementation presentation gate":
-        return "Next action: run /implementation-decision <approve|changes_requested|reject>."
-    
-    if gate == "rework clarification gate" and "chat" in next_condition:
-        import re
-        match = re.search(r"clarif(?:y|ying)\s+(?:the\s+)?requested\s+changes\s+(?:in\s+)?chat[,\s]*", next_condition)
-        if match:
-            return "Next action: describe the requested changes in chat."
-    
-    rework_input = str(snapshot.get("rework_clarification_input") or "").strip().lower()
-    if gate == "rework clarification gate" and rework_input:
-        from governance_runtime.application.use_cases.rework_clarification import (
-            classify_rework_clarification,
-            derive_next_rail,
-        )
-        classification = classify_rework_clarification(rework_input)
-        rail = derive_next_rail(classification)
-        if rail == "/ticket":
-            return "Next action: run /ticket with the revised task details."
-        elif rail == "/plan":
-            return "Next action: run /plan with the updated plan details."
-        elif rail == "/continue":
-            return "Next action: run /continue."
-    
-    if (phase.startswith("4") or gate == "ticket input gate") and "/review" not in label.lower():
-        label = (
-            "run /ticket with the ticket/task details. "
-            "Alternative: run /review for read-only feedback (no state change)."
-        )
-
-    p54_status = str(snapshot.get("p54_evaluated_status") or "").strip().lower()
-    if p54_status == "gap-detected" and (
-        "business rules validation" in gate
-        or phase.startswith("5.4")
-        or "businessrules" in phase
-    ):
-        return "Next action: complete the active business-rules validation work in chat."
-
-    p55_status = str(snapshot.get("p55_evaluated_status") or "").strip().lower()
-    if p55_status == "pending" and (
-        "technical debt" in gate
-        or phase.startswith("5.5")
-        or "technicaldebt" in phase
-    ):
-        return "Next action: complete the active technical-debt validation work in chat."
-
-    p56_status = str(snapshot.get("p56_evaluated_status") or "").strip().lower()
-    if p56_status == "pending" and (
-        "rollback safety" in gate
-        or phase.startswith("5.6")
-        or "rollbacksafety" in phase
-    ):
-        return "Next action: complete the active rollback-safety validation work in chat."
-
-    return f"Next action: {label}"
+    command = str(snapshot.get("next_action_command") or "").strip()
+    if command:
+        return f"Next action: {command}"
+    text = str(snapshot.get("next_action") or "").strip()
+    if text:
+        return f"Next action: {text}"
+    return ""
 
 # Import Phase-5 normalizer functions
 from governance_runtime.application.services.phase5_normalizer import (
@@ -340,7 +287,7 @@ def _build_plan_summary(*, state_view: Mapping[str, object], session_path: Path)
                     text = _truncate_text(latest.get("plan_record_text"))
                     if text != "none":
                         return text
-    except Exception:
+    except (OSError, ValueError, TypeError):
         pass
     return _truncate_text(state_view.get("phase5_plan_record_digest"))
 
@@ -476,7 +423,7 @@ def _resolve_session_document(commands_home: Path) -> tuple[Path, dict, Path, di
 
     try:
         raw_pointer = _read_json(pointer_path)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         raise RuntimeError(f"Invalid session pointer JSON: {exc}") from exc
 
     try:
@@ -494,7 +441,7 @@ def _resolve_session_document(commands_home: Path) -> tuple[Path, dict, Path, di
 
     try:
         state = _read_json(session_path)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         raise RuntimeError(f"Invalid workspace session state JSON: {exc}") from exc
     return config_root, pointer, session_path, state
 
@@ -815,48 +762,6 @@ def get_canonical_active_gate(materialized: dict) -> str:
     canonical = get_canonical_state(materialized)
     return str(canonical.get("active_gate") or "")
 
-    state_obj = materialized.get("SESSION_STATE")
-    state_map = state_obj if isinstance(state_obj, dict) else materialized
-    if not str(state_map.get("session_run_id") or "").strip():
-        state_map["session_run_id"] = f"session-{uuid.uuid4().hex[:12]}"
-    current_revision = 0
-    try:
-        current_revision = int(str(state_map.get("session_state_revision") or "0").strip())
-    except ValueError:
-        current_revision = 0
-    state_map["session_state_revision"] = current_revision + 1
-    state_map["session_materialization_event_id"] = f"mat-{uuid.uuid4().hex}"
-    state_map["session_materialized_at"] = _now_iso()
-
-    # Create gate evaluator dependencies for Phase-5 normalizer
-    _gate_evaluators = GateEvaluators(
-        evaluate_p53=evaluate_p53_test_quality_gate,
-        evaluate_p54=evaluate_p54_business_rules_gate,
-        evaluate_p55=evaluate_p55_technical_debt_gate,
-        evaluate_p56=evaluate_p56_rollback_safety_gate,
-        phase_1_5_executed=_phase_1_5_executed,
-    )
-    _gate_constants = GateConstants(
-        priority_order=P5_GATE_PRIORITY_ORDER,
-        terminal_values=P5_GATE_TERMINAL_VALUES,
-        reason_code_for_gate=reason_code_for_gate,
-    )
-
-    _sync_conditional_p5_gate_states(state_doc=materialized, gate_evaluators=_gate_evaluators)
-    _normalize_phase6_p5_state(
-        state_doc=materialized,
-        events_path=session_path.parent / "logs" / "events.jsonl",
-        clock=_now_iso,
-        audit_sink=_append_jsonl,
-        gate_constants=_gate_constants,
-        gate_evaluators=_gate_evaluators,
-    )
-    _persist_review_package_markers(state_doc=materialized, session_path=session_path)
-    _persist_implementation_package_markers(state_doc=materialized)
-
-    _write_json_atomic(session_path, materialized)
-    return materialized
-
 
 def read_session_snapshot(commands_home: Path | None = None, *, materialize: bool = False) -> dict:
     """Read governance session state and return the render source payload.
@@ -879,7 +784,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
 
     try:
         config_root, pointer, session_path, state = _resolve_session_document(commands_home)
-    except Exception as exc:
+    except (RuntimeError, ValueError, OSError) as exc:
         return {
             "schema": SNAPSHOT_SCHEMA,
             "status": "ERROR",
@@ -919,7 +824,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
                 session_path=session_path,
                 state_doc=state,
             )
-        except Exception as exc:
+        except (ValueError, OSError, TypeError) as exc:
             return {
                 "schema": SNAPSHOT_SCHEMA,
                 "status": "ERROR",
@@ -946,7 +851,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
                 session_state_doc=state,
                 runtime_ctx=ctx,
             )
-        except Exception:
+        except (ImportError, OSError, ValueError, RuntimeError):
             # Graceful degradation -- fall back to persisted state.
             kernel_result = None
 
@@ -1040,7 +945,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             p54_missing_code_surfaces = [str(item) for item in _missing_surfaces if str(item).strip()]
         p55_evaluated_status = str(p55_eval.status)
         p56_evaluated_status = str(p56_eval.status)
-    except Exception:
+    except (ValueError, AttributeError, TypeError):
         pass
 
     signal = resolve_plan_record_signal(
@@ -1114,6 +1019,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "active_gate": _safe_str(active_gate),
         "next_gate_condition": _safe_str(next_gate_condition),
         "ticket_intake_ready": _safe_str(ticket_intake_ready),
+        "session_hydrated": is_session_hydrated(state_view if isinstance(state_view, dict) else {}),
         "phase_transition_evidence": transition_evidence_met,
         "gates_blocked": gates_blocked,
         "plan_record_status": plan_status,
@@ -1147,6 +1053,21 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             or ""
         ),
     }
+
+    # Canonical next-action fields are part of the rail result contract.
+    # Session reader owns computation of snapshot semantics, while renderers
+    # must only display these fields.
+    try:
+        resolved_action = resolve_next_action(snapshot)
+        if resolved_action.command:
+            snapshot["next_action_command"] = str(resolved_action.command)
+        if resolved_action.label:
+            snapshot["next_action"] = str(resolved_action.label)
+        if resolved_action.reason:
+            snapshot["next_action_code"] = str(resolved_action.reason).upper().replace("-", "_")
+    except (ValueError, AttributeError, TypeError, RuntimeError):
+        snapshot["next_action_code"] = "NEXT_ACTION_UNAVAILABLE"
+        snapshot["next_action"] = "Next action unavailable: resolve snapshot computation error and rerun /continue."
     if transition_evidence_hint:
         snapshot["transition_evidence_hint"] = transition_evidence_hint
 
@@ -1175,6 +1096,10 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         )
         snapshot["review_package_presented"] = True
         snapshot["review_package_plan_body_present"] = plan_body != "none"
+
+    plan_summary = state_view.get("plan_under_review_summary") or state.get("plan_under_review_summary") or ""
+    if plan_summary:
+        snapshot["plan_under_review_summary"] = plan_summary
 
     # --- Fix 3.1 (B6): Phase 5 self-review diagnostics ---
     # Surface kernel-owned exit conditions so users can see WHY an exit
@@ -1347,6 +1272,7 @@ def main(argv: list[str] | None = None) -> int:
     diagnose_mode = False
     materialize_mode = False
     verbose_governance_frame = False
+    quiet_mode = False
     tail_count = 25
     args = argv if argv is not None else sys.argv[1:]
 
@@ -1381,6 +1307,10 @@ def main(argv: list[str] | None = None) -> int:
             verbose_governance_frame = True
             idx += 1
             continue
+        if arg == "--quiet":
+            quiet_mode = True
+            idx += 1
+            continue
         if arg == "--tail-count":
             if idx + 1 >= len(args):
                 print("status: ERROR", file=sys.stdout)
@@ -1403,30 +1333,67 @@ def main(argv: list[str] | None = None) -> int:
             from governance_runtime.application.use_cases.audit_readout_builder import build_audit_readout
 
             payload = build_audit_readout(commands_home=home, tail_count=tail_count)
-        except Exception as exc:
+        except (ImportError, OSError, ValueError) as exc:
             print("status: ERROR", file=sys.stdout)
             print(f"error: {exc}", file=sys.stdout)
             return 1
         sys.stdout.write(json.dumps(payload, ensure_ascii=True, indent=2) + "\n")
         return 0
 
+    if diagnose_mode:
+        raw_snapshot = read_session_snapshot(commands_home=commands_home, materialize=materialize_mode)
+        snapshot: Snapshot = {k: v for k, v in raw_snapshot.items()}
+        rendered = format_snapshot(snapshot)
+        if materialize_mode:
+            action_line = _resolve_next_action_line(snapshot)
+            if action_line:
+                rendered = rendered + action_line + "\n"
+        sys.stdout.write(rendered)
+        return 0 if snapshot.get("status") != "ERROR" else 1
+
     raw_snapshot = read_session_snapshot(commands_home=commands_home, materialize=materialize_mode)
-    # Cast to typed Snapshot for renderer contract
     snapshot: Snapshot = {k: v for k, v in raw_snapshot.items()}
 
-    if not audit_mode and not debug_mode and not diagnose_mode:
-        action_line = _resolve_next_action_line(snapshot)
+    workspace_dir = commands_home.parent if commands_home else None
+
+    if quiet_mode:
+        sys.stdout.write(json.dumps(snapshot, ensure_ascii=True, indent=2) + "\n")
+        return 0
+
+    from governance_runtime.infrastructure.governance_config_loader import (
+        resolve_presentation_mode,
+    )
+    from governance_runtime.infrastructure.rendering.snapshot_renderer import (
+        format_narrative_snapshot,
+    )
+
+    effective_mode = resolve_presentation_mode(
+        cli_quiet=quiet_mode,
+        cli_debug=debug_mode,
+        workspace_root=workspace_dir,
+    )
+
+    action_line = _resolve_next_action_line(snapshot)
+
+    if effective_mode == "narrative":
+        rendered = format_narrative_snapshot(
+            snapshot,
+            action_line,
+            verbose_governance_frame=verbose_governance_frame,
+        )
+    elif effective_mode == "debug":
         rendered = format_guided_snapshot(
             snapshot,
             action_line,
             verbose_governance_frame=verbose_governance_frame,
         )
     else:
-        rendered = format_snapshot(snapshot)
-        if materialize_mode:
-            action_line = _resolve_next_action_line(snapshot)
-            if action_line:
-                rendered = rendered + action_line + "\n"
+        rendered = format_narrative_snapshot(
+            snapshot,
+            action_line,
+            verbose_governance_frame=verbose_governance_frame,
+        )
+
     sys.stdout.write(rendered)
     return 0 if snapshot.get("status") != "ERROR" else 1
 

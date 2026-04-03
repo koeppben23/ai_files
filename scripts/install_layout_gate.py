@@ -11,6 +11,7 @@ from pathlib import Path
 EXPECTED_RAILS = {
     "audit-readout.md",
     "continue.md",
+    "hydrate.md",
     "implement.md",
     "implementation-decision.md",
     "plan.md",

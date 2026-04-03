@@ -1,5 +1,9 @@
 {
+  "$schema": "governance-config.v1.schema.json",
   "pipeline_mode": false,
+  "presentation": {
+    "mode": "narrative"
+  },
   "review": {
     "phase5_max_review_iterations": 3,
     "phase6_max_review_iterations": 3

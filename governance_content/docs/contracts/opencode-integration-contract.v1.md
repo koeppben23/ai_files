@@ -39,16 +39,28 @@ opencode.json is classified as **user/team configuration**, not installer-owned 
 | **Non-dict file** | Treated as empty dict; governance entries added fresh | `install.py:1297-1298` |
 | **Instructions not list** | Treated as empty list; governance entries added fresh | `install.py:1303-1304` |
 
-### 1.4 Governance Instructions (Canonical Set)
+### 1.4 Governance Instructions (Context Files)
 
-```python
-OPENCODE_INSTRUCTIONS = [
-    "commands/master.md",
-    "commands/rules.md",
-    "commands/SESSION_STATE_SCHEMA.md",
-    "commands/README-OPENCODE.md",
-]
-```
+Fresh installs populate the `instructions` array with **absolute paths** to
+the governance context/reference files that the LLM needs to understand the
+governance system:
+
+- `<local_root>/governance_content/reference/master.md` — authority, phase
+  routing, constraints
+- `<local_root>/governance_content/reference/rules.md` — developer/reviewer
+  mandates and compliance rules
+
+Command rails (slash commands under `commands/`) are **NOT** included in
+`instructions` — OpenCode loads them automatically from the `commands/`
+directory.
+
+Existing installations that already contain legacy `commands/…` entries in
+their `instructions` array retain them (append-only contract).  The installer
+never removes user-added or previously-added instruction entries.
+
+**Legacy constant** `OPENCODE_INSTRUCTIONS` is preserved in source for
+backward compatibility but is no longer used for fresh installs when
+`local_root` is provided.
 
 ### 1.5 Idempotency
 

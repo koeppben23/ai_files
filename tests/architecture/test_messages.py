@@ -522,8 +522,11 @@ class TestMessageNegative:
 
     def test_no_duplicate_state_ids_across_sections(self, messages):
         """Negative: Keine Duplikate zwischen state_messages."""
-        # Already tested in TestStateMessages.test_state_ids_unique
-        pass
+        # Verify state_ids are unique (explicit re-check for cross-section safety)
+        state_ids = [m["state_id"] for m in messages.get("state_messages", [])]
+        assert len(state_ids) == len(set(state_ids)), (
+            f"Duplicate state IDs found: {[s for s in state_ids if state_ids.count(s) > 1]}"
+        )
 
     def test_no_duplicate_transition_state_event_combinations(self, transition_messages):
         """Negative: Keine Duplikate bei state_id + event Kombinationen."""

@@ -28,6 +28,11 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except (ImportError, AttributeError):
+    GitCliClient = None
+
 from governance_runtime.entrypoints.write_policy import EFFECTIVE_MODE, writes_allowed
 
 
@@ -161,7 +166,7 @@ def _python_command_argv(python_command: str) -> list[str]:
         return [sys.executable]
     try:
         parts = [part for part in shlex.split(token, posix=False) if part]
-    except Exception:
+    except (ValueError, TypeError):
         parts = []
     return parts or [sys.executable]
 
@@ -232,7 +237,7 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     """
     try:
         normalized_repo_root = normalize_absolute_path(str(repo_root), purpose="repo_root")
-    except Exception:
+    except (ValueError, OSError):
         return None
 
     if _derive_fingerprint_ssot is not None:
@@ -240,7 +245,7 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
             fp = str(_derive_fingerprint_ssot(normalized_repo_root) or "").strip()
             if fp and _is_canonical_fingerprint(fp):
                 return fp
-        except Exception:
+        except (ValueError, OSError):
             pass
 
     fp = None
@@ -248,7 +253,7 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
         configure_gateway_registry()
         identity = evaluate_bootstrap_identity(adapter=cast(Any, _RepoIdentityAdapter(normalized_repo_root)))
         fp = (identity.repo_fingerprint or "").strip()
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         pass
 
     if fp and _is_canonical_fingerprint(fp):
@@ -287,7 +292,15 @@ def _resolve_git_repo_root(start_dir: Path) -> Path | None:
     Returns:
         Path to the git repository root, or None if not in a git repo.
     """
-    import subprocess
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        root = git_client.resolve_repo_root(start_dir)
+        if root:
+            return root.absolute()
+        return None
+    
+    # Fallback to subprocess
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -301,7 +314,7 @@ def _resolve_git_repo_root(start_dir: Path) -> Path | None:
             root = result.stdout.strip()
             if root:
                 return Path(root).absolute()
-    except Exception:
+    except (OSError, subprocess.TimeoutExpired, RuntimeError):
         pass
     return None
 
@@ -330,20 +343,20 @@ def _resolve_repo_root_ssot(explicit_root: Path | None = None) -> tuple[Path | N
                 if path is None:
                     return None, str(source)
                 return normalize_absolute_path(str(path), purpose="repo_root"), str(source)
-        except Exception:
+        except (ValueError, OSError):
             pass
 
     if explicit_root is not None:
         try:
             return normalize_absolute_path(str(explicit_root), purpose="explicit_repo_root"), "explicit"
-        except Exception:
+        except (ValueError, OSError):
             return None, "invalid-explicit"
     
     env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
     if env_root:
         try:
             return normalize_absolute_path(env_root, purpose="OPENCODE_REPO_ROOT"), "env"
-        except Exception:
+        except (ValueError, OSError):
             pass
     
     cwd = Path.cwd()
@@ -370,7 +383,7 @@ def _verify_pointer_exists(opencode_home: Path, repo_fingerprint: str) -> tuple[
         return False, "pointer-file-not-found"
     try:
         payload = json.loads(pointer_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return False, "pointer-file-unreadable"
     if not isinstance(payload, dict):
         return False, "pointer-invalid-shape"
@@ -389,7 +402,7 @@ def _verify_pointer_exists(opencode_home: Path, repo_fingerprint: str) -> tuple[
         return False, "pointer-activeSessionStateFile-missing"
     try:
         state_payload = json.loads(active_state_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return False, "pointer-activeSessionStateFile-unreadable"
     if not isinstance(state_payload, dict):
         return False, "pointer-activeSessionStateFile-invalid-shape"
@@ -408,7 +421,7 @@ def _verify_workspace_session_exists(workspaces_home: Path, repo_fingerprint: st
         return False, "workspace-session-file-not-found"
     try:
         payload = json.loads(session_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return False, "workspace-session-file-unreadable"
     if not isinstance(payload, dict):
         return False, "workspace-session-invalid-shape"
@@ -459,7 +472,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                         repo_fingerprint=repo_fingerprint,
                     )
                 )
-            except Exception:
+            except (OSError, ValueError, RuntimeError):
                 payload["log_path"] = ""
         return payload
 
@@ -748,7 +761,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                 expected_constraint="bootstrap_session_state.py must exit with code 0",
                 remediation="Inspect stdout/stderr and fix bootstrap issues.",
             )
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         emit_gate_failure(
             gate="PERSISTENCE",
             code="BOOTSTRAP_EXCEPTION",

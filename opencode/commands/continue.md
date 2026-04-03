@@ -1,6 +1,17 @@
+---
+description: Materialize and print the current governance session state for this repository.
+---
+
 # Governance Continue
 
 <!-- rail-classification: MUTATING, GATE-EVALUATION -->
+
+## Context
+
+This command is part of a **locally installed governance extension** for OpenCode.
+It is not a native OpenCode core feature.  The governance runtime, its command
+rails, and all referenced files reside in the local OpenCode configuration
+directory as part of the project's governance setup.
 
 ## Purpose
 
@@ -32,10 +43,10 @@ For Phase 5.4 (Business Rules Validation): if extraction evidence shows all miss
 
 ## Response shape
 
-- reflect current `SESSION_STATE.phase` and `SESSION_STATE.next`
-- include delta-only progress for the active step
-- if kernel reports a blocker or warning, render it with concise evidence and one recovery action
-- end with one explicit `Next action:` line as the final output line (including terminal states); for Phase 4 / Ticket Input Gate include both options: `/ticket` and the read-only alternative `/review` (no state change)
+- reflect current `SESSION_STATE.phase` and `SESSION_STATE.next`; include delta-only progress for the active step
+- if session contains plan data, render **Plan under review** section (prefer `plan_under_review_summary` normalized to max 6 lines/800 chars; fallback to `review_package_plan_body`)
+- if kernel reports blocker/warning, render with evidence and one recovery action
+- **always** end with exactly one `Next action:` line as final output; for Phase 4 / Ticket Input Gate include both: `/ticket` and `/review`
 
 ---
 

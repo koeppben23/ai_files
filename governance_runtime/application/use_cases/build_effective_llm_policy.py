@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft7Validator
+from jsonschema import Draft7Validator, SchemaError
 
 from governance_runtime.application.policy.effective_policy_compiler import (
     AuthoringPolicy,
@@ -176,7 +176,7 @@ def build_effective_llm_policy(input: EffectivePolicyInput) -> EffectivePolicyOu
             )
         try:
             raw_text = content_path.read_text(encoding="utf-8")
-        except Exception as exc:
+        except OSError as exc:
             errors.append(f"read failed for {identifier}: {exc}")
             raise BLOCKED_RULEBOOK_CONTENT_UNLOADABLE(
                 f"Cannot read rulebook {identifier} from {content_path}: {exc}"
@@ -190,7 +190,7 @@ def build_effective_llm_policy(input: EffectivePolicyInput) -> EffectivePolicyOu
 
         try:
             parsed = parse_rulebook_content(identifier, source_kind, str(content_path), raw_text)
-        except Exception as exc:
+        except (ValueError, json.JSONDecodeError) as exc:
             errors.append(f"parse failed for {identifier}: {exc}")
             raise BLOCKED_RULEBOOK_CONTENT_PARSE_FAILED(
                 f"Cannot parse rulebook {identifier}: {exc}"
@@ -293,7 +293,7 @@ def build_effective_llm_policy(input: EffectivePolicyInput) -> EffectivePolicyOu
                 )
         except BLOCKED_EFFECTIVE_POLICY_SCHEMA_INVALID:
             raise
-        except Exception as exc:
+        except (OSError, json.JSONDecodeError, ValueError, SchemaError) as exc:
             errors.append(f"schema validation error: {exc}")
 
     authoring_has_content = bool(

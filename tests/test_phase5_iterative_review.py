@@ -243,6 +243,9 @@ class TestPhase5ReviewStateAgentsStrictMode:
     def test_max_iterations_from_governance_config(self, tmp_path: Path):
         """max_iterations comes from governance-config.json (canonical source)."""
         custom_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 5,
                 "phase6_max_review_iterations": 7,
@@ -260,6 +263,9 @@ class TestPhase5ReviewStateAgentsStrictMode:
     def test_can_iterate_uses_governance_config_value(self, tmp_path: Path):
         """can_iterate is based on governance-config max_iterations."""
         custom_config = {
+            "presentation": {
+                "mode": "standard",
+            },
             "review": {
                 "phase5_max_review_iterations": 5,
                 "phase6_max_review_iterations": 3,

@@ -389,7 +389,7 @@ def discover_code_surfaces(repo_root: Path) -> list[CodeSurface]:
             absolute = root / filename
             try:
                 rel = str(absolute.relative_to(repo_root)).replace("\\", "/")
-            except Exception:
+            except ValueError:
                 continue
             surfaces.append(
                 CodeSurface(
@@ -640,7 +640,7 @@ def extract_code_rule_candidates_with_diagnostics(repo_root: Path) -> tuple[Code
         path = repo_root / surface.path
         try:
             text = path.read_text(encoding="utf-8")
-        except Exception:
+        except OSError:
             continue
         split_lines = text.splitlines()
         for line_no, raw_line in enumerate(split_lines, start=1):

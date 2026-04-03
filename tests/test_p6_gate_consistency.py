@@ -490,7 +490,7 @@ class TestReviewDecisionChangesRequested:
             session_path=session_path,
         )
         assert result["status"] == "ok"
-        assert "describe the requested changes" in str(result.get("next_action", ""))
+        assert "describe the requested changes" in str(result.get("next_action", "")).lower()
 
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]
@@ -515,7 +515,7 @@ class TestReviewDecisionReject:
             session_path=session_path,
         )
         assert result["status"] == "ok"
-        assert "run /ticket" in str(result.get("next_action", ""))
+        assert result.get("next_action_command") == "/ticket"
 
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]
@@ -832,6 +832,7 @@ class TestEvidencePresentationGateGuidance:
             "status": "OK",
             "next_gate_condition": "Present evidence and submit via /review-decision.",
             "implementation_review_complete": True,
+            "next_action_command": "/review-decision <approve|changes_requested|reject>",
         }
         line = _resolve_next_action_line(snapshot)
         assert "/review-decision" in line
@@ -842,10 +843,11 @@ class TestEvidencePresentationGateGuidance:
             "active_gate": "Workflow Complete",
             "status": "OK",
             "next_gate_condition": "Workflow approved.",
+            "next_action_command": "/implement",
         }
         line = _resolve_next_action_line(snapshot)
         assert line == (
-            "Next action: run /implement."
+            "Next action: /implement"
         )
 
     def test_should_not_emit_continue_for_review_decision(self) -> None:

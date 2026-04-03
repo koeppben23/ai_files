@@ -52,6 +52,20 @@ from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
+from governance_runtime.shared.next_action import NextAction, NextActions, render_next_action_line
+
+
+REVIEW_DECISION_NEXT_ACTION = NextAction(
+    code="REVIEW_DECISION",
+    text="Submit review decision.",
+    command=None,
+)
+
+NEXT_ACTION_MAP = {
+    "approve": NextActions.IMPLEMENT_START,
+    "changes_requested": NextActions.DESCRIBE_CHANGES,
+    "reject": NextActions.TICKET_REVISED,
+}
 
 
 def _apply_pipeline_auto_approve(
@@ -119,7 +133,11 @@ def _apply_pipeline_auto_approve(
         }
         _append_event(events_path, event)
 
-    return _payload(status="ok", message="Workflow auto-approved in pipeline mode.")
+    return _payload(
+        status="ok",
+        message="Workflow auto-approved in pipeline mode.",
+        **NextActions.IMPLEMENT_START.to_dict(),
+    )
 
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
@@ -142,7 +160,7 @@ def _append_event(path: Path, event: dict[str, object]) -> bool:
         path.parent.mkdir(parents=True, exist_ok=True)
         write_jsonl_event(path, event, append=True)
         return True
-    except Exception:
+    except OSError:
         return False
 
 
@@ -150,6 +168,43 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     out: dict[str, object] = {"status": status}
     out.update(kwargs)
     return out
+
+
+def _blocked_payload(
+    *,
+    events_path: Path | None,
+    phase: str,
+    decision: str,
+    reason_code: str,
+    message: str,
+    gate: str = "",
+    next_action: NextAction | None = None,
+) -> dict[str, object]:
+    event_id = uuid.uuid4().hex
+    if events_path is not None:
+        _append_event(
+            events_path,
+            {
+                "schema": "opencode.review-decision.v1",
+                "ts_utc": _now_iso(),
+                "event_id": event_id,
+                "event": "REVIEW_DECISION_BLOCKED",
+                "decision": decision.strip().lower(),
+                "phase": phase,
+                "active_gate": gate,
+                "reason_code": reason_code,
+                "message": message,
+            },
+        )
+    payload = _payload(
+        "error",
+        reason_code=reason_code,
+        message=message,
+        event_id=event_id,
+    )
+    if next_action:
+        payload.update(next_action.to_dict())
+    return payload
 
 
 def _is_evidence_presentation_gate(state: Mapping[str, object]) -> bool:
@@ -190,7 +245,7 @@ def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
             if isinstance(value, int):
                 return value
             return int(str(value).strip())
-        except Exception:
+        except (ValueError, TypeError):
             return fallback
 
     pkg = canonical.get("review_package", {})
@@ -319,17 +374,30 @@ def apply_review_decision(
                 status="ok",
                 message="Workflow already approved. No action taken.",
                 decision="already_approved",
+                **NextActions.IMPLEMENT_START.to_dict(),
             )
 
     if normalized not in VALID_DECISIONS:
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase="",
+            gate="",
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=f"Invalid decision '{decision}'. Must be one of: {', '.join(sorted(VALID_DECISIONS))}",
+            next_action=REVIEW_DECISION_NEXT_ACTION,
         )
 
     if not session_path.exists():
-        return _payload("error", message="session state file not found")
+        return _blocked_payload(
+            events_path=events_path,
+            phase="",
+            gate="",
+            decision=decision,
+            reason_code=BLOCKED_REVIEW_DECISION_INVALID,
+            message="session state file not found",
+            next_action=REVIEW_DECISION_NEXT_ACTION,
+        )
 
     state_doc = _load_json(session_path)
     state_obj = state_doc.get("SESSION_STATE")
@@ -340,41 +408,57 @@ def apply_review_decision(
         required_ids=("R-REVIEW-DECISION-001",),
     )
     if not enforcement.ok:
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase=get_phase(state),
+            gate=get_active_gate(state),
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=f"{enforcement.reason}: {';'.join(enforcement.details)}",
+            next_action=REVIEW_DECISION_NEXT_ACTION,
         )
 
     # Validate we are in Phase 6
     phase_text = get_phase(state)
     if not phase_text.startswith("6"):
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase=phase_text,
+            gate=get_active_gate(state),
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=f"Review decision only allowed in Phase 6. Current phase: {phase_text}",
+            next_action=REVIEW_DECISION_NEXT_ACTION,
         )
 
     if not _is_evidence_presentation_gate(state):
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase=phase_text,
+            gate=get_active_gate(state),
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=(
                 "Review decision requires Phase 6 Evidence Presentation Gate. "
                 "Run /continue until active_gate is 'Evidence Presentation Gate', then run "
                 "/review-decision <approve|changes_requested|reject>."
             ),
+            next_action=REVIEW_DECISION_NEXT_ACTION,
         )
 
     package_ready, package_reason = _review_package_ready(state)
     if not package_ready:
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase=phase_text,
+            gate=get_active_gate(state),
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=(
                 "Review decision is not yet allowed: review package is incomplete "
                 f"({package_reason}). Run /continue until the full review package is presented."
             ),
+            next_action=REVIEW_DECISION_NEXT_ACTION,
         )
 
     event_id = uuid.uuid4().hex
@@ -470,10 +554,14 @@ def apply_review_decision(
     payload_validation = validate_review_payload(review_payload)
     if not payload_validation.valid:
         error_messages = [e.message for e in payload_validation.errors]
-        return _payload(
-            "error",
+        return _blocked_payload(
+            events_path=events_path,
+            phase=phase_text,
+            gate=get_active_gate(state),
+            decision=decision,
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=f"Review payload validation failed: {'; '.join(error_messages)}",
+            next_action=REVIEW_DECISION_NEXT_ACTION,
         )
 
     # Persist
@@ -493,6 +581,7 @@ def apply_review_decision(
     if events_path is not None:
         _append_event(events_path, audit_event)
 
+    next_action_obj = NEXT_ACTION_MAP[normalized]
     return _payload(
         "ok",
         decision=normalized,
@@ -501,19 +590,8 @@ def apply_review_decision(
         next_gate=str(state.get("active_gate") or ""),
         governance_status=str(state.get("governance_status") or ""),
         implementation_status=str(state.get("implementation_status") or ""),
-        next_action=_next_action_hint(normalized),
+        **next_action_obj.to_dict(),
     )
-
-
-def _next_action_hint(decision: str) -> str:
-    """Return a human-readable next action hint for the applied decision."""
-    if decision == "approve":
-        return "run /implement."
-    if decision == "changes_requested":
-        return "describe the requested changes in chat."
-    if decision == "reject":
-        return "run /ticket with revised task details."
-    return ""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -545,15 +623,20 @@ def main(argv: list[str] | None = None) -> int:
             events_path=events_path,
             rationale=str(args.note),
         )
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         payload = _payload(
             "error",
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=f"review-decision persist failed: {exc}",
+            **REVIEW_DECISION_NEXT_ACTION.to_dict(),
         )
 
     status = str(payload.get("status") or "error").strip().lower()
     print(json.dumps(payload, ensure_ascii=True))
+    if not args.quiet:
+        next_action_line = render_next_action_line(payload)
+        if next_action_line:
+            print(next_action_line)
     if status == "ok":
         return 0
     return 2

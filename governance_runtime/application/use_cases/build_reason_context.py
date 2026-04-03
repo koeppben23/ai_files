@@ -242,7 +242,7 @@ def build_orchestrator_reason_payload(
                 recovery_steps=(),
                 context=reason_context,
             ).to_dict()
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError) as exc:
         failure_class, failure_detail = canonicalize_reason_payload_failure(exc)
         reason_payload = {
             "status": "BLOCKED",

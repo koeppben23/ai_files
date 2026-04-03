@@ -30,12 +30,12 @@ class TestFinalSweep:
         assert not found, f"Found forbidden root rail files: {found}"
 
     def test_opencode_commands_has_all_rails(self):
-        """R1: opencode/commands/ contains all 8 canonical rails."""
+        """R1: opencode/commands/ contains all 9 canonical rails."""
         commands_dir = REPO_ROOT / "opencode" / "commands"
         assert commands_dir.is_dir(), "opencode/commands/ must exist"
         md_files = list(commands_dir.glob("*.md"))
-        # Should have 8 rails (excluding __init__.py)
-        assert len(md_files) == 8, f"Expected 8 rails, found {len(md_files)}"
+        # Should have 9 rails (excluding __init__.py)
+        assert len(md_files) == 9, f"Expected 9 rails, found {len(md_files)}"
 
     def test_no_root_governance_directories(self):
         """Sweep: No governance directories at root level."""
@@ -44,11 +44,11 @@ class TestFinalSweep:
         assert not found, f"Found forbidden root directories: {found}"
 
     def test_final_command_structure(self):
-        """Sweep: opencode/commands/ has 8 Rails."""
+        """Sweep: opencode/commands/ has 9 Rails."""
         commands = REPO_ROOT / "opencode" / "commands"
         assert commands.is_dir(), "opencode/commands/ must exist"
         md_files = list(commands.glob("*.md"))
-        assert len(md_files) == 8, f"Expected 8 Rails, found {len(md_files)}"
+        assert len(md_files) == 9, f"Expected 9 Rails, found {len(md_files)}"
 
     def test_final_content_structure(self):
         """Sweep: governance_content/ has complete structure."""
@@ -77,9 +77,11 @@ class TestFinalSweep:
 
     def test_no_commands_logs_references(self):
         """Sweep: No active references to commands/logs/ as primary location."""
-        # This is documented as legacy - workspace logs only
-        # Just verify the conformance test exists
-        assert True
+        # commands/logs/ was removed in Wave 25b; verify it does not exist
+        commands_logs = REPO_ROOT / "commands" / "logs"
+        assert not commands_logs.exists(), (
+            f"commands/logs/ still exists at {commands_logs} — should be removed"
+        )
 
     def test_version_source_final(self):
         """Sweep: governance_runtime/VERSION is canonical."""

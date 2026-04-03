@@ -28,6 +28,6 @@ def read_plan_body(session_path: Path, json_loader: Callable[[Path], dict] | Non
                         body = latest.get("plan_record_text")
                         if isinstance(body, str) and body.strip():
                             return body.strip()
-    except Exception:
+    except (OSError, ValueError, KeyError, TypeError):
         pass
     return "none"

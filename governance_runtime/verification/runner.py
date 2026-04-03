@@ -19,6 +19,12 @@ from governance_runtime.verification.live_flow_verifier import run_live_flow_ver
 from governance_runtime.verification.pipeline import run_verifier_pipeline
 from governance_runtime.verification.static_verifier import run_static_verification
 
+try:
+    from governance_runtime.infrastructure.adapters.process.subprocess_runner import SubprocessRunner
+except ImportError:
+    # import fallback: use direct subprocess if SubprocessRunner unavailable
+    SubprocessRunner = None  # pragma: no cover
+
 
 def _load_verification_registry(repo_root: Path) -> dict[str, object]:
     path = repo_root / "governance_runtime" / "contracts" / "verification_registry.json"
@@ -30,6 +36,14 @@ def _load_verification_registry(repo_root: Path) -> dict[str, object]:
 
 def _run_pytest_node(python_bin: str, repo_root: Path, nodeid: str) -> bool:
     command = [python_bin, "-m", "pytest", "-q", nodeid]
+    
+    # Try SubprocessRunner first if available
+    if SubprocessRunner is not None:
+        runner = SubprocessRunner()
+        result = runner.run(command, cwd=repo_root)
+        return result.returncode == 0
+    
+    # Fallback to subprocess
     completed = subprocess.run(
         command,
         cwd=str(repo_root),
@@ -48,7 +62,7 @@ def _run_node(python_bin: str, repo_root: Path, nodeid: str) -> bool:
 def run_contract_verification(*, repo_root: Path, python_bin: str = sys.executable) -> dict[str, object]:
     try:
         loaded = load_and_validate_contracts(repo_root)
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         return {
             "status": "FAIL",
             "reason": "contract_load_failed",
@@ -62,7 +76,7 @@ def run_contract_verification(*, repo_root: Path, python_bin: str = sys.executab
         }
     try:
         registry = _load_verification_registry(repo_root)
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         return {
             "status": "FAIL",
             "reason": "verification_registry_load_failed",

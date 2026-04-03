@@ -1,6 +1,17 @@
+---
+description: Generate, self-review, and persist a structured implementation plan from the active ticket.
+---
+
 # Governance Plan
 
 <!-- rail-classification: MUTATING, GATE-EVALUATION -->
+
+## Context
+
+This command is part of a **locally installed governance extension** for OpenCode.
+It is not a native OpenCode core feature.  The governance runtime, its command
+rails, and all referenced files reside in the local OpenCode configuration
+directory as part of the project's governance setup.
 
 ## Purpose
 
@@ -63,9 +74,10 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 ## Response shape
 
-- report current `phase`, `next`, `active_gate`, and `next_gate_condition` after persist
-- if the persist command succeeded, confirm evidence was written and state was rerouted
-- if a blocker or warning is present, render it with concise evidence and one recovery action
+- report `phase`, `next`, `active_gate`, `next_gate_condition` after persist; confirm evidence written and state rerouted on success
+- emit final governance readout after successful persist — do not stop at raw JSON output; if blocker/warning present, render with evidence and one recovery action
+- when `plan_under_review_summary` is present, **you must** render a **Plan** section containing exactly that preview (max 6 lines, max 800 chars); never skip this section
+- **always** end with exactly one `Next action:` line as the final output line — no additional text after it
 
 ---
 

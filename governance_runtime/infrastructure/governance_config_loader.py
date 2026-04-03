@@ -400,7 +400,14 @@ def _validate_governance_config_schema(config: dict[str, object]) -> list[str]:
     if "pipeline_mode" in config and not isinstance(config["pipeline_mode"], bool):
         errors.append("pipeline_mode must be a boolean")
 
-    unknown_keys = set(config.keys()) - {"$schema", "review", "pipeline_mode"}
+    if "presentation" not in config:
+        errors.append("missing required section: presentation")
+    elif not isinstance(config["presentation"], dict):
+        errors.append("section 'presentation' must be an object")
+    else:
+        errors.extend(_validate_presentation_section(config["presentation"]))
+
+    unknown_keys = set(config.keys()) - {"$schema", "review", "pipeline_mode", "presentation"}
     if unknown_keys:
         errors.append(f"unknown top-level keys: {', '.join(sorted(unknown_keys))}")
 
@@ -423,6 +430,26 @@ def _validate_review_section(section_config: dict) -> list[str]:
             errors.append(f"review.{key} must be integer, got {type(value).__name__}")
         elif value < 1 or value > 100:
             errors.append(f"review.{key} must be between 1 and 100, got {value}")
+
+    return errors
+
+
+def _validate_presentation_section(section_config: dict) -> list[str]:
+    """Validate the presentation config section."""
+    errors: list[str] = []
+
+    if "mode" not in section_config:
+        errors.append("presentation: missing required key 'mode'")
+    elif not isinstance(section_config["mode"], str):
+        errors.append("presentation.mode must be a string")
+    elif section_config["mode"] not in {"narrative", "debug", "standard"}:
+        errors.append(
+            f"presentation.mode must be 'narrative' or 'debug' (legacy 'standard' alias allowed), got '{section_config['mode']}'"
+        )
+
+    unknown_keys = set(section_config.keys()) - {"mode"}
+    if unknown_keys:
+        errors.append(f"presentation: unknown keys: {', '.join(sorted(unknown_keys))}")
 
     return errors
 
@@ -471,6 +498,52 @@ def get_pipeline_mode(workspace_root: Path | None = None) -> bool:
     return bool(config.get("pipeline_mode", False))
 
 
+def get_presentation_mode(workspace_root: Path | None = None) -> str:
+    """Get presentation mode from governance config.
+
+    Returns canonical mode ('narrative' or 'debug').
+
+    Legacy compatibility:
+    - "standard" is accepted and normalized to "narrative".
+    """
+    if workspace_root is None:
+        from governance_runtime.domain.default_governance_config import get_default_presentation_config
+        defaults = get_default_presentation_config()
+        return defaults["mode"]
+
+    config = load_governance_config(workspace_root)
+    presentation = config.get("presentation", {})
+    mode = str(presentation.get("mode", "narrative") or "narrative").strip().lower()
+    if mode == "standard":
+        return "narrative"
+    if mode not in ("narrative", "debug"):
+        mode = "narrative"
+    return mode
+
+
+def resolve_presentation_mode(
+    cli_quiet: bool,
+    cli_debug: bool,
+    workspace_root: Path | None = None,
+) -> str:
+    """Resolve effective presentation mode from CLI overrides and config.
+
+    Priority order (highest to lowest):
+    1. --quiet (cli_quiet=True) -> "quiet"
+    2. --debug (cli_debug=True) -> "debug"
+    3. presentation.mode from config -> "narrative" | "debug" ("standard" alias -> "narrative")
+    4. Default -> "narrative"
+
+    Returns:
+        "quiet", "debug", or "narrative"
+    """
+    if cli_quiet:
+        return "quiet"
+    if cli_debug:
+        return "debug"
+    return get_presentation_mode(workspace_root)
+
+
 __all__ = [
     "schemas_dir",
     "config_dir",
@@ -490,5 +563,7 @@ __all__ = [
     "validate_governance_config",
     "get_review_iterations",
     "get_pipeline_mode",
+    "get_presentation_mode",
+    "resolve_presentation_mode",
     "clear_caches",
 ]

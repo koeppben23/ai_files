@@ -450,3 +450,106 @@ def phase2_artifact_paths(workspaces_home: Path, repo_fingerprint: str) -> dict[
         "repo_map_digest": repo_map_digest_path(workspaces_home, repo_fingerprint),
         "workspace_memory": workspace_memory_path(workspaces_home, repo_fingerprint),
     }
+
+
+def governance_plan_dir(workspaces_home: Path, repo_fingerprint: str | None = None) -> Path:
+    """Return canonical governance plan artifacts directory.
+
+    Path resolution logic:
+        - With repo_fingerprint: ${workspaces_home}/${fingerprint}/plan
+        - Without repo_fingerprint (legacy): ${workspaces_home}/plan
+
+    Args:
+        workspaces_home: Base workspaces directory (e.g., ~/.config/opencode/workspaces).
+        repo_fingerprint: Optional 24-hex fingerprint for workspace-scoped paths.
+
+    Returns:
+        Workspace-scoped path when fingerprint provided, otherwise legacy path.
+    """
+    if repo_fingerprint:
+        return workspace_root(workspaces_home, repo_fingerprint) / "plan"
+    return workspaces_home / "plan"
+
+
+def governance_review_dir(workspaces_home: Path, repo_fingerprint: str | None = None) -> Path:
+    """Return canonical governance review artifacts directory.
+
+    Path resolution logic:
+        - With repo_fingerprint: ${workspaces_home}/${fingerprint}/review
+        - Without repo_fingerprint (legacy): ${workspaces_home}/review
+
+    Args:
+        workspaces_home: Base workspaces directory (e.g., ~/.config/opencode/workspaces).
+        repo_fingerprint: Optional 24-hex fingerprint for workspace-scoped paths.
+
+    Returns:
+        Workspace-scoped path when fingerprint provided, otherwise legacy path.
+    """
+    if repo_fingerprint:
+        return workspace_root(workspaces_home, repo_fingerprint) / "review"
+    return workspaces_home / "review"
+
+
+def governance_runtime_state_dir(workspaces_home: Path, repo_fingerprint: str | None = None) -> Path:
+    """Return canonical governance runtime state directory.
+
+    Path resolution logic:
+        - With repo_fingerprint: ${workspaces_home}/${fingerprint}/runtime_state
+        - Without repo_fingerprint (legacy): ${workspaces_home}/runtime_state
+
+    Args:
+        workspaces_home: Base workspaces directory (e.g., ~/.config/opencode/workspaces).
+        repo_fingerprint: Optional 24-hex fingerprint for workspace-scoped paths.
+
+    Returns:
+        Workspace-scoped path when fingerprint provided, otherwise legacy path.
+    """
+    if repo_fingerprint:
+        return workspace_root(workspaces_home, repo_fingerprint) / "runtime_state"
+    return workspaces_home / "runtime_state"
+
+
+def governance_implementation_dir(workspaces_home: Path, repo_fingerprint: str | None = None) -> Path:
+    """Return canonical governance implementation artifacts directory.
+
+    Path resolution logic:
+        - With repo_fingerprint: ${workspaces_home}/${fingerprint}/implementation
+        - Without repo_fingerprint (legacy): ${workspaces_home}/implementation
+
+    Args:
+        workspaces_home: Base workspaces directory (e.g., ~/.config/opencode/workspaces).
+        repo_fingerprint: Optional 24-hex fingerprint for workspace-scoped paths.
+
+    Returns:
+        Workspace-scoped path when fingerprint provided, otherwise legacy path.
+    """
+    if repo_fingerprint:
+        return workspace_root(workspaces_home, repo_fingerprint) / "implementation"
+    return workspaces_home / "implementation"
+
+
+def governance_allowed_artifact_dirs(workspaces_home: Path, repo_fingerprint: str | None = None) -> tuple[Path, ...]:
+    """Return allowed governance directories for materialized artifacts.
+
+    Path resolution logic:
+        - With repo_fingerprint: All paths scoped under ${workspaces_home}/${fingerprint}/
+        - Without repo_fingerprint (legacy): All paths under ${workspaces_home}/
+
+    This function is used for security validation in governance_context_materializer
+    to ensure materialized artifacts are written to trusted locations only.
+
+    Args:
+        workspaces_home: Base workspaces directory (e.g., ~/.config/opencode/workspaces).
+        repo_fingerprint: Optional 24-hex fingerprint for workspace-scoped paths.
+
+    Returns:
+        Tuple of allowed directory paths for artifact validation.
+    """
+    root = workspace_root(workspaces_home, repo_fingerprint) if repo_fingerprint else workspaces_home
+    return (
+        root,
+        governance_runtime_state_dir(workspaces_home, repo_fingerprint),
+        governance_plan_dir(workspaces_home, repo_fingerprint),
+        governance_review_dir(workspaces_home, repo_fingerprint),
+        governance_implementation_dir(workspaces_home, repo_fingerprint),
+    )

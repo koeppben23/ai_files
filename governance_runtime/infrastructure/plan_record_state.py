@@ -55,7 +55,7 @@ def _signal_from_plan_record_file(plan_record_file: Path | None) -> PlanRecordSi
         return None
     try:
         payload = json.loads(plan_record_file.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return PlanRecordSignal(versions=0, status="error", source="workspace-file-error")
 
     if not isinstance(payload, Mapping):

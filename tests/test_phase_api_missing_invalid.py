@@ -10,16 +10,19 @@ from governance_runtime.application.use_cases.phase_router import route_phase
 def _write_binding(tmp_path: Path, *, write_phase_api: bool, phase_api_text: str = "", monkeypatch=None) -> tuple[Path, Path, Path]:
     home = tmp_path / "home"
     cfg = home / ".config" / "opencode"
+    local_root = home / ".local" / "share" / "opencode"
     commands_home = cfg / "commands"
     workspaces_home = cfg / "workspaces"
-    spec_home = cfg / "governance_spec"
+    spec_home = local_root / "governance_spec"
     commands_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
+    local_root.mkdir(parents=True, exist_ok=True)
     spec_home.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
+            "localRoot": str(local_root),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
             "specHome": str(spec_home),
@@ -59,9 +62,11 @@ def test_commands_phase_api_yaml_alone_is_not_authority(tmp_path: Path, monkeypa
     """
     home = tmp_path / "home"
     cfg = home / ".config" / "opencode"
+    local_root = home / ".local" / "share" / "opencode"
     commands_home = cfg / "commands"
-    spec_home = cfg / "governance_spec"
+    spec_home = local_root / "governance_spec"
     commands_home.mkdir(parents=True, exist_ok=True)
+    local_root.mkdir(parents=True, exist_ok=True)
     spec_home.mkdir(parents=True, exist_ok=True)
     # Write a VALID yaml to commands_home (should NOT be used)
     (commands_home / "phase_api.yaml").write_text(
@@ -73,6 +78,7 @@ def test_commands_phase_api_yaml_alone_is_not_authority(tmp_path: Path, monkeypa
         "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
+            "localRoot": str(local_root),
             "commandsHome": str(commands_home),
             "workspacesHome": str(cfg / "workspaces"),
             "specHome": str(spec_home),

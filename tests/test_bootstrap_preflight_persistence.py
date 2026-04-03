@@ -457,3 +457,52 @@ def test_hydrate_transition_state_detects_java_repo_type(tmp_path: Path):
 
     assert state["Scope"]["RepositoryType"] == "java"
     assert state["DetectionConfidence"] in {"medium", "high", "low"}
+
+
+@pytest.mark.governance
+def test_force_read_only_emits_json_diagnostic_before_exit(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    """OPENCODE_FORCE_READ_ONLY=1 must emit JSON with reason_code before SystemExit(2)."""
+    monkeypatch.setenv("OPENCODE_FORCE_READ_ONLY", "1")
+
+    from governance_runtime.entrypoints.bootstrap_preflight_readonly import main
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 2
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out.strip())
+    assert payload["status"] == "BLOCKED"
+    assert payload["reason_code"] == "BLOCKED-ENVIRONMENT-CONSTRAINT"
+    assert "OPENCODE_FORCE_READ_ONLY" in payload["detail"]
+
+
+@pytest.mark.governance
+def test_force_read_only_not_triggered_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    """When OPENCODE_FORCE_READ_ONLY is not set, main() must pass the guard."""
+    monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
+
+    from governance_runtime.entrypoints import bootstrap_preflight_readonly
+
+    # Mock emit_preflight — the first unconditional call after the guard.
+    # If it is reached, the guard did not fire.
+    sentinel = {"reached": False}
+
+    def mock_emit_preflight():
+        sentinel["reached"] = True
+        raise SystemExit(99)  # Short-circuit the rest of main()
+
+    monkeypatch.setattr(bootstrap_preflight_readonly, "emit_preflight", mock_emit_preflight)
+
+    with pytest.raises(SystemExit) as exc_info:
+        bootstrap_preflight_readonly.main()
+
+    assert exc_info.value.code == 99, "emit_preflight should have been reached"
+    assert sentinel["reached"] is True
+
+    captured = capsys.readouterr()
+    assert "BLOCKED-ENVIRONMENT-CONSTRAINT" not in captured.out

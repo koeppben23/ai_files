@@ -16,6 +16,7 @@ MANIFEST_NAME = "INSTALL_MANIFEST.json"
 CANONICAL_RAILS = [
     "audit-readout.md",
     "continue.md",
+    "hydrate.md",
     "implement.md",
     "implementation-decision.md",
     "plan.md",
@@ -1231,6 +1232,60 @@ class TestPythonBindingArtifact:
             f"pythonCommand contains backslash: {python_cmd}"
         )
 
+    def test_happy_opencode_port_cli_wires_launcher_and_opencode_json(self, tmp_path: Path) -> None:
+        """Happy: --opencode-port wires port into opencode.json but NOT launcher.
+
+        The launcher must NOT hardcode a default port because OpenCode Desktop
+        starts on random ports.  The resolution chain (SESSION_STATE > opencode.json
+        > OPENCODE_PORT > fail-closed) handles discovery via hydration.
+        """
+        config_root = tmp_path / "config-port"
+        result = run_install([
+            "--force",
+            "--no-backup",
+            "--config-root",
+            str(config_root),
+            "--opencode-port",
+            "5001",
+        ])
+        assert result.returncode == 0, f"Install failed:\n{result.stdout}\n{result.stderr}"
+
+        opencode_json = json.loads((config_root / "opencode.json").read_text(encoding="utf-8"))
+        assert opencode_json["server"]["port"] == 5001
+
+        unix_launcher = (config_root / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
+        win_launcher = (config_root / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
+        # Launcher must NOT hardcode any port default (Patch 23 — Root Cause B fix)
+        assert ":-5001}" not in unix_launcher, "Launcher must not hardcode port default"
+        assert ":-4096}" not in unix_launcher, "Launcher must not hardcode port default"
+        assert '"OPENCODE_PORT=5001"' not in win_launcher, "Windows launcher must not hardcode port"
+        assert '"OPENCODE_PORT=4096"' not in win_launcher, "Windows launcher must not hardcode port"
+
+    def test_corner_opencode_port_env_used_when_cli_missing(self, tmp_path: Path) -> None:
+        """Corner: installer uses OPENCODE_PORT env when --opencode-port is omitted."""
+        config_root = tmp_path / "config-port-env"
+        result = run_install(
+            ["--force", "--no-backup", "--config-root", str(config_root)],
+            env={"OPENCODE_PORT": "5102"},
+        )
+        assert result.returncode == 0, f"Install failed:\n{result.stdout}\n{result.stderr}"
+        opencode_json = json.loads((config_root / "opencode.json").read_text(encoding="utf-8"))
+        assert opencode_json["server"]["port"] == 5102
+
+    def test_bad_invalid_opencode_port_fails_closed(self, tmp_path: Path) -> None:
+        """Bad: invalid --opencode-port is rejected with non-zero exit code."""
+        config_root = tmp_path / "config-port-bad"
+        result = run_install([
+            "--force",
+            "--no-backup",
+            "--config-root",
+            str(config_root),
+            "--opencode-port",
+            "not-a-port",
+        ])
+        assert result.returncode == 2
+        assert "Invalid OpenCode port" in (result.stdout + result.stderr)
+
     def test_corner_binding_file_trailing_newline(self, tmp_path: Path) -> None:
         """Corner: PYTHON_BINDING file ends with newline for POSIX compliance."""
         import sys
@@ -1262,6 +1317,19 @@ class TestPythonBindingArtifact:
             config_root=tmp_path,
         )
         assert "where " not in content.lower(), "Launcher must not probe PATH with where"
+
+    def test_edge_generated_launchers_do_not_inject_timeout_wrappers(self, tmp_path: Path) -> None:
+        """Edge: launcher layer must not enforce timeout around --implement-start."""
+        config_root = tmp_path / "config"
+        r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+        assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
+        unix_content = (config_root / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
+        win_content = (config_root / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
+        for content in (unix_content, win_content):
+            lower = content.lower()
+            assert " timeout " not in lower
+            assert "gtimeout" not in lower
+            assert "start /wait" not in lower
 
     def test_bad_binding_file_consistency_with_paths_json(self, tmp_path: Path) -> None:
         """Bad path guard: PYTHON_BINDING and governance.paths.json pythonCommand must agree."""
@@ -1332,6 +1400,16 @@ class TestRepoLauncherContractDrift:
         assert "python -c \"import sys\"" not in win_content
         assert "py -3 -c \"import sys\"" not in win_content
         assert "%PYTHON%" not in win_content
+
+    def test_edge_repo_wrappers_do_not_wrap_implement_start_with_timeout(self) -> None:
+        """Edge: checked-in wrappers must not inject shell timeout semantics."""
+        unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
+        win_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
+        for content in (unix_content, win_content):
+            lower = content.lower()
+            assert " timeout " not in lower
+            assert "gtimeout" not in lower
+            assert "start /wait" not in lower
 
     def test_bad_repo_wrapper_no_direct_entrypoint_module_in_docs(self) -> None:
         """Bad-path detector: canonical rail docs must not expose module names."""

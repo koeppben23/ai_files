@@ -2,7 +2,7 @@ from __future__ import annotations
 
 try:
     from bootstrap.session_backfill import run_workspace_artifact_backfill  # type: ignore
-except Exception:
+except ImportError:  # pragma: no cover - fallback imports
     import json
     import os
     import subprocess
@@ -11,7 +11,7 @@ except Exception:
 
     try:
         from bootstrap.backfill_client import run_backfill_subprocess  # type: ignore
-    except Exception:
+    except ImportError:  # pragma: no cover - optional fallback
         run_backfill_subprocess = None
 
     def run_workspace_artifact_backfill(

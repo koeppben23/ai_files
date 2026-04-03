@@ -13,3 +13,4 @@ governance/governance_lint_report.json
  !husky.sh
 .opencode/
 rulesets/
+.governance/

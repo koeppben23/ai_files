@@ -52,7 +52,7 @@ class TestR16FinalClaimConformance:
     def test_command_surface_has_exact_rail_count(self) -> None:
         rails_dir = REPO_ROOT / "opencode" / "commands"
         rails = sorted(p.name for p in rails_dir.glob("*.md"))
-        assert len(rails) == 8, f"expected 8 rails, found {len(rails)}: {rails}"
+        assert len(rails) == 9, f"expected 9 rails, found {len(rails)}: {rails}"
 
     def test_install_layout_split_is_present_and_forbidden_command_targets_removed(self) -> None:
         installer = _read(REPO_ROOT / "governance_runtime" / "install" / "install.py")

@@ -479,6 +479,83 @@
       "remediation_hint": "Review plan-record.json against actual changes. Update plan or resolve deviations before Phase 6."
     },
     {
+      "code": "BLOCKED-GUARD-EVALUATION-FAILED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Guard evaluation failed at runtime - transition blocked due to transient evaluation error.",
+      "remediation_hint": "Review guard configuration in guards.yaml and ensure required state fields (inputs, bindings) are present and valid. Retry after fixing state."
+    },
+    {
+      "code": "BLOCKED-SERVER-TARGET-UNREACHABLE",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Target OpenCode server is not reachable at the configured hostname/port.",
+      "remediation_hint": "Start OpenCode Desktop or run: opencode serve --port <port> --hostname <hostname>"
+    },
+    {
+      "code": "BLOCKED-SERVER-TARGET-UNHEALTHY",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Target OpenCode server is reachable but returned unhealthy status.",
+      "remediation_hint": "Restart OpenCode Desktop or run: opencode serve --port <port> --hostname <hostname>"
+    },
+    {
+      "code": "BLOCKED-SERVER-START-FAILED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Failed to start OpenCode server automatically.",
+      "remediation_hint": "Start OpenCode Desktop manually or check opencode installation."
+    },
+    {
+      "code": "BLOCKED-SERVER-START-TIMEOUT",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "OpenCode server did not become healthy within startup timeout.",
+      "remediation_hint": "Check system resources or start OpenCode Desktop manually."
+    },
+    {
+      "code": "BLOCKED-SERVER-BINDING-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Server binding mismatch: server found on different port/hostname than configured.",
+      "remediation_hint": "Stop the existing server or update opencode.json to match the running instance."
+    },
+    {
+      "code": "BLOCKED-SERVER-DISCOVERY-NOT-FOUND",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "No healthy OpenCode server found on localhost during attach_existing discovery.",
+      "remediation_hint": "Start OpenCode Desktop or use --server-mode managed."
+    },
+    {
+      "code": "BLOCKED-SERVER-DISCOVERY-AMBIGUOUS",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Multiple healthy OpenCode servers found on localhost during attach_existing discovery.",
+      "remediation_hint": "Stop extra servers so only one is running, or use --server-mode managed with an explicit port."
+    },
+    {
+      "code": "BLOCKED-SERVER-AUTH-REQUIRED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "OpenCode server requires authentication but no credentials are configured.",
+      "remediation_hint": "Set OPENCODE_SERVER_PASSWORD (and optionally OPENCODE_SERVER_USERNAME) environment variables."
+    },
+    {
+      "code": "BLOCKED-SERVER-DISCOVERY-UNSUPPORTED-PLATFORM",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "attach_existing server discovery is not supported on this platform.",
+      "remediation_hint": "Use --server-mode managed on Windows, or run on macOS/Linux."
+    },
+    {
+      "code": "BLOCKED-ENVIRONMENT-CONSTRAINT",
+      "severity": "blocked",
+      "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "An environment-level constraint prevents the requested operation from proceeding.",
+      "remediation_hint": "Unset the blocking environment variable or run in a mode that permits the operation."
+    },
+    {
       "code": "BLOCKED-PIPELINE-INTERACTIVE",
       "severity": "blocked",
       "payload_schema_ref": "governance_runtime/assets/schemas/reason_payload_blocked_core.v1.json",

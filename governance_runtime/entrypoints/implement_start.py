@@ -15,13 +15,23 @@ import argparse
 import hashlib
 import json
 import os
-import shlex
-import shutil
+import re
 import subprocess
 import sys
 import uuid
+from functools import lru_cache
 from pathlib import Path
 from typing import Mapping
+
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except (ImportError, AttributeError):
+    GitCliClient = None
+
+try:
+    from governance_runtime.infrastructure.adapters.process.subprocess_runner import SubprocessRunner
+except (ImportError, AttributeError):
+    SubprocessRunner = None
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
@@ -31,6 +41,9 @@ from governance_runtime.contracts.enforcement import require_complete_contracts
 from governance_runtime.engine.implementation_validation import (
     CheckResult,
     ExecutorRunResult,
+    RC_CHECK_COLLECTION_FAILED,
+    RC_CHECK_RUNNER_FAILED,
+    RC_CHECK_SELECTOR_INVALID,
     RC_EXECUTOR_FAILED,
     RC_EXECUTOR_NOT_CONFIGURED,
     RC_TARGETED_CHECKS_MISSING,
@@ -43,6 +56,11 @@ from governance_runtime.engine.implementation_validation import (
 from governance_runtime.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance_runtime.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance_runtime.infrastructure.fs_atomic import atomic_write_text
+from governance_runtime.infrastructure.governance_context_materializer import (
+    GovernanceContextMaterializationError,
+    materialize_governance_artifacts,
+    validate_materialized_artifacts,
+)
 from governance_runtime.infrastructure.json_store import load_json as _load_json
 from governance_runtime.infrastructure.json_store import write_json_atomic as _write_json_atomic
 from governance_runtime.infrastructure.opencode_model_binding import (
@@ -55,8 +73,40 @@ from governance_runtime.infrastructure.governance_binding_resolver import (
 )
 from governance_runtime.infrastructure.governance_config_loader import get_pipeline_mode
 from governance_runtime.infrastructure.plan_record_state import resolve_plan_record_signal
+from governance_runtime.infrastructure.workspace_paths import governance_runtime_state_dir
 from governance_runtime.infrastructure.session_locator import resolve_active_session_paths
 from governance_runtime.infrastructure.time_utils import now_iso as _now_iso
+from governance_runtime.infrastructure.opencode_server_client import (
+    send_session_prompt,
+    extract_session_response,
+    ServerNotAvailableError,
+    is_server_required_mode,
+    resolve_opencode_server_base_url,
+)
+from governance_runtime.application.services.state_normalizer import normalize_to_canonical
+from governance_runtime.shared.next_action import NextAction, NextActions, render_next_action_line
+
+
+def _blocked_payload(
+    reason: str,
+    reason_code: str,
+    recovery_action: str,
+    *,
+    next_action: NextAction | None = None,
+    **extra: object,
+) -> dict[str, object]:
+    """Create a blocked payload with canonical Next Action fields."""
+    payload: dict[str, object] = {
+        "blocked": True,
+        "status": "blocked",
+        "reason": reason,
+        "reason_code": reason_code,
+        "recovery_action": recovery_action,
+    }
+    if next_action:
+        payload.update(next_action.to_dict())
+    payload.update(extra)
+    return payload
 
 
 def _resolve_active_session_path() -> tuple[Path, Path]:
@@ -72,13 +122,14 @@ BLOCKED_MANDATE_SCHEMA_UNAVAILABLE = "MANDATE-SCHEMA-UNAVAILABLE"
 _SCHEMA_PATH = Path(__file__).resolve().parents[2] / "governance_runtime" / "assets" / "schemas" / "governance_mandates.v1.schema.json"
 
 
+@lru_cache(maxsize=1)
 def _load_mandates_schema() -> dict[str, object] | None:
     """Load the compiled governance mandates schema (JSON). Returns None if unavailable."""
     if not _SCHEMA_PATH.exists():
         return None
     try:
         return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
 
@@ -153,7 +204,7 @@ def _load_effective_authoring_policy_text(
         BLOCKED_EFFECTIVE_POLICY_SCHEMA_INVALID,
     ):
         return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
-    except Exception:
+    except (OSError, ValueError, json.JSONDecodeError):
         return "", BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE
 
 
@@ -228,6 +279,7 @@ def _build_authoring_mandate_text(schema: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+@lru_cache(maxsize=1)
 def _get_developer_output_schema_text() -> str:
     """Extract developerOutputSchema from compiled mandates schema as JSON text."""
     schema = _load_mandates_schema()
@@ -237,7 +289,7 @@ def _get_developer_output_schema_text() -> str:
             for key in defs:
                 if key == "developerOutputSchema":
                     return json.dumps({"$schema": "https://json-schema.org/draft/2020-12/schema", **defs[key]}, indent=2)
-        except Exception:
+        except (ValueError, json.JSONDecodeError):
             pass
     return ""
 
@@ -254,7 +306,7 @@ def _append_event(path: Path, event: dict[str, object]) -> bool:
         path.parent.mkdir(parents=True, exist_ok=True)
         write_jsonl_event(path, event, append=True)
         return True
-    except Exception:
+    except OSError:
         return False
 
 
@@ -264,17 +316,35 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     return out
 
 
-def _latest_plan_text(plan_record_file: Path) -> str:
+def _latest_plan_text(plan_record_file: Path, state: Mapping[str, object] | None = None) -> str:
     if not plan_record_file.exists():
-        return ""
-    payload = _load_json(plan_record_file)
-    versions = payload.get("versions")
-    if not isinstance(versions, list) or not versions:
-        return ""
-    latest = versions[-1] if isinstance(versions[-1], dict) else {}
-    if not isinstance(latest, dict):
-        return ""
-    return str(latest.get("plan_record_text") or "").strip()
+        payload = {}
+    else:
+        payload = _load_json(plan_record_file)
+
+    versions = payload.get("versions") if isinstance(payload, Mapping) else None
+    if isinstance(versions, list) and versions:
+        latest = versions[-1] if isinstance(versions[-1], dict) else {}
+        if isinstance(latest, dict):
+            plan_text = str(latest.get("plan_record_text") or "").strip()
+            if plan_text:
+                return plan_text
+
+    canonical_state = normalize_to_canonical(dict(state or {}))
+    review_pkg = canonical_state.get("review_package")
+    if isinstance(review_pkg, Mapping):
+        plan_body = str(review_pkg.get("plan_body") or "").strip()
+        if plan_body:
+            return plan_body
+        approved_plan_summary = str(review_pkg.get("approved_plan_summary") or "").strip()
+        if approved_plan_summary:
+            return approved_plan_summary
+
+    plan_digest = str(canonical_state.get("phase5_plan_record_digest") or "").strip()
+    if plan_digest:
+        return plan_digest
+
+    return ""
 
 
 def _contracts_path(session_path: Path, state: Mapping[str, object]) -> Path:
@@ -292,8 +362,8 @@ def _load_compiled_requirements(session_path: Path, state: Mapping[str, object])
     if not path.exists() or not path.is_file():
         return []
     try:
-        payload = _load_json(path)
-    except Exception:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return []
     requirements = payload.get("requirements")
     if not isinstance(requirements, list):
@@ -303,6 +373,22 @@ def _load_compiled_requirements(session_path: Path, state: Mapping[str, object])
         if isinstance(item, dict):
             out.append(dict(item))
     return out
+
+
+def _load_compiled_requirements_source_authority(session_path: Path, state: Mapping[str, object]) -> str:
+    path = _contracts_path(session_path, state)
+    if not path.exists() or not path.is_file():
+        return ""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return ""
+    return str(payload.get("source_authority") or "").strip()
+
+
+def _allow_legacy_requirement_source() -> bool:
+    token = str(os.environ.get("GOVERNANCE_ALLOW_LEGACY_MARKDOWN_REQUIREMENTS") or "").strip().lower()
+    return token in {"1", "true", "yes", "on"}
 
 
 def _extract_hotspot_files(requirements: list[dict[str, object]]) -> list[str]:
@@ -339,7 +425,7 @@ def _repo_root(session_path: Path, state: Mapping[str, object]) -> Path:
             mapped_root = Path(str(payload.get("repoRoot") or "").strip())
             if mapped_root.is_absolute() and mapped_root.exists() and mapped_root.is_dir():
                 return mapped_root
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
     if session_path.parent.exists() and session_path.parent.is_dir():
@@ -354,6 +440,20 @@ def _repo_root(session_path: Path, state: Mapping[str, object]) -> Path:
 
 
 def _parse_changed_files_from_git_status(repo_root: Path) -> list[str]:
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        status_lines = git_client.status_porcelain(repo_root)
+        if status_lines:
+            changed_files = []
+            for raw in status_lines:
+                if len(raw) < 4:
+                    continue
+                changed_files.append(raw[3:].strip().replace("\\", "/"))
+            return sorted(set(changed_files))
+        return []
+    
+    # Fallback to subprocess
     try:
         probe = subprocess.run(
             ["git", "-C", str(repo_root), "status", "--porcelain"],
@@ -373,10 +473,214 @@ def _parse_changed_files_from_git_status(repo_root: Path) -> list[str]:
     return sorted(set(changed_files))
 
 
+def _capture_repo_change_baseline(repo_root: Path) -> dict[str, object]:
+    # Try GitCliClient first if available
+    if GitCliClient is not None:
+        git_client = GitCliClient()
+        status_lines = git_client.status_porcelain(repo_root)
+        if not status_lines:
+            return {
+                "repo_dirty_before": False,
+                "tracked_changes_before": [],
+                "untracked_before": [],
+            }
+        tracked: list[str] = []
+        untracked: list[str] = []
+        for raw in status_lines:
+            if len(raw) < 4:
+                continue
+            status = raw[:2]
+            path = raw[3:].strip().replace("\\", "/")
+            if not path:
+                continue
+            if status[0] in ("?", "A") or (status[0] == "A"):
+                untracked.append(path)
+            else:
+                tracked.append(path)
+        return {
+            "repo_dirty_before": bool(tracked or untracked),
+            "tracked_changes_before": sorted(tracked),
+            "untracked_before": sorted(untracked),
+        }
+    
+    # Fallback to subprocess
+    try:
+        probe = subprocess.run(
+            ["git", "-C", str(repo_root), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return {
+            "repo_dirty_before": False,
+            "tracked_changes_before": [],
+            "untracked_before": [],
+        }
+    if probe.returncode != 0:
+        return {
+            "repo_dirty_before": False,
+            "tracked_changes_before": [],
+            "untracked_before": [],
+        }
+    tracked: list[str] = []
+    untracked: list[str] = []
+    for raw in str(probe.stdout or "").splitlines():
+        if len(raw) < 4:
+            continue
+        status = raw[:2]
+        path = raw[3:].strip().replace("\\", "/")
+        if not path:
+            continue
+        if status == "??":
+            untracked.append(path)
+        else:
+            tracked.append(path)
+    tracked = sorted(set(tracked))
+    untracked = sorted(set(untracked))
+    return {
+        "repo_dirty_before": bool(tracked or untracked),
+        "tracked_changes_before": tracked,
+        "untracked_before": untracked,
+    }
+
+
+def _classify_check_failure_kind(exit_code: int | None, output: str) -> str | None:
+    code = int(exit_code or 0)
+    lower = str(output or "").lower()
+    if code == 0:
+        return None
+    if code == 4:
+        if "no tests ran" in lower or "not found" in lower or "collected 0 items" in lower:
+            return "selector_invalid"
+        return "collection_failed"
+    return "runner_failed"
+
+
+def _selector_target_exists(repo_root: Path, selector: str) -> bool:
+    token = str(selector or "").strip()
+    if not token:
+        return False
+    if token.startswith("-"):
+        return False
+    target = token.split("::", 1)[0].strip()
+    if not target:
+        return False
+    normalized = target.replace("\\", "/")
+    if normalized.startswith("../"):
+        return False
+    path = repo_root / normalized
+    return path.exists()
+
+
+def _derive_targeted_check_fallbacks(repo_root: Path, requirements: list[dict[str, object]]) -> list[str]:
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for requirement in requirements:
+        hotspots = requirement.get("code_hotspots")
+        if not isinstance(hotspots, list):
+            continue
+        for hotspot in hotspots:
+            rel = str(hotspot or "").strip().replace("\\", "/")
+            if not rel or rel.startswith("../"):
+                continue
+            stem = Path(rel).stem
+            if not stem:
+                continue
+            for candidate in (f"tests/test_{stem}.py", f"tests/{stem}_test.py"):
+                if candidate in seen:
+                    continue
+                if (repo_root / candidate).exists():
+                    seen.add(candidate)
+                    candidates.append(candidate)
+    if candidates:
+        return candidates
+    if (repo_root / "tests").exists():
+        return ["tests"]
+    return []
+
+
+def _parse_json_events_to_text(response_text: str) -> str:
+    """Parse OpenCode JSON events and extract assistant text response.
+
+    When --format json is used, opencode run returns NDJSON events.
+    We only accept 'text' type events as the assistant response payload.
+
+    Args:
+        response_text: Raw stdout from opencode run --format json
+
+    Returns:
+        Extracted text content from assistant response, or original text if parsing fails.
+    """
+    if not response_text.strip():
+        return response_text
+
+    try:
+        lines = response_text.strip().split("\n")
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("type") != "text":
+                continue
+            part = event.get("part", {})
+            text_content = part.get("text", "")
+            if text_content:
+                return text_content
+    except OSError:
+        pass
+
+    return response_text
+
+
+def _build_executor_env(*, bridge_mode: bool) -> dict[str, str] | None:
+    if not bridge_mode:
+        return None
+    env = dict(os.environ)
+    for key in (
+        "OPENCODE",
+        "OPENCODE_CLIENT",
+        "OPENCODE_PID",
+        "OPENCODE_SERVER_USERNAME",
+        "OPENCODE_SERVER_PASSWORD",
+    ):
+        env.pop(key, None)
+    return env
+
+
+def _resolve_active_opencode_session_id() -> str:
+    """Resolve OpenCode session ID - ONLY from environment, no fallback."""
+    from governance_runtime.infrastructure.opencode_server_client import APIError
+    session_id = str(os.environ.get("OPENCODE_SESSION_ID") or "").strip()
+    if not session_id:
+        raise APIError(
+            "OPENCODE_SESSION_ID environment variable is required for production LLM calls. "
+            "No heuristic fallback allowed. Set OPENCODE_SESSION_ID to a valid session ID."
+        )
+    return session_id
+
+
+def _bridge_timeout_seconds() -> int | None:
+    raw = str(os.environ.get("AI_GOVERNANCE_BRIDGE_TIMEOUT_SECONDS") or "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    if value <= 0:
+        return None
+    return max(30, min(value, 600))
+
+
 def _file_sha256(path: Path) -> str:
     try:
         data = path.read_bytes()
-    except Exception:
+    except OSError:
         return ""
     return hashlib.sha256(data).hexdigest()
 
@@ -397,55 +701,47 @@ def _has_active_desktop_llm_binding() -> bool:
     return _has_desktop_llm_binding()
 
 
-def _resolve_desktop_executor_bridge_cmd(*, repo_root: Path) -> str:
-    candidate_env = str(os.environ.get("OPENCODE_CLI_BIN") or "").strip()
-    candidate_paths: list[str] = []
-    if candidate_env:
-        candidate_paths.append(candidate_env)
-    candidate_paths.append("/Applications/OpenCode.app/Contents/MacOS/opencode-cli")
-    which_opencode = shutil.which("opencode")
-    if which_opencode:
-        candidate_paths.append(which_opencode)
-    which_opencode_cli = shutil.which("opencode-cli")
-    if which_opencode_cli:
-        candidate_paths.append(which_opencode_cli)
+def _invoke_llm_via_server(
+    prompt_text: str,
+    model_info: dict | None = None,
+    output_schema: dict | None = None,
+    required: bool = False,
+    retry: bool = True,
+) -> str:
+    """Invoke LLM via direct server API.
 
-    cli_bin = ""
-    for token in candidate_paths:
-        path = Path(token)
-        if path.exists() and os.access(str(path), os.X_OK):
-            cli_bin = str(path)
-            break
-    if not cli_bin:
-        return ""
+    This replaces subprocess("opencode run --session ...") with direct HTTP calls.
+    Session ID must be set via OPENCODE_SESSION_ID environment variable.
 
-    model_info = resolve_active_opencode_model()
-    model_token = ""
-    if isinstance(model_info, dict):
-        provider = str(model_info.get("provider") or "").strip()
-        model_id = str(model_info.get("model_id") or "").strip()
-        if provider and model_id:
-            model_token = f"{provider}/{model_id}"
+    Args:
+        prompt_text: The prompt to send
+        model_info: Optional model specification from resolve_active_opencode_model()
+        output_schema: Optional JSON schema for structured output
+        required: If True, fail-closed when server not available
+        retry: If True, retry on transient failures (default: True)
 
-    message = (
-        "Read the attached implementation context JSON and execute the approved plan by editing "
-        "domain repository files (not .governance). Return strict JSON only."
-    )
-    cmd_parts = [
-        shlex.quote(cli_bin),
-        "run",
-        "--continue",
-        "--agent",
-        "build",
-        "--dir",
-        shlex.quote(str(repo_root)),
-        "--file",
-        "{context_file}",
-    ]
-    if model_token:
-        cmd_parts.extend(["--model", shlex.quote(model_token)])
-    cmd_parts.append(shlex.quote(message))
-    return " ".join(cmd_parts)
+    Returns:
+        LLM response text
+
+    Raises:
+        ServerNotAvailableError: If server method fails
+        APIError: If OPENCODE_SESSION_ID is not set
+    """
+    try:
+        response = send_session_prompt(
+            text=prompt_text,
+            model=model_info,
+            output_schema=output_schema,
+            required=required,
+            retry=retry,
+            max_attempts=3,
+            backoff_ms=100,
+        )
+        return extract_session_response(response)
+    except ServerNotAvailableError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise ServerNotAvailableError(f"Server client failed: {exc}") from exc
 
 
 def _run_llm_edit_step(
@@ -457,6 +753,9 @@ def _run_llm_edit_step(
     plan_text: str,
     required_hotspots: list[str],
     commands_home: Path | None = None,
+    config_root: Path | None = None,
+    workspaces_home: Path | None = None,
+    repo_fingerprint: str | None = None,
     pipeline_mode: bool = False,
     execution_binding: str = "",
 ) -> dict[str, object]:
@@ -468,20 +767,35 @@ def _run_llm_edit_step(
     stdout_file = implementation_dir / "executor_stdout.log"
     stderr_file = implementation_dir / "executor_stderr.log"
 
+    resolved_workspaces_home = workspaces_home
+    resolved_repo_fingerprint = str(repo_fingerprint or "").strip()
+    if resolved_workspaces_home is None or not resolved_repo_fingerprint:
+        scope_root = config_root or (repo_root / ".governance")
+        resolved_workspaces_home = scope_root / "workspaces"
+        candidate = str(repo_root.name or "").strip()
+        if re.fullmatch(r"[0-9a-f]{24}", candidate):
+            resolved_repo_fingerprint = candidate
+        else:
+            resolved_repo_fingerprint = hashlib.sha256(str(repo_root).encode("utf-8")).hexdigest()[:24]
+
+    governance_root = resolved_workspaces_home
+    runtime_state_dir = governance_runtime_state_dir(resolved_workspaces_home, resolved_repo_fingerprint)
+    runtime_state_dir.mkdir(parents=True, exist_ok=True)
+
     mandate_text = ""
     schema = _load_mandates_schema()
     if schema:
         mandate_text = _build_authoring_mandate_text(schema)
     else:
-        return {
-            "blocked": True,
-            "reason": "mandate-schema-unavailable",
-            "reason_code": BLOCKED_MANDATE_SCHEMA_UNAVAILABLE,
-            "recovery_action": "Provide governance_mandates.v1.schema.json at the canonical runtime location.",
-            "binding_resolved": has_executor,
-            "invoke_backend_available": has_executor,
-            "message": "Required mandate schema governance_mandates.v1.schema.json is unavailable.",
-        }
+        return _blocked_payload(
+            reason="mandate-schema-unavailable",
+            reason_code=BLOCKED_MANDATE_SCHEMA_UNAVAILABLE,
+            recovery_action="Provide governance_mandates.v1.schema.json at the canonical runtime location.",
+            next_action=NextActions.IMPLEMENT_START,
+            binding_resolved=has_executor,
+            invoke_backend_available=has_executor,
+            message="Required mandate schema governance_mandates.v1.schema.json is unavailable.",
+        )
 
     effective_policy_text, effective_policy_error = "", ""
     if commands_home is not None:
@@ -493,14 +807,31 @@ def _run_llm_edit_step(
     # Direct mode: active chat binding is authoritative.
     # Pipeline mode: explicit execution binding is authoritative.
     if has_executor and effective_policy_error:
-        return {
-            "blocked": True,
-            "reason": "effective-policy-unavailable",
-            "reason_code": BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
-            "recovery_action": "Ensure rulebooks and addons are loadable and contain valid policy content.",
-            "binding_resolved": has_executor,
-            "invoke_backend_available": has_executor,
-        }
+        return _blocked_payload(
+            reason="effective-policy-unavailable",
+            reason_code=BLOCKED_EFFECTIVE_POLICY_UNAVAILABLE,
+            recovery_action="Ensure rulebooks and addons are loadable and contain valid policy content.",
+            next_action=NextActions.IMPLEMENT_START,
+            binding_resolved=has_executor,
+            invoke_backend_available=has_executor,
+        )
+
+    try:
+        materialization = materialize_governance_artifacts(
+            output_dir=runtime_state_dir,
+            config_root=governance_root,
+            plan_mandate=mandate_text if mandate_text else None,
+            effective_policy=effective_policy_text if effective_policy_text else None,
+        )
+    except GovernanceContextMaterializationError as e:
+        return _blocked_payload(
+            reason=f"governance-context-materialization-failed: {e.reason}",
+            reason_code=e.reason_code,
+            recovery_action="Failed to materialize governance artifacts.",
+            next_action=NextActions.IMPLEMENT_START,
+            binding_resolved=has_executor,
+            invoke_backend_available=has_executor,
+        )
 
     developer_schema_text = _get_developer_output_schema_text()
     structured_output_instruction = ""
@@ -528,23 +859,30 @@ def _run_llm_edit_step(
             "targeted_checks_required": True,
         },
     }
-    if mandate_text:
-        context["authoring_mandate"] = mandate_text
-    if effective_policy_text:
-        context["effective_authoring_policy"] = effective_policy_text
+    if materialization.plan_mandate_file:
+        context["authoring_mandate_file"] = str(materialization.plan_mandate_file)
+        context["authoring_mandate_sha256"] = materialization.plan_mandate_sha256
+        context["authoring_mandate_label"] = materialization.plan_mandate_label
+    if materialization.effective_policy_file:
+        context["effective_policy_file"] = str(materialization.effective_policy_file)
+        context["effective_policy_sha256"] = materialization.effective_policy_sha256
+        context["effective_policy_label"] = materialization.effective_policy_label
+    if materialization.has_materialized():
         context["effective_policy_loaded"] = True
     elif effective_policy_error:
         context["effective_policy_error"] = effective_policy_error
 
-    if mandate_text or effective_policy_text:
+    if materialization.has_materialized():
         instruction_parts = []
-        if mandate_text:
+        if materialization.plan_mandate_file:
             instruction_parts.append(
-                "Apply the authoring mandate below to implement approved plan steps."
+                f"Load the authoring mandate from file: {materialization.plan_mandate_file} "
+                f"(SHA256: {materialization.plan_mandate_sha256})"
             )
-        if effective_policy_text:
+        if materialization.effective_policy_file:
             instruction_parts.append(
-                "Apply the effective authoring policy below for active profile and addons."
+                f"Load the effective policy from file: {materialization.effective_policy_file} "
+                f"(SHA256: {materialization.effective_policy_sha256})"
             )
         instruction_parts.append(
             "Build only what can be justified by the plan, contracts, and repository evidence."
@@ -558,115 +896,215 @@ def _run_llm_edit_step(
             "Do not limit changes to .governance artifacts."
             + structured_output_instruction
         )
+    if materialization.has_materialized():
+        context["context_materialization_complete"] = True
     _write_text_atomic(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
+    try:
+        validate_materialized_artifacts(materialization)
+    except GovernanceContextMaterializationError as e:
+        return _blocked_payload(
+            reason=f"governance-context-validation-failed: {e.reason}",
+            reason_code=e.reason_code,
+            recovery_action="Materialized artifacts failed validation.",
+            next_action=NextActions.IMPLEMENT_START,
+            binding_resolved=has_executor,
+            invoke_backend_available=has_executor,
+        )
+
+    repo_baseline = _capture_repo_change_baseline(repo_root)
     before_changed = set(_parse_changed_files_from_git_status(repo_root))
     before_hotspot_hashes = _capture_hotspot_hashes(repo_root, required_hotspots)
 
+    use_server_client = False
     bridge_mode = False
-    if not executor_cmd:
-        if _has_active_desktop_llm_binding() and not pipeline_mode:
-            bridge_cmd = _resolve_desktop_executor_bridge_cmd(repo_root=repo_root)
-            if bridge_cmd:
-                executor_cmd = bridge_cmd
-                bridge_mode = True
-            else:
-                _write_text_atomic(stdout_file, "")
-                _write_text_atomic(
-                    stderr_file,
-                    (
-                        "Direct mode requires active chat binding and callable desktop bridge.\n"
-                    ),
+    server_required = is_server_required_mode()
+    server_error: str | None = None
+
+    if not executor_cmd and _has_active_desktop_llm_binding() and not pipeline_mode:
+        session_id = _resolve_active_opencode_session_id()
+        model_info = resolve_active_opencode_model()
+        model_dict = None
+        if model_info and isinstance(model_info, dict):
+            provider = model_info.get("provider", "")
+            model_id = model_info.get("model_id", "")
+            if provider and model_id:
+                model_dict = {"providerID": provider, "modelID": model_id}
+
+        if session_id:
+            try:
+                context_json = context_file.read_text(encoding="utf-8")
+                developer_schema_text = _get_developer_output_schema_text()
+                output_schema = json.loads(developer_schema_text) if developer_schema_text.strip() else None
+
+                instruction = (
+                    "Execute the approved plan by editing domain repository files (not .governance). "
+                    "Return strict JSON only with your response."
                 )
+                if output_schema:
+                    instruction += f"\n\nOutput schema:\n{json.dumps(output_schema, ensure_ascii=True)}"
+
+                prompt_text = instruction + "\n\nContext:\n" + context_json
+
+                response_text = _invoke_llm_via_server(
+                    prompt_text=prompt_text,
+                    model_info=model_dict,
+                    output_schema=output_schema,
+                    required=server_required,
+                )
+
+                _write_text_atomic(stdout_file, response_text)
+                server_url = ""
+                try:
+                    server_url = resolve_opencode_server_base_url()
+                except ServerNotAvailableError:
+                    pass
+                _write_text_atomic(stderr_file, f"[server_client] Implementation via direct HTTP (url: {server_url})")
+
+                response_valid = False
+                validation_violations: list[str] = []
+
+                if response_text and response_text.startswith("{"):
+                    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
+                    try:
+                        from llm_response_validator import (
+                            coerce_output_against_mandates_schema,
+                            validate_developer_response,
+                        )
+                        parsed = json.loads(response_text)
+                        normalized = coerce_output_against_mandates_schema(parsed, schema, "developerOutputSchema")
+                        if isinstance(normalized, dict):
+                            parsed = normalized
+                        validation = validate_developer_response(parsed, mandates_schema=schema)
+                        if validation.valid:
+                            response_valid = True
+                        else:
+                            validation_violations = validation.raw_violations
+                    except json.JSONDecodeError:
+                        validation_violations = ["response-not-structured-json"]
+                    except (OSError, IOError) as e:
+                        validation_violations = [f"response-read-error: {e}"]
+                elif not response_text:
+                    validation_violations = ["response-empty"]
+                else:
+                    validation_violations = ["response-not-structured-json"]
+
+                after_changed = set(_parse_changed_files_from_git_status(repo_root))
+                delta_changed = sorted(after_changed - before_changed)
+                after_hotspot_hashes = _capture_hotspot_hashes(repo_root, required_hotspots)
+                hotspot_changed = sorted(
+                    path
+                    for path in sorted(set(before_hotspot_hashes).union(after_hotspot_hashes))
+                    if before_hotspot_hashes.get(path, "") != after_hotspot_hashes.get(path, "")
+                )
+                changed_files = sorted(set(delta_changed).union(hotspot_changed))
+
+                impl_success = response_valid and bool(changed_files)
+                impl_message = ""
+                if response_valid and not changed_files:
+                    impl_message = "LLM response valid but no files changed"
+                elif not response_valid and changed_files:
+                    impl_message = "Files changed but LLM response invalid"
+
+                use_server_client = True
+
                 return {
-                    "executor_invoked": False,
-                    "exit_code": 2,
-                    "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
-                    "binding_resolved": True,
-                    "invoke_backend_available": False,
-                    "message": (
-                        "Direct mode binding resolved to active chat binding, but no callable desktop bridge is available in this shell process."
-                    ),
+                    "executor_invoked": True,
+                    "exit_code": 0 if impl_success else 1,
+                    "reason_code": RC_EXECUTOR_FAILED if not impl_success else "",
+                    "message": impl_message,
                     "stdout_path": str(stdout_file),
                     "stderr_path": str(stderr_file),
-                    "changed_files": [],
-                    "blocked": True,
+                    "changed_files": changed_files,
+                    "response_valid": response_valid,
+                    "validation_violations": validation_violations,
+                    "bridge_mode": False,
+                    "binding_resolved": True,
+                    "invoke_backend_available": True,
+                    "invoke_backend": "server_client",
+                    "invoke_backend_url": server_url,
+                    "repo_baseline": repo_baseline,
                 }
-        if not executor_cmd:
-            _write_text_atomic(stdout_file, "")
-            _write_text_atomic(stderr_file, "LLM executor command missing\n")
-            return {
-                "executor_invoked": False,
-                "exit_code": 2,
-                "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
-                "binding_resolved": False,
-                "invoke_backend_available": False,
-                "message": "No implementation execution binding available for active mode.",
-                "stdout_path": str(stdout_file),
-                "stderr_path": str(stderr_file),
-                "changed_files": [],
-                "blocked": True,
-            }
+            except ServerNotAvailableError as exc:
+                server_error = str(exc)
+                _write_text_atomic(stderr_file, f"[server_client] Failed: {server_error}")
+                if server_required:
+                    return {
+                        "executor_invoked": True,
+                        "exit_code": 1,
+                        "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
+                        "message": f"Server required but unavailable: {server_error}",
+                        "stdout_path": str(stdout_file),
+                        "stderr_path": str(stderr_file),
+                        "changed_files": [],
+                        "repo_baseline": repo_baseline,
+                        "blocked": True,
+                        "binding_resolved": True,
+                        "invoke_backend_available": False,
+                        "invoke_backend": "server_client",
+                        "invoke_backend_error": server_error,
+                        "recovery_action": "AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER=1 is set but OpenCode server is not available.",
+                    }
+            except (OSError, ValueError, RuntimeError) as exc:
+                server_error = str(exc)
+                _write_text_atomic(stderr_file, f"[server_client] Failed: {server_error}")
+                if server_required:
+                    return {
+                        "executor_invoked": True,
+                        "exit_code": 1,
+                        "reason_code": RC_EXECUTOR_FAILED,
+                        "message": f"Server required but failed: {server_error}",
+                        "stdout_path": str(stdout_file),
+                        "stderr_path": str(stderr_file),
+                        "changed_files": [],
+                        "repo_baseline": repo_baseline,
+                        "blocked": True,
+                        "binding_resolved": True,
+                        "invoke_backend_available": False,
+                        "invoke_backend": "server_client",
+                        "invoke_backend_error": server_error,
+                        "recovery_action": "AI_GOVERNANCE_REQUIRE_OPENCODE_SERVER=1 is set but server call failed.",
+                    }
 
-    final_cmd = executor_cmd
-    if "{context_file}" in final_cmd:
-        final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
+    if not use_server_client:
+        _write_text_atomic(stdout_file, "")
+        if server_error:
+            _write_text_atomic(stderr_file, f"[server_client] Failed: {server_error}")
+        next_action_dict = NextActions.IMPLEMENT_START.to_dict()
+        return {
+            "executor_invoked": True,
+            "exit_code": 1,
+            "reason_code": RC_EXECUTOR_FAILED,
+            "binding_resolved": True,
+            "invoke_backend_available": False,
+            "invoke_backend": "server_client",
+            "invoke_backend_error": server_error or "server-invocation-failed",
+            "message": "Implementation server invocation failed.",
+            "stdout_path": str(stdout_file),
+            "stderr_path": str(stderr_file),
+            "changed_files": [],
+            "repo_baseline": repo_baseline,
+            "blocked": True,
+            "recovery_action": "Ensure OpenCode server is available and rerun /implement.",
+            **next_action_dict,
+        }
 
-    result = subprocess.run(
-        final_cmd,
-        shell=True,
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    _write_text_atomic(stdout_file, str(result.stdout or ""))
-    _write_text_atomic(stderr_file, str(result.stderr or ""))
-
-    validation_violations: list[str] = []
-    response_valid = False
-    response_text = (result.stdout or "").strip()
-
-    if bridge_mode:
-        response_valid = True
-    elif response_text and response_text.startswith("{"):
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "governance_runtime" / "application" / "validators"))
-        try:
-            from llm_response_validator import validate_developer_response
-            parsed = json.loads(response_text)
-            validation = validate_developer_response(parsed, mandates_schema=schema)
-            if validation.valid:
-                response_valid = True
-            else:
-                validation_violations = validation.raw_violations
-        except Exception:
-            validation_violations = ["response-not-structured-json"]
-    else:
-        if response_text:
-            validation_violations = ["response-not-structured-json"]
-
-    after_changed = set(_parse_changed_files_from_git_status(repo_root))
-    delta_changed = sorted(after_changed - before_changed)
-    after_hotspot_hashes = _capture_hotspot_hashes(repo_root, required_hotspots)
-    hotspot_changed = sorted(
-        path
-        for path in sorted(set(before_hotspot_hashes).union(after_hotspot_hashes))
-        if before_hotspot_hashes.get(path, "") != after_hotspot_hashes.get(path, "")
-    )
-    changed_files = sorted(set(delta_changed).union(hotspot_changed))
     return {
         "executor_invoked": True,
-        "exit_code": int(result.returncode),
-        "reason_code": "" if result.returncode == 0 else RC_EXECUTOR_FAILED,
-        "message": "" if result.returncode == 0 else str(result.stderr or result.stdout or "").strip(),
+        "exit_code": 1,
+        "reason_code": RC_EXECUTOR_FAILED,
+        "binding_resolved": True,
+        "invoke_backend_available": False,
+        "invoke_backend": "server_client",
+        "invoke_backend_error": "unexpected-state-no-server-result",
+        "message": "Implementation server invocation returned no result.",
         "stdout_path": str(stdout_file),
         "stderr_path": str(stderr_file),
-        "changed_files": changed_files,
-        "response_valid": response_valid,
-        "validation_violations": validation_violations,
-        "bridge_mode": bridge_mode,
-        "binding_resolved": True,
-        "invoke_backend_available": True,
+        "changed_files": [],
+        "repo_baseline": repo_baseline,
+        "blocked": True,
+        "recovery_action": "Ensure OpenCode server is available and rerun /implement.",
+        **NextActions.IMPLEMENT_START.to_dict(),
     }
 
 
@@ -687,19 +1125,58 @@ def _run_targeted_checks(repo_root: Path, requirements: list[dict[str, object]])
     if not tests:
         return (), False
 
-    command = ["python3", "-m", "pytest", "-q", *tests]
-    result = subprocess.run(command, cwd=str(repo_root), capture_output=True, text=True, check=False)
+    valid_tests: list[str] = [token for token in tests if _selector_target_exists(repo_root, token)]
+    executed_tests = valid_tests
+    if not executed_tests:
+        executed_tests = _derive_targeted_check_fallbacks(repo_root, requirements)
+    if not executed_tests:
+        return (), False
+
+    command = ["python3", "-m", "pytest", "-q", *executed_tests]
+    
+    # Try SubprocessRunner first if available
+    if SubprocessRunner is not None:
+        runner = SubprocessRunner()
+        proc_result = runner.run(command, cwd=repo_root)
+        result_stdout = proc_result.stdout
+        result_stderr = proc_result.stderr
+        result_returncode = proc_result.returncode
+    else:
+        # Fallback to subprocess
+        result = subprocess.run(command, cwd=str(repo_root), capture_output=True, text=True, check=False)
+        result_stdout = result.stdout or ""
+        result_stderr = result.stderr or ""
+        result_returncode = result.returncode
+    
     output_file = repo_root / ".governance" / "implementation" / "targeted_checks.log"
-    output = (result.stdout or "") + ("\n" if result.stdout and result.stderr else "") + (result.stderr or "")
+    output = result_stdout + ("\n" if result_stdout and result_stderr else "") + result_stderr
+    if len(valid_tests) != len(tests):
+        ignored = sorted(set(tests) - set(valid_tests))
+        if ignored:
+            output = (
+                "[implement] ignored invalid acceptance test selectors:\n"
+                + "\n".join(ignored)
+                + "\n\n"
+                + output
+            )
+    if executed_tests != valid_tests and executed_tests:
+        output = (
+            "[implement] fallback targeted checks executed:\n"
+            + "\n".join(executed_tests)
+            + "\n\n"
+            + output
+        )
     _write_text_atomic(output_file, output)
+    failure_kind = _classify_check_failure_kind(result_returncode, output)
     check_results = tuple(
         CheckResult(
             name=test,
-            passed=result.returncode == 0,
-            exit_code=int(result.returncode),
+            passed=result_returncode == 0,
+            exit_code=int(result_returncode),
             output_path=str(output_file),
+            failure_kind=failure_kind,
         )
-        for test in tests
+        for test in executed_tests
     )
     return check_results, True
 
@@ -798,10 +1275,52 @@ def start_implementation(
 
     event_id = uuid.uuid4().hex
     ts = _now_iso()
+    phase_before = phase_text
+    gate_before = get_active_gate(state)
+    if events_path is not None:
+        _append_event(
+            events_path,
+            {
+                "schema": "opencode.rail-lifecycle.v1",
+                "ts_utc": ts,
+                "event_id": uuid.uuid4().hex,
+                "event": "RAIL_STARTED",
+                "rail": "implement",
+                "phase_before": phase_before,
+                "gate_before": gate_before,
+            },
+        )
     plan_record_file = session_path.parent / "plan-record.json"
-    plan_text = _latest_plan_text(plan_record_file)
+    plan_text = _latest_plan_text(plan_record_file, state=state)
+    canonical_state = normalize_to_canonical(state)
+    ticket_text = str(
+        canonical_state.get("ticket")
+        or state.get("Ticket")
+        or state.get("ticket")
+        or ""
+    ).strip()
+    task_text = str(
+        canonical_state.get("task")
+        or state.get("Task")
+        or state.get("task")
+        or ""
+    ).strip()
     repo_root = _repo_root(session_path, state)
     compiled_requirements = _load_compiled_requirements(session_path, state)
+    source_authority = _load_compiled_requirements_source_authority(session_path, state)
+    state["requirement_contracts_source_authority_observed"] = source_authority
+    allowed_sources = {"machine_requirements"}
+    if _allow_legacy_requirement_source():
+        allowed_sources.add("legacy_markdown_requirements")
+    if source_authority and source_authority not in allowed_sources:
+        return _payload(
+            "error",
+            reason_code="REQUIREMENT_SOURCE_INVALID",
+            message=(
+                "Compiled requirements source authority is invalid for /implement. "
+                f"observed={source_authority}, expected one of {sorted(allowed_sources)}"
+            ),
+        )
     required_hotspots = _extract_hotspot_files(compiled_requirements)
 
     resolver = BindingEvidenceResolver(env=os.environ)
@@ -810,14 +1329,18 @@ def start_implementation(
 
     # Resolve mode-scoped execution binding.
     workspace_dir = session_path.parent
+    workspaces_home: Path | None = None
+    active_repo_fingerprint: str | None = None
     pipeline_mode = False
     execution_binding = ""
     execution_binding_source = ""
     try:
-        resolved_session_path, _, _, resolved_workspace_dir = resolve_active_session_paths()
+        resolved_session_path, resolved_repo_fingerprint, resolved_workspaces_home, resolved_workspace_dir = resolve_active_session_paths()
         if resolved_session_path == session_path:
             workspace_dir = resolved_workspace_dir
-    except Exception:
+            workspaces_home = resolved_workspaces_home
+            active_repo_fingerprint = resolved_repo_fingerprint
+    except (OSError, RuntimeError):
         pass
 
     pipeline_mode = get_pipeline_mode(workspace_dir)
@@ -844,6 +1367,7 @@ def start_implementation(
         state["implementation_invoke_backend_available"] = False
         state["next"] = "6"
         state["active_gate"] = "Implementation Blocked"
+        state["status"] = "blocked"
         state["next_gate_condition"] = "Implementation binding resolution failed for active mode."
         _write_json_atomic(session_path, state_doc)
         if events_path is not None:
@@ -864,6 +1388,7 @@ def start_implementation(
                     "invoke_backend_available": False,
                 },
             )
+        next_action_dict = NextActions.IMPLEMENT_START.to_dict()
         return _payload(
             "blocked",
             reason_code=reason_code,
@@ -878,17 +1403,21 @@ def start_implementation(
             binding_source=execution_binding_source,
             binding_resolved=False,
             invoke_backend_available=False,
-            next_action="Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
+            recovery_action="Set AI_GOVERNANCE_EXECUTION_BINDING and AI_GOVERNANCE_REVIEW_BINDING and rerun /implement.",
+            **next_action_dict,
         )
 
     llm_result = _run_llm_edit_step(
         repo_root=repo_root,
         state=state,
-        ticket_text=str(state.get("Ticket") or ""),
-        task_text=str(state.get("Task") or ""),
+        ticket_text=ticket_text,
+        task_text=task_text,
         plan_text=plan_text,
         required_hotspots=required_hotspots,
         commands_home=commands_home,
+        config_root=evidence.config_root,
+        workspaces_home=workspaces_home,
+        repo_fingerprint=active_repo_fingerprint,
         pipeline_mode=pipeline_mode,
         execution_binding=execution_binding,
     )
@@ -913,6 +1442,7 @@ def start_implementation(
             state["implementation_binding_source"] = execution_binding_source
         state["next"] = "6"
         state["active_gate"] = "Implementation Blocked"
+        state["status"] = "blocked"
         if reason_code == RC_EXECUTOR_NOT_CONFIGURED:
             state["next_gate_condition"] = (
                 "Implementation executor unavailable in current process. "
@@ -941,6 +1471,39 @@ def start_implementation(
                     "invoke_backend_available": invoke_backend_available,
                 },
             )
+            _append_event(
+                events_path,
+                {
+                    "schema": "opencode.rail-lifecycle.v1",
+                    "ts_utc": ts,
+                    "event_id": uuid.uuid4().hex,
+                    "event": "RAIL_BLOCKED",
+                    "rail": "implement",
+                    "phase_before": phase_before,
+                    "gate_before": gate_before,
+                    "phase_after": "6-PostFlight",
+                    "gate_after": "Implementation Blocked",
+                    "primary_reason_code": reason_code,
+                    "secondary_reason_codes": [],
+                    "state_delta": {
+                        "status": "blocked",
+                        "active_gate": "Implementation Blocked",
+                    },
+                    "evidence_refs": [
+                        {
+                            "path": str(llm_result.get("stderr_path") or ""),
+                            "evidence_type": "executor_stderr",
+                            "content_role": "diagnostic",
+                        }
+                    ],
+                },
+            )
+        recovery_action = (
+            "Provide required governance bindings for active mode and rerun /implement."
+            if reason_code == RC_EXECUTOR_NOT_CONFIGURED
+            else "Resolve the precheck blocker and rerun /implement."
+        )
+        next_action_dict = NextActions.IMPLEMENT_START.to_dict()
         return _payload(
             "blocked",
             event_id=event_id,
@@ -968,11 +1531,9 @@ def start_implementation(
             binding_source=execution_binding_source,
             binding_resolved=binding_resolved,
             invoke_backend_available=invoke_backend_available,
-            next_action=(
-                "Provide required governance bindings for active mode and rerun /implement."
-                if reason_code == RC_EXECUTOR_NOT_CONFIGURED
-                else "Resolve the precheck blocker and rerun /implement."
-            ),
+            repo_baseline=llm_result.get("repo_baseline") if isinstance(llm_result, Mapping) else None,
+            recovery_action=recovery_action,
+            **next_action_dict,
         )
 
     validation_violations = llm_result.get("validation_violations") or []
@@ -1037,6 +1598,33 @@ def start_implementation(
         }
         if events_path is not None:
             _append_event(events_path, audit_event)
+            _append_event(
+                events_path,
+                {
+                    "schema": "opencode.rail-lifecycle.v1",
+                    "ts_utc": ts,
+                    "event_id": uuid.uuid4().hex,
+                    "event": "RAIL_BLOCKED",
+                    "rail": "implement",
+                    "phase_before": phase_before,
+                    "gate_before": gate_before,
+                    "phase_after": "6-PostFlight",
+                    "gate_after": "Implementation Blocked",
+                    "primary_reason_code": "LLM_RESPONSE_VALIDATION_FAILED",
+                    "secondary_reason_codes": list(validation_violations),
+                    "state_delta": {
+                        "status": "blocked",
+                        "active_gate": "Implementation Blocked",
+                    },
+                    "evidence_refs": [
+                        {
+                            "path": str(validation_report_path),
+                            "evidence_type": "implementation_validation_report",
+                            "content_role": "validation",
+                        }
+                    ],
+                },
+            )
         return _payload(
             "blocked",
             phase="6-PostFlight",
@@ -1054,6 +1642,7 @@ def start_implementation(
             binding_source=execution_binding_source,
             binding_resolved=bool(llm_result.get("binding_resolved", True)),
             invoke_backend_available=bool(llm_result.get("invoke_backend_available", True)),
+            repo_baseline=llm_result.get("repo_baseline") if isinstance(llm_result, Mapping) else None,
         )
 
     changed_files_raw = llm_result.get("changed_files")
@@ -1110,7 +1699,18 @@ def start_implementation(
     state["implementation_llm_step_executed"] = report.executor_invoked
     state["implementation_execution_status"] = "review_complete" if report.is_compliant else "blocked"
     state["implementation_status"] = "ready_for_review" if report.is_compliant else "blocked"
+    state["implementation_primary_reason_code"] = report.primary_reason_code
+    state["implementation_secondary_reason_codes"] = list(report.secondary_reason_codes)
     state["implementation_reason_codes"] = list(report.reason_codes)
+    baseline = llm_result.get("repo_baseline")
+    if isinstance(baseline, Mapping):
+        state["repo_dirty_before"] = bool(baseline.get("repo_dirty_before"))
+        tracked_before = baseline.get("tracked_changes_before")
+        untracked_before = baseline.get("untracked_before")
+        if isinstance(tracked_before, list):
+            state["tracked_changes_before"] = [str(x) for x in tracked_before]
+        if isinstance(untracked_before, list):
+            state["untracked_before"] = [str(x) for x in untracked_before]
     state["implementation_pipeline_mode"] = pipeline_mode
     state["implementation_binding_role"] = "execution"
     state["implementation_binding_resolved"] = bool(llm_result.get("binding_resolved", True))
@@ -1123,12 +1723,15 @@ def start_implementation(
 
     if report.is_compliant:
         state["active_gate"] = "Implementation Review Complete"
+        state["status"] = "OK"
         state["next_gate_condition"] = "Implementation validation passed. Run /continue."
     else:
         state["active_gate"] = "Implementation Blocked"
+        state["status"] = "blocked"
         reason_text = ", ".join(report.reason_codes) if report.reason_codes else RC_TARGETED_CHECKS_MISSING
         state["next_gate_condition"] = (
             "Implementation validation failed. "
+            f"primary_reason={report.primary_reason_code or RC_TARGETED_CHECKS_MISSING}; "
             f"reason_codes={reason_text}. Resolve blockers and rerun /implement."
         )
 
@@ -1144,6 +1747,8 @@ def start_implementation(
         "plan_record_versions": signal.versions,
         "actor": state["implementation_started_by"],
         "validation": to_report_payload(report),
+        "primary_reason_code": report.primary_reason_code,
+        "secondary_reason_codes": list(report.secondary_reason_codes),
         "pipeline_mode": pipeline_mode,
         "binding_role": "execution",
         "binding_source": execution_binding_source,
@@ -1152,7 +1757,48 @@ def start_implementation(
     }
     if events_path is not None:
         _append_event(events_path, audit_event)
+        _append_event(
+            events_path,
+            {
+                "schema": "opencode.rail-lifecycle.v1",
+                "ts_utc": ts,
+                "event_id": uuid.uuid4().hex,
+                "event": "RAIL_COMPLETED" if report.is_compliant else "RAIL_BLOCKED",
+                "rail": "implement",
+                "phase_before": phase_before,
+                "gate_before": gate_before,
+                "phase_after": "6-PostFlight",
+                "gate_after": str(state.get("active_gate") or ""),
+                "primary_reason_code": report.primary_reason_code,
+                "secondary_reason_codes": list(report.secondary_reason_codes),
+                "state_delta": {
+                    "status": str(state.get("status") or ""),
+                    "active_gate": str(state.get("active_gate") or ""),
+                    "implementation_status": str(state.get("implementation_status") or ""),
+                },
+                "evidence_refs": [
+                    {
+                        "path": str(report_path),
+                        "evidence_type": "implementation_validation_report",
+                        "content_role": "validation",
+                    },
+                    {
+                        "path": str(state.get("implementation_validation_report_path") or ""),
+                        "evidence_type": "implementation_validation_report",
+                        "content_role": "state_reference",
+                    },
+                ],
+            },
+        )
 
+    if report.is_compliant:
+        next_action_obj = NextActions.CONTINUE
+    else:
+        next_action_obj = NextAction(
+            code="IMPLEMENTATION_BLOCKED",
+            text="run configured LLM executor, produce domain diffs, satisfy plan coverage, and pass targeted checks.",
+            command="/implement",
+        )
     payload = _payload(
         "ok" if report.is_compliant else "blocked",
         event_id=event_id,
@@ -1171,20 +1817,15 @@ def start_implementation(
         binding_source=execution_binding_source,
         binding_resolved=bool(llm_result.get("binding_resolved", True)),
         invoke_backend_available=bool(llm_result.get("invoke_backend_available", True)),
-        next_action=(
-            "run /continue."
-            if report.is_compliant
-            else "run configured LLM executor, produce domain diffs, satisfy plan coverage, and pass targeted checks."
-        ),
+        repo_baseline=llm_result.get("repo_baseline") if isinstance(llm_result, Mapping) else None,
+        **next_action_obj.to_dict(),
     )
     if not report.is_compliant:
+        payload["primary_reason_code"] = report.primary_reason_code
+        payload["secondary_reason_codes"] = list(report.secondary_reason_codes)
         payload["reason_codes"] = list(report.reason_codes)
-        if RC_EXECUTOR_NOT_CONFIGURED in report.reason_codes:
-            payload["reason_code"] = RC_EXECUTOR_NOT_CONFIGURED
-        elif RC_EXECUTOR_FAILED in report.reason_codes:
-            payload["reason_code"] = RC_EXECUTOR_FAILED
-        else:
-            payload["reason_code"] = report.reason_codes[0] if report.reason_codes else "IMPLEMENTATION_VALIDATION_FAILED"
+        primary_reason = report.primary_reason_code or "IMPLEMENTATION_VALIDATION_FAILED"
+        payload["reason_code"] = primary_reason
     return payload
 
 
@@ -1203,7 +1844,7 @@ def main(argv: list[str] | None = None) -> int:
             actor=str(args.actor),
             note=str(args.note),
         )
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         payload = _payload(
             "error",
             reason_code=BLOCKED_IMPLEMENT_START_INVALID,
@@ -1212,6 +1853,10 @@ def main(argv: list[str] | None = None) -> int:
 
     status = str(payload.get("status") or "error").strip().lower()
     print(json.dumps(payload, ensure_ascii=True))
+    if not args.quiet:
+        next_action_line = render_next_action_line(payload)
+        if next_action_line:
+            print(next_action_line)
     if status == "ok":
         return 0
     return 2

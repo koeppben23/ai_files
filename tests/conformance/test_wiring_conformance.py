@@ -608,6 +608,8 @@ class TestNoRoguePaths:
         "LICENSE",
         "VERSION",
         # Configuration
+        "AGENTS.md",
+        "ARCHITECTURE_BASELINE.md",
         # Documentation
         "ADR.md",
         "CHANGELOG.md",

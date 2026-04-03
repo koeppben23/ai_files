@@ -10,8 +10,14 @@ import tempfile
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 from governance_runtime.contracts.enforcement import require_complete_contracts
+
+try:
+    from governance_runtime.infrastructure.adapters.git.git_cli import GitCliClient
+except ImportError:
+    GitCliClient = None
 
 
 REASON_REMOTE_UNAVAILABLE = "BLOCKED-REVIEW-REMOTE-UNAVAILABLE"
@@ -33,7 +39,99 @@ class ReviewResult:
     message: str
 
 
-def _run_git(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+def _get_git_client(cwd: Path) -> GitCliClient | None:
+    """Get GitCliClient instance for given working directory."""
+    if GitCliClient is None:
+        return None
+    return GitCliClient()
+
+
+def _remote_available(*, repo_root: Path, remote: str) -> bool:
+    """Check if remote is available."""
+    git_client = _get_git_client(repo_root)
+    if git_client:
+        result = git_client.ls_remote(remote, None, repo_root)
+        return len(result) > 0
+    
+    # Fallback to subprocess
+    result = subprocess.run(
+        ["git", "ls-remote", "--exit-code", remote],
+        cwd=str(repo_root),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _resolve_ref(*, repo_root: Path, ref: str) -> str:
+    """Resolve a git reference to its SHA."""
+    git_client = _get_git_client(repo_root)
+    if git_client:
+        result = git_client.rev_parse([ref], repo_root)
+        if result:
+            return result
+    
+    # Fallback to subprocess
+    result = subprocess.run(
+        ["git", "rev-parse", ref],
+        cwd=str(repo_root),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode != 0:
+        return ""
+    return result.stdout.strip()
+
+
+def _count_changed_files(*, repo_root: Path, base_sha: str, head_sha: str) -> int:
+    """Count number of changed files between two commits."""
+    git_client = _get_git_client(repo_root)
+    if git_client:
+        result = git_client.diff_name_only(base_sha, head_sha, repo_root)
+        return len(result)
+    
+    # Fallback to subprocess
+    result = subprocess.run(
+        ["git", "diff", "--name-only", f"{base_sha}...{head_sha}"],
+        cwd=str(repo_root),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode != 0:
+        return 0
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    return len(lines)
+
+
+def _get_merge_base(*, repo_root: Path, base_sha: str, head_sha: str) -> str:
+    """Get merge base between two commits."""
+    git_client = _get_git_client(repo_root)
+    if git_client:
+        result = git_client.merge_base(base_sha, head_sha, repo_root)
+        return result or ""
+    
+    # Fallback to subprocess
+    result = subprocess.run(
+        ["git", "merge-base", base_sha, head_sha],
+        cwd=str(repo_root),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode != 0:
+        return ""
+    return result.stdout.strip()
+
+
+def _run_git_command(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Fallback: Run raw git command via subprocess."""
     return subprocess.run(
         ["git", *args],
         cwd=str(cwd),
@@ -42,26 +140,6 @@ def _run_git(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
         stderr=subprocess.PIPE,
         check=False,
     )
-
-
-def _remote_available(*, repo_root: Path, remote: str) -> bool:
-    completed = _run_git(["ls-remote", "--exit-code", remote], cwd=repo_root)
-    return completed.returncode == 0
-
-
-def _resolve_ref(*, repo_root: Path, ref: str) -> str:
-    completed = _run_git(["rev-parse", ref], cwd=repo_root)
-    if completed.returncode != 0:
-        return ""
-    return completed.stdout.strip()
-
-
-def _count_changed_files(*, repo_root: Path, base_sha: str, head_sha: str) -> int:
-    completed = _run_git(["diff", "--name-only", f"{base_sha}...{head_sha}"], cwd=repo_root)
-    if completed.returncode != 0:
-        return 0
-    lines = [line for line in completed.stdout.splitlines() if line.strip()]
-    return len(lines)
 
 
 def _analyze_repo(*, repo_root: Path, base_ref: str, head_ref: str, mode: str) -> ReviewResult:
@@ -90,8 +168,8 @@ def _analyze_repo(*, repo_root: Path, base_ref: str, head_ref: str, mode: str) -
             message=f"head ref could not be resolved: {head_ref}",
         )
 
-    merge_base = _run_git(["merge-base", base_sha, head_sha], cwd=repo_root)
-    if merge_base.returncode != 0:
+    merge_base = _get_merge_base(repo_root=repo_root, base_sha=base_sha, head_sha=head_sha)
+    if not merge_base:
         return ReviewResult(
             status="blocked",
             mode=mode,
@@ -103,7 +181,7 @@ def _analyze_repo(*, repo_root: Path, base_ref: str, head_ref: str, mode: str) -
             message="merge-base could not be resolved",
         )
 
-    merge_base_sha = merge_base.stdout.strip()
+    merge_base_sha = merge_base
     files_changed = _count_changed_files(repo_root=repo_root, base_sha=base_sha, head_sha=head_sha)
     return ReviewResult(
         status="ok",
@@ -134,7 +212,7 @@ def analyze_pr(*, repo_root: Path, remote: str, base_branch: str, head_ref: str)
     remote_base = f"refs/remotes/{remote}/{base_branch}"
     if _remote_available(repo_root=repo_root, remote=remote):
         head_tracking = f"refs/remotes/{remote}/_review_head_{uuid.uuid4().hex[:8]}"
-        fetch = _run_git(
+        fetch = _run_git_command(
             [
                 "fetch",
                 "--prune",
@@ -159,7 +237,7 @@ def analyze_pr(*, repo_root: Path, remote: str, base_branch: str, head_ref: str)
 
     temp_dir = Path(tempfile.mkdtemp(prefix="governance-review-"))
     worktree_path = temp_dir / "worktree"
-    add = _run_git(["worktree", "add", "--detach", str(worktree_path), "HEAD"], cwd=repo_root)
+    add = _run_git_command(["worktree", "add", "--detach", str(worktree_path), "HEAD"], cwd=repo_root)
     if add.returncode != 0:
         shutil.rmtree(temp_dir, ignore_errors=True)
         return ReviewResult(
@@ -175,7 +253,7 @@ def analyze_pr(*, repo_root: Path, remote: str, base_branch: str, head_ref: str)
     try:
         local_base = f"refs/remotes/{remote}/{base_branch}"
         local_head = f"refs/remotes/{remote}/_review_head_fallback"
-        fetch = _run_git(
+        fetch = _run_git_command(
             ["fetch", "--prune", remote, f"+refs/heads/{base_branch}:{local_base}", f"+{head_ref}:{local_head}"],
             cwd=worktree_path,
         )
@@ -197,7 +275,7 @@ def analyze_pr(*, repo_root: Path, remote: str, base_branch: str, head_ref: str)
             mode="isolated-local",
         )
     finally:
-        _run_git(["worktree", "remove", "--force", str(worktree_path)], cwd=repo_root)
+        _run_git_command(["worktree", "remove", "--force", str(worktree_path)], cwd=repo_root)
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 

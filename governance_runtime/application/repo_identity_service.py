@@ -29,7 +29,7 @@ def canonicalize_origin_url(remote: str) -> str | None:
 
     try:
         parsed = urlsplit(raw)
-    except Exception:
+    except ValueError:
         return None
 
     if not parsed.scheme or not parsed.netloc:

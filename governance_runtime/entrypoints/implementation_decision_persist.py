@@ -46,7 +46,8 @@ def _append_event(path: Path, event: dict[str, object]) -> bool:
         path.parent.mkdir(parents=True, exist_ok=True)
         write_jsonl_event(path, event, append=True)
         return True
-    except Exception:
+    except OSError:
+        # fail-closed: best-effort write, return False on any error
         return False
 
 
